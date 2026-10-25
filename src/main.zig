@@ -1,0 +1,148 @@
+const std = @import("std");
+const c = @import("c.zig").c;
+const types = @import("types.zig");
+const core = @import("core.zig");
+const config = @import("config.zig");
+const layout = @import("layout.zig");
+const output = @import("output.zig");
+const client = @import("client.zig");
+const input = @import("input.zig");
+const ipc = @import("ipc.zig");
+
+const Server = types.Server;
+
+pub const version = "0.1.0";
+
+fn onSignal(sig: c_int, data: ?*anyopaque) callconv(.c) c_int {
+    _ = sig;
+    const server: *Server = @ptrCast(@alignCast(data.?));
+    core.logInfo("signal received, shutting down", .{});
+    c.wl_display_terminate(server.display);
+    return 0;
+}
+
+fn addSocket(server: *Server) ?[*:0]const u8 {
+    if (c.getenv("TESSA_SOCKET_NAME")) |name| {
+        if (c.wl_display_add_socket(server.display, name) == 0) return name;
+        core.logInfo("failed to add socket {s}", .{core.cstr(name)});
+        return null;
+    }
+    return c.wl_display_add_socket_auto(server.display);
+}
+
+pub fn main() !void {
+    _ = c.signal(c.SIGCHLD, c.SIG_IGN);
+    const debug = c.getenv("TESSA_DEBUG") != null;
+    c.wlr_log_init(if (debug) c.WLR_DEBUG else c.WLR_INFO, null);
+
+    const server = @as(*Server, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Server)).?)));
+    server.active_ws = 1;
+    server.next_client_id = 1;
+    server.ipc_fd = -1;
+    server.ipc_dirty = true;
+
+    config.load(server);
+
+    server.display = c.wl_display_create() orelse {
+        core.logInfo("failed to create wl_display", .{});
+        return error.DisplayCreateFailed;
+    };
+    defer c.wl_display_destroy(server.display);
+
+    server.backend = c.wlr_backend_autocreate(c.wl_display_get_event_loop(server.display), null) orelse {
+        core.logInfo("failed to create backend", .{});
+        return error.BackendCreateFailed;
+    };
+
+    server.renderer = c.wlr_renderer_autocreate(server.backend) orelse {
+        core.logInfo("failed to create renderer", .{});
+        return error.RendererCreateFailed;
+    };
+    _ = c.wlr_renderer_init_wl_display(server.renderer, server.display);
+
+    server.allocator = c.wlr_allocator_autocreate(server.backend, server.renderer) orelse {
+        core.logInfo("failed to create allocator", .{});
+        return error.AllocatorCreateFailed;
+    };
+
+    server.output_layout = c.wlr_output_layout_create(server.display);
+    server.scene = c.wlr_scene_create();
+    server.scene_layout = c.wlr_scene_attach_output_layout(server.scene, server.output_layout) orelse {
+        core.logInfo("failed to attach scene output layout", .{});
+        return error.SceneLayoutFailed;
+    };
+
+    server.tree_bg = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_bottom = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_windows = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_floating = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_top = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_fullscreen = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_overlay = c.wlr_scene_tree_create(&server.scene.tree);
+
+    _ = c.wlr_compositor_create(server.display, 5, server.renderer);
+    _ = c.wlr_subcompositor_create(server.display);
+    _ = c.wlr_data_device_manager_create(server.display);
+    _ = c.wlr_screencopy_manager_v1_create(server.display);
+    if (c.wlr_xdg_output_manager_v1_create(server.display, server.output_layout) == null) {
+        core.logInfo("failed to create xdg-output manager", .{});
+    }
+
+    server.xdg_shell = c.wlr_xdg_shell_create(server.display, 5) orelse {
+        core.logInfo("failed to create xdg-shell", .{});
+        return error.XdgShellFailed;
+    };
+    server.layer_shell = c.wlr_layer_shell_v1_create(server.display, 4) orelse {
+        core.logInfo("failed to create layer-shell", .{});
+        return error.LayerShellFailed;
+    };
+
+    input.init(server);
+    output.init(server);
+    client.init(server);
+    ipc.init(server);
+
+    const socket = addSocket(server) orelse {
+        core.logInfo("failed to add Wayland socket", .{});
+        return error.SocketFailed;
+    };
+    _ = c.setenv("WAYLAND_DISPLAY", socket, 1);
+    _ = c.setenv("XDG_SESSION_TYPE", "wayland", 1);
+    _ = c.setenv("XDG_SESSION_DESKTOP", "tessa", 1);
+    _ = c.setenv("XDG_CURRENT_DESKTOP", "Tessa", 1);
+
+    const loop = c.wl_display_get_event_loop(server.display);
+    server.sigint = c.wl_event_loop_add_signal(loop, c.SIGINT, onSignal, server);
+    server.sigterm = c.wl_event_loop_add_signal(loop, c.SIGTERM, onSignal, server);
+
+    if (!c.wlr_backend_start(server.backend)) {
+        core.logInfo("failed to start backend", .{});
+        return error.BackendStartFailed;
+    }
+
+    core.logInfo("tessa {s} running", .{version});
+    core.logInfo("  WAYLAND_DISPLAY={s}", .{std.mem.span(socket)});
+    core.logInfo("  terminal={s} gaps={d} border={d} ratio={d:.2}", .{
+        server.config.terminal[0..server.config.terminal_len],
+        server.config.gaps,
+        server.config.border_width,
+        server.config.master_ratio,
+    });
+
+    if (server.config.autostart_panel and c.getenv("TESSA_NO_PANEL") == null) {
+        const panel_bin: [*:0]const u8 = if (c.getenv("TESSA_PANEL_BIN")) |p| p else "tessa-panel";
+        core.logInfo("starting panel", .{});
+        core.spawnProgram(panel_bin);
+    }
+
+    if (c.getenv("TESSA_STARTUP")) |cmd| {
+        core.spawn(core.cstr(cmd));
+    }
+
+    core.markDirty(server);
+    c.wl_display_run(server.display);
+
+    core.logInfo("shutting down", .{});
+    ipc.deinit(server);
+    c.wl_display_destroy_clients(server.display);
+}

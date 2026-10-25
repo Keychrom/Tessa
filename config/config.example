@@ -1,0 +1,33 @@
+# Tessa configuration
+# Install this file as ~/.config/tessa/config.
+# Values are simple `key = value` lines. Lines starting with # are ignored.
+
+terminal = kitty
+gaps = 10
+outer_gaps = 16
+border_width = 2
+master_ratio = 0.58
+
+# master: classic master/stack
+# mosaic: spiral tessera layout (Super+T toggles at runtime)
+layout = master
+
+# Start tessa-panel together with the compositor.
+panel = true
+
+# The shell palette. Both the compositor borders and the panel use these.
+accent = #e2684f
+bg = #0a0f1a
+font = Inter
+
+# Additional or overriding key bindings.
+# XKB keysym names are used: Return, Tab, Left, Right, 1, h, ...
+# bind = SUPER+Return terminal
+# bind = SUPER+d launcher
+# bind = SUPER+t toggle-layout
+# bind = SUPER+1 workspace 1
+# bind = SUPER+SHIFT+1 move-to-workspace 1
+# bind = SUPER+h focus left
+# bind = SUPER+SHIFT+h move left
+# bind = SUPER+ctrl+h ratio -0.03
+# bind = SUPER+shift+e quit

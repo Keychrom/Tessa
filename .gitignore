@@ -1,0 +1,5 @@
+.zig-cache/
+zig-out/
+*.o
+*.swp
+.DS_Store

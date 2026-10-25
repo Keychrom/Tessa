@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Tessa
+Comment=A quiet tiled Wayland desktop
+Exec=tessa-session
+Type=Application
+DesktopNames=Tessa

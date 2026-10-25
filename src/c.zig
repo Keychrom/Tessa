@@ -1,0 +1,45 @@
+pub const c = @cImport({
+    @cDefine("WLR_USE_UNSTABLE", "1");
+    @cDefine("_GNU_SOURCE", "1");
+    // ReleaseSafe enables glibc fortify wrappers that translate-c cannot handle.
+    @cDefine("_FORTIFY_SOURCE", "0");
+
+    @cInclude("wayland-server-core.h");
+    @cInclude("wlr/backend.h");
+    @cInclude("wlr/backend/headless.h");
+    @cInclude("wlr/render/allocator.h");
+    @cInclude("wlr/render/wlr_renderer.h");
+    @cInclude("wlr/types/wlr_compositor.h");
+    @cInclude("wlr/types/wlr_subcompositor.h");
+    @cInclude("wlr/types/wlr_data_device.h");
+    @cInclude("wlr/types/wlr_input_device.h");
+    @cInclude("wlr/types/wlr_keyboard.h");
+    @cInclude("wlr/types/wlr_pointer.h");
+    @cInclude("wlr/types/wlr_output.h");
+    @cInclude("wlr/types/wlr_output_layout.h");
+    @cInclude("wlr/types/wlr_scene.h");
+    @cInclude("wlr/types/wlr_seat.h");
+    @cInclude("wlr/types/wlr_cursor.h");
+    @cInclude("wlr/types/wlr_xcursor_manager.h");
+    @cInclude("wlr/types/wlr_xdg_shell.h");
+    @cInclude("wlr/types/wlr_layer_shell_v1.h");
+    @cInclude("wlr/types/wlr_screencopy_v1.h");
+    @cInclude("wlr/types/wlr_xdg_output_v1.h");
+    @cInclude("wlr/util/log.h");
+    @cInclude("wlr/util/edges.h");
+
+    @cInclude("xkbcommon/xkbcommon.h");
+    @cInclude("fcntl.h");
+    @cInclude("signal.h");
+    @cInclude("stdio.h");
+    @cInclude("stdlib.h");
+    @cInclude("string.h");
+    @cInclude("sys/mman.h");
+    @cInclude("sys/poll.h");
+    @cInclude("sys/socket.h");
+    @cInclude("sys/stat.h");
+    @cInclude("sys/types.h");
+    @cInclude("sys/un.h");
+    @cInclude("time.h");
+    @cInclude("unistd.h");
+});
