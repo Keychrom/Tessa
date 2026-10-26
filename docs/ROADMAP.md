@@ -24,8 +24,8 @@ a daily Japanese desktop, then by polish.
 - [x] XWayland through `xwayland-satellite`, with automatic display selection,
       `DISPLAY` export, xdg-decoration, and a fallback keyboard for headless
       startup.
-- [ ] Layer-shell popup rendering (menus from third-party layer clients).
-- [ ] Keyboard layout/options in config (`XKB_DEFAULT_*` is used today).
+- [x] Layer-shell popup rendering (menus from third-party layer clients).
+- [x] Keyboard layout, variant, model, options, and repeat settings in config.
 - [ ] Touchpad gesture support (workspace swipe, launcher gesture).
 - [ ] Touch and tablet support.
 - [ ] Pointer constraints / relative pointer for games.
@@ -37,8 +37,9 @@ a daily Japanese desktop, then by polish.
 - [ ] Bars on every output; per-output active workspace.
 - [ ] Tray / StatusNotifier, media controls, battery, network, audio.
 - [ ] Calendar/clock popup.
-- [ ] Power menu and session lock (`ext-session-lock-v1`).
-- [ ] Idle inhibit and DPMS.
+- [ ] Power menu.
+- [x] Session lock (`ext-session-lock-v1`).
+- [x] Idle inhibit, idle notifications, and output-power management (external swayidle/wlopm).
 - [ ] Screenshot UI and `xdg-desktop-portal` integration; PipeWire screen
       sharing.
 - [ ] Notification daemon integration.

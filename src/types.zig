@@ -65,6 +65,18 @@ pub const Config = struct {
     xwayland: bool,
     xwayland_display: [32]u8,
     xwayland_display_len: usize,
+    kb_layout: [64]u8,
+    kb_layout_len: usize,
+    kb_variant: [64]u8,
+    kb_variant_len: usize,
+    kb_options: [128]u8,
+    kb_options_len: usize,
+    kb_model: [64]u8,
+    kb_model_len: usize,
+    kb_rules: [64]u8,
+    kb_rules_len: usize,
+    repeat_rate: i32,
+    repeat_delay: i32,
     accent: [16]u8,
     accent_len: usize,
     accent_rgb: [3]f32,
@@ -146,6 +158,15 @@ pub const LayerSurface = struct {
     commit: c.wl_listener,
     map: c.wl_listener,
     unmap: c.wl_listener,
+    new_popup: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+pub const LockSurface = struct {
+    server: *Server,
+    wlr: *c.wlr_session_lock_surface_v1,
+    output: *Output,
+    scene: *c.wlr_scene_surface,
     destroy: c.wl_listener,
 };
 
@@ -218,6 +239,7 @@ pub const Server = struct {
     tree_top: *c.wlr_scene_tree,
     tree_overlay: *c.wlr_scene_tree,
     tree_popup: *c.wlr_scene_tree,
+    tree_lock: *c.wlr_scene_tree,
 
     outputs: [MAX_OUTPUTS]?*Output,
     output_count: usize,
@@ -247,6 +269,24 @@ pub const Server = struct {
     focused_layer: ?*LayerSurface,
     last_focused: [WS_COUNT + 1]?*Client,
     next_client_id: u64,
+
+    session_lock_manager: ?*c.wlr_session_lock_manager_v1,
+    session_lock: ?*c.wlr_session_lock_v1,
+    locked: bool,
+    lock_saved_layer: ?*LayerSurface,
+    lock_surfaces: [MAX_OUTPUTS]?*LockSurface,
+    lock_surface_count: usize,
+    new_session_lock: c.wl_listener,
+    new_lock_surface: c.wl_listener,
+    lock_unlock: c.wl_listener,
+    lock_destroy: c.wl_listener,
+
+    idle_notifier: ?*c.wlr_idle_notifier_v1,
+    idle_inhibit_manager: ?*c.wlr_idle_inhibit_manager_v1,
+    idle_inhibitor_count: usize,
+    new_idle_inhibitor: c.wl_listener,
+    output_power_manager: ?*c.wlr_output_power_manager_v1,
+    output_power_set_mode: c.wl_listener,
 
     config: Config,
     ipc_fd: c_int,

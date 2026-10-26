@@ -127,6 +127,23 @@ The `STATE` output should list `XEyes` and `XClock` as normal windows. Use
 installs its own small keymap, so a physical keyboard is better for realistic
 text-entry tests.
 
+### Lock and idle test
+
+`ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
+output-power management are exposed by the compositor. Install clients to test
+them:
+
+```sh
+sudo apt install swaylock swayidle wlopm
+```
+
+Run `swaylock -f` inside the session (or press `Super+Escape`). The desktop
+should be completely replaced by the lock surface; a virtual keyboard created
+after locking must not type into it, and if the lock client is killed while
+locked Tessa should terminate instead of exposing the desktop. For idle
+testing, run `swayidle -w timeout 5 'swaylock -f'` and verify that activity
+postpones the lock, while a client holding `idle-inhibit-v1` prevents it.
+
 ## Debug logging
 
 ```sh
@@ -170,8 +187,8 @@ the front of `PATH`, so both binaries are found.
 ## Iteration tips
 
 - The panel reads its colors/font/terminal at startup. `Super+R` reloads the
-  compositor config and key bindings; restart the panel to apply shell palette
-  changes.
+  compositor config, keymaps, and key bindings; restart the panel to apply shell
+  palette changes.
 - `pkill -x tessa` and `pkill -x tessa-panel` are safer than `pkill -f tessa`
   when working over SSH: a `-f` pattern can match the SSH remote command line
   itself and kill the session.

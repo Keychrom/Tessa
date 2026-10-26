@@ -259,6 +259,15 @@ fn onLayerUnmap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void 
     core.markDirty(ls.server);
 }
 
+fn onLayerNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const ls: *LayerSurface = @fieldParentPtr("new_popup", listener.?);
+    const popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data.?));
+    const base: *c.wlr_xdg_surface = @ptrCast(@alignCast(popup.base));
+    const tree = lTree(ls.scene_layer);
+    base.data = @ptrCast(c.wlr_scene_xdg_surface_create(tree, base));
+    core.logInfo("layer popup created", .{});
+}
+
 fn onLayerDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const ls: *LayerSurface = @fieldParentPtr("destroy", listener.?);
@@ -268,10 +277,14 @@ fn onLayerDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wl_list_remove(&ls.commit.link);
     c.wl_list_remove(&ls.map.link);
     c.wl_list_remove(&ls.unmap.link);
+    c.wl_list_remove(&ls.new_popup.link);
     c.wl_list_remove(&ls.destroy.link);
 
     if (server.focused_layer == ls) {
         server.focused_layer = null;
+    }
+    if (server.lock_saved_layer == ls) {
+        server.lock_saved_layer = null;
     }
 
     if (core.layerIndexOf(server, ls)) |idx| {
@@ -322,6 +335,8 @@ fn onNewLayerSurface(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     c.wl_signal_add(&lSurface(wlr_ls).events.map, &ls.map);
     ls.unmap.notify = onLayerUnmap;
     c.wl_signal_add(&lSurface(wlr_ls).events.unmap, &ls.unmap);
+    ls.new_popup.notify = onLayerNewPopup;
+    c.wl_signal_add(&wlr_ls.events.new_popup, &ls.new_popup);
     ls.destroy.notify = onLayerDestroy;
     c.wl_signal_add(&wlr_ls.events.destroy, &ls.destroy);
 

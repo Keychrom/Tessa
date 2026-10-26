@@ -28,6 +28,12 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - マスター/スタックレイアウトと、Tessa 独自の「モザイク」スパイラル
   レイアウト（`Super+T`）
 - 9 ワークスペース、フローティング、フルスクリーン、クリックでフォーカス
+- サードパーティクライアントの layer-shell ポップアップ（パネルのメニューや
+  ドロップダウン）
+- `ext-session-lock-v1` によるセッションロック。`ext-idle-notify-v1`、
+  `idle-inhibit-v1`、出力電源管理にも対応し、swayidle や wlopm と連携可能
+- 設定ファイルでキーボードレイアウト/バリアント/オプションとキーリピートを
+  設定可能。`Super+R` で再読み込み
 - text-input-v3 + input-method-v2 による IME リレーと入力ポップアップの配置。
   Fcitx5 + Mozc でランチャーおよび Wayland クライアントへの日本語入力を
   headless 環境で確認済み
@@ -242,6 +248,37 @@ Tessa は Wayland ソケットの準備後に `xwayland-satellite` を起動し�
 X11 アプリケーションはスケール 1 で描画されます。フラクショナルスケーリング
 と XWayland の XSETTINGS 連携はまだ実装されていません。
 
+## ロックと idle
+
+Tessa は `ext-session-lock-v1`、`ext-idle-notify-v1`、`idle-inhibit-v1` を
+実装しています。ロッククライアントと idle デーモンは別のプログラムです:
+
+```sh
+sudo apt install swaylock swayidle
+```
+
+デフォルトでは `Super+Escape` が `swaylock` を起動します。別のロッカーを
+使う場合は `bind = SUPER+Escape spawn <command>` で変更してください。ロック中は
+通常のデスクトップのシーンツリーが隠れ、仮想キーボードからの入力は無視され、
+ロックサーフェスがキーボード/ポインタフォーカスを受け取ります。ロック
+クライアントがロック中に終了した場合、Tessa はデスクトップを露出させず
+セッションを終了します。
+
+`swayidle` と `wlopm` を組み合わせると、idle 時のロックと DPMS を自動化
+できます:
+
+```sh
+sudo apt install wlopm
+swayidle -w \
+  timeout 300 'swaylock -f' \
+  timeout 600 'wlopm --off "*"' \
+  resume 'wlopm --on "*"'
+```
+
+idle 通知と inhibitor は動作し、動画プレイヤーなどは `idle-inhibit-v1` で
+idle を抑制できます。Tessa は出力電源管理プロトコルも実装しているため、
+`wlopm` で出力をオフ/オンできます。
+
 ## キーバインド
 
 | バインド | 動作 |
@@ -258,6 +295,7 @@ X11 アプリケーションはスケール 1 で描画されます。フラク�
 | `Super+Shift+H/J/K/L` | その方向のウィンドウと入れ替え |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
+| `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウを巡回 |
 | `Super+Ctrl+H/L` | マスター領域の比率を縮小/拡大 |
 
@@ -298,6 +336,13 @@ cp config/config.example ~/.config/tessa/config
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
+| `kb_layout` | XKB レイアウト（例: `us`、`us,de`） |
+| `kb_variant` | XKB バリアント（任意） |
+| `kb_options` | XKB オプション（例: `grp:alt_shift_toggle`） |
+| `kb_model` | XKB モデル（任意） |
+| `kb_rules` | XKB ルールファイル（任意） |
+| `repeat_rate` | キーリピートの速度（回/秒） |
+| `repeat_delay` | キーリピート開始までの待ち時間（ミリ秒） |
 | `accent` | ボーダー、バー、ランチャーのアクセント色 |
 | `bg` | 壁紙のベース背景色 |
 | `font` | パネルの UI フォントファミリー |
@@ -375,9 +420,13 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   ポインタ操作と DRM モード設定は、物理環境でのテストが必要です。
 - **パネルは 1 枚のみ。** バーと壁紙は最初の出力に作成されます。複数出力でも
   ウィンドウはタイルされますが、アクティブワークスペースとバーは共有です。
-- **サードパーティの layer-shell ポップアップ非対応。** トップレベルの
-  xdg-popup と入力メソッドのポップアップは動きますが、layer サーフェスに
-  紐づくポップアップはまだシーングラフに入っていません。
+- **ロック画面の検証は基本的な範囲。** `ext-session-lock-v1` を実装し、
+  最小限のロッククライアントで確認していますが、実際の swaylock/PAM 環境は
+  物理セッションで追加検証が必要です。ロック中にロッククライアントが
+  消えた場合、Tessa は黙ってアンロックせずセッションを終了します。
+- **idle のタイミングは外部ツール任せ。** Tessa は idle 通知、inhibitor、
+  出力電源管理を提供します。自動ブランクやロックには `swayidle` / `wlopm`
+  などを別途起動してください。
 - **スケールは 1 固定。** HiDPI の出力スケールは設定できません。X11
   クライアントもスケーリングされません。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
@@ -385,10 +434,7 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。
 - **XWayland には `xwayland-satellite` が必要。** Tessa には同梱されません。
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
-- **ポータル、画面共有、ロック画面、idle-inhibit、ガンマ、出力設定 UI は
-  未実装。**
-- **セッションロックなし。** まだ hardened / secure なデスクトップとして
-  扱わないでください。
+- **ポータル、画面共有、ガンマ、出力設定 UI は未実装。**
 - layer-shell とキーボードフォーカスは wlroots 0.19 の unstable API を
   使っています。パッケージング時は wlroots のバージョンを固定してください。
 - ランチャーは `.desktop` ファイルを走査します。インストールされている

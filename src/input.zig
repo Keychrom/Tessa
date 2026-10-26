@@ -5,6 +5,8 @@ const core = @import("core.zig");
 const layout = @import("layout.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
+const lock = @import("lock.zig");
+const idle = @import("idle.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -66,6 +68,7 @@ pub fn init(server: *Server) void {
     }
 
     addSyntheticKeyboard(server);
+    idle.init(server);
 }
 
 // Headless sessions and XWayland need a seat keymap before the first physical
@@ -75,25 +78,61 @@ var synthetic_keyboard_impl = c.wlr_keyboard_impl{
     .led_update = null,
 };
 
+fn buildKeymap(server: *Server) ?*c.xkb_keymap {
+    const cfg = &server.config;
+    var names = std.mem.zeroes(c.xkb_rule_names);
+    var rules_buf: [65:0]u8 = undefined;
+    var model_buf: [65:0]u8 = undefined;
+    var layout_buf: [65:0]u8 = undefined;
+    var variant_buf: [65:0]u8 = undefined;
+    var options_buf: [129:0]u8 = undefined;
+
+    if (cfg.kb_rules_len > 0) {
+        core.copyZ(&rules_buf, cfg.kb_rules[0..cfg.kb_rules_len]);
+        names.rules = @ptrCast(&rules_buf);
+    }
+    if (cfg.kb_model_len > 0) {
+        core.copyZ(&model_buf, cfg.kb_model[0..cfg.kb_model_len]);
+        names.model = @ptrCast(&model_buf);
+    }
+    if (cfg.kb_layout_len > 0) {
+        core.copyZ(&layout_buf, cfg.kb_layout[0..cfg.kb_layout_len]);
+        names.layout = @ptrCast(&layout_buf);
+    }
+    if (cfg.kb_variant_len > 0) {
+        core.copyZ(&variant_buf, cfg.kb_variant[0..cfg.kb_variant_len]);
+        names.variant = @ptrCast(&variant_buf);
+    }
+    if (cfg.kb_options_len > 0) {
+        core.copyZ(&options_buf, cfg.kb_options[0..cfg.kb_options_len]);
+        names.options = @ptrCast(&options_buf);
+    }
+
+    const ctx = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS) orelse return null;
+    defer c.xkb_context_unref(ctx);
+    return c.xkb_keymap_new_from_names(ctx, &names, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
+}
+
+fn applyKeymap(server: *Server, wlr_kb: *c.wlr_keyboard) bool {
+    const keymap = buildKeymap(server) orelse {
+        core.logInfo("failed to compile keymap", .{});
+        return false;
+    };
+    defer c.xkb_keymap_unref(keymap);
+    if (!c.wlr_keyboard_set_keymap(wlr_kb, keymap)) {
+        core.logInfo("failed to set keymap", .{});
+        return false;
+    }
+    c.wlr_keyboard_set_repeat_info(wlr_kb, server.config.repeat_rate, server.config.repeat_delay);
+    return true;
+}
+
 fn addSyntheticKeyboard(server: *Server) void {
     const wlr_kb = @as(*c.wlr_keyboard, @ptrCast(@alignCast(c.calloc(1, @sizeOf(c.wlr_keyboard)).?)));
     c.wlr_keyboard_init(wlr_kb, &synthetic_keyboard_impl, "tessa-fallback");
     wlr_kb.data = null;
 
-    const ctx = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS) orelse {
-        c.free(wlr_kb);
-        return;
-    };
-    defer c.xkb_context_unref(ctx);
-    const keymap = c.xkb_keymap_new_from_names(ctx, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS) orelse {
-        core.logInfo("fallback keyboard: failed to compile keymap", .{});
-        c.wlr_keyboard_finish(wlr_kb);
-        c.free(wlr_kb);
-        return;
-    };
-    defer c.xkb_keymap_unref(keymap);
-    if (!c.wlr_keyboard_set_keymap(wlr_kb, keymap)) {
-        core.logInfo("fallback keyboard: failed to set keymap", .{});
+    if (!applyKeymap(server, wlr_kb)) {
         c.wlr_keyboard_finish(wlr_kb);
         c.free(wlr_kb);
         return;
@@ -125,19 +164,7 @@ fn addKeyboard(server: *Server, device: *c.wlr_input_device) void {
     const wlr_kb_raw = c.wlr_keyboard_from_input_device(device);
     const wlr_kb: *c.wlr_keyboard = @ptrCast(@alignCast(wlr_kb_raw));
 
-    const ctx = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS) orelse return;
-    defer c.xkb_context_unref(ctx);
-    const keymap = c.xkb_keymap_new_from_names(ctx, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS) orelse {
-        core.logInfo("failed to compile keymap", .{});
-        return;
-    };
-    defer c.xkb_keymap_unref(keymap);
-
-    if (!c.wlr_keyboard_set_keymap(wlr_kb, keymap)) {
-        core.logInfo("failed to set keymap", .{});
-        return;
-    }
-    c.wlr_keyboard_set_repeat_info(wlr_kb, 25, 600);
+    if (!applyKeymap(server, wlr_kb)) return;
 
     attachKeyboard(server, wlr_kb, device, null);
     core.logInfo("keyboard added: {s}", .{core.cstr(device.name)});
@@ -178,9 +205,27 @@ fn onNewVirtualKeyboard(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.
     core.logInfo("virtual keyboard added", .{});
 }
 
+pub fn reloadKeymaps(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.keyboards.len) : (i += 1) {
+        const kb = server.keyboards[i] orelse continue;
+        if (kb.virtual_keyboard != null) continue;
+        _ = applyKeymap(server, kb.wlr);
+    }
+    layout.refreshKeyboardFocus(server);
+    core.logInfo("keymaps reloaded", .{});
+}
+
 fn onKeyboardModifiers(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const kb: *Keyboard = @fieldParentPtr("modifiers", listener.?);
+    idle.notifyActivity(kb.server);
+    if (kb.server.locked) {
+        if (kb.virtual_keyboard != null) return;
+        c.wlr_seat_set_keyboard(kb.server.seat, kb.wlr);
+        c.wlr_seat_keyboard_notify_modifiers(kb.server.seat, &kb.wlr.modifiers);
+        return;
+    }
     if (ime.forwardModifiersToGrab(kb.server, kb)) return;
     c.wlr_seat_set_keyboard(kb.server.seat, kb.wlr);
     c.wlr_seat_keyboard_notify_modifiers(kb.server.seat, &kb.wlr.modifiers);
@@ -267,6 +312,7 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .reload => {
             const cfg = @import("config.zig");
             cfg.load(server);
+            reloadKeymaps(server);
             layout.arrangeAll(server);
             core.markDirty(server);
             core.logInfo("config reloaded", .{});
@@ -297,6 +343,14 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const kb: *Keyboard = @fieldParentPtr("key", listener.?);
     const server = kb.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
+    idle.notifyActivity(server);
+
+    if (server.locked) {
+        if (kb.virtual_keyboard != null) return;
+        c.wlr_seat_set_keyboard(server.seat, kb.wlr);
+        c.wlr_seat_keyboard_notify_key(server.seat, event.time_msec, event.keycode, event.state);
+        return;
+    }
 
     if (ime.forwardKeyToGrab(server, kb, event)) return;
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED and server.focused_layer != null) {
@@ -361,6 +415,9 @@ fn nodeClientAt(server: *Server, lx: f64, ly: f64) ?*Client {
 }
 
 fn processMotion(server: *Server, time_msec: u32) void {
+    if (server.locked) {
+        lock.focusForPosition(server, server.cursor.x, server.cursor.y);
+    }
     if (server.cursor_mode == .move) {
         layout.updateInteractiveMove(server);
         return;
@@ -386,6 +443,7 @@ fn onCursorMotion(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const server: *Server = @fieldParentPtr("cursor_motion", listener.?);
     const event: *c.wlr_pointer_motion_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = @ptrCast(@alignCast(event.pointer));
+    idle.notifyActivity(server);
     c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
     processMotion(server, event.time_msec);
 }
@@ -394,6 +452,7 @@ fn onCursorMotionAbsolute(listener: ?*c.wl_listener, data: ?*anyopaque) callconv
     const server: *Server = @fieldParentPtr("cursor_motion_absolute", listener.?);
     const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = @ptrCast(@alignCast(event.pointer));
+    idle.notifyActivity(server);
     c.wlr_cursor_warp_absolute(server.cursor, &pointer.base, event.x, event.y);
     processMotion(server, event.time_msec);
 }
@@ -401,6 +460,7 @@ fn onCursorMotionAbsolute(listener: ?*c.wl_listener, data: ?*anyopaque) callconv
 fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *Server = @fieldParentPtr("cursor_button", listener.?);
     const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data.?));
+    idle.notifyActivity(server);
 
     if (event.state == c.WL_POINTER_BUTTON_STATE_RELEASED) {
         const swallowed = server.cursor_mode != .passthrough and server.grab_swallowed;
@@ -409,6 +469,11 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         }
         layout.resetInteractive(server);
         server.grab_swallowed = false;
+        return;
+    }
+
+    if (server.locked) {
+        _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
         return;
     }
 
@@ -456,6 +521,7 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 fn onCursorAxis(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *Server = @fieldParentPtr("cursor_axis", listener.?);
     const event: *c.wlr_pointer_axis_event = @ptrCast(@alignCast(data.?));
+    idle.notifyActivity(server);
     c.wlr_seat_pointer_notify_axis(
         server.seat,
         event.time_msec,

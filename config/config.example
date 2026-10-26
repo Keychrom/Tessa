@@ -20,6 +20,17 @@ panel = true
 xwayland = true
 xwayland_display = auto
 
+# XKB keyboard layout. Empty values use the environment defaults.
+# Example: kb_layout = us,de
+#          kb_options = grp:alt_shift_toggle
+kb_layout =
+kb_variant =
+kb_options =
+kb_model =
+kb_rules =
+repeat_rate = 25
+repeat_delay = 600
+
 # The shell palette. Both the compositor borders and the panel use these.
 accent = #e2684f
 bg = #0a0f1a

@@ -130,6 +130,24 @@ printf 'STATE\n' \
 wtype は独自の小さなキーマップをインストールするため、実際の文字入力の
 テストには物理キーボードの方が適しています。
 
+### ロックと idle のテスト
+
+コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、
+`idle-inhibit-v1`、出力電源管理を公開します。テスト用クライアントを
+インストールします:
+
+```sh
+sudo apt install swaylock swayidle wlopm
+```
+
+セッション内で `swaylock -f` を実行するか、`Super+Escape` を押します。
+デスクトップ全体がロックサーフェスに置き換わり、ロック後に作成した仮想
+キーボードからは入力できないことを確認してください。ロック中にロック
+クライアントを kill した場合、Tessa はデスクトップを露出せず終了する
+必要があります。idle は `swayidle -w timeout 5 'swaylock -f'` で確認でき、
+操作でロックが延期されること、`idle-inhibit-v1` を持つクライアントが
+ある間はロックされないことを確認します。
+
 ## デバッグログ
 
 ```sh

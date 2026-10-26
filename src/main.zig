@@ -9,6 +9,7 @@ const client = @import("client.zig");
 const input = @import("input.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
+const lock = @import("lock.zig");
 
 const Server = types.Server;
 
@@ -36,8 +37,8 @@ fn displaySocketExists(n: u8) bool {
     const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return true;
     if (c.access(path, c.F_OK) == 0) return true;
     var lock_buf: [64:0]u8 = undefined;
-    const lock = std.fmt.bufPrintZ(&lock_buf, "/tmp/.X{d}-lock", .{n}) catch return true;
-    return c.access(lock, c.F_OK) == 0;
+    const lock_path = std.fmt.bufPrintZ(&lock_buf, "/tmp/.X{d}-lock", .{n}) catch return true;
+    return c.access(lock_path, c.F_OK) == 0;
 }
 
 fn startXwayland(server: *Server) void {
@@ -149,6 +150,7 @@ pub fn main() !void {
     output.init(server);
     client.init(server);
     ime.init(server);
+    lock.init(server);
     ipc.init(server);
 
     const socket = addSocket(server) orelse {

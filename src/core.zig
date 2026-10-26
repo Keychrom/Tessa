@@ -154,6 +154,16 @@ pub fn popupIndex(server: *Server, popup: *types.ImPopup) ?usize {
     return null;
 }
 
+pub fn lockSurfaceIndex(server: *Server, ls: *types.LockSurface) ?usize {
+    var i: usize = 0;
+    while (i < server.lock_surfaces.len) : (i += 1) {
+        if (server.lock_surfaces[i]) |s| {
+            if (s == ls) return i;
+        }
+    }
+    return null;
+}
+
 pub fn layerIndexOf(server: *Server, layer: *types.LayerSurface) ?usize {
     var i: usize = 0;
     while (i < server.layers.len) : (i += 1) {

@@ -368,8 +368,20 @@ fn onPopupDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.free(popup);
 }
 
+fn layerSurfaceTree(server: *Server, surface: *c.wlr_surface) ?*c.wlr_scene_tree {
+    var i: usize = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        const layer_surface: *c.wlr_surface = @ptrCast(@alignCast(layer.wlr.surface));
+        if (layer_surface == surface) {
+            return @ptrCast(@alignCast(layer.scene_layer.tree));
+        }
+    }
+    return null;
+}
+
 fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
-    _ = listener;
+    const server: *Server = @fieldParentPtr("new_xdg_popup", listener.?);
     const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data.?));
 
     const popup = @as(*Popup, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Popup)).?)));
@@ -380,12 +392,20 @@ fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     popup.destroy.notify = onPopupDestroy;
     c.wl_signal_add(&xdg_popup.events.destroy, &popup.destroy);
 
-    const parent = c.wlr_xdg_surface_try_from_wlr_surface(@ptrCast(@alignCast(xdg_popup.parent)));
+    if (xdg_popup.parent == null) return;
+    const parent_surface: *c.wlr_surface = @ptrCast(@alignCast(xdg_popup.parent));
+    var parent_tree: ?*c.wlr_scene_tree = null;
+    const parent = c.wlr_xdg_surface_try_from_wlr_surface(parent_surface);
     if (parent) |p| {
-        const parent_surface: *c.wlr_xdg_surface = @ptrCast(@alignCast(p));
-        if (parent_surface.data) |raw| {
-            const parent_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(raw));
-            pBase(xdg_popup).data = @ptrCast(c.wlr_scene_xdg_surface_create(parent_tree, pBase(xdg_popup)));
+        const parent_xdg: *c.wlr_xdg_surface = @ptrCast(@alignCast(p));
+        if (parent_xdg.data) |raw| {
+            parent_tree = @ptrCast(@alignCast(raw));
         }
+    } else {
+        parent_tree = layerSurfaceTree(server, parent_surface);
+    }
+
+    if (parent_tree) |tree| {
+        pBase(xdg_popup).data = @ptrCast(c.wlr_scene_xdg_surface_create(tree, pBase(xdg_popup)));
     }
 }

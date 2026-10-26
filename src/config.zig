@@ -24,6 +24,8 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.autostart_panel = true;
     cfg.xwayland = true;
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
+    cfg.repeat_rate = 25;
+    cfg.repeat_delay = 600;
     core.parseHexColor(cfg.accent[0..cfg.accent_len], &cfg.accent_rgb);
 
     addDefaults(cfg);
@@ -42,6 +44,7 @@ fn addDefaults(cfg: *Config) void {
     addBinding(cfg, "super+t", "toggle-layout", "");
     addBinding(cfg, "super+space", "toggle-float", "");
     addBinding(cfg, "super+f", "toggle-fullscreen", "");
+    addBinding(cfg, "super+escape", "spawn", "swaylock");
     addBinding(cfg, "super+tab", "focus-next", "");
     addBinding(cfg, "super+shift+tab", "focus-prev", "");
     addBinding(cfg, "super+h", "focus", "left");
@@ -221,6 +224,20 @@ pub fn load(server: *Server) void {
                 std.mem.eql(u8, value, "yes");
         } else if (std.mem.eql(u8, key, "xwayland_display")) {
             core.copyString(&server.config.xwayland_display, &server.config.xwayland_display_len, value);
+        } else if (std.mem.eql(u8, key, "kb_layout") or std.mem.eql(u8, key, "keyboard_layout")) {
+            core.copyString(&server.config.kb_layout, &server.config.kb_layout_len, value);
+        } else if (std.mem.eql(u8, key, "kb_variant") or std.mem.eql(u8, key, "keyboard_variant")) {
+            core.copyString(&server.config.kb_variant, &server.config.kb_variant_len, value);
+        } else if (std.mem.eql(u8, key, "kb_options") or std.mem.eql(u8, key, "keyboard_options")) {
+            core.copyString(&server.config.kb_options, &server.config.kb_options_len, value);
+        } else if (std.mem.eql(u8, key, "kb_model") or std.mem.eql(u8, key, "keyboard_model")) {
+            core.copyString(&server.config.kb_model, &server.config.kb_model_len, value);
+        } else if (std.mem.eql(u8, key, "kb_rules") or std.mem.eql(u8, key, "keyboard_rules")) {
+            core.copyString(&server.config.kb_rules, &server.config.kb_rules_len, value);
+        } else if (std.mem.eql(u8, key, "repeat_rate")) {
+            server.config.repeat_rate = std.fmt.parseInt(i32, value, 10) catch server.config.repeat_rate;
+        } else if (std.mem.eql(u8, key, "repeat_delay")) {
+            server.config.repeat_delay = std.fmt.parseInt(i32, value, 10) catch server.config.repeat_delay;
         } else if (std.mem.eql(u8, key, "accent")) {
             core.copyString(&server.config.accent, &server.config.accent_len, value);
         } else if (std.mem.eql(u8, key, "bg")) {
@@ -245,6 +262,9 @@ pub fn load(server: *Server) void {
     if (server.config.border_width > 16) server.config.border_width = 16;
     if (server.config.master_ratio < 0.15) server.config.master_ratio = 0.15;
     if (server.config.master_ratio > 0.9) server.config.master_ratio = 0.9;
+    if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
+    if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
+    if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
 
     core.logInfo("config: {s} (terminal={s}, bindings={d})", .{

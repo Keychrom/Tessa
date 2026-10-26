@@ -26,6 +26,12 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   wlr-screencopy (grim works)
 - master/stack layout **and** the Tessa "mosaic" spiral layout (`Super+T`)
 - nine workspaces, floating windows, fullscreen, click-to-focus
+- layer-shell popups from third-party clients (panel menus, dropdowns)
+- `ext-session-lock-v1` session locking, plus `ext-idle-notify-v1`,
+  `idle-inhibit-v1`, and output-power management for tools such as swayidle and
+  wlopm
+- keyboard layout/variant/options and key-repeat settings in the config, with
+  `Super+R` reload
 - text-input-v3 + input-method-v2 IME relay with input-popup placement;
   verified end to end with Fcitx5 + Mozc in the launcher and Wayland clients
 - XWayland through `xwayland-satellite`: rootless X11 apps are managed as normal
@@ -230,6 +236,35 @@ or `TESSA_NO_XWAYLAND=1`. If satellite is installed outside `PATH`, set
 X11 applications render at scale 1. Fractional scaling and XWayland's XSETTINGS
 integration are not implemented yet.
 
+## Lock and idle
+
+Tessa implements `ext-session-lock-v1`, `ext-idle-notify-v1`, and
+`idle-inhibit-v1`. A lock client and an idle daemon are separate programs:
+
+```sh
+sudo apt install swaylock swayidle
+```
+
+`Super+Escape` runs `swaylock` by default. If you prefer another locker, change
+that binding with `bind = SUPER+Escape spawn <command>`. While locked, normal
+desktop scene trees are hidden, virtual-keyboard injection is ignored, and the
+lock surface receives keyboard/pointer focus. If the lock client dies while
+locked, Tessa terminates the session instead of exposing the desktop.
+
+`swayidle` can combine idle detection with locking and DPMS, for example:
+
+```sh
+sudo apt install wlopm
+swayidle -w \
+  timeout 300 'swaylock -f' \
+  timeout 600 'wlopm --off "*"' \
+  resume 'wlopm --on "*"'
+```
+
+Idle notifications and inhibitor handling work, and a visible video/player can
+inhibit idle through `idle-inhibit-v1`. Tessa implements the output-power
+management protocol, so `wlopm` can turn outputs off and back on.
+
 ## Key bindings
 
 | Binding | Action |
@@ -246,6 +281,7 @@ integration are not implemented yet.
 | `Super+Shift+H/J/K/L` | swap with window in that direction |
 | `Super+Space` | toggle floating |
 | `Super+F` | toggle fullscreen |
+| `Super+Escape` | lock the session (runs `swaylock`; install it first) |
 | `Super+Tab` / `Super+Shift+Tab` | cycle windows |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
 
@@ -282,6 +318,13 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
+| `kb_layout` | XKB layout, for example `us` or `us,de` |
+| `kb_variant` | XKB variant (optional) |
+| `kb_options` | XKB options, for example `grp:alt_shift_toggle` |
+| `kb_model` | XKB model (optional) |
+| `kb_rules` | XKB rules file (optional) |
+| `repeat_rate` | key repeat rate in repeats per second |
+| `repeat_delay` | delay before key repeat starts, in milliseconds |
 | `accent` | accent color used by borders, bar, launcher |
 | `bg` | base background color for the wallpaper |
 | `font` | UI family for the panel |
@@ -358,9 +401,13 @@ These are real and important:
   pointer behavior and DRM mode setting still need a physical test pass.
 - **One panel.** The bar/background are created on the first output. Multiple
   outputs tile windows, but they share one active workspace and only one bar.
-- **No layer-shell popups from third-party clients.** Toplevel xdg popups and
-  input-method popups work; popups attached to layer surfaces are not wired into
-  the scene yet.
+- **Lock-screen testing is basic.** `ext-session-lock-v1` is implemented and was
+  tested with a minimal lock client; a real swaylock/PAM setup still needs a
+  physical-session test. If the lock client disappears while locked, Tessa
+  terminates rather than silently unlocking.
+- **Idle timing is external.** Tessa exposes idle notifications, inhibitors, and
+  output power management; `swayidle`/`wlopm` (or another idle daemon) must be
+  running if you want automatic blanking or locking.
 - **Scale is fixed to 1.** HiDPI output scale is not configurable, and X11
   clients are not scaled.
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
@@ -368,9 +415,7 @@ These are real and important:
   and input-method popup repositioning during scroll are not covered.
 - **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
   missing, X11 applications simply do not start; Wayland clients are unaffected.
-- **No portals, screen sharing, lock screen, idle-inhibit, gamma, or output
-  configuration UI.**
-- **No session lock.** Do not treat this as a hardened/secure desktop yet.
+- **No portals, screen sharing, gamma, or output configuration UI.**
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the

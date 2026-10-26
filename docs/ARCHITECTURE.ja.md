@@ -75,6 +75,13 @@ tree_popup       入力メソッドの候補ポップアップ（ime.zig が作�
 `data` はサーフェスのシーンツリーを指し、ポップアップを正しい位置に
 ペアレントできるようにしています。
 
+トップレベルのポップアップはトップレベルのシーンツリーにペアレントされます。
+layer-shell のポップアップは、`xdg_popup` 作成時点では xdg の親を持ちません。
+`zwlr_layer_surface_v1.get_popup` で親が割り当てられると layer サーフェスの
+`new_popup` イベントが発火します。`output.zig` がこのイベントを監視し、
+layer サーフェスのツリーの下にポップアップのシーンツリーを作成します。
+これによりサードパーティパネルのメニューやドロップダウンが表示されます。
+
 ## layer-shell のサイズ計算
 
 layer サーフェスは `output.zig` が overlay → top → bottom → background の
@@ -103,7 +110,9 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 
 - seat、cursor、xcursor manager を作成する
 - すべてのポインタを `wlr_cursor` にアタッチする
-- ユーザー環境から XKB キーマップを作成する
+- ユーザー環境と設定（`kb_layout`、`kb_variant`、`kb_options`、`kb_model`、
+  `kb_rules`、`repeat_rate`、`repeat_delay`）から XKB キーマップを作成する。
+  `Super+R` は再起動せずにキーマップを作り直す
 - 物理キーボードがない場合はフォールバックの `wlr_keyboard` を作成し、
   headless セッションでも seat のキーマップと XWayland が動くようにする
 - 物理/仮想キーボードをアタッチし、キーボードの出現やキーマップ変更時に
@@ -113,6 +122,7 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 - クリックでフォーカス、フローティングの移動/リサイズ、ポインタ転送を
   実装する
 - `request_set_cursor`、cursor-shape-v1、選択リクエストを処理する
+- キー/ポインタ入力時に idle notifier へアクティビティを通知する
 
 入力メソッドがキーボードを grab している間、生のキーイベントと modifier の
 変更は、WM のバインドやフォーカス中のクライアントに届く前に
@@ -179,6 +189,39 @@ X11 アプリを扱えます。
 - `xdg-decoration` はサーバーサイドで処理します。これがないと satellite は
   クライアントサイドの装飾にフォールバックし、独自のタイトルバーを
   描画します。
+
+## セッションロック
+
+`lock.zig` が `ext-session-lock-v1` を実装します。新しいロックを受け取ると:
+
+- 通常のデスクトップのシーンツリー（`bg`、layer、ウィンドウ、オーバーレイ、
+  IME ポップアップ）を隠し、全出力にブランクフレームを commit する
+- キーボード/ポインタフォーカスをクリアし、text-input を非アクティブ化する
+- ロックサーフェスごとに `tree_lock` へシーンサーフェスを作成する。
+  `tree_lock` は他のすべてのツリーより後に作成されるため、デスクトップより
+  前面に描画される
+- ロックサーフェスにキーボード/ポインタフォーカスを与え、ロック中は仮想
+  キーボードのイベントを無視する。これによりクライアントが
+  `virtual-keyboard-v1` 経由でパスワードを入力することはできない
+- デスクトップが隠れてから `locked` を送る
+
+`unlock_and_destroy` ではリスナーを外しますが、ロックリソースの破棄は
+クライアントのリクエストに任せます。unlock シグナルから
+`wlr_session_lock_v1_destroy` を呼ぶと、wlroots の `lock_destroy` の
+アサーションに再帰的に入ってしまいました。ロック中にクライアントが
+切断した場合、Tessa は放棄されたロックを記録し、通常クライアントを露出
+させずセッションを終了します。
+
+## idle と出力電源
+
+`idle.zig` が `ext-idle-notify-v1`、`idle-inhibit-v1`、
+`wlr-output-power-management-v1` のグローバルを作成します。入力イベントは
+`wlr_idle_notifier_v1_notify_activity` を呼びます。可視の inhibitor を数え、
+inhibitor が存在する間またはセッションロック中は
+`wlr_idle_notifier_v1_set_inhibited(true)` を送ります。出力電源リクエストは
+出力状態の enabled フラグを設定して commit します。これにより `wlopm` が
+動作します。タイマーとポリシーはコンポジタの外に置き、swayidle が駆動する
+想定です。
 
 ## タイルとワークスペース
 
@@ -339,5 +382,6 @@ xdg-shell の `xdg_popup_interface` を必要とします）。
 - 入力メソッドが接続されていなくても text-input の enter は追跡され、
   クライアントは生のキーボード入力にフォールバックします。パネルは IME を
   必須としません。
-- サードパーティクライアントの layer ポップアップはまだ描画されません
-  （既知の制限）。
+- layer-shell のポップアップは所有する layer サーフェスの下に描画されます。
+  ポップアップ作成後、`get_popup` で layer と関連付けられる前に描画された
+  ポップアップは無視されます。

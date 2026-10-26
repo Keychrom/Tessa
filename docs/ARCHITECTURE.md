@@ -73,6 +73,13 @@ The frame tree's `node.data` points to the `Client`. Pointer hit testing walks
 parent trees until it finds that pointer. The xdg surface's `data` points to its
 surface scene tree so popups can be parented in the right place.
 
+Toplevel popups are parented through the toplevel's scene tree. Layer-shell
+popups have no xdg parent when their `xdg_popup` is created; the layer surface's
+`new_popup` event fires when `zwlr_layer_surface_v1.get_popup` assigns the
+parent. `output.zig` listens for that event and creates the popup scene tree
+under the layer surface's tree. This is what makes third-party panel menus and
+dropdowns visible.
+
 ## Layer-shell sizing
 
 Layer surfaces are configured by `output.zig` in the order overlay → top →
@@ -100,14 +107,17 @@ client's active text input receives `enter`/`leave`.
 
 - creates the seat, cursor, and xcursor manager,
 - attaches every pointer to `wlr_cursor`,
-- creates an XKB keymap from the user's environment,
+- creates an XKB keymap from the user's environment and the config
+  (`kb_layout`, `kb_variant`, `kb_options`, `kb_model`, `kb_rules`,
+  `repeat_rate`, `repeat_delay`); `Super+R` rebuilds keymaps without restarting,
 - creates a fallback `wlr_keyboard` when no physical keyboard is present, so
   seat keymaps and XWayland work in headless sessions,
 - attaches every physical/virtual keyboard and re-sends focus when a keyboard
   appears or its keymap changes,
 - routes keyboard events to the focused surface or to key bindings,
 - implements click-to-focus, floating move/resize, and pointer forwarding,
-- handles `request_set_cursor`, cursor-shape-v1, and selection requests.
+- handles `request_set_cursor`, cursor-shape-v1, and selection requests,
+- reports user activity to the idle notifier on key/pointer input.
 
 When an input method has grabbed the keyboard, raw key events and modifier
 changes are forwarded to `wlr_input_method_keyboard_grab_v2_set_keyboard` before
@@ -169,6 +179,36 @@ keysyms.
 
 When a layer has keyboard focus, WM shortcuts are bypassed and all keys are
 forwarded to the layer. This is what lets the launcher receive typing.
+
+## Session lock
+
+`lock.zig` implements `ext-session-lock-v1`. On a new lock it:
+
+- hides the normal desktop scene trees (`bg`, layers, windows, overlay, IME
+  popups) and commits a blank frame to every output,
+- clears keyboard/pointer focus and deactivates text input,
+- creates one scene surface per lock surface in `tree_lock`, which is created
+  after all other trees and therefore renders above the desktop,
+- gives the lock surface keyboard and pointer focus, and ignores virtual
+  keyboard events while locked so a client cannot type a password through
+  `virtual-keyboard-v1`,
+- sends `locked` only after the desktop is hidden.
+
+On `unlock_and_destroy`, listeners are removed but the lock resource is left for
+the client's request to destroy; calling `wlr_session_lock_v1_destroy` from the
+unlock signal recursed into wlroots' `lock_destroy` assertion. If the client
+disconnects while locked, Tessa logs the abandoned lock and terminates the
+session rather than exposing normal clients.
+
+## Idle and output power
+
+`idle.zig` creates `ext-idle-notify-v1`, `idle-inhibit-v1`, and
+`wlr-output-power-management-v1` globals. Input events call
+`wlr_idle_notifier_v1_notify_activity`. Visible inhibitors are counted; while
+any inhibitor exists or the session is locked,
+`wlr_idle_notifier_v1_set_inhibited(true)` is sent. Output power requests set the
+output state's enabled flag and commit it, which is what makes `wlopm` work.
+Timers and policy stay outside the compositor; swayidle is the expected driver.
 
 ## Tiling and workspaces
 
@@ -323,4 +363,6 @@ The generated headers/C under `protocol/` are committed:
   panel are unaffected.
 - If no input method is connected, text-input enters are still tracked, and
   clients fall back to raw keyboard input. The panel does not require an IME.
-- Layer popups from third-party clients are not rendered yet (known limitation).
+- Layer-shell popups are rendered under the layer surface that owns them. A
+  layer client that creates a popup before `get_popup` is associated with the
+  layer is ignored until that association happens.
