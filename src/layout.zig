@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const ime = @import("ime.zig");
 const constraints = @import("constraints.zig");
+const effects = @import("effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
@@ -1119,7 +1120,7 @@ pub fn toggleFullscreen(server: *Server) void {
 
 pub fn closeFocused(server: *Server) void {
     const cl = server.focused orelse return;
-    c.wlr_xdg_toplevel_send_close(cl.xdg);
+    effects.requestClose(server, cl);
 }
 
 pub fn cycleLayout(server: *Server) void {

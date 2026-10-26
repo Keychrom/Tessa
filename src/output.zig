@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const effects = @import("effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -86,12 +87,14 @@ fn onOutputFrame(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     _ = data;
     const out: *Output = @fieldParentPtr("frame", listener.?);
     const so = c.wlr_scene_get_scene_output(out.server.scene, out.wlr) orelse return;
-    const animating = layout.tickAnimations(out.server, core.timeNowMs());
+    const now_ms = core.timeNowMs();
+    const animating = layout.tickAnimations(out.server, now_ms);
+    const closing = effects.tick(out.server, now_ms);
     _ = c.wlr_scene_output_commit(so, null);
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, &now);
     c.wlr_scene_output_send_frame_done(so, &now);
-    if (animating) c.wlr_output_schedule_frame(out.wlr);
+    if (animating or closing) c.wlr_output_schedule_frame(out.wlr);
 }
 
 fn onOutputRequestState(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {

@@ -37,9 +37,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   state/config snapshots for external tools
 - named input modes with mode-specific key bindings and `enter-mode`
 - configurable bar height, top/side margins, and bar background/foreground colors
-- window open/workspace slide animations with `reduce_motion` and duration
-  settings; soft layered window shadows; configurable wallpaper gradient colors
-  and an art on/off switch
+- window open/workspace slide animations and close scale/fade snapshots with
+  `reduce_motion` and duration settings; soft layered window shadows;
+  configurable wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -709,10 +709,12 @@ These are real and important:
   focused output. Rich HTML markup beyond Pango's subset, notification sounds,
   and per-notification output pinning are not implemented.
 - **Window effects are still simple.** Open and workspace transitions slide the
-  window frame with a cubic ease-out; shadows are fixed layered rectangles.
-  Close animations, scale/fade transitions, rounded corners, and blur are not
-  implemented yet. Set `animations = false` or `reduce_motion = true` to disable
-  motion.
+  window frame with a cubic ease-out. Compositor-initiated closes capture the
+  window surface and scale/fade that snapshot; a client that closes itself is
+  removed immediately because its buffer is already gone at unmap. Shadows are
+  fixed layered rectangles. Rounded corners and blur need a custom renderer
+  because the wlroots 0.19 scene API has no shader hook. Set
+  `animations = false` or `reduce_motion = true` to disable motion.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
   MPRIS controls the first discovered player and does not display album art.

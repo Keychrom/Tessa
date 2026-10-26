@@ -285,11 +285,16 @@ sh tests/panel-theme.sh
 ### Animation and visual test
 
 `tests/animations.sh` starts a private headless compositor without the panel,
-enables 250 ms animations and shadows, and sets an explicit wallpaper gradient.
+enables 500 ms animations and shadows, and sets an explicit wallpaper gradient.
 It launches `foot` and checks the debug log for the open transition
 (`animation: start id=1 from=0,18` and a matching done line), switches to
-workspace 2 and back to verify the horizontal transition (`from=-54,0`), and
-finishes with `tessa-ctl config-check` to confirm the visual keys are accepted.
+workspace 2 and back to verify the horizontal transition (`from=-54,0`), then
+closes window 1 and checks that the close snapshot starts and finishes
+(`close animation: start id=1` / `close animation: done id=1`) and that the
+window disappears from `tessa-ctl state`. When `grim` and ImageMagick are
+installed, it also samples the center of the closing snapshot and fails if the
+content is missing. It finishes with `tessa-ctl config-check` to confirm the
+visual keys are accepted.
 
 ```sh
 sh tests/animations.sh

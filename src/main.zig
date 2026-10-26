@@ -130,6 +130,7 @@ pub fn main() !void {
     server.tree_floating = c.wlr_scene_tree_create(&server.scene.tree);
     server.tree_top = c.wlr_scene_tree_create(&server.scene.tree);
     server.tree_fullscreen = c.wlr_scene_tree_create(&server.scene.tree);
+    server.tree_effects = c.wlr_scene_tree_create(&server.scene.tree);
     server.tree_overlay = c.wlr_scene_tree_create(&server.scene.tree);
 
     _ = c.wlr_compositor_create(server.display, 5, server.renderer);

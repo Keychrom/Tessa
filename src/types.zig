@@ -19,6 +19,7 @@ pub const MAX_TABLETS = 8;
 pub const MAX_TABLET_TOOLS = 16;
 pub const MAX_TABLET_PADS = 8;
 pub const MAX_CONSTRAINTS = 32;
+pub const MAX_EFFECTS = 4;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -288,6 +289,11 @@ pub const Client = struct {
     anim_start_ms: i64,
     anim_ms: i32,
     animating: bool,
+    close_snapshot: ?*c.wlr_buffer,
+    close_snapshot_src: c.wlr_fbox,
+    close_snapshot_transform: c.wl_output_transform,
+    close_snapshot_w: i32,
+    close_snapshot_h: i32,
 
     x: i32,
     y: i32,
@@ -451,6 +457,28 @@ pub const PointerConstraint = struct {
     destroy: c.wl_listener,
 };
 
+pub const CloseEffect = struct {
+    server: *Server,
+    client_id: u64,
+    tree: *c.wlr_scene_tree,
+    content: *c.wlr_scene_buffer,
+    border: [4]*c.wlr_scene_rect,
+    shadow: *c.wlr_scene_rect,
+    border_width: f64,
+    frame_x: f64,
+    frame_y: f64,
+    frame_w: f64,
+    frame_h: f64,
+    content_x: f64,
+    content_y: f64,
+    content_w: f64,
+    content_h: f64,
+    start_ms: i64,
+    ms: i32,
+    border_color: [4]f32,
+    shadow_color: [4]f32,
+};
+
 pub const Server = struct {
     display: *c.wl_display,
     backend: *c.wlr_backend,
@@ -470,6 +498,7 @@ pub const Server = struct {
     tree_windows: *c.wlr_scene_tree,
     tree_floating: *c.wlr_scene_tree,
     tree_fullscreen: *c.wlr_scene_tree,
+    tree_effects: *c.wlr_scene_tree,
     tree_top: *c.wlr_scene_tree,
     tree_overlay: *c.wlr_scene_tree,
     tree_popup: *c.wlr_scene_tree,
@@ -525,6 +554,8 @@ pub const Server = struct {
     constraints: [MAX_CONSTRAINTS]?*PointerConstraint,
     constraint_count: usize,
     active_constraint: ?*c.wlr_pointer_constraint_v1,
+    effects: [MAX_EFFECTS]?*CloseEffect,
+    effect_count: usize,
     gesture_active: bool,
     gesture_fingers: u32,
     gesture_dx: f64,

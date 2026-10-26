@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const effects = @import("effects.zig");
 const json_snapshot = @import("json_snapshot.zig");
 const modes = @import("modes.zig");
 const events = @import("events.zig");
@@ -378,7 +379,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "close")) {
         if (start + 1 < n) {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
-            if (findClient(server, id)) |target| c.wlr_xdg_toplevel_send_close(target.xdg);
+            if (findClient(server, id)) |target| effects.requestClose(server, target);
         }
     } else if (std.mem.eql(u8, cmd, "float")) {
         if (start + 1 < n) {

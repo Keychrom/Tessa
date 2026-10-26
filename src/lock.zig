@@ -30,6 +30,7 @@ fn setDesktopEnabled(server: *Server, enabled: bool) void {
         server.tree_floating,
         server.tree_top,
         server.tree_fullscreen,
+        server.tree_effects,
         server.tree_overlay,
         server.tree_popup,
     };

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Verify window open/workspace motion and visual config validation.
+# Verify window open/close/workspace motion and visual config validation.
 # Requires foot. Run after building:
 #   sh tests/animations.sh
 set -eu
@@ -34,7 +34,7 @@ panel = false
 xwayland = false
 animations = true
 reduce_motion = false
-animation_ms = 250
+animation_ms = 500
 shadows = true
 bg_top = #162038
 bg_bottom = #070a12
@@ -110,6 +110,33 @@ tessa-ctl workspace 1
 wait_log "animation: start id=1 from=-54,0"
 wait_log_count "animation: done id=1" 2
 echo "workspace animation: ok"
+
+tessa-ctl dispatch close 1
+wait_log "close animation: start id=1"
+if command -v grim >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
+    grim -o HEADLESS-1 "$runtime/close-mid.png"
+    luminance=$(convert "$runtime/close-mid.png" -crop 1x1+960+540 +repage \
+        -colorspace Gray -format '%[fx:mean]' info:)
+    if ! awk -v v="$luminance" 'BEGIN { exit !(v < 0.3) }'; then
+        echo "close snapshot lost its content (center luminance $luminance)" >&2
+        exit 1
+    fi
+    echo "close snapshot content: ok"
+fi
+wait_log "close animation: done id=1"
+i=0
+while [ "$i" -lt 30 ]; do
+    if ! tessa-ctl state 2>/dev/null | grep -q "^WIN	1	"; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+if tessa-ctl state 2>/dev/null | grep -q "^WIN	1	"; then
+    echo "closed window is still present" >&2
+    exit 1
+fi
+echo "window close animation: ok"
 
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true

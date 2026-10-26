@@ -6,6 +6,7 @@ const touch = @import("touch.zig");
 const tablet = @import("tablet.zig");
 const constraints = @import("constraints.zig");
 const xim = @import("xim.zig");
+const effects = @import("effects.zig");
 
 const Server = types.Server;
 
@@ -111,6 +112,7 @@ pub fn cleanupGlobals(server: *Server) void {
     server.touch_device_count = 0;
     tablet.cleanup(server);
     constraints.cleanup(server);
+    effects.cleanup(server);
     xim.cleanup(server);
 
     if (server.sigint) |src| {

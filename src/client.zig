@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const effects = @import("effects.zig");
 const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -167,7 +168,7 @@ fn onForeignActivate(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
 fn onForeignClose(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const client: *Client = @fieldParentPtr("foreign_close", listener.?);
-    c.wlr_xdg_toplevel_send_close(client.xdg);
+    effects.requestClose(client.server, client);
 }
 
 fn onForeignFullscreen(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -268,6 +269,7 @@ fn onUnmap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server = client.server;
     client.mapped = false;
     c.wlr_scene_node_set_enabled(&client.frame.node, false);
+    effects.clientUnmapped(client);
 
     if (server.grabbed == client) layout.resetInteractive(server);
 
@@ -335,6 +337,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     c.wl_list_remove(&client.set_app_id.link);
 
     if (server.grabbed == client) layout.resetInteractive(server);
+    effects.discardSnapshot(client);
     if (was_focused) server.focused = null;
     clearLastFocused(server, client);
 

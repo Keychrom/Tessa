@@ -69,6 +69,7 @@ tree_windows     tiled client frames
 tree_floating    floating client frames
 tree_top         taskbar (layer-shell top)
 tree_fullscreen  fullscreen client frames
+tree_effects     close-animation snapshots (above normal windows)
 tree_overlay     launcher (layer-shell overlay)
 tree_popup       input-method candidate popups (created by ime.zig, topmost)
 ```
@@ -96,7 +97,7 @@ parent. `output.zig` listens for that event and creates the popup scene tree
 under the layer surface's tree. This is what makes third-party panel menus and
 dropdowns visible.
 
-## Window motion and shadows
+## Window motion, close effects, and shadows
 
 Motion is a position offset on the client frame node; layout still records the
 logical `x`/`y` in the `Client`. `startOpenAnimation()` offsets a newly mapped
@@ -110,7 +111,26 @@ animations before committing and schedules another frame while any remain.
 
 `animations = false`, `reduce_motion = true`, or `animation_ms = 0` skip the
 offset entirely. A config reload clears active animations before applying new
-geometry. Shadows are the three pre-created scene rectangles described above;
+geometry.
+
+Compositor-initiated closes use a snapshot path in `effects.zig`. Before
+sending `wlr_xdg_toplevel_send_close`, `requestClose()` locks the surface's
+current client buffer with `wlr_buffer_lock` and records its source box,
+transform, and surface size. The extra lock stays on the `Client` until unmap,
+so the client's buffer cannot be recycled before the animation starts.
+`clientUnmapped()` then creates a temporary scene tree under `tree_effects`
+containing a shadow rectangle, four border rectangles forming an outline, and
+a `wlr_scene_buffer` using the locked buffer. The scene buffer takes its own
+reference before the client's lock is released. `tick()` drives the snapshot
+toward 92% scale with a smoothstep ease and fades content, border, and shadow to
+zero opacity over `animation_ms`. The output frame callback ticks close effects
+after layout animations and requests another frame while any remain.
+`tree_effects` sits above fullscreen clients and below the launcher overlay,
+and session lock hides it with the other desktop trees. A client that closes
+itself is removed immediately: its surface buffer is typically gone by the time
+the unmap event arrives, so there is nothing to display.
+
+Shadows are the three pre-created scene rectangles described above;
 `updateShadows()` scales them with the frame and `shadows = false` disables
 them.
 
@@ -310,8 +330,8 @@ protocol is separate and handled in `idle.zig`.
 
 `lock.zig` implements `ext-session-lock-v1`. On a new lock it:
 
-- hides the normal desktop scene trees (`bg`, layers, windows, overlay, IME
-  popups) and commits a blank frame to every output,
+- hides the normal desktop scene trees (`bg`, layers, windows, effects,
+  overlay, IME popups) and commits a blank frame to every output,
 - clears keyboard/pointer focus and deactivates text input,
 - creates one scene surface per lock surface in `tree_lock`, which is created
   after all other trees and therefore renders above the desktop,

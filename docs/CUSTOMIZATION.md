@@ -284,7 +284,7 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
 | `bg_bottom` | bottom color of the wallpaper gradient; unset derives it from `bg` |
 | `wallpaper_art` | draw the decorative wallpaper art (default `true`) |
-| `animations` | animate window open and workspace transitions (default `true`) |
+| `animations` | animate window open, close, and workspace transitions (default `true`) |
 | `animation_ms` | motion duration in milliseconds, 0–1000 (default 160) |
 | `reduce_motion` | disable motion regardless of `animations` (default `false`) |
 | `shadows` | draw layered window drop shadows (default `true`) |
@@ -308,10 +308,13 @@ A separately installed theme file is still planned.
 
 Windows slide in from a small vertical offset when mapped, and workspace
 switches slide the incoming workspace horizontally. Both use a cubic ease-out
-over `animation_ms`. `reduce_motion = true` disables all such motion while
-leaving other settings intact; `animation_ms = 0` and `animations = false` do
-the same. Closing a window is immediate, and popover animation is controlled
-separately by the panel.
+over `animation_ms`. A window closed through the compositor (a key binding, bar
+chip, IPC, or another client) captures its surface and scales/fades that
+snapshot with a smoothstep over the same duration. A client that closes itself
+disappears immediately because its buffer is already gone. `reduce_motion =
+true` disables all such motion while leaving other settings intact;
+`animation_ms = 0` and `animations = false` do the same. Popover animation is
+controlled separately by the panel.
 
 Shadows are three translucent scene rectangles behind each client frame. They
 follow the border geometry and are disabled with `shadows = false`.
