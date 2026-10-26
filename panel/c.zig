@@ -7,6 +7,7 @@ pub const c = @cImport({
     @cInclude("wayland-client-protocol.h");
     @cInclude("layer-shell-client-protocol.h");
     @cInclude("text-input-client-protocol.h");
+    @cInclude("wlr-data-control-unstable-v1-client-protocol.h");
 
     @cInclude("cairo/cairo.h");
     @cInclude("text.h");

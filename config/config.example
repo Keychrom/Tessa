@@ -109,6 +109,7 @@ font = Inter
 # XKB keysym names are used: Return, Tab, Left, Right, 1, h, ...
 # bind = SUPER+Return terminal
 # bind = SUPER+d launcher
+# bind = SUPER+v clipboard
 # bind = SUPER+t toggle-layout
 # bind = SUPER+g set-layout grid
 # bind = SUPER+1 workspace 1

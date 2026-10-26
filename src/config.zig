@@ -125,6 +125,7 @@ fn validHexColor(value: []const u8) bool {
 fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+return", "terminal", "");
     _ = addBinding(cfg, "super+d", "launcher", "");
+    _ = addBinding(cfg, "super+v", "clipboard", "");
     _ = addBinding(cfg, "super+q", "close", "");
     _ = addBinding(cfg, "super+shift+e", "quit", "");
     _ = addBinding(cfg, "super+r", "reload", "");
@@ -563,6 +564,7 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "focus-next")) return .focus_next;
     if (std.ascii.eqlIgnoreCase(name, "focus-prev")) return .focus_prev;
     if (std.ascii.eqlIgnoreCase(name, "launcher")) return .launcher;
+    if (std.ascii.eqlIgnoreCase(name, "clipboard") or std.ascii.eqlIgnoreCase(name, "clipboard-history")) return .clipboard;
     if (std.ascii.eqlIgnoreCase(name, "reload")) return .reload;
     if (std.ascii.eqlIgnoreCase(name, "ratio")) return .ratio;
     if (std.ascii.eqlIgnoreCase(name, "toggle-layout")) return .toggle_layout;

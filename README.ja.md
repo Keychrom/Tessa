@@ -64,6 +64,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - キーボード操作と IME 入力に対応した検索型ランチャー
   - 月間カレンダーの時計ポップアップと、ロック/サスペンド/再起動/電源オフの
     コマンドを設定できる電源メニュー
+  - `Super+V` で開き、クリックまたはキーボードで貼り付けられるメモリ上だけの
+    クリップボード履歴
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -79,7 +81,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
-`tests/panel-popovers.sh` で検証しています。
+`tests/panel-popovers.sh`、`tests/clipboard.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -389,6 +391,7 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | --- | --- |
 | `Super+Return` | ターミナル（設定の `terminal`） |
 | `Super+D` | ランチャー |
+| `Super+V` | クリップボード履歴 |
 | `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
@@ -417,12 +420,16 @@ include = /home/you/.config/tessa/launcher-entries.conf
   使えます。
 - 花びら/`TESSA` のマークをクリックするか、`Super+D` でランチャーを開きます。
 - `TESSA` マークを右クリックすると電源メニュー、時計をクリックすると
-  カレンダーが開きます。`tessa-ctl panel calendar|power` でも開けます。
+  カレンダーが開きます。`tessa-ctl panel calendar|power|clipboard` でも
+  開けます。
 - ランチャー内では入力で検索、`Up`/`Down`、`Enter`、`Esc`、または行の
   クリックで操作します。
 - カレンダーでは `Left`/`Right` または矢印ボタンで月を移動し、`Home` で
   今日に戻ります。電源メニューでは `Up`/`Down`、`Enter`、`Esc`、または
   クリックで操作します。
+- `Super+V` でクリップボード履歴が開きます。`Up`/`Down` と `Enter`、
+  またはクリックで選んだ項目をクリップボードへ戻せます。履歴は最大 8 件、
+  各 16 KiB までのテキストで、メモリ上にのみ保持します。
 
 ## 設定
 
@@ -640,6 +647,11 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **idle のタイミングは外部ツール任せ。** Tessa は idle 通知、inhibitor、
   出力電源管理を提供します。自動ブランクやロックには `swayidle` / `wlopm`
   などを別途起動してください。
+- **クリップボード履歴はテキストのみ・メモリ上のみ。** 最大 8 件、各 16 KiB
+  まで保持し、ディスクには書き込みません。`wlr-data-control-v1` はセッション
+  内のクライアントへ公開されるため、信頼されたアプリはキーボードフォーカス
+  なしでセレクションを読めます。セッション内アプリを信頼できる前提で使って
+  ください。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
   Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。

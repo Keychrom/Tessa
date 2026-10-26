@@ -133,6 +133,9 @@ pub fn main() !void {
     _ = c.wlr_compositor_create(server.display, 5, server.renderer);
     _ = c.wlr_subcompositor_create(server.display);
     _ = c.wlr_data_device_manager_create(server.display);
+    if (c.wlr_data_control_manager_v1_create(server.display) != null) {
+        core.logInfo("wlr-data-control-v1 enabled", .{});
+    }
     _ = c.wlr_screencopy_manager_v1_create(server.display);
     if (c.wlr_viewporter_create(server.display) == null) {
         core.logInfo("failed to create viewporter", .{});

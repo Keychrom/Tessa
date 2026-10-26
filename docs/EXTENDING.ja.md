@@ -28,6 +28,7 @@ tessa-ctl workspace 3 HEADLESS-2        # 出力を指定
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # クエリは省略可能
 tessa-ctl panel calendar                # パネルのポップオーバーを開閉
+tessa-ctl panel clipboard              # クリップボード履歴
 tessa-ctl panel power HEADLESS-2        # 出力を指定
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
 tessa-ctl mode resize                   # 入力モードを切り替え
@@ -127,6 +128,7 @@ EVENT	window-focus	id=7	previous=0	ws=3	app=foot	title=notes	output=HEADLESS-1
 EVENT	workspace-change	ws=4	previous-ws=3	output=HEADLESS-1
 EVENT	launcher	arg=fire	output=HEADLESS-1
 EVENT	panel	arg=calendar	output=HEADLESS-1
+EVENT	panel	arg=clipboard	output=HEADLESS-1
 ```
 
 該当しないフィールドは省略されます。`id` / `previous` はウィンドウ ID、
@@ -147,7 +149,7 @@ EVENT	panel	arg=calendar	output=HEADLESS-1
 | `mode-change` | アクティブ入力モードの変更 | arg（モード名） |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
-| `panel` | カレンダー/電源ポップオーバー要求 | arg（`calendar` または `power`）, output |
+| `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`）, output |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |
 | `output-removed` | 出力削除 | output, arg（ジオメトリ） |
 

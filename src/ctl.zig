@@ -22,7 +22,8 @@ fn usage() void {
         "  workspace <1-9> [output]      switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
-        "  panel <calendar|power> [out] open a panel popover\n" ++
+        "  panel <calendar|power|clipboard> [out]\n" ++
+        "                                open a panel popover\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
         "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++

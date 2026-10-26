@@ -273,6 +273,21 @@ sh tests/panel-theme.sh
 sh tests/panel-popovers.sh
 ```
 
+### クリップボード履歴のテスト
+
+`tests/clipboard.sh` は 2 つの文字列を `wl-copy` でコピーし、`wtype` で
+`Super+V` を送って履歴を開きます。古い項目を選び、`wl-paste` でパネルが
+新しいセレクションソースになったことを確認します。その後 3 つ目の文字列を
+コピーし、IPC 経由で履歴を開き直して最新項目が復元されることも検証します。
+
+```sh
+sh tests/clipboard.sh
+```
+
+パネルは `wlr-data-control-v1` 経由でセレクションを監視します。通常の
+`wl_data_device` のセレクションイベントはフォーカス中のクライアントにしか
+届かないため、バー側の通常 data device では履歴を集められません。
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、
@@ -357,6 +372,10 @@ PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
   `config-reload` を受けて配色、バーのジオメトリ、フォント、ターミナル、
   ランチャー項目、電源コマンドを読み直します。ジオメトリ変更時はバーの
   layer surface を再作成します。
+- クリップボード履歴はコンポジタの `wlr-data-control-v1` に依存します。
+  `wl_data_device` のセレクションイベントはフォーカス中のクライアントに
+  しか届かないため、パネルの data-control デバイスを通常インターフェースに
+  置き換えないでください。
 - SSH 越しでは `pkill -x tessa` と `pkill -x tessa-panel` を使う方が安全です。
   `pkill -f tessa` は SSH のリモートコマンドライン自体にマッチして、
   セッションを殺してしまうことがあります。

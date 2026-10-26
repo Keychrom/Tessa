@@ -467,11 +467,25 @@ fn openPower() void {
     logDebug("power menu open", .{});
 }
 
+fn openClipboard() void {
+    if (g.overlay != null and g.overlay_mode == .clipboard and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    g.clipboard_selected = 0;
+    beginOverlay(.clipboard);
+    logDebug("clipboard open ({d} entries)", .{g.clipboard_count});
+}
+
 fn openPanel(name: []const u8) void {
     if (std.mem.eql(u8, name, "calendar")) {
         openCalendar();
     } else if (std.mem.eql(u8, name, "power")) {
         openPower();
+    } else if (std.mem.eql(u8, name, "clipboard")) {
+        openClipboard();
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -579,8 +593,114 @@ fn activateOverlayHit(h: m.Hit) void {
         .calendar_next => shiftCalendar(1),
         .calendar_today => resetCalendar(),
         .power => runPowerAction(h.value),
+        .clipboard_entry => clipboardSelect(h.value),
+        .clipboard_clear => clipboardClear(),
         else => {},
     }
+}
+
+fn clipboardPromote(index: usize) void {
+    if (index == 0 or index >= g.clipboard_count) return;
+    const saved = g.clipboard_entries[index];
+    var i = index;
+    while (i > 0) : (i -= 1) {
+        g.clipboard_entries[i] = g.clipboard_entries[i - 1];
+    }
+    g.clipboard_entries[0] = saved;
+}
+
+fn clipboardAdd(text: []const u8) void {
+    if (text.len == 0) return;
+    var existing: ?usize = null;
+    var i: usize = 0;
+    while (i < g.clipboard_count) : (i += 1) {
+        if (std.mem.eql(u8, g.clipboard_entries[i].text[0..g.clipboard_entries[i].len], text)) {
+            existing = i;
+            break;
+        }
+    }
+    if (existing == 0) {
+        g.clipboard_selected = 0;
+        return;
+    }
+    if (existing) |idx| {
+        clipboardPromote(idx);
+    } else {
+        if (g.clipboard_count < g.clipboard_entries.len) g.clipboard_count += 1;
+        var j = g.clipboard_count - 1;
+        while (j > 0) : (j -= 1) {
+            g.clipboard_entries[j] = g.clipboard_entries[j - 1];
+        }
+        const entry = &g.clipboard_entries[0];
+        entry.* = std.mem.zeroes(m.ClipboardEntry);
+        m.copyTrunc(&entry.text, &entry.len, text);
+    }
+    g.clipboard_selected = 0;
+    refreshOverlay();
+    logDebug("clipboard: captured {d} bytes ({d} entries)", .{ text.len, g.clipboard_count });
+}
+
+fn clipboardSelect(index: usize) void {
+    if (index >= g.clipboard_count) return;
+    const entry = &g.clipboard_entries[index];
+    m.copyTrunc(&g.clipboard_send_text, &g.clipboard_send_len, entry.text[0..entry.len]);
+    if (g.data_control_device == null or g.data_control_manager == null) {
+        logMsg("clipboard: data control device is unavailable", .{});
+        closeOverlay();
+        return;
+    }
+    if (g.clipboard_source) |old| {
+        g.clipboard_source = null;
+        c.zwlr_data_control_source_v1_destroy(old);
+    }
+    const source = c.zwlr_data_control_manager_v1_create_data_source(g.data_control_manager.?) orelse {
+        logMsg("clipboard: cannot create data source", .{});
+        closeOverlay();
+        return;
+    };
+    g.clipboard_source_listener = std.mem.zeroes(c.zwlr_data_control_source_v1_listener);
+    g.clipboard_source_listener.send = onClipboardSourceSend;
+    g.clipboard_source_listener.cancelled = onClipboardSourceCancelled;
+    _ = c.zwlr_data_control_source_v1_add_listener(source, &g.clipboard_source_listener, null);
+    c.zwlr_data_control_source_v1_offer(source, "text/plain;charset=utf-8");
+    c.zwlr_data_control_source_v1_offer(source, "UTF8_STRING");
+    c.zwlr_data_control_source_v1_offer(source, "text/plain");
+    c.zwlr_data_control_source_v1_offer(source, "TEXT");
+    c.zwlr_data_control_source_v1_offer(source, "STRING");
+    g.clipboard_source = source;
+    c.zwlr_data_control_device_v1_set_selection(g.data_control_device.?, source);
+    if (g.display) |display| _ = c.wl_display_flush(display);
+
+    clipboardPromote(index);
+    g.clipboard_selected = 0;
+    logDebug("clipboard: selected entry {d}", .{index});
+    closeOverlay();
+}
+
+fn clipboardClear() void {
+    g.clipboard_count = 0;
+    g.clipboard_selected = 0;
+    refreshOverlay();
+    logDebug("clipboard: history cleared", .{});
+}
+
+fn moveClipboardSelection(delta: isize) void {
+    if (g.clipboard_count == 0) return;
+    const count: isize = @intCast(g.clipboard_count);
+    var next = @as(isize, @intCast(g.clipboard_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.clipboard_selected = @intCast(next);
+    refreshOverlay();
+}
+
+fn mimeRank(mime: []const u8) i32 {
+    if (std.ascii.eqlIgnoreCase(mime, "text/plain;charset=utf-8")) return 5;
+    if (std.ascii.eqlIgnoreCase(mime, "UTF8_STRING")) return 4;
+    if (std.ascii.eqlIgnoreCase(mime, "text/plain")) return 3;
+    if (std.ascii.eqlIgnoreCase(mime, "TEXT")) return 2;
+    if (std.ascii.eqlIgnoreCase(mime, "STRING")) return 1;
+    return 0;
 }
 
 fn addCustomApps() void {
@@ -765,6 +885,25 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         return;
     }
 
+    if (g.overlay_mode == .clipboard) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up) {
+            moveClipboardSelection(-1);
+        } else if (sym == c.XKB_KEY_Down) {
+            moveClipboardSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.clipboard_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.clipboard_count > 0) g.clipboard_selected = g.clipboard_count - 1;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            clipboardSelect(g.clipboard_selected);
+        }
+        return;
+    }
+
     if (!g.launcher_open) return;
     if (sym == c.XKB_KEY_Escape) {
         closeOverlay();
@@ -844,9 +983,164 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
     }
 }
 
+fn onDataControlFinished(data: ?*anyopaque, device: ?*c.zwlr_data_control_device_v1) callconv(.c) void {
+    _ = data;
+    _ = device;
+    logDebug("clipboard: data control finished", .{});
+}
+
+fn ensureDataControlDevice() void {
+    if (g.data_control_device != null) return;
+    const manager = g.data_control_manager orelse return;
+    const seat = g.seat orelse return;
+    const device = c.zwlr_data_control_manager_v1_get_data_device(manager, seat) orelse return;
+    g.data_control_device = device;
+    g.data_control_listener = std.mem.zeroes(c.zwlr_data_control_device_v1_listener);
+    g.data_control_listener.data_offer = onDataOffer;
+    g.data_control_listener.selection = onDataSelection;
+    g.data_control_listener.finished = onDataControlFinished;
+    _ = c.zwlr_data_control_device_v1_add_listener(device, &g.data_control_listener, null);
+    logDebug("clipboard: data control device ready", .{});
+}
+
+fn resetClipboardRead() void {
+    if (g.clipboard_fd >= 0) {
+        _ = c.close(g.clipboard_fd);
+        g.clipboard_fd = -1;
+    }
+    g.clipboard_read_len = 0;
+}
+
+fn ensureDataOffer(offer: *c.zwlr_data_control_offer_v1) void {
+    resetClipboardRead();
+    if (g.data_offer) |old| {
+        if (old != offer) c.zwlr_data_control_offer_v1_destroy(old);
+    }
+    g.data_offer = offer;
+    g.data_offer_mime_len = 0;
+    g.data_offer_mime_rank = 0;
+    g.data_offer_selected = false;
+    g.data_offer_listener = std.mem.zeroes(c.zwlr_data_control_offer_v1_listener);
+    g.data_offer_listener.offer = onDataOfferMime;
+    _ = c.zwlr_data_control_offer_v1_add_listener(offer, &g.data_offer_listener, null);
+}
+
+fn maybeStartClipboardRead() void {
+    if (!g.data_offer_selected or g.clipboard_fd >= 0) return;
+    if (g.data_offer_mime_len == 0) return;
+    const offer = g.data_offer orelse return;
+
+    var fds = [_]c_int{ -1, -1 };
+    if (c.pipe2(&fds, c.O_CLOEXEC) < 0) {
+        logDebug("clipboard: pipe2 failed", .{});
+        return;
+    }
+    var mime_buf: [128:0]u8 = undefined;
+    const len = @min(g.data_offer_mime_len, mime_buf.len - 1);
+    @memcpy(mime_buf[0..len], g.data_offer_mime[0..len]);
+    mime_buf[len] = 0;
+    c.zwlr_data_control_offer_v1_receive(offer, @ptrCast(&mime_buf), fds[1]);
+    _ = c.close(fds[1]);
+
+    const flags = c.fcntl(fds[0], c.F_GETFL, @as(c_int, 0));
+    _ = c.fcntl(fds[0], c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    g.clipboard_fd = fds[0];
+    g.clipboard_read_len = 0;
+    logDebug("clipboard: reading {s}", .{g.data_offer_mime[0..len]});
+}
+
+fn finishClipboardRead() void {
+    const len = g.clipboard_read_len;
+    resetClipboardRead();
+    if (len > 0) {
+        clipboardAdd(g.clipboard_read_buf[0..len]);
+    }
+    if (g.data_offer) |offer| {
+        c.zwlr_data_control_offer_v1_destroy(offer);
+        g.data_offer = null;
+    }
+    g.data_offer_selected = false;
+}
+
+fn readClipboardPipe() void {
+    if (g.clipboard_fd < 0) return;
+    while (g.clipboard_read_len < g.clipboard_read_buf.len) {
+        const remaining = g.clipboard_read_buf.len - g.clipboard_read_len;
+        const n = c.read(g.clipboard_fd, g.clipboard_read_buf[g.clipboard_read_len..].ptr, remaining);
+        if (n > 0) {
+            g.clipboard_read_len += @intCast(n);
+            continue;
+        }
+        if (n == 0) {
+            finishClipboardRead();
+            return;
+        }
+        return;
+    }
+    finishClipboardRead();
+}
+
+fn onDataOffer(data: ?*anyopaque, device: ?*c.zwlr_data_control_device_v1, offer: ?*c.zwlr_data_control_offer_v1) callconv(.c) void {
+    _ = data;
+    _ = device;
+    if (offer) |value| ensureDataOffer(value);
+}
+
+fn onDataOfferMime(data: ?*anyopaque, offer: ?*c.zwlr_data_control_offer_v1, mime: [*c]const u8) callconv(.c) void {
+    _ = data;
+    _ = offer;
+    if (mime == null) return;
+    const name = std.mem.span(mime);
+    const rank = mimeRank(name);
+    if (rank <= g.data_offer_mime_rank) return;
+    m.copyTrunc(&g.data_offer_mime, &g.data_offer_mime_len, name);
+    g.data_offer_mime_rank = rank;
+    maybeStartClipboardRead();
+}
+
+fn onDataSelection(data: ?*anyopaque, device: ?*c.zwlr_data_control_device_v1, offer: ?*c.zwlr_data_control_offer_v1) callconv(.c) void {
+    _ = data;
+    _ = device;
+    if (offer == null) {
+        resetClipboardRead();
+        if (g.data_offer) |current| {
+            c.zwlr_data_control_offer_v1_destroy(current);
+            g.data_offer = null;
+        }
+        g.data_offer_selected = false;
+        return;
+    }
+    if (g.data_offer != offer) ensureDataOffer(offer.?);
+    g.data_offer_selected = true;
+    maybeStartClipboardRead();
+}
+
+fn onClipboardSourceSend(data: ?*anyopaque, source: ?*c.zwlr_data_control_source_v1, mime: [*c]const u8, fd: c_int) callconv(.c) void {
+    _ = data;
+    _ = source;
+    _ = mime;
+    var sent: usize = 0;
+    while (sent < g.clipboard_send_len) {
+        const n = c.write(fd, g.clipboard_send_text[sent..].ptr, g.clipboard_send_len - sent);
+        if (n <= 0) break;
+        sent += @intCast(n);
+    }
+    _ = c.close(fd);
+}
+
+fn onClipboardSourceCancelled(data: ?*anyopaque, source: ?*c.zwlr_data_control_source_v1) callconv(.c) void {
+    _ = data;
+    if (source == null) return;
+    if (g.clipboard_source == source) {
+        g.clipboard_source = null;
+        c.zwlr_data_control_source_v1_destroy(source.?);
+    }
+}
+
 fn onSeatCapabilities(data: ?*anyopaque, seat: ?*c.wl_seat, caps: u32) callconv(.c) void {
     _ = data;
     if (seat == null) return;
+    ensureDataControlDevice();
     if ((caps & c.WL_SEAT_CAPABILITY_KEYBOARD) != 0 and g.keyboard == null) {
         const kb = c.wl_seat_get_keyboard(seat) orelse return;
         g.keyboard = kb;
@@ -977,6 +1271,12 @@ fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, int
     } else if (std.mem.eql(u8, iface, "zwp_text_input_manager_v3") and g.text_input_manager == null) {
         if (c.wl_registry_bind(reg, name, &c.zwp_text_input_manager_v3_interface, 1)) |p| {
             g.text_input_manager = @ptrCast(@alignCast(p));
+        }
+    } else if (std.mem.eql(u8, iface, "zwlr_data_control_manager_v1") and g.data_control_manager == null) {
+        const v = @min(version, 1);
+        if (c.wl_registry_bind(reg, name, &c.zwlr_data_control_manager_v1_interface, v)) |p| {
+            g.data_control_manager = @ptrCast(@alignCast(p));
+            ensureDataControlDevice();
         }
     } else if (std.mem.eql(u8, iface, "wl_output")) {
         if (g.output_count < g.outputs.len) {
@@ -1166,6 +1466,8 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
         shiftCalendar(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .power) {
         movePowerSelection(if (v > 0) 1 else -1);
+    } else if (g.overlay_mode == .clipboard) {
+        moveClipboardSelection(if (v > 0) 1 else -1);
     } else if (g.overlay != null and g.launcher_open) {
         if (g.result_count > 0) {
             if (v > 0) {
@@ -1495,8 +1797,14 @@ fn eventLoop() void {
         var fds = [_]c.pollfd{
             .{ .fd = fd, .events = c.POLLIN, .revents = 0 },
             .{ .fd = g.ipc_fd, .events = c.POLLIN, .revents = 0 },
+            .{ .fd = g.clipboard_fd, .events = c.POLLIN, .revents = 0 },
         };
-        const nfds: c.nfds_t = if (g.ipc_fd >= 0) 2 else 1;
+        const nfds: c.nfds_t = if (g.clipboard_fd >= 0)
+            3
+        else if (g.ipc_fd >= 0)
+            2
+        else
+            1;
         const pr = c.poll(&fds, nfds, timeout);
         if (pr < 0) {
             _ = c.wl_display_cancel_read(display);
@@ -1520,6 +1828,11 @@ fn eventLoop() void {
             readIpc();
             if (!g.running) break;
         }
+        if (g.clipboard_fd >= 0 and pr > 0 and
+            (fds[2].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
+        {
+            readClipboardPipe();
+        }
 
         const now2 = m.nowMs();
         updateTimers(now2);
@@ -1539,6 +1852,9 @@ pub fn main() !void {
     g.running = true;
     g.active_ws = 1;
     g.scale = 1;
+    g.ipc_fd = -1;
+    g.clipboard_fd = -1;
+    _ = c.signal(c.SIGPIPE, c.SIG_IGN);
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
     }
@@ -1592,6 +1908,19 @@ pub fn main() !void {
 
     eventLoop();
 
+    resetClipboardRead();
+    if (g.data_offer) |offer| {
+        c.zwlr_data_control_offer_v1_destroy(offer);
+        g.data_offer = null;
+    }
+    if (g.clipboard_source) |source| {
+        c.zwlr_data_control_source_v1_destroy(source);
+        g.clipboard_source = null;
+    }
+    if (g.data_control_device) |device| {
+        c.zwlr_data_control_device_v1_destroy(device);
+        g.data_control_device = null;
+    }
     if (g.overlay) |s| {
         draw.destroyBuffers(s);
         if (s.layer) |ls| c.zwlr_layer_surface_v1_destroy(ls);

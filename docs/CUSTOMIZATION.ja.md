@@ -260,6 +260,22 @@ tessa-ctl panel power DP-1
 `arg=power` と出力名付きで発行されるため、フックからシェルの状態を監視・
 操作できます。
 
+## クリップボード履歴
+
+`Super+V` でクリップボード履歴を開きます。`tessa-ctl panel clipboard` でも
+開けます。パネルはコンポジタの `wlr-data-control-v1` グローバルを使い、
+キーボードフォーカスなしでセレクションの変更を監視します。履歴は重複を除いた
+最新 8 件のテキスト（各 16 KiB まで）をメモリ上にだけ保持し、ディスクには
+書き込みません。項目を選ぶと先頭へ移動し、パネルが新しいセレクション
+ソースになるため、通常の貼り付け操作でどのアプリにも貼れます。
+
+`clipboard` はキーバインドアクションとしても使えます:
+
+```ini
+bind = SUPER+v clipboard
+bind = SUPER+SHIFT+v clipboard
+```
+
 ## キーとコマンド
 
 既定のキーバインドは [../README.ja.md](../README.ja.md#キーバインド) を
@@ -274,7 +290,7 @@ bind = SUPER+ALT+Right resize-width 30
 
 利用可能なアクションは `spawn`、`terminal`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、
+`focus-next`、`focus-prev`、`launcher`、`clipboard`、`reload`、`ratio`、
 `toggle-layout`、`set-layout`、`resize-width`、`resize-height` です。
 
 ## ライブ確認と自動化

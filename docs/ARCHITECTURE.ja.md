@@ -32,6 +32,7 @@ Tessa は 3 つのプログラムで構成されます。
                          │  text-input-v3 / input-method-v2│
                          │  wlr-screencopy-v1           │
                          │  wl_data_device + primary    │
+                         │  wlr-data-control-v1         │
                          │  virtual-keyboard-v1         │
                          │  seat / cursor / keyboard    │
                          └──────┬───────────────┬───────┘
@@ -142,6 +143,8 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
   実装する
 - `request_set_cursor`、cursor-shape-v1、選択リクエストを処理する
 - ゲーム向けに相対ポインタ（`relative-pointer-v1`）の移動量を送信する
+- パネルがキーボードフォーカスなしでセレクション変更を監視し、クリップボード
+  マネージャーになれるよう `wlr-data-control-v1` を公開する
 - キー/ポインタ入力時に idle notifier へアクティビティを通知する
 
 入力メソッドがキーボードを grab している間、生のキーイベントと modifier の
@@ -390,7 +393,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power> [output]
+CMD panel <calendar|power|clipboard> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -412,9 +415,9 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 `CMD layout` は巡回、`CMD layout <name>` はフォーカス中の出力へ設定、末尾に
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
-発行し、一致するパネルだけがランチャーを開きます。`CMD panel calendar|power`
-も同様に、要求したポップオーバーと対象出力を持つ `panel` イベントを発行
-します。状態のブロードキャストは Wayland イベントループの idle source で
+発行し、一致するパネルだけがランチャーを開きます。`CMD panel
+calendar|power|clipboard` も同様に、要求したポップオーバーと対象出力を持つ
+`panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
 ## 拡張プレーン
@@ -459,11 +462,11 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
   矩形に使います。
 - **overlay**: 必要時に作成、layer overlay、全端アンカー、排他ゾーン -1、
   キーボード EXCLUSIVE。全面透明/ARGB サーフェスです。モードに応じて中央の
-  ランチャー、または時計の下のカレンダー/`TESSA` マークの下の電源メニューを
-  描画します。暗い背景とパネルを同じサーフェスに描くため、パネルの外側を
-  クリックすると閉じられます。ポップオーバーのヒット矩形はパネル原点を
-  加えたローカル座標で、電源メニューではキーボードが `Up`/`Down`/`Enter`
-  操作に切り替わります。ポップオーバーを開くと `panel` イベントが発行され、
+  ランチャー、時計の下のカレンダー、`TESSA` マークの下の電源メニュー、
+  中央のクリップボード履歴を描画します。暗い背景とパネルを同じサーフェスに
+  描くため、パネルの外側をクリックすると閉じられます。ポップオーバーの
+  ヒット矩形はパネル原点を加えたローカル座標で、電源メニューと
+  クリップボード履歴ではキーボードが `Up`/`Down`/`Enter` 操作に切り替わります。ポップオーバーを開くと `panel` イベントが発行され、
   パネルプロセスが `launcher` イベントと同様に処理します。
 
 overlay は 150 ms でフェード/スケールします。フェードアウト後にだけ
@@ -486,6 +489,23 @@ delete-surrounding リクエストも適用されます。Fcitx がキーボー�
 XKB_KEYMAP_COMPILE_NO_FLAGS)` で読み込みます。`xkb_keymap_new_from_string`
 の flags 引数に size を渡していたため、xkbcommon がすべてのキーマップを
 拒否し、キーイベントは届いているのに生の文字入力が黙って無効になっていました。
+
+### クリップボード履歴
+
+パネルは通常の `wl_data_device` ではなく
+`zwlr_data_control_manager_v1` を使います。wlroots は通常のセレクション
+イベントをフォーカス中のクライアントにしか送らないため、バープロセスでは
+フォーカスを得た瞬間の現在値しか見えません。data-control デバイスなら
+フォーカスなしですべてのセレクション変更を受け取り、シリアルなしで
+セレクションを設定できます。
+
+履歴は一意なテキスト 8 件（各 16 KiB）をメモリに保持します。オファーごとに
+優先度の高いテキスト MIME を選び、ノンブロッキングパイプでデータを要求して
+メインの poll ループで読み切ります。項目を選ぶと data-control ソースへ
+コピーし、UTF-8 と従来のテキスト MIME を提供して seat のセレクションに
+設定します。この新しいセレクションもパネル自身にオファーとして戻ってきますが、
+昇格済みの項目との重複を除外してフィードバックループを防ぎます。内容は
+ディスクにもログにも書き出しません。
 
 ### バッファと描画
 
@@ -528,6 +548,8 @@ libc とソケットヘッダーだけをリンクします。
 - `layer-shell-client-protocol.h/.c` — パネル用
 - `xdg-shell-client-protocol.h/.c` — パネル/実行時シンボル
 - `text-input-client-protocol.h/.c` — パネルの text-input-v3 クライアント用
+- `wlr-data-control-unstable-v1-client-protocol.h/.c` — パネルの
+  クリップボード履歴用
 - `cursor-shape-v1-protocol.h` — `wlr_cursor_shape_v1.h` が必要とする
 
 ## 障害時の動作

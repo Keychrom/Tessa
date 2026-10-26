@@ -60,6 +60,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   - searchable application launcher with keyboard navigation and IME input
   - clock popover with a month calendar and a power menu with configurable
     lock/suspend/reboot/shutdown commands
+  - memory-only clipboard history with `Super+V` and click-to-copy
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -74,7 +75,7 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
-`tests/panel-popovers.sh`, and panel screenshots.
+`tests/panel-popovers.sh`, `tests/clipboard.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -372,6 +373,7 @@ event schema, hook environment, and status API.
 | --- | --- |
 | `Super+Return` | terminal (`terminal` config value) |
 | `Super+D` | launcher |
+| `Super+V` | clipboard history |
 | `Super+T` | cycle master → mosaic → grid → columns |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
@@ -397,10 +399,14 @@ Mouse:
 - Client-side titlebar drags work for floating windows too.
 - Click the petal/`TESSA` mark, or press `Super+D`, for the launcher.
 - Right-click the `TESSA` mark for the power menu. Click the clock for the
-  calendar. Both can also be opened with `tessa-ctl panel calendar|power`.
+  calendar. Both can also be opened with
+  `tessa-ctl panel calendar|power|clipboard`.
 - In the launcher: type to search, `Up`/`Down`, `Enter`, `Esc`, or click a row.
 - In the calendar: `Left`/`Right` or the arrow buttons change months; `Home`
   returns to today. In the power menu: `Up`/`Down`, `Enter`, `Esc`, or click.
+- `Super+V` opens clipboard history. Select an entry with `Up`/`Down` and
+  `Enter`, or click it, to put it back on the clipboard. History is limited to
+  eight text entries of up to 16 KiB each and is kept in memory only.
 
 ## Configuration
 
@@ -614,6 +620,10 @@ These are real and important:
 - **Idle timing is external.** Tessa exposes idle notifications, inhibitors, and
   output power management; `swayidle`/`wlopm` (or another idle daemon) must be
   running if you want automatic blanking or locking.
+- **Clipboard history is text-only and in memory.** It keeps eight entries of up
+  to 16 KiB and never writes them to disk. `wlr-data-control-v1` is exposed to
+  session clients, so any trusted application can read the selection without
+  keyboard focus; treat session applications as trusted.
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
   with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
   and input-method popup repositioning during scroll are not covered.

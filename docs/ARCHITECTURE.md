@@ -32,6 +32,7 @@ its configuration reference are in [CUSTOMIZATION.md](CUSTOMIZATION.md).
                          │  text-input-v3 / input-method-v2│
                          │  wlr-screencopy-v1           │
                          │  wl_data_device + primary    │
+                         │  wlr-data-control-v1         │
                          │  virtual-keyboard-v1         │
                          │  seat / cursor / keyboard    │
                          └──────┬───────────────┬───────┘
@@ -138,6 +139,8 @@ layer surfaces without an explicit output, and keyboard workspace bindings.
 - implements click-to-focus, floating move/resize, and pointer forwarding,
 - handles `request_set_cursor`, cursor-shape-v1, selection requests, and
   relative-pointer motion for games,
+- advertises `wlr-data-control-v1` so the panel can observe selection changes
+  without keyboard focus and become a clipboard manager,
 - reports user activity to the idle notifier on key/pointer input.
 
 When an input method has grabbed the keyboard, raw key events and modifier
@@ -376,7 +379,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power> [output]
+CMD panel <calendar|power|clipboard> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -396,8 +399,9 @@ snapshots for tools.
 `CMD workspace <n> <output>` changes the workspace on a specific monitor; the
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
-focused output; only the matching panel opens. `CMD panel calendar|power`
-likewise emits a `panel` event with the requested popover and target output.
+focused output; only the matching panel opens. `CMD panel
+calendar|power|clipboard` likewise emits a `panel` event with the requested
+popover and target output.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
@@ -445,11 +449,11 @@ output.
 - **overlay**: created on demand, layer overlay, anchors all edges, exclusive
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface.
   Its mode selects the centered launcher or one of the anchored popovers
-  (calendar below the clock, power menu below the Tessa mark). The dim backdrop
-  and panel are drawn into the same surface, so clicks outside the active panel
-  close it. Popover hit rectangles are in popover-local coordinates plus the
-  panel origin, and keyboard input switches to `Up`/`Down`/`Enter` navigation
-  for the power menu. Opening a popover emits a `panel` event, which the panel
+  (calendar below the clock, power menu below the Tessa mark, and centered
+  clipboard history). The dim backdrop and panel are drawn into the same
+  surface, so clicks outside the active panel close it. Popover hit rectangles
+  are in popover-local coordinates plus the panel origin, and keyboard input
+  switches to `Up`/`Down`/`Enter` navigation for the power menu and clipboard. Opening a popover emits a `panel` event, which the panel
   process consumes like the `launcher` event.
 
 The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
@@ -472,6 +476,22 @@ The panel's `wl_keyboard` keymap is loaded with
 XKB_KEYMAP_COMPILE_NO_FLAGS)`. Using `xkb_keymap_new_from_string` with the size
 as the flags argument caused xkbcommon to reject every keymap, which silently
 disabled raw typing even though key events arrived.
+
+### Clipboard history
+
+The panel uses `zwlr_data_control_manager_v1` rather than the ordinary
+`wl_data_device` for clipboard history. wlroots sends ordinary selection events
+only to the focused client, so a bar process would otherwise see only the
+current item when it happened to gain focus. Data-control devices receive every
+selection update without focus and may set the selection without a serial.
+
+History keeps eight unique text entries in memory (16 KiB each). On each offer,
+the panel chooses the highest-priority text MIME, asks for the data through a
+nonblocking pipe, and drains it in the main poll loop. Selecting an entry copies
+it into a data-control source, offers UTF-8 and legacy text MIME types, and sets
+it as the seat selection. The new selection also comes back to the panel as an
+offer; deduplicating against the promoted entry prevents a feedback loop. No
+clipboard content is written to disk or logged.
 
 
 ### Buffers and rendering
@@ -513,6 +533,7 @@ The generated headers/C under `protocol/` are committed:
 - `layer-shell-client-protocol.h/.c` — panel
 - `xdg-shell-client-protocol.h/.c` — panel/runtime symbol
 - `text-input-client-protocol.h/.c` — panel text-input-v3 client
+- `wlr-data-control-unstable-v1-client-protocol.h/.c` — panel clipboard history
 - `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
 
 ## Failure behavior

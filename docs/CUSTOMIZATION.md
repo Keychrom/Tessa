@@ -261,6 +261,23 @@ tessa-ctl panel power DP-1
 Opening a popover emits the `panel` event with `arg=calendar` or `arg=power`
 and the output name, so hooks can observe or drive the shell as well.
 
+## Clipboard history
+
+`Super+V` opens the clipboard history, and `tessa-ctl panel clipboard` can open
+it from an extension or another binding. The panel uses the compositor's
+`wlr-data-control-v1` global to observe selections without requiring keyboard
+focus. History keeps the latest eight distinct text entries (up to 16 KiB each)
+in memory only; it is never written to disk. Selecting an entry promotes it to
+the top and makes the panel the new selection source, so any application can
+paste it with its normal paste command.
+
+`clipboard` is also available as a key-binding action:
+
+```ini
+bind = SUPER+v clipboard
+bind = SUPER+SHIFT+v clipboard
+```
+
 ## Keys and commands
 
 See [../README.md](../README.md#key-bindings) for the defaults. Additional
@@ -275,8 +292,8 @@ bind = SUPER+ALT+Right resize-width 30
 
 Available actions include `spawn`, `terminal`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
-`set-layout`, `resize-width`, and `resize-height`.
+`focus-next`, `focus-prev`, `launcher`, `clipboard`, `reload`, `ratio`,
+`toggle-layout`, `set-layout`, `resize-width`, and `resize-height`.
 
 ## Live inspection and automation
 

@@ -343,6 +343,7 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .focus_next => layout.focusNext(server, 1),
         .focus_prev => layout.focusNext(server, -1),
         .launcher => ipc.emitLauncher(server, ""),
+        .clipboard => ipc.emitPanel(server, "clipboard", ""),
         .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),
         .toggle_layout => layout.toggleLayout(server),

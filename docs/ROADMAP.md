@@ -50,7 +50,7 @@ a daily Japanese desktop, then by polish.
 - [ ] Screenshot UI and `xdg-desktop-portal` integration; PipeWire screen
       sharing.
 - [ ] Notification daemon integration.
-- [ ] Clipboard history.
+- [x] Clipboard history for text, using `wlr-data-control-v1` (memory only).
 
 ## 0.4 — visual and layout depth
 

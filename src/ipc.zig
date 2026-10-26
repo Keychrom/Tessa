@@ -271,7 +271,7 @@ pub fn emitLauncher(server: *Server, query: []const u8) void {
     });
 }
 
-fn emitPanel(server: *Server, name: []const u8, output_name: []const u8) void {
+pub fn emitPanel(server: *Server, name: []const u8, output_name: []const u8) void {
     const output = if (output_name.len > 0)
         output_name
     else if (core.focusOutput(server)) |out|

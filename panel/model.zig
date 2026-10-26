@@ -8,8 +8,10 @@ pub const MAX_RESULTS = 256;
 pub const MAX_STATUS = 8;
 pub const MAX_CUSTOM_APPS = 16;
 pub const POWER_ACTION_COUNT = 5;
+pub const MAX_CLIPBOARD_ENTRIES = 8;
+pub const MAX_CLIPBOARD_BYTES = 16384;
 
-pub const OverlayMode = enum { none, launcher, calendar, power };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard };
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -41,6 +43,8 @@ pub const HitKind = enum {
     calendar_next,
     calendar_today,
     power,
+    clipboard_entry,
+    clipboard_clear,
 };
 
 pub const Hit = struct {
@@ -124,6 +128,11 @@ pub const Surface = struct {
     listener: c.zwlr_layer_surface_v1_listener = undefined,
 };
 
+pub const ClipboardEntry = struct {
+    text: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    len: usize = 0,
+};
+
 pub const Panel = struct {
     display: ?*c.wl_display = null,
     registry: ?*c.wl_registry = null,
@@ -204,6 +213,26 @@ pub const Panel = struct {
     power_reboot_len: usize = 0,
     power_off: [256]u8 = [_]u8{0} ** 256,
     power_off_len: usize = 0,
+
+    data_control_manager: ?*c.zwlr_data_control_manager_v1 = null,
+    data_control_device: ?*c.zwlr_data_control_device_v1 = null,
+    data_control_listener: c.zwlr_data_control_device_v1_listener = undefined,
+    data_offer: ?*c.zwlr_data_control_offer_v1 = null,
+    data_offer_listener: c.zwlr_data_control_offer_v1_listener = undefined,
+    data_offer_mime: [128]u8 = [_]u8{0} ** 128,
+    data_offer_mime_len: usize = 0,
+    data_offer_mime_rank: i32 = 0,
+    data_offer_selected: bool = false,
+    clipboard_fd: c_int = -1,
+    clipboard_read_buf: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    clipboard_read_len: usize = 0,
+    clipboard_entries: [MAX_CLIPBOARD_ENTRIES]ClipboardEntry = undefined,
+    clipboard_count: usize = 0,
+    clipboard_selected: usize = 0,
+    clipboard_send_text: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    clipboard_send_len: usize = 0,
+    clipboard_source: ?*c.zwlr_data_control_source_v1 = null,
+    clipboard_source_listener: c.zwlr_data_control_source_v1_listener = undefined,
 
     launcher_open: bool = false,
     query: [128]u8 = [_]u8{0} ** 128,

@@ -293,6 +293,21 @@ configured `power_suspend` command runs instead of reboot/poweroff.
 sh tests/panel-popovers.sh
 ```
 
+### Clipboard history test
+
+`tests/clipboard.sh` copies two strings with `wl-copy`, opens the history with
+`Super+V` through `wtype`, selects the older entry, and verifies with `wl-paste`
+that the panel became the new selection source. It then copies a third string,
+reopens the history through IPC, and checks that the newest entry is restored.
+
+```sh
+sh tests/clipboard.sh
+```
+
+The panel monitors selections through `wlr-data-control-v1`. Ordinary
+`wl_data_device` selection events go only to the focused client, so a bar-side
+ordinary data device cannot collect clipboard history.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
@@ -374,6 +389,9 @@ the front of `PATH`, so both binaries are found.
   bar geometry, font, terminal, launcher entries, and power commands when the
   compositor emits `config-reload`. Geometry changes recreate the bar layer
   surface.
+- Clipboard history depends on the compositor's `wlr-data-control-v1` global.
+  `wl_data_device` selection events are focused-client-only, so do not replace
+  the panel's data-control device with the ordinary interface.
 - `pkill -x tessa` and `pkill -x tessa-panel` are safer than `pkill -f tessa`
   when working over SSH: a `-f` pattern can match the SSH remote command line
   itself and kill the session.

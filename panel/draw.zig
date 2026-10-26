@@ -950,14 +950,32 @@ const PopoverLayout = struct {
 };
 
 fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
-    const w: f64 = if (mode == .calendar) 376.0 else 336.0;
-    const h: f64 = if (mode == .calendar) 400.0 else 360.0;
+    const w: f64 = switch (mode) {
+        .calendar => 376.0,
+        .clipboard => 560.0,
+        else => 336.0,
+    };
+    const h: f64 = switch (mode) {
+        .calendar => 400.0,
+        .clipboard => if (g.clipboard_count == 0)
+            300.0
+        else
+            130.0 + @as(f64, @floatFromInt(g.clipboard_count)) * 50.0,
+        else => 360.0,
+    };
     const margin: f64 = @floatFromInt(g.bar_side_margin);
     const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
-    var x = if (mode == .calendar) W - margin - w else margin;
-    var y = bar_bottom + 8.0;
+    var x = switch (mode) {
+        .calendar => W - margin - w,
+        .clipboard => (W - w) / 2.0,
+        else => margin,
+    };
+    var y = switch (mode) {
+        .clipboard => (H - h) / 2.0,
+        else => bar_bottom + 8.0,
+    };
     x = std.math.clamp(x, 8.0, @max(8.0, W - w - 8.0));
-    if (y + h > H - 8.0) y = @max(8.0, H - h - 8.0);
+    if (y + h > H - 8.0 or y < 8.0) y = std.math.clamp(y, 8.0, @max(8.0, H - h - 8.0));
     return .{ .x = x, .y = y, .w = w, .h = h };
 }
 
@@ -1217,6 +1235,152 @@ fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+fn clipboardPreview(buf: []u8, text: []const u8) []const u8 {
+    const line_end = std.mem.indexOfAny(u8, text, "\r\n") orelse text.len;
+    var len: usize = 0;
+    m.copyTrunc(buf, &len, text[0..line_end]);
+    var i: usize = 0;
+    while (i < len) : (i += 1) {
+        if (buf[i] < 0x20 and buf[i] != '\t') buf[i] = ' ';
+    }
+    if (len == 0) {
+        const blank = "(blank)";
+        @memcpy(buf[0..blank.len], blank);
+        return buf[0..blank.len];
+    }
+    return buf[0..len];
+}
+
+fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = g.font[0..g.font_len];
+    const p = popoverLayout(.clipboard, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    drawPetal(cr, x + 31, y + 33, 7.5, .{ accent[0], accent[1], accent[2], 0.95 });
+    _ = drawText(cr, "CLIPBOARD", x + 48, y + 19, fam, "Medium", 7.4, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.6);
+    _ = drawText(cr, "History", x + 48, y + 33, fam, "Semi-Bold", 21.0, .{
+        0.95, 0.97, 0.99, 0.98,
+    }, w - 72, 0);
+
+    var count_buf: [48]u8 = undefined;
+    const count = std.fmt.bufPrint(&count_buf, "{d} ITEMS  /  MEMORY ONLY", .{g.clipboard_count}) catch "";
+    const count_w = textWidth(cr, count, MONO, "Medium", 7.1, 0.7);
+    _ = drawText(cr, count, x + w - 24 - count_w, y + 34, MONO, "Medium", 7.1, .{
+        0.60, 0.66, 0.76, 0.42,
+    }, 0, 0.7);
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 70);
+    c.cairo_line_to(cr, x + w - 24, y + 70);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const row_x = x + 20.0;
+    const row_w = w - 40.0;
+    const row_h = 46.0;
+    const row_gap = 4.0;
+    const row_y0 = y + 82.0;
+
+    if (g.clipboard_count == 0) {
+        drawPetal(cr, x + w / 2.0, y + 150, 17, .{ 1, 1, 1, 0.10 });
+        _ = drawTextCentered(cr, "Clipboard history is empty", x + w / 2.0 - 130, y + 188, fam, "Semi-Bold", 12.5, .{
+            0.86, 0.89, 0.94, 0.75,
+        }, 260, 0);
+        _ = drawTextCentered(cr, "Copy text in any application, then open this again.", x + w / 2.0 - 190, y + 210, fam, "Regular", 9.0, .{
+            0.60, 0.66, 0.75, 0.55,
+        }, 380, 0);
+    } else {
+        var i: usize = 0;
+        while (i < g.clipboard_count) : (i += 1) {
+            const entry = &g.clipboard_entries[i];
+            const row_y = row_y0 + @as(f64, @floatFromInt(i)) * (row_h + row_gap);
+            const selected = i == g.clipboard_selected;
+            const hovered = i == g.overlay_row_hover;
+            if (selected) {
+                fillRound(cr, row_x, row_y, row_w, row_h, 10, .{
+                    accent[0], accent[1], accent[2], 0.14,
+                });
+                strokeRound(cr, row_x + 0.5, row_y + 0.5, row_w - 1, row_h - 1, 9.5, .{
+                    accent[0], accent[1], accent[2], 0.22,
+                }, 1);
+                fillRound(cr, row_x + 1.5, row_y + 13, 3, 20, 1.5, .{
+                    accent[0], accent[1], accent[2], 0.95,
+                });
+            } else if (hovered) {
+                fillRound(cr, row_x, row_y, row_w, row_h, 10, .{ 1, 1, 1, 0.035 });
+            }
+
+            var num_buf: [8]u8 = undefined;
+            const num = std.fmt.bufPrint(&num_buf, "{d}", .{i + 1}) catch "?";
+            _ = drawTextCentered(cr, num, row_x + 21, row_y + row_h / 2.0, MONO, "Medium", 8.0, .{
+                0.58, 0.64, 0.74, if (selected) 0.9 else 0.55,
+            }, 0, 0);
+
+            var preview_buf: [160]u8 = undefined;
+            const preview = clipboardPreview(&preview_buf, entry.text[0..entry.len]);
+            _ = drawTextCentered(cr, preview, row_x + 44, row_y + row_h / 2.0, fam, "Medium", 10.0, if (selected) .{
+                0.97, 0.98, 1, 1,
+            } else .{ 0.82, 0.87, 0.94, 0.88 }, row_w - 150, 0);
+
+            var size_buf: [24]u8 = undefined;
+            const size = std.fmt.bufPrint(&size_buf, "{d} B", .{entry.len}) catch "";
+            const size_w = textWidth(cr, size, MONO, "Medium", 7.0, 0);
+            _ = drawTextCentered(cr, size, row_x + row_w - 32 - size_w, row_y + row_h / 2.0, MONO, "Medium", 7.0, .{
+                0.58, 0.64, 0.74, 0.42,
+            }, 0, 0);
+            if (selected) {
+                _ = drawTextCentered(cr, "\xe2\x86\xb5", row_x + row_w - 18, row_y + row_h / 2.0, MONO, "Medium", 10.0, .{
+                    accent[0], accent[1], accent[2], 0.9,
+                }, 0, 0);
+            }
+            addOverlayHit(row_x - x, row_y - y, row_w, row_h, .{ .kind = .clipboard_entry, .value = i });
+        }
+    }
+
+    const footer_divider = y + h - 44;
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, footer_divider);
+    c.cairo_line_to(cr, x + w - 24, footer_divider);
+    setColor(cr, .{ 1, 1, 1, 0.05 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    _ = drawText(cr, "\xe2\x86\x91\xe2\x86\x93  select      \xe2\x86\xb5  copy      esc  close", x + 24, y + h - 33, fam, "Medium", 7.5, .{
+        0.60, 0.66, 0.75, 0.55,
+    }, w - 140, 0.4);
+
+    const clear_x = x + w - 24 - 62;
+    const clear_y = y + h - 40;
+    const clear_hover = g.overlay_row_hover == g.clipboard_count;
+    fillRound(cr, clear_x, clear_y, 62, 24, 7, .{
+        1, 1, 1, if (clear_hover and g.clipboard_count > 0) 0.09 else 0.045,
+    });
+    _ = drawTextCentered(cr, "CLEAR", clear_x + 31, clear_y + 12, MONO, "Medium", 6.8, .{
+        0.72, 0.78, 0.87, if (g.clipboard_count > 0) 0.72 else 0.28,
+    }, 0, 0.6);
+    addOverlayHit(clear_x - x, clear_y - y, 62, 24, .{ .kind = .clipboard_clear });
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 pub fn drawOverlay(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
@@ -1259,6 +1423,8 @@ pub fn drawOverlay(s: *m.Surface) void {
         drawCalendarPopover(cr, W, H, t);
     } else if (g.overlay_mode == .power) {
         drawPowerPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .clipboard) {
+        drawClipboardPopover(cr, W, H, t);
     }
 
     end(s, d);
