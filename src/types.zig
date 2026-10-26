@@ -64,6 +64,8 @@ pub const Action = enum {
     ratio,
     toggle_layout,
     set_layout,
+    resize_width,
+    resize_height,
 };
 
 pub const Binding = struct {
@@ -88,6 +90,16 @@ pub const SavedOutput = struct {
     transform: u32 = 0,
     present: bool = false,
 };
+
+pub const SavedLayout = struct {
+    output_name: [64]u8 = undefined,
+    output_len: usize = 0,
+    ws: usize = 1,
+    mode: LayoutMode = .master,
+    present: bool = false,
+};
+
+pub const MAX_SAVED_LAYOUTS = MAX_OUTPUTS * WS_COUNT;
 
 pub const Hook = struct {
     event: [32]u8,
@@ -156,6 +168,7 @@ pub const Output = struct {
     bg_rect: *c.wlr_scene_rect,
     active_ws: usize,
     ws_layouts: [WS_COUNT]LayoutMode,
+    layout_overridden: [WS_COUNT]bool,
     last_focused: [WS_COUNT + 1]?*Client,
 
     frame: c.wl_listener,
@@ -309,6 +322,8 @@ pub const Server = struct {
     output_count: usize,
     saved_outputs: [MAX_OUTPUTS]SavedOutput,
     saved_output_count: usize,
+    saved_layouts: [MAX_SAVED_LAYOUTS]SavedLayout,
+    saved_layout_count: usize,
     output_config_path: [512]u8,
     output_config_len: usize,
     clients: [MAX_CLIENTS]?*Client,
@@ -373,6 +388,7 @@ pub const Server = struct {
     schedule_ipc: ?*const fn (*Server) void,
     broadcast_line: ?*const fn (*Server, []const u8) void,
     reload_runtime: ?*const fn (*Server) void,
+    save_display_state: ?*const fn (*Server) void,
 
     cursor_mode: CursorMode,
     grabbed: ?*Client,

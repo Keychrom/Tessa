@@ -59,7 +59,9 @@ a daily Japanese desktop, then by polish.
 - [ ] Theme/config for bar height, margins, fonts, palette, wallpaper art.
 - [x] Grid and equal-column layouts, with per-workspace layout profiles and
       runtime layout cycling.
-- [ ] Mosaic layout minimum-size handling and keyboard resize.
+- [x] Mosaic minimum-size fallback and keyboard floating resize.
+- [x] Persist runtime per-workspace layouts and propagate config reloads to
+      existing outputs.
 - [x] Output mode/position/scale management via `wlr-output-management-v1` (`wlr-randr`).
 - [x] HiDPI-aware panel buffer scaling for integer output scales.
 - [x] Persist output mode, position, scale, and transform across restarts.

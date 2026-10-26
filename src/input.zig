@@ -298,6 +298,7 @@ pub fn reloadRuntime(server: *Server) void {
     const cfg = @import("config.zig");
     cfg.load(server);
     reloadKeymaps(server);
+    layout.applyConfigLayouts(server);
     layout.arrangeAll(server);
     events.emit(server, .{ .name = event_names.config_reload });
     core.markDirty(server);
@@ -336,6 +337,8 @@ fn executeBinding(server: *Server, b: *Binding) void {
                 core.logInfo("layout: unknown layout '{s}'", .{b.arg[0..b.arg_len]});
             }
         },
+        .resize_width => layout.keyboardResize(server, b.num, 0),
+        .resize_height => layout.keyboardResize(server, 0, b.num),
     }
 }
 

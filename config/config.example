@@ -15,8 +15,10 @@ master_ratio = 0.58
 # grid: balanced grid
 # columns: equal-width columns
 # Super+T cycles all four at runtime, per output and workspace.
+# Runtime choices are saved to outputs.conf and restored on restart.
 layout = master
-# Optional per-workspace initial layout overrides:
+# Optional per-workspace initial layout overrides. These seed workspaces with no
+# saved runtime choice; a config reload updates non-overridden workspaces.
 # layout_1 = grid
 # layout_2 = columns
 

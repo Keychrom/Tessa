@@ -170,7 +170,8 @@ printf 'STATE
 ```
 
 Output position/mode/scale can be exercised with `wlr-randr` if it is
-installed. The settings are runtime-only.
+installed. Applied settings and runtime layout overrides are saved to
+`outputs.conf` and restored on the next start.
 
 ### HiDPI and output persistence test
 
@@ -191,9 +192,9 @@ WLR_RANDR=/path/to/wlr-randr sh tests/output-persistence.sh
 ```
 
 It applies a 1280x720 custom mode, scale 2, and position 40,30, verifies the
-file, restarts, and checks the restored mode/scale/position. The launcher at 2x
-uses the same fitted 760x620 design, so its hit rectangles and IME cursor follow
-the visual scaling.
+file, sets a runtime layout, restarts, and checks the restored
+mode/scale/position and layout. The launcher at 2x uses the same fitted 760x620
+design, so its hit rectangles and IME cursor follow the visual scaling.
 
 ### Layout test
 
@@ -210,8 +211,14 @@ tessa-ctl layout mosaic
 ```
 
 `OUT` in `tessa-ctl state` ends with the current layout name. Per-workspace
-initial layouts come from `layout_1` … `layout_9`; runtime changes are kept per
-output and workspace and are not persisted.
+initial layouts come from `layout_1` … `layout_9`. Runtime changes are kept per
+output and workspace, written as `layout` lines in `outputs.conf`, and restored
+on the next start. A config reload updates workspaces that have no runtime
+override. `Super+Alt+H/J/K/L` or `tessa-ctl resize <dx> <dy>` resizes the
+focused floating window, with a 160×120 minimum.
+
+`tests/layout-geometry.sh` spawns eight windows, selects mosaic, and verifies
+that no tiles overlap and every tile is at least 160×160.
 
 ### Lock and idle test
 
@@ -233,9 +240,10 @@ postpones the lock, while a client holding `idle-inhibit-v1` prevents it.
 ## Extension and integration tests
 
 The headless smoke test starts a compositor with config includes, hooks, and a
-temporary runtime directory, then checks workspace changes, status set/clear,
-config reload, event subscriptions, IPC half-close handling, and (when `foot` is
-installed) window open/focus/close events:
+temporary runtime directory, then checks workspace changes, layout persistence,
+config reload propagation with runtime overrides preserved, status set/clear,
+event subscriptions, IPC half-close handling, keyboard floating resize, and
+(when `foot` is installed) window open/focus/close events:
 
 ```sh
 ./scripts/build.sh

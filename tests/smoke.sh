@@ -39,11 +39,14 @@ cat > "$runtime/extra.conf" <<EOF
 hook = workspace-change $runtime/hook.sh
 EOF
 
+cat > "$runtime/layout.conf" <<EOF
+layout = master
+layout_2 = columns
+EOF
+
 cat > "$runtime/config" <<EOF
 panel = false
 xwayland = false
-layout = master
-layout_2 = columns
 hook = startup $runtime/hook.sh
 hook = config-reload $runtime/hook.sh
 hook = window-open $runtime/hook.sh
@@ -52,11 +55,13 @@ hook = window-close $runtime/hook.sh
 hook = layout-change $runtime/hook.sh
 launcher_entry = Smoke Test | sh -c 'true'
 include = $runtime/extra.conf
+include = $runtime/layout.conf
 EOF
 
 export TESSA_CONFIG="$runtime/config"
 export TESSA_EVENT_LOG="$runtime/events.log"
 export TESSA_IPC="$runtime/tessa.sock"
+export TESSA_OUTPUT_CONFIG="$runtime/outputs.conf"
 export XDG_RUNTIME_DIR="$runtime"
 export WLR_BACKENDS=headless
 export WLR_RENDERER=pixman
@@ -136,6 +141,23 @@ tessa-ctl layout master
 wait_state "OUT HEADLESS-1 3 1 master"
 echo "layout API: ok"
 
+i=0
+while ! grep -q "^layout HEADLESS-1 3 master$" "$runtime/outputs.conf" 2>/dev/null; do
+    i=$((i + 1))
+    if [ "$i" -ge 30 ]; then
+        echo "layout override was not persisted" >&2
+        cat "$runtime/outputs.conf" 2>/dev/null >&2 || true
+        exit 1
+    fi
+    sleep 0.1
+done
+if grep -q "^layout HEADLESS-1 2 " "$runtime/outputs.conf" 2>/dev/null; then
+    echo "config default layout was persisted as an override" >&2
+    cat "$runtime/outputs.conf" >&2
+    exit 1
+fi
+echo "layout persistence: ok"
+
 tessa-ctl status smoke "Tessa extension status" --exec "sh -c 'true'"
 wait_state "STATUS.*smoke"
 wait_state "sh -c"
@@ -149,10 +171,18 @@ if printf '%s\n' "$state" | grep -q "STATUS"; then
 fi
 echo "status clear: ok"
 
+cat > "$runtime/layout.conf" <<EOF
+layout = grid
+layout_2 = columns
+EOF
 tessa-ctl dispatch reload
-wait_state "OUT HEADLESS-1 3 1"
+wait_state "OUT HEADLESS-1 3 1 master"
 wait_log "config-reload|"
-echo "config reload + include hook: ok"
+tessa-ctl workspace 1
+wait_state "OUT HEADLESS-1 1 1 grid"
+tessa-ctl workspace 3
+wait_state "OUT HEADLESS-1 3 1 master"
+echo "config reload + include hook + layout propagation: ok"
 
 wait_log "workspace-change|3|1|HEADLESS-1|"
 echo "workspace hook: ok"
@@ -180,6 +210,52 @@ if command -v foot >/dev/null 2>&1; then
     fi
     wait_log "window-open|"
     wait_log "window-focus|"
+
+    win_geom() {
+        printf '%s\n' "$state" | awk -F '\t' -v id="$wid" \
+            '$1 == "WIN" && $2 == id { print $10, $11, $12, $13; exit }'
+    }
+    tessa-ctl dispatch float "$wid"
+    i=0
+    while :; do
+        state=$(tessa-ctl state 2>/dev/null || true)
+        set -- $(win_geom)
+        if [ "${4:-0}" -gt 0 ] && [ "${3:-0}" -gt 0 ]; then break; fi
+        i=$((i + 1))
+        if [ "$i" -ge 30 ]; then
+            echo "floating window has no geometry" >&2
+            printf '%s\n' "$state" >&2
+            exit 1
+        fi
+        sleep 0.1
+    done
+    set -- $(win_geom)
+    w0=$3
+    h0=$4
+    tessa-ctl resize 40 30
+    sleep 0.2
+    state=$(tessa-ctl state 2>/dev/null || true)
+    set -- $(win_geom)
+    w1=$3
+    h1=$4
+    if [ "$w1" -le "$w0" ] || [ "$h1" -le "$h0" ]; then
+        echo "keyboard resize did not grow the window" >&2
+        printf '%s\n' "$state" >&2
+        exit 1
+    fi
+    tessa-ctl resize -10000 -10000
+    sleep 0.2
+    state=$(tessa-ctl state 2>/dev/null || true)
+    set -- $(win_geom)
+    w2=$3
+    h2=$4
+    if [ "$w2" -lt 160 ] || [ "$h2" -lt 120 ]; then
+        echo "keyboard resize went below the minimum size" >&2
+        printf '%s\n' "$state" >&2
+        exit 1
+    fi
+    echo "window keyboard resize: ok"
+
     tessa-ctl dispatch close "$wid"
     wait_log "window-close|"
     wait_state "OUT HEADLESS-1 3 1"

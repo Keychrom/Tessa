@@ -21,6 +21,7 @@ fn usage() void {
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
         "  layout [name]                 cycle or set the current workspace layout\n" ++
+        "  resize <dx> <dy>              resize the focused floating window\n" ++
         "  status <id> <text>            set a bar status entry\n" ++
         "  status <id> --clear           remove a bar status entry\n" ++
         "  status <id> <text> --exec <command...>\n" ++
@@ -282,6 +283,16 @@ fn runLayout(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runResize(args: []const []const u8) !void {
+    if (args.len < 3) return error.BadArguments;
+    _ = std.fmt.parseInt(i32, args[1], 10) catch return error.BadArguments;
+    _ = std.fmt.parseInt(i32, args[2], 10) catch return error.BadArguments;
+    var line: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD resize {s} {s}\n", .{ args[1], args[2] }) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
 fn runSpawn(args: []const []const u8) !void {
     if (args.len < 2) return error.BadArguments;
     var cmd_buf: [2048]u8 = undefined;
@@ -340,6 +351,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runLauncher(args)
     else if (std.mem.eql(u8, cmd, "layout"))
         runLayout(args)
+    else if (std.mem.eql(u8, cmd, "resize"))
+        runResize(args)
     else if (std.mem.eql(u8, cmd, "status"))
         runStatus(args)
     else if (std.mem.eql(u8, cmd, "quit"))

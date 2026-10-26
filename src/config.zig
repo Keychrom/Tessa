@@ -59,6 +59,10 @@ fn addDefaults(cfg: *Config) void {
     addBinding(cfg, "super+shift+l", "move", "right");
     addBinding(cfg, "super+ctrl+h", "ratio", "-0.03");
     addBinding(cfg, "super+ctrl+l", "ratio", "+0.03");
+    addBinding(cfg, "super+alt+h", "resize-width", "-30");
+    addBinding(cfg, "super+alt+l", "resize-width", "30");
+    addBinding(cfg, "super+alt+k", "resize-height", "-30");
+    addBinding(cfg, "super+alt+j", "resize-height", "30");
 
     var chord: [64]u8 = undefined;
     var i: usize = 1;
@@ -133,6 +137,9 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
         .ratio => {
             binding.ratio = std.fmt.parseFloat(f32, arg) catch 0;
         },
+        .resize_width, .resize_height => {
+            binding.num = std.fmt.parseInt(i32, arg, 10) catch 0;
+        },
         else => {},
     }
 
@@ -184,6 +191,8 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "ratio")) return .ratio;
     if (std.ascii.eqlIgnoreCase(name, "toggle-layout")) return .toggle_layout;
     if (std.ascii.eqlIgnoreCase(name, "set-layout")) return .set_layout;
+    if (std.ascii.eqlIgnoreCase(name, "resize-width")) return .resize_width;
+    if (std.ascii.eqlIgnoreCase(name, "resize-height")) return .resize_height;
     return .none;
 }
 

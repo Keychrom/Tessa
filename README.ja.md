@@ -27,7 +27,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   wlr-screencopy（grim が動作）
 - マスター/スタック、Tessa 独自の「モザイク」スパイラル、グリッド、
   等幅カラムの各レイアウト。ワークスペースごとのレイアウト設定にも対応
-  （`Super+T` で巡回）
+  （`Super+T` で巡回）。実行中に選んだレイアウトは再起動後も復元され、
+  設定の再読み込みは上書きしていないワークスペースだけを更新
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -63,7 +64,9 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 ストリーム、カスタムステータス、カスタムランチャー項目、設定再読み込みは
 `tests/smoke.sh`、`tests/output-persistence.sh`、パネルのスクリーンショットで
 確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
-2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール復元も検証しています。
+2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
+`tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`
+で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -374,6 +377,8 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウを巡回 |
 | `Super+Ctrl+H/L` | マスター領域の比率を縮小/拡大 |
+| `Super+Alt+H/L` | フローティングウィンドウの幅を縮小/拡大 |
+| `Super+Alt+J/K` | フローティングウィンドウの高さを拡大/縮小 |
 
 マウス:
 
@@ -409,7 +414,7 @@ cp config/config.example ~/.config/tessa/config
 | `border_width` | アクティブ/非アクティブの枠の太さ |
 | `master_ratio` | マスター領域の比率（0.15–0.9） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns` |
-| `layout_1` … `layout_9` | ワークスペースごとのレイアウト上書き |
+| `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
@@ -427,7 +432,7 @@ cp config/config.example ~/.config/tessa/config
 | `startup` | 起動時に 1 回実行するコマンド |
 | `hook` | コンポジタイベントで実行するコマンド |
 | `launcher_entry` | ランチャー項目を追加（`名前 \| コマンド`） |
-| `output_config` | 出力モード/位置/スケール/変換の保存先 |
+| `output_config` | 出力モード/位置/スケール/変換とレイアウト上書きの保存先 |
 
 追加のバインドには XKB keysym 名を使います:
 
@@ -443,11 +448,15 @@ bind = SUPER+ctrl+h ratio -0.03
 利用可能なアクション: `terminal`、`spawn`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
 `focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
-`set-layout`。
+`set-layout`、`resize-width`、`resize-height`。
 
 `Super+T` はフォーカス中のワークスペースのレイアウトを 4 種類巡回します。
-実行中のレイアウトは出力・ワークスペースごとに保持されます。`layout_N` は
-出力が現れたときの初期値だけを設定します。
+実行中に選んだレイアウトは出力・ワークスペースごとに保持され、
+`outputs.conf` に保存されます。`layout_N` は保存済み・実行中の上書きがない
+ワークスペースの初期値だけを設定します。設定の再読み込みでは、上書きして
+いないワークスペースだけが更新され、実行中の選択は維持されます。
+`resize-width` と `resize-height` はフォーカス中のフローティングウィンドウを
+ピクセル単位の差分でリサイズします。
 
 ## 仕組み
 
@@ -485,7 +494,7 @@ STATE
 ACTIVE 1
 OCC 1 2
 ...
-WIN\t1\t1\t1\t0\t0\tkitty\tnotes
+WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
@@ -493,7 +502,8 @@ CMD focus 4
 CMD close 4
 CMD spawn kitty
 CMD launcher [query]
-CMD layout
+CMD layout [name] [output]
+CMD resize <dx> <dy>
 CMD float <id>
 CMD quit
 ```

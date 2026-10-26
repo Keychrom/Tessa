@@ -27,6 +27,7 @@ tessa-ctl workspace 3 HEADLESS-2        # a specific output
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # query is optional
 tessa-ctl layout grid                   # set/cycle current workspace layout
+tessa-ctl resize 40 30                  # grow the focused floating window
 tessa-ctl dispatch reload               # any compositor command
 tessa-ctl quit
 ```
@@ -59,12 +60,13 @@ are:
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
 ```
 
 `OUT` is `name workspace focused layout`. `WIN` fields are tab-separated: id,
-workspace, focused, floating, fullscreen, escaped app_id, escaped title, output.
-`STATUS` is covered below.
+workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
+x, y, width, height. Geometry is in logical compositor coordinates and is
+included for tooling that tracks windows. `STATUS` is covered below.
 
 ## Events
 

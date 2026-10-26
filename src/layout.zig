@@ -301,7 +301,34 @@ fn arrangeMasterTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
     }
 }
 
+fn mosaicCanFit(count: usize, uw: i32, uh: i32, gap: i32, min_size: i32) bool {
+    var rw = uw;
+    var rh = uh;
+    var dir: u2 = 0;
+    var i: usize = 0;
+    while (i + 1 < count) : (i += 1) {
+        if (rw < min_size or rh < min_size) return false;
+        const horizontal = dir == 0 or dir == 2;
+        const avail = if (horizontal) rw - gap else rh - gap;
+        if (avail < min_size * 2) return false;
+        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * 0.62);
+        const slice = std.math.clamp(raw, min_size, avail - min_size);
+        if (horizontal) {
+            rw -= slice + gap;
+        } else {
+            rh -= slice + gap;
+        }
+        dir = @intCast((@as(u32, dir) + 1) % 4);
+    }
+    return true;
+}
+
 fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
+    const min_size: i32 = 160;
+    if (!mosaicCanFit(tiles.len, uw, uh, gap, min_size)) {
+        arrangeGridTiles(tiles, ux, uy, uw, uh, border, gap);
+        return;
+    }
     var rx = ux;
     var ry = uy;
     var rw = uw;
@@ -309,18 +336,27 @@ fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
     var dir: u2 = 0;
     var i: usize = 0;
     while (i < tiles.len) : (i += 1) {
-        if (i == tiles.len - 1 or rw < 160 or rh < 160) {
+        // The last window owns what remains instead of leaving a gap.
+        if (i == tiles.len - 1) {
             applyFrame(tiles[i].?, rx, ry, rw, rh, border, true);
-            i += 1;
-            while (i < tiles.len) : (i += 1) {
-                applyFrame(tiles[i].?, rx, ry, rw, rh, border, true);
-            }
             break;
         }
-        if (dir == 0 or dir == 2) {
-            const slice = @max(120, @as(i32, @intFromFloat(
-                @as(f32, @floatFromInt(rw - gap)) * 0.62,
-            )));
+        // When a slice would leave less than a usable tile, stop spiraling
+        // and divide the remaining rectangle with the grid layout.
+        if (rw < min_size or rh < min_size) {
+            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap);
+            break;
+        }
+        const horizontal = dir == 0 or dir == 2;
+        const avail = if (horizontal) rw - gap else rh - gap;
+        if (avail < min_size * 2) {
+            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap);
+            break;
+        }
+
+        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * 0.62);
+        const slice = std.math.clamp(raw, min_size, avail - min_size);
+        if (horizontal) {
             if (dir == 0) {
                 applyFrame(tiles[i].?, rx, ry, slice, rh, border, true);
                 rx += slice + gap;
@@ -330,9 +366,6 @@ fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
                 rw -= slice + gap;
             }
         } else {
-            const slice = @max(120, @as(i32, @intFromFloat(
-                @as(f32, @floatFromInt(rh - gap)) * 0.62,
-            )));
             if (dir == 1) {
                 applyFrame(tiles[i].?, rx, ry, rw, slice, border, true);
                 ry += slice + gap;
@@ -343,6 +376,23 @@ fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
             }
         }
         dir = @intCast((@as(u32, dir) + 1) % 4);
+    }
+}
+
+fn persistLayouts(server: *Server) void {
+    if (server.save_display_state) |save| save(server);
+}
+
+pub fn applyConfigLayouts(server: *Server) void {
+    var oi: usize = 0;
+    while (oi < server.outputs.len) : (oi += 1) {
+        const out = server.outputs[oi] orelse continue;
+        var ws: usize = 0;
+        while (ws < types.WS_COUNT) : (ws += 1) {
+            if (!out.layout_overridden[ws]) {
+                out.ws_layouts[ws] = server.config.layout_by_ws[ws];
+            }
+        }
     }
 }
 
@@ -800,6 +850,8 @@ pub fn cycleLayout(server: *Server) void {
     if (index >= types.layout_cycle.len) index = 0;
     const next = types.layout_cycle[(index + 1) % types.layout_cycle.len];
     out.ws_layouts[ws - 1] = next;
+    out.layout_overridden[ws - 1] = true;
+    persistLayouts(server);
     arrangeOutput(server, out);
     events.emit(server, .{
         .name = event_names.layout_change,
@@ -815,10 +867,14 @@ pub fn setLayoutOnOutput(server: *Server, out: *Output, name: []const u8) bool {
     const mode = types.layoutFromName(name) orelse return false;
     const ws = out.active_ws;
     if (out.ws_layouts[ws - 1] == mode) {
+        out.layout_overridden[ws - 1] = true;
+        persistLayouts(server);
         arrangeOutput(server, out);
         return true;
     }
     out.ws_layouts[ws - 1] = mode;
+    out.layout_overridden[ws - 1] = true;
+    persistLayouts(server);
     arrangeOutput(server, out);
     events.emit(server, .{
         .name = event_names.layout_change,
@@ -843,6 +899,47 @@ pub fn toggleLayout(server: *Server) void {
 pub fn adjustRatio(server: *Server, delta: f32) void {
     server.config.master_ratio = std.math.clamp(server.config.master_ratio + delta, 0.15, 0.9);
     arrangeAll(server);
+    core.markDirty(server);
+}
+
+pub fn keyboardResize(server: *Server, dx: i32, dy: i32) void {
+    const cl = server.focused orelse return;
+    if (!cl.floating or cl.fullscreen or !cl.mapped) return;
+    if (dx == 0 and dy == 0) return;
+    if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, cl.output);
+
+    const border = server.config.border_width;
+    const min_w = @max(160, border * 2 + cl.xdg.current.min_width);
+    const min_h = @max(120, border * 2 + cl.xdg.current.min_height);
+
+    var w = cl.float_w + dx;
+    var h = cl.float_h + dy;
+    if (w < min_w) w = min_w;
+    if (h < min_h) h = min_h;
+
+    const full = cl.output.full;
+    if (full.width > 0) {
+        const max_w = full.x + full.width - cl.float_x;
+        if (max_w >= min_w) {
+            w = @min(w, max_w);
+        } else {
+            w = min_w;
+            cl.float_x = @max(full.x, full.x + full.width - min_w);
+        }
+    }
+    if (full.height > 0) {
+        const max_h = full.y + full.height - cl.float_y;
+        if (max_h >= min_h) {
+            h = @min(h, max_h);
+        } else {
+            h = min_h;
+            cl.float_y = @max(full.y, full.y + full.height - min_h);
+        }
+    }
+
+    cl.float_w = w;
+    cl.float_h = h;
+    applyFloating(cl, cl.output);
     core.markDirty(server);
 }
 

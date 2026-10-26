@@ -19,6 +19,7 @@ fn lTree(sl: *c.wlr_scene_layer_surface_v1) *c.wlr_scene_tree {
 
 pub fn init(server: *Server) void {
     initOutputConfig(server);
+    server.save_display_state = saveOutputConfig;
 
     server.new_output.notify = onNewOutput;
     c.wl_signal_add(&server.backend.events.new_output, &server.new_output);
@@ -187,6 +188,28 @@ fn findSavedOutput(server: *Server, name: []const u8) ?*types.SavedOutput {
     return null;
 }
 
+fn findSavedLayout(server: *Server, name: []const u8, ws: usize) ?*types.SavedLayout {
+    var i: usize = 0;
+    while (i < server.saved_layout_count) : (i += 1) {
+        const saved = &server.saved_layouts[i];
+        if (saved.present and saved.ws == ws and
+            std.mem.eql(u8, saved.output_name[0..saved.output_len], name)) return saved;
+    }
+    return null;
+}
+
+fn applySavedLayouts(server: *Server, out: *Output) void {
+    const name = core.outputName(out);
+    var i: usize = 0;
+    while (i < server.saved_layout_count) : (i += 1) {
+        const saved = &server.saved_layouts[i];
+        if (!saved.present or saved.ws < 1 or saved.ws > types.WS_COUNT) continue;
+        if (!std.mem.eql(u8, saved.output_name[0..saved.output_len], name)) continue;
+        out.ws_layouts[saved.ws - 1] = saved.mode;
+        out.layout_overridden[saved.ws - 1] = true;
+    }
+}
+
 fn loadOutputConfig(server: *Server) void {
     if (server.output_config_len == 0) return;
     var zpath: [512:0]u8 = undefined;
@@ -205,8 +228,28 @@ fn loadOutputConfig(server: *Server) void {
 
         var it = std.mem.tokenizeAny(u8, trimmed, " \t");
         const tag = it.next() orelse continue;
-        if (!std.mem.eql(u8, tag, "output")) continue;
         const name = it.next() orelse continue;
+        if (std.mem.eql(u8, tag, "layout")) {
+            const ws_s = it.next() orelse continue;
+            const mode_s = it.next() orelse continue;
+            const ws = std.fmt.parseInt(usize, ws_s, 10) catch 0;
+            if (ws < 1 or ws > types.WS_COUNT) continue;
+            const mode = types.layoutFromName(mode_s) orelse continue;
+            var saved = findSavedLayout(server, name, ws);
+            if (saved == null) {
+                if (server.saved_layout_count >= server.saved_layouts.len) continue;
+                saved = &server.saved_layouts[server.saved_layout_count];
+                server.saved_layout_count += 1;
+                saved.?.* = std.mem.zeroes(types.SavedLayout);
+            }
+            const entry = saved.?;
+            core.copyString(&entry.output_name, &entry.output_len, name);
+            entry.ws = ws;
+            entry.mode = mode;
+            entry.present = true;
+            continue;
+        }
+        if (!std.mem.eql(u8, tag, "output")) continue;
         const width_s = it.next() orelse continue;
         const height_s = it.next() orelse continue;
         const refresh_s = it.next() orelse continue;
@@ -233,9 +276,10 @@ fn loadOutputConfig(server: *Server) void {
         entry.transform = std.fmt.parseInt(u32, transform_s, 10) catch 0;
         entry.present = true;
     }
-    if (server.saved_output_count > 0) {
-        core.logInfo("output config: loaded {d} entries from {s}", .{
+    if (server.saved_output_count > 0 or server.saved_layout_count > 0) {
+        core.logInfo("output config: loaded {d} output(s) and {d} layout override(s) from {s}", .{
             server.saved_output_count,
+            server.saved_layout_count,
             server.output_config_path[0..server.output_config_len],
         });
     }
@@ -276,6 +320,26 @@ fn ensureParentDirs(path: []const u8) void {
     }
 }
 
+fn rememberLayouts(server: *Server) void {
+    server.saved_layout_count = 0;
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        var ws: usize = 0;
+        while (ws < types.WS_COUNT) : (ws += 1) {
+            if (!out.layout_overridden[ws]) continue;
+            if (server.saved_layout_count >= server.saved_layouts.len) return;
+            const entry = &server.saved_layouts[server.saved_layout_count];
+            server.saved_layout_count += 1;
+            entry.* = std.mem.zeroes(types.SavedLayout);
+            core.copyString(&entry.output_name, &entry.output_len, core.outputName(out));
+            entry.ws = ws + 1;
+            entry.mode = out.ws_layouts[ws];
+            entry.present = true;
+        }
+    }
+}
+
 fn saveOutputConfig(server: *Server) void {
     if (server.output_config_len == 0) return;
     const path = server.output_config_path[0..server.output_config_len];
@@ -292,7 +356,8 @@ fn saveOutputConfig(server: *Server) void {
     };
 
     const header = "# Tessa output configuration. Written by the compositor.\n" ++
-        "# output NAME WIDTH HEIGHT REFRESH_MHZ X Y SCALE TRANSFORM\n";
+        "# output NAME WIDTH HEIGHT REFRESH_MHZ X Y SCALE TRANSFORM\n" ++
+        "# layout OUTPUT WORKSPACE LAYOUT\n";
     _ = c.fwrite(header.ptr, 1, header.len, file);
 
     var i: usize = 0;
@@ -323,6 +388,24 @@ fn saveOutputConfig(server: *Server) void {
         }) catch continue;
         _ = c.fwrite(line.ptr, 1, line.len, file);
     }
+
+    var layout_count: usize = 0;
+    i = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        var ws: usize = 0;
+        while (ws < types.WS_COUNT) : (ws += 1) {
+            if (!out.layout_overridden[ws]) continue;
+            var line_buf: [256]u8 = undefined;
+            const line = std.fmt.bufPrint(&line_buf, "layout {s} {d} {s}\n", .{
+                core.outputName(out),
+                ws + 1,
+                types.layoutName(out.ws_layouts[ws]),
+            }) catch continue;
+            _ = c.fwrite(line.ptr, 1, line.len, file);
+            layout_count += 1;
+        }
+    }
     _ = c.fclose(file);
 
     if (c.rename(tmp.ptr, &path_z) != 0) {
@@ -331,7 +414,12 @@ fn saveOutputConfig(server: *Server) void {
         return;
     }
     _ = c.chmod(&path_z, 0o600);
-    core.logInfo("output config: saved {d} output(s) to {s}", .{ server.output_count, path });
+    rememberLayouts(server);
+    core.logInfo("output config: saved {d} output(s) and {d} layout override(s) to {s}", .{
+        server.output_count,
+        layout_count,
+        path,
+    });
 }
 
 fn outputMode(out: *c.wlr_output, width: i32, height: i32, refresh: i32) ?*c.wlr_output_mode {
@@ -494,6 +582,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.wlr = wlr_out;
     out.active_ws = 1;
     out.ws_layouts = server.config.layout_by_ws;
+    applySavedLayouts(server, out);
 
     out.frame.notify = onOutputFrame;
     c.wl_signal_add(&wlr_out.events.frame, &out.frame);

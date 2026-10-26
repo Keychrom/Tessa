@@ -27,6 +27,7 @@ tessa-ctl workspace 3 HEADLESS-2        # 出力を指定
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # クエリは省略可能
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
+tessa-ctl resize 40 30                  # フォーカス中のフローティングウィンドウを拡大
 tessa-ctl dispatch reload               # 任意のコンポジタコマンド
 tessa-ctl quit
 ```
@@ -58,12 +59,14 @@ CMD state               # 購読せずスナップショットを要求
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
 ```
 
 `OUT` は `名前 ワークスペース フォーカス レイアウト` です。`WIN` はタブ区切りで、
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
-された app_id、タイトル、出力名です。`STATUS` は後述します。
+された app_id、タイトル、出力名、x、y、幅、高さです。座標とサイズは
+コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
+`STATUS` は後述します。
 
 ## イベント
 

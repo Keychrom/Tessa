@@ -203,15 +203,19 @@ with the actual layout positions. `wlr-randr --output ... --mode/--pos/--scale/
 configuration head states; the layer layout is reconfigured and positions are
 republished to clients.
 
-A successful apply atomically writes the current output set to
-`outputs.conf` (`$XDG_CONFIG_HOME/tessa/outputs.conf` by default). Each line
-stores name, pixel mode, refresh, layout position, scale, and transform. On
-`new_output`, a matching entry is applied before the scene output is added; the
-layout position comes from the saved box, and a failed saved mode falls back to
-the preferred/headless default. Invalid or missing entries are ignored. The
-file is mode 0600 and is never rewritten at startup, only on apply. Output
-`enabled` state is not persisted yet. The output power-management protocol is
-separate and handled in `idle.zig`.
+A successful apply, and every explicit runtime layout choice, atomically
+writes the current output set to `outputs.conf`
+(`$XDG_CONFIG_HOME/tessa/outputs.conf` by default). Each `output` line stores
+name, pixel mode, refresh, layout position, scale, and transform. `layout`
+lines follow it for runtime overrides only (`layout OUTPUT WORKSPACE MODE`);
+config defaults are not written. On `new_output`, a matching output entry is
+applied before the scene output is added; the layout position comes from the
+saved box, and a failed saved mode falls back to the preferred/headless default.
+Saved layout lines then replace the config seed for the matching output and
+mark those workspaces overridden. Invalid or missing entries are ignored. The
+file is mode 0600 and is only rewritten when settings change, not at startup.
+Output `enabled` state is not persisted yet. The output power-management
+protocol is separate and handled in `idle.zig`.
 
 ## Session lock
 
@@ -247,21 +251,27 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 
 `layout.zig` holds the state transitions:
 
-- Each output owns an `active_ws`, a per-workspace `ws_layouts[]` table, and a
-  `last_focused[]` table. Workspaces and layout choices are therefore
-  independent per monitor, and `Super+1`…`9` applies to the focused output.
+- Each output owns an `active_ws`, a per-workspace `ws_layouts[]` and
+  `layout_overridden[]` table, and a `last_focused[]` table. Workspaces and
+  layout choices are therefore independent per monitor, and `Super+1`…`9`
+  applies to the focused output.
 - **master**: one master area (ratio, default 0.58) and a vertical stack.
 - **mosaic**: recursive spiral. Each remaining window takes a 62% slice of the
   current rectangle; the direction rotates left → top → right → bottom. The last
-  window gets the center. Up to eight windows use the spiral, then it falls back
-  to master/stack.
+  window gets the center. Up to eight windows use the spiral. Before arranging,
+  the engine checks that every slice can keep a tile at least 160 logical pixels;
+  if not, it uses the grid layout for the whole workspace instead of overlapping
+  or producing unusable slivers. More than eight windows start directly in
+  master/stack.
 - **grid**: balanced rows/columns (`ceil(sqrt(n))` columns); the last row is
   centered when it is incomplete.
 - **columns**: equal-width full-height columns.
 - `Super+T` cycles master → mosaic → grid → columns for the focused output and
   workspace. `set-layout <name>` accepts `master`, `mosaic`/`spiral`, `grid`, or
-  `columns`/`column`. Runtime choices are per output/workspace; `layout_N`
-  config only seeds the initial choice when the output appears. Each change
+  `columns`/`column`. Explicit runtime choices mark the workspace overridden and
+  are written to `outputs.conf`; `layout_N` only seeds workspaces without a
+  saved or runtime override. A config reload updates every non-overridden
+  workspace on existing outputs and preserves overridden ones. Each change
   emits `layout-change` with workspace and output fields.
 - Workspaces are 1–9. A workspace's windows are hidden by disabling the frame
   scene node; hidden workspaces still report occupancy to the panel.
@@ -269,7 +279,9 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   Directional focus can cross into an adjacent output; moving a window in a
   direction with no same-output neighbor transfers it to that output.
 - Floating windows live in `tree_floating`; they start at 55% × 60% of the
-  usable area, centered.
+  usable area, centered. `Super+Alt+H/J/K/L` resize the focused floating window
+  from its top-left corner; the size is clamped to 160×120 (or the xdg-shell
+  minimum) and to the output.
 - Fullscreen uses the full output (including the bar area) and the fullscreen
   scene tree.
 - Focus is spatial for directional bindings; swapping is done by exchanging
@@ -297,15 +309,16 @@ OCC 2 0
 ...
 FOCUSED 7
 STATUS\tweather\tTokyo 18C\t
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1
-WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480
 END
 ```
 
 `OUT` lines give each output's name, active workspace, focused flag, and current
-layout name. `WIN`
-fields are tab-separated: `WIN`, id, workspace, focused, floating, fullscreen,
-app_id, title, output name. `STATUS` has id, text, and an optional click command.
+layout name. `WIN` fields are tab-separated: `WIN`, id, workspace, focused,
+floating, fullscreen, app_id, title, output name, x, y, width, height. Geometry
+is in logical compositor coordinates. `STATUS` has id, text, and an optional
+click command.
 Backslash, tab, CR, and LF are escaped in string fields. Each panel filters
 `WIN` and `OUT` lines to its own output and recomputes workspace occupancy
 locally. Status entries are shared by all outputs.
@@ -321,6 +334,7 @@ CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
 CMD layout [name] [output]
+CMD resize <dx> <dy>
 CMD reload
 CMD float <id>
 CMD status <id> <text>            (tab-separated form supports --exec)

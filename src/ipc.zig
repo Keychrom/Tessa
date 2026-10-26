@@ -395,6 +395,13 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             layout.toggleLayout(server);
         }
         broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "resize")) {
+        if (start + 2 < n) {
+            const dx = std.fmt.parseInt(i32, toks[start + 1], 10) catch return;
+            const dy = std.fmt.parseInt(i32, toks[start + 2], 10) catch return;
+            layout.keyboardResize(server, dx, dy);
+            broadcastState(server);
+        }
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -506,7 +513,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -515,6 +522,10 @@ fn buildState(server: *Server, buf: []u8) usize {
             app,
             title,
             core.outputName(cl.output),
+            cl.x,
+            cl.y,
+            cl.w,
+            cl.h,
         });
         if (off > buf.len - 2048) break;
     }

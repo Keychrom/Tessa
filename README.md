@@ -25,7 +25,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
 - master/stack, Tessa "mosaic" spiral, grid, and equal-column layouts, with
-  per-workspace layout profiles (`Super+T` cycles)
+  per-workspace layout profiles (`Super+T` cycles); explicit runtime choices
+  are restored on restart, and config reload updates workspaces without a
+  runtime override
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -57,8 +59,9 @@ workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
 status entries, custom launcher entries, config reload, per-workspace
 master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
-mode/position/scale persistence across restarts were exercised by
-`tests/smoke.sh`, `tests/output-persistence.sh`, and panel screenshots.
+mode/position/scale and layout persistence across restarts were exercised by
+`tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`, and
+panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -357,6 +360,8 @@ event schema, hook environment, and status API.
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
 | `Super+Tab` / `Super+Shift+Tab` | cycle windows |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
+| `Super+Alt+H/L` | shrink/grow a floating window horizontally |
+| `Super+Alt+J/K` | grow/shrink a floating window vertically |
 
 Mouse:
 
@@ -388,7 +393,7 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `border_width` | active/inactive frame thickness |
 | `master_ratio` | master area ratio (0.15–0.9) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, or `columns` |
-| `layout_1` … `layout_9` | per-workspace layout override |
+| `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
@@ -406,7 +411,7 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `startup` | command run once at startup |
 | `hook` | run a command for a compositor event |
 | `launcher_entry` | extra launcher item (`Name \| command`) |
-| `output_config` | path for persisted output mode/position/scale/transform |
+| `output_config` | path for persisted output mode/position/scale/transform and layout overrides |
 
 Additional bindings use XKB keysym names:
 
@@ -422,11 +427,14 @@ bind = SUPER+ctrl+h ratio -0.03
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
 `focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
-`set-layout`.
+`set-layout`, `resize-width`, `resize-height`.
 
 `Super+T` cycles the focused workspace through all four layouts. Runtime layout
-choices are kept per output and workspace; `layout_N` only sets the initial
-choice when an output appears.
+choices are kept per output and workspace and saved to `outputs.conf`. `layout_N`
+only seeds workspaces that have no saved or runtime override; a config reload
+updates every workspace you have not overridden and leaves your runtime choices
+alone. `resize-width` and `resize-height` take a pixel delta and act on the focused
+floating window.
 
 ## How it works
 
@@ -461,7 +469,7 @@ STATE
 ACTIVE 1
 OCC 1 2
 ...
-WIN\t1\t1\t1\t0\t0\tkitty\tnotes
+WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
@@ -469,7 +477,8 @@ CMD focus 4
 CMD close 4
 CMD spawn kitty
 CMD launcher [query]
-CMD layout
+CMD layout [name] [output]
+CMD resize <dx> <dy>
 CMD float <id>
 CMD quit
 ```
