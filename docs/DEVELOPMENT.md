@@ -282,6 +282,17 @@ panel.
 sh tests/panel-theme.sh
 ```
 
+### Panel popover test
+
+`tests/panel-popovers.sh` starts the compositor and panel, opens the calendar
+through the `panel` IPC event, changes months with `wtype`, and verifies Escape
+closes it. It then opens the power menu, selects Suspend, and confirms that the
+configured `power_suspend` command runs instead of reboot/poweroff.
+
+```sh
+sh tests/panel-popovers.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
@@ -359,9 +370,10 @@ the front of `PATH`, so both binaries are found.
 
 ## Iteration tips
 
-- The panel reads its colors/font/terminal at startup. `Super+R` reloads the
-  compositor config, keymaps, and key bindings; restart the panel to apply shell
-  palette changes.
+- After changing panel settings, press `Super+R`: the panel reloads its palette,
+  bar geometry, font, terminal, launcher entries, and power commands when the
+  compositor emits `config-reload`. Geometry changes recreate the bar layer
+  surface.
 - `pkill -x tessa` and `pkill -x tessa-panel` are safer than `pkill -f tessa`
   when working over SSH: a `-f` pattern can match the SSH remote command line
   itself and kill the session.

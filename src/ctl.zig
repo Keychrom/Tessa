@@ -22,6 +22,7 @@ fn usage() void {
         "  workspace <1-9> [output]      switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
+        "  panel <calendar|power> [out] open a panel popover\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
         "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
@@ -402,6 +403,16 @@ fn runLauncher(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runPanel(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [256]u8 = undefined;
+    const msg = if (args.len > 2)
+        std.fmt.bufPrint(&line, "CMD panel {s} {s}\n", .{ args[1], args[2] }) catch return error.LineTooLong
+    else
+        std.fmt.bufPrint(&line, "CMD panel {s}\n", .{args[1]}) catch return error.LineTooLong;
+    try sendCommand(msg);
+}
+
 fn runQuit() !void {
     try sendCommand("CMD quit\n");
 }
@@ -442,6 +453,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runSpawn(args)
     else if (std.mem.eql(u8, cmd, "launcher"))
         runLauncher(args)
+    else if (std.mem.eql(u8, cmd, "panel"))
+        runPanel(args)
     else if (std.mem.eql(u8, cmd, "layout"))
         runLayout(args)
     else if (std.mem.eql(u8, cmd, "mode"))

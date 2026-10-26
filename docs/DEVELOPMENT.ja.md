@@ -261,6 +261,18 @@ sh tests/modes.sh
 sh tests/panel-theme.sh
 ```
 
+### パネルポップオーバーのテスト
+
+`tests/panel-popovers.sh` はコンポジタとパネルを起動し、`panel` IPC
+イベント経由でカレンダーを開き、`wtype` で月を移動して Escape で閉じる
+ことを確認します。続いて電源メニューを開き、Suspend を選んで、設定した
+`power_suspend` コマンドだけが実行され、再起動/電源オフは実行されないことを
+検証します。
+
+```sh
+sh tests/panel-popovers.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、
@@ -341,9 +353,10 @@ PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
 
 ## 反復作業のヒント
 
-- パネルは起動時に色/フォント/ターミナル設定を読み込みます。`Super+R` は
-  コンポジタの設定とキーバインドを再読み込みします。シェルのパレット変更は
-  パネルを再起動して反映してください。
+- パネル設定を変更したら `Super+R` を押してください。パネルは
+  `config-reload` を受けて配色、バーのジオメトリ、フォント、ターミナル、
+  ランチャー項目、電源コマンドを読み直します。ジオメトリ変更時はバーの
+  layer surface を再作成します。
 - SSH 越しでは `pkill -x tessa` と `pkill -x tessa-panel` を使う方が安全です。
   `pkill -f tessa` は SSH のリモートコマンドライン自体にマッチして、
   セッションを殺してしまうことがあります。

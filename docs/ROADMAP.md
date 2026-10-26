@@ -43,8 +43,8 @@ a daily Japanese desktop, then by polish.
 - [x] Custom bar status segments with optional click commands.
 - [x] Config includes and custom launcher entries.
 - [ ] Tray / StatusNotifier, media controls, battery, network, audio.
-- [ ] Calendar/clock popup.
-- [ ] Power menu.
+- [x] Calendar/clock popup.
+- [x] Power menu with configurable lock/suspend/reboot/shutdown commands.
 - [x] Session lock (`ext-session-lock-v1`).
 - [x] Idle inhibit, idle notifications, and output-power management (external swayidle/wlopm).
 - [ ] Screenshot UI and `xdg-desktop-portal` integration; PipeWire screen

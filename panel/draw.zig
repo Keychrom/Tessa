@@ -666,16 +666,28 @@ pub fn drawBar(s: *m.Surface) void {
     }
 
     // right cluster
-    var right = W - 16.0;
+    const clock_right = W - 16.0;
     const time = std.mem.sliceTo(&g.clock_buf, 0);
     const tw = textWidth(cr, time, MONO, "Medium", 12.0, 0);
-    _ = drawTextCentered(cr, time, right - tw, cy + 0.3, MONO, "Medium", 12.0, .{ fg[0], fg[1], fg[2], 0.95 }, 0, 0);
-    right -= tw + 12.0;
-
+    const time_x = clock_right - tw;
     const date = std.mem.sliceTo(&g.date_buf, 0);
     const dw = textWidth(cr, date, g.font[0..g.font_len], "Medium", 8.2, 0.9);
-    _ = drawTextCentered(cr, date, right - dw, cy + 0.3, g.font[0..g.font_len], "Medium", 8.2, .{ 0.66, 0.72, 0.82, 0.55 }, 0, 0.9);
-    right -= dw + 12.0;
+    const date_x = time_x - 12.0 - dw;
+    const clock_hovered = g.hover.kind == .clock;
+
+    if (clock_hovered) {
+        fillRound(cr, date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, 9, .{
+            accent[0], accent[1], accent[2], 0.10,
+        });
+    }
+    _ = drawTextCentered(cr, time, time_x, cy + 0.3, MONO, "Medium", 12.0, .{
+        fg[0], fg[1], fg[2], 0.95,
+    }, 0, 0);
+    _ = drawTextCentered(cr, date, date_x, cy + 0.3, g.font[0..g.font_len], "Medium", 8.2, .{
+        0.66, 0.72, 0.82, if (clock_hovered) 0.78 else 0.55,
+    }, 0, 0.9);
+    addBarHit(date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, .{ .kind = .clock });
+    var right = date_x - 12.0;
 
     c.cairo_new_path(cr);
     c.cairo_move_to(cr, right, cy - 7);
@@ -930,14 +942,290 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     c.cairo_paint_with_alpha(cr, t);
 }
 
+const PopoverLayout = struct {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+};
+
+fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
+    const w: f64 = if (mode == .calendar) 376.0 else 336.0;
+    const h: f64 = if (mode == .calendar) 400.0 else 360.0;
+    const margin: f64 = @floatFromInt(g.bar_side_margin);
+    const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
+    var x = if (mode == .calendar) W - margin - w else margin;
+    var y = bar_bottom + 8.0;
+    x = std.math.clamp(x, 8.0, @max(8.0, W - w - 8.0));
+    if (y + h > H - 8.0) y = @max(8.0, H - h - 8.0);
+    return .{ .x = x, .y = y, .w = w, .h = h };
+}
+
+fn drawPopoverCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
+    const accent = g.accent;
+    var i: usize = 0;
+    while (i < 7) : (i += 1) {
+        const expand = 6.0 + @as(f64, @floatFromInt(i)) * 4.0;
+        fillRound(cr, x - expand, y - expand + 6, w + expand * 2, h + expand * 2, 22 + expand, .{
+            0, 0, 0, 0.032,
+        });
+    }
+
+    fillRound(cr, x, y, w, h, 18, .{ 0.055, 0.072, 0.105, 0.985 });
+    roundRect(cr, x, y, w, h, 18);
+    linearGradient(cr, x, y, x, y + h, .{ 0.088, 0.108, 0.152, 0.99 }, .{
+        0.032, 0.043, 0.068, 0.99,
+    });
+    c.cairo_fill(cr);
+    strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 17.5, .{ 1, 1, 1, 0.11 }, 1.0);
+
+    const top_pat = c.cairo_pattern_create_linear(x + 32, 0, x + w - 32, 0);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 0, accent[0], accent[1], accent[2], 0);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 0.5, accent[0], accent[1], accent[2], 0.75);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 1, accent[0], accent[1], accent[2], 0);
+    c.cairo_set_source(cr, top_pat);
+    c.cairo_rectangle(cr, x + 24, y + 1, w - 48, 1.4);
+    c.cairo_fill(cr);
+    c.cairo_pattern_destroy(top_pat);
+}
+
+fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = g.font[0..g.font_len];
+    const p = popoverLayout(.calendar, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    const month_i = @mod(g.calendar_month - 1, 12);
+    const month_name = m.month_names[@intCast(month_i)];
+    _ = drawText(cr, "CALENDAR", x + 24, y + 18, fam, "Medium", 7.6, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.7);
+    var title_buf: [48]u8 = undefined;
+    const title = std.fmt.bufPrint(&title_buf, "{s} {d}", .{ month_name, g.calendar_year }) catch month_name;
+    _ = drawText(cr, title, x + 24, y + 34, fam, "Semi-Bold", 19.5, .{
+        0.95, 0.97, 0.99, 0.98,
+    }, w - 140, 0);
+
+    const nav_y = y + 20;
+    const prev_x = x + w - 24 - 32 - 8 - 32;
+    const next_x = x + w - 24 - 32;
+    const prev_hover = g.overlay_row_hover == 0;
+    const next_hover = g.overlay_row_hover == 1;
+    if (prev_hover) fillRound(cr, prev_x, nav_y, 32, 32, 9, .{ 1, 1, 1, 0.075 });
+    if (next_hover) fillRound(cr, next_x, nav_y, 32, 32, 9, .{ 1, 1, 1, 0.075 });
+    strokeRound(cr, prev_x + 0.5, nav_y + 0.5, 31, 31, 8.5, .{ 1, 1, 1, 0.07 }, 1);
+    strokeRound(cr, next_x + 0.5, nav_y + 0.5, 31, 31, 8.5, .{ 1, 1, 1, 0.07 }, 1);
+    _ = drawTextCentered(cr, "<", prev_x + 16, nav_y + 16, MONO, "Medium", 12.0, .{
+        0.74, 0.80, 0.89, 0.85,
+    }, 0, 0);
+    _ = drawTextCentered(cr, ">", next_x + 16, nav_y + 16, MONO, "Medium", 12.0, .{
+        0.74, 0.80, 0.89, 0.85,
+    }, 0, 0);
+    addOverlayHit(prev_x - x, nav_y - y, 32, 32, .{ .kind = .calendar_prev });
+    addOverlayHit(next_x - x, nav_y - y, 32, 32, .{ .kind = .calendar_next });
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 72);
+    c.cairo_line_to(cr, x + w - 24, y + 72);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const grid_x = x + 24.0;
+    const cell_w = (w - 48.0) / 7.0;
+    const weekday_short = [_][]const u8{ "SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT" };
+    var col: usize = 0;
+    while (col < 7) : (col += 1) {
+        const cx = grid_x + @as(f64, @floatFromInt(col)) * cell_w + cell_w / 2.0;
+        _ = drawTextCentered(cr, weekday_short[col], cx, y + 88, MONO, "Medium", 7.1, .{
+            0.58, 0.64, 0.74, 0.55,
+        }, 0, 0.8);
+    }
+
+    var now_t: c.time_t = c.time(null);
+    var now_tm: c.tm = undefined;
+    _ = c.localtime_r(&now_t, &now_tm);
+    const today_year = @as(i32, @intCast(now_tm.tm_year)) + 1900;
+    const today_month = @as(i32, @intCast(now_tm.tm_mon)) + 1;
+    const today_day = @as(i32, @intCast(now_tm.tm_mday));
+
+    const days = m.daysInMonth(g.calendar_year, g.calendar_month);
+    const first = m.firstWeekday(g.calendar_year, g.calendar_month);
+    const grid_y = y + 102.0;
+    const cell_h = 38.0;
+
+    var day: i32 = 1;
+    while (day <= days) : (day += 1) {
+        const cell_index = first + day - 1;
+        const row = @divTrunc(cell_index, 7);
+        if (row > 5) break;
+        const col_i: usize = @intCast(@mod(cell_index, 7));
+        const cx = grid_x + @as(f64, @floatFromInt(col_i)) * cell_w + cell_w / 2.0;
+        const cy = grid_y + @as(f64, @floatFromInt(row)) * cell_h + cell_h / 2.0;
+        const is_today = g.calendar_year == today_year and
+            g.calendar_month == today_month and day == today_day;
+        if (is_today) {
+            fillCircle(cr, cx, cy, 14.5, .{ accent[0], accent[1], accent[2], 0.95 });
+        }
+        var day_buf: [4]u8 = undefined;
+        const day_text = std.fmt.bufPrint(&day_buf, "{d}", .{day}) catch "";
+        _ = drawTextCentered(cr, day_text, cx, cy + 0.3, MONO, "Medium", 9.6, if (is_today) .{
+            0.055, 0.075, 0.105, 1.0,
+        } else .{ 0.79, 0.84, 0.91, 0.92 }, 0, 0);
+    }
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + h - 48);
+    c.cairo_line_to(cr, x + w - 24, y + h - 48);
+    setColor(cr, .{ 1, 1, 1, 0.05 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const today_label = m.weekday_names[@intCast(@mod(now_tm.tm_wday, 7))];
+    var today_buf: [64]u8 = undefined;
+    const today_text = std.fmt.bufPrint(&today_buf, "{s}, {s} {d}", .{
+        today_label,
+        m.month_names[@intCast(@mod(today_month - 1, 12))],
+        today_day,
+    }) catch "Today";
+    _ = drawText(cr, "TODAY", x + 24, y + h - 40, fam, "Medium", 7.2, .{
+        0.64, 0.70, 0.80, 0.42,
+    }, 0, 1.4);
+    _ = drawText(cr, today_text, x + 24, y + h - 27, fam, "Medium", 8.8, .{
+        0.82, 0.87, 0.94, 0.85,
+    }, w - 120, 0);
+
+    const today_x = x + w - 24 - 56;
+    const today_y = y + h - 38;
+    const today_hover = g.overlay_row_hover == 2;
+    fillRound(cr, today_x, today_y, 56, 24, 7, .{
+        1, 1, 1, if (today_hover) 0.09 else 0.045,
+    });
+    _ = drawTextCentered(cr, "TODAY", today_x + 28, today_y + 12, MONO, "Medium", 6.8, .{
+        0.72, 0.78, 0.87, 0.72,
+    }, 0, 0.6);
+    addOverlayHit(today_x - x, today_y - y, 56, 24, .{ .kind = .calendar_today });
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
+fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = g.font[0..g.font_len];
+    const p = popoverLayout(.power, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    drawPetal(cr, x + 31, y + 33, 7.5, .{ accent[0], accent[1], accent[2], 0.95 });
+    _ = drawText(cr, "SYSTEM", x + 48, y + 19, fam, "Medium", 7.4, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.6);
+    _ = drawText(cr, "Power", x + 48, y + 33, fam, "Semi-Bold", 21.0, .{
+        0.95, 0.97, 0.99, 0.98,
+    }, w - 72, 0);
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 70);
+    c.cairo_line_to(cr, x + w - 24, y + 70);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const row_w = w - 32.0;
+    const row_h = 44.0;
+    const row_gap = 4.0;
+    const row_y0 = y + 78.0;
+    var i: usize = 0;
+    while (i < m.POWER_ACTION_COUNT) : (i += 1) {
+        const row_y = row_y0 + @as(f64, @floatFromInt(i)) * (row_h + row_gap);
+        const selected = i == g.power_selected;
+        const hovered = i == g.overlay_row_hover;
+        if (selected) {
+            fillRound(cr, x + 16, row_y, row_w, row_h, 10, .{
+                accent[0], accent[1], accent[2], 0.14,
+            });
+            strokeRound(cr, x + 16.5, row_y + 0.5, row_w - 1, row_h - 1, 9.5, .{
+                accent[0], accent[1], accent[2], 0.24,
+            }, 1);
+            fillRound(cr, x + 17.5, row_y + 12, 3, 20, 1.5, .{
+                accent[0], accent[1], accent[2], 0.95,
+            });
+        } else if (hovered) {
+            fillRound(cr, x + 16, row_y, row_w, row_h, 10, .{ 1, 1, 1, 0.035 });
+        }
+
+        const col: [3]f64 = if (i == m.POWER_ACTION_COUNT - 1)
+            .{ accent[0], accent[1], accent[2] }
+        else
+            palette[i % palette.len];
+        fillRound(cr, x + 30, row_y + 9, 26, 26, 8, .{ col[0], col[1], col[2], 0.88 });
+        const label = m.power_labels[i];
+        _ = drawTextCentered(cr, label[0..1], x + 43, row_y + 22.3, fam, "Semi-Bold", 9.8, .{
+            1, 1, 1, 0.96,
+        }, 0, 0);
+        _ = drawText(cr, label, x + 66, row_y + 7, fam, "Semi-Bold", 10.6, if (selected) .{
+            0.98, 0.99, 1, 1,
+        } else .{ 0.84, 0.89, 0.95, 0.9 }, row_w - 90, 0);
+        _ = drawText(cr, m.power_details[i], x + 66, row_y + 24, fam, "Regular", 8.0, .{
+            0.60, 0.66, 0.76, 0.58,
+        }, row_w - 90, 0);
+        if (selected) {
+            _ = drawTextCentered(cr, "\xe2\x86\xb5", x + w - 38, row_y + row_h / 2.0, MONO, "Medium", 11.0, .{
+                accent[0], accent[1], accent[2], 0.9,
+            }, 0, 0);
+        }
+        addOverlayHit(16, row_y - y, row_w, row_h, .{ .kind = .power, .value = i });
+    }
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + h - 34);
+    c.cairo_line_to(cr, x + w - 24, y + h - 34);
+    setColor(cr, .{ 1, 1, 1, 0.045 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+    _ = drawText(cr, "\xe2\x86\x91\xe2\x86\x93  select      \xe2\x86\xb5  run      esc  close", x + 24, y + h - 24, fam, "Medium", 7.4, .{
+        0.60, 0.66, 0.75, 0.55,
+    }, w - 48, 0.4);
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 pub fn drawOverlay(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
     const t = std.math.clamp(g.menu_anim, 0.0, 1.0);
+    const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
 
-    fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, 0.52 * t });
+    fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });
     const vp = c.cairo_pattern_create_radial(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.8);
     c.cairo_pattern_add_color_stop_rgba(vp, 0, 0, 0, 0, 0);
     c.cairo_pattern_add_color_stop_rgba(vp, 1, 0, 0, 0, 0.42 * t);
@@ -945,27 +1233,33 @@ pub fn drawOverlay(s: *m.Surface) void {
     c.cairo_paint(cr);
     c.cairo_pattern_destroy(vp);
 
-    const l = m.launcherLayout(W, H);
-    g.overlay_hit_scale = l.scale;
-    g.overlay_hit_x = l.x;
-    g.overlay_hit_y = l.y;
+    if (g.overlay_mode == .launcher) {
+        const l = m.launcherLayout(W, H);
+        g.overlay_hit_scale = l.scale;
+        g.overlay_hit_x = l.x;
+        g.overlay_hit_y = l.y;
 
-    const anim = 0.984 + 0.016 * t;
-    c.cairo_save(cr);
-    c.cairo_translate(cr, l.x, l.y);
-    c.cairo_scale(cr, l.scale, l.scale);
-    c.cairo_translate(cr, 380.0, 310.0);
-    c.cairo_scale(cr, anim, anim);
-    c.cairo_translate(cr, -380.0, -310.0);
-    drawLauncherPanel(cr, 0, 0, 760, 620, t);
-    c.cairo_restore(cr);
+        const anim = 0.984 + 0.016 * t;
+        c.cairo_save(cr);
+        c.cairo_translate(cr, l.x, l.y);
+        c.cairo_scale(cr, l.scale, l.scale);
+        c.cairo_translate(cr, 380.0, 310.0);
+        c.cairo_scale(cr, anim, anim);
+        c.cairo_translate(cr, -380.0, -310.0);
+        drawLauncherPanel(cr, 0, 0, 760, 620, t);
+        c.cairo_restore(cr);
 
-    g.overlay_panel = .{
-        .x = l.x,
-        .y = l.y,
-        .w = 760.0 * l.scale,
-        .h = 620.0 * l.scale,
-    };
+        g.overlay_panel = .{
+            .x = l.x,
+            .y = l.y,
+            .w = 760.0 * l.scale,
+            .h = 620.0 * l.scale,
+        };
+    } else if (g.overlay_mode == .calendar) {
+        drawCalendarPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .power) {
+        drawPowerPopover(cr, W, H, t);
+    }
 
     end(s, d);
 }

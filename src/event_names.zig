@@ -11,6 +11,7 @@ pub const layout_change = "layout-change";
 pub const mode_change = "mode-change";
 pub const config_reload = "config-reload";
 pub const launcher = "launcher";
+pub const panel = "panel";
 pub const output_added = "output-added";
 pub const output_removed = "output-removed";
 
@@ -26,6 +27,7 @@ pub const known = [_][]const u8{
     mode_change,
     config_reload,
     launcher,
+    panel,
     output_added,
     output_removed,
 };

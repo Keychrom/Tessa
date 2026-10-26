@@ -1,3 +1,6 @@
+* text=auto eol=lf
+*.png binary
+
 # Generated Wayland protocol bindings are build inputs, not Tessa's C code.
 protocol/* linguist-generated=true
 protocol/* linguist-detectable=false

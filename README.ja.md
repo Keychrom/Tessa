@@ -62,6 +62,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - ワークスペースピル、ウィンドウチップ、時計、CPU/RAM を表示する
     フローティングタスクバー
   - キーボード操作と IME 入力に対応した検索型ランチャー
+  - 月間カレンダーの時計ポップアップと、ロック/サスペンド/再起動/電源オフの
+    コマンドを設定できる電源メニュー
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -76,7 +78,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
-`tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh` で検証しています。
+`tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
+`tests/panel-popovers.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -413,7 +416,12 @@ include = /home/you/.config/tessa/launcher-entries.conf
 - クライアントサイドのタイトルバードラッグもフローティングウィンドウでは
   使えます。
 - 花びら/`TESSA` のマークをクリックするか、`Super+D` でランチャーを開きます。
+- `TESSA` マークを右クリックすると電源メニュー、時計をクリックすると
+  カレンダーが開きます。`tessa-ctl panel calendar|power` でも開けます。
 - ランチャー内では入力で検索、`Up`/`Down`、`Enter`、`Esc`、または行の
+  クリックで操作します。
+- カレンダーでは `Left`/`Right` または矢印ボタンで月を移動し、`Home` で
+  今日に戻ります。電源メニューでは `Up`/`Down`、`Enter`、`Esc`、または
   クリックで操作します。
 
 ## 設定
@@ -467,6 +475,10 @@ cp config/config.example ~/.config/tessa/config
 | `bar_side_margin` | バーの左右マージン（0〜128） |
 | `panel_bg` | バーの背景色 |
 | `panel_fg` | バーの主要テキスト色 |
+| `power_lock` | 電源メニューのロックで実行するコマンド |
+| `power_suspend` | サスペンドのコマンド（既定 `systemctl suspend`） |
+| `power_reboot` | 再起動のコマンド（既定 `systemctl reboot`） |
+| `power_off` | 電源オフのコマンド（既定 `systemctl poweroff`） |
 | `border_active` | フォーカス中ボーダー色（既定は `accent`） |
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |

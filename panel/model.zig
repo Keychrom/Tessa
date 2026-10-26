@@ -7,8 +7,41 @@ pub const MAX_OUTPUTS = 8;
 pub const MAX_RESULTS = 256;
 pub const MAX_STATUS = 8;
 pub const MAX_CUSTOM_APPS = 16;
+pub const POWER_ACTION_COUNT = 5;
 
-pub const HitKind = enum { none, menu, workspace, window, app, status };
+pub const OverlayMode = enum { none, launcher, calendar, power };
+
+pub const month_names = [_][]const u8{
+    "January", "February", "March",     "April",   "May",      "June",
+    "July",    "August",   "September", "October", "November", "December",
+};
+
+pub const weekday_names = [_][]const u8{
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+};
+
+pub const power_labels = [_][]const u8{
+    "Lock", "Suspend", "Reboot", "Power Off", "Quit Tessa",
+};
+
+pub const power_details = [_][]const u8{
+    "Lock the session",      "Suspend the machine",   "Restart the machine",
+    "Shut the machine down", "End the Tessa session",
+};
+
+pub const HitKind = enum {
+    none,
+    menu,
+    workspace,
+    window,
+    app,
+    status,
+    clock,
+    calendar_prev,
+    calendar_next,
+    calendar_today,
+    power,
+};
 
 pub const Hit = struct {
     kind: HitKind = .none,
@@ -108,6 +141,7 @@ pub const Panel = struct {
     bar: Surface = undefined,
     bg: Surface = undefined,
     overlay: ?*Surface = null,
+    overlay_mode: OverlayMode = .none,
 
     outputs: [MAX_OUTPUTS]OutputInfo = [_]OutputInfo{.{}} ** MAX_OUTPUTS,
     output_count: usize = 0,
@@ -151,13 +185,25 @@ pub const Panel = struct {
     bar_hit_count: usize = 0,
     hover: Hit = .{},
 
-    overlay_hits: [8]HitRect = undefined,
+    overlay_hits: [16]HitRect = undefined,
     overlay_hit_count: usize = 0,
     overlay_panel: HitRect = .{},
     overlay_row_hover: usize = 999,
     overlay_hit_scale: f64 = 1,
     overlay_hit_x: f64 = 0,
     overlay_hit_y: f64 = 0,
+
+    calendar_year: i32 = 1970,
+    calendar_month: i32 = 1,
+    power_selected: usize = 0,
+    power_lock: [256]u8 = [_]u8{0} ** 256,
+    power_lock_len: usize = 0,
+    power_suspend: [256]u8 = [_]u8{0} ** 256,
+    power_suspend_len: usize = 0,
+    power_reboot: [256]u8 = [_]u8{0} ** 256,
+    power_reboot_len: usize = 0,
+    power_off: [256]u8 = [_]u8{0} ** 256,
+    power_off_len: usize = 0,
 
     launcher_open: bool = false,
     query: [128]u8 = [_]u8{0} ** 128,
@@ -321,6 +367,14 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             g.bar_top_margin = std.fmt.parseInt(i32, val, 10) catch g.bar_top_margin;
         } else if (std.mem.eql(u8, key, "bar_side_margin")) {
             g.bar_side_margin = std.fmt.parseInt(i32, val, 10) catch g.bar_side_margin;
+        } else if (std.mem.eql(u8, key, "power_lock")) {
+            copyTrunc(&g.power_lock, &g.power_lock_len, val);
+        } else if (std.mem.eql(u8, key, "power_suspend")) {
+            copyTrunc(&g.power_suspend, &g.power_suspend_len, val);
+        } else if (std.mem.eql(u8, key, "power_reboot")) {
+            copyTrunc(&g.power_reboot, &g.power_reboot_len, val);
+        } else if (std.mem.eql(u8, key, "power_off")) {
+            copyTrunc(&g.power_off, &g.power_off_len, val);
         } else if (std.mem.eql(u8, key, "launcher_entry")) {
             addCustomApp(val);
         }
@@ -337,6 +391,10 @@ pub fn loadConfig() void {
     g.bar_height = 44;
     g.bar_top_margin = 12;
     g.bar_side_margin = 16;
+    copyTrunc(&g.power_lock, &g.power_lock_len, "loginctl lock-session");
+    copyTrunc(&g.power_suspend, &g.power_suspend_len, "systemctl suspend");
+    copyTrunc(&g.power_reboot, &g.power_reboot_len, "systemctl reboot");
+    copyTrunc(&g.power_off, &g.power_off_len, "systemctl poweroff");
     g.custom_count = 0;
 
     var path_buf: [512]u8 = undefined;
@@ -386,6 +444,57 @@ pub fn updateClock() bool {
 
 fn parseU64(s: []const u8) u64 {
     return std.fmt.parseInt(u64, s, 10) catch 0;
+}
+
+pub fn daysInMonth(year: i32, month: i32) i32 {
+    return switch (month) {
+        2 => if (@mod(year, 4) == 0 and (@mod(year, 100) != 0 or @mod(year, 400) == 0)) 29 else 28,
+        4, 6, 9, 11 => 30,
+        else => 31,
+    };
+}
+
+pub fn firstWeekday(year: i32, month: i32) i32 {
+    var tm: c.tm = std.mem.zeroes(c.tm);
+    tm.tm_year = @intCast(year - 1900);
+    tm.tm_mon = @intCast(month - 1);
+    tm.tm_mday = 1;
+    tm.tm_isdst = -1;
+    _ = c.mktime(&tm);
+    return @mod(@as(i32, @intCast(tm.tm_wday)), 7);
+}
+
+pub fn resetCalendarToday() void {
+    var t: c.time_t = c.time(null);
+    var tm: c.tm = undefined;
+    _ = c.localtime_r(&t, &tm);
+    g.calendar_year = @as(i32, @intCast(tm.tm_year)) + 1900;
+    g.calendar_month = @as(i32, @intCast(tm.tm_mon)) + 1;
+}
+
+pub fn shiftCalendar(months: i32) void {
+    var month = g.calendar_month + months;
+    var year = g.calendar_year;
+    while (month > 12) {
+        month -= 12;
+        year += 1;
+    }
+    while (month < 1) {
+        month += 12;
+        year -= 1;
+    }
+    g.calendar_year = year;
+    g.calendar_month = month;
+}
+
+pub fn powerCommand(index: usize) []const u8 {
+    return switch (index) {
+        0 => g.power_lock[0..g.power_lock_len],
+        1 => g.power_suspend[0..g.power_suspend_len],
+        2 => g.power_reboot[0..g.power_reboot_len],
+        3 => g.power_off[0..g.power_off_len],
+        else => "",
+    };
 }
 
 pub fn updateCpu() void {

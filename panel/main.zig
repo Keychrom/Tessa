@@ -37,7 +37,7 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
     const s: *m.Surface = @ptrCast(@alignCast(data.?));
     if (s.layer) |ls| c.zwlr_layer_surface_v1_ack_configure(ls, serial);
     draw.configureSurface(s, width, height);
-    if (s.kind == .overlay) {
+    if (s.kind == .overlay and g.overlay_mode == .launcher) {
         computeSearchRect();
         if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
     }
@@ -46,6 +46,7 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
 fn destroyOverlay() void {
     const s = g.overlay orelse return;
     g.overlay = null;
+    g.overlay_mode = .none;
     g.launcher_open = false;
     g.menu_anim = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
@@ -141,8 +142,10 @@ fn applyPanelScale(scale: i32) void {
     g.bar.dirty = true;
     if (g.overlay) |ov| {
         ov.dirty = true;
-        computeSearchRect();
-        if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+        if (g.overlay_mode == .launcher) {
+            computeSearchRect();
+            if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+        }
     }
     logMsg("output scale: {d}", .{scl});
 }
@@ -371,46 +374,36 @@ fn destroyTextInput() void {
     g.preedit[0] = 0;
 }
 
-fn openLauncher(query_arg: []const u8) void {
-    if (g.overlay != null and !g.launcher_open) {
-        destroyOverlay();
+fn ensureOverlay() bool {
+    if (g.overlay != null) return true;
+    const s = @as(*m.Surface, @ptrCast(@alignCast(c.calloc(1, @sizeOf(m.Surface)).?)));
+    s.* = std.mem.zeroes(m.Surface);
+    if (!createLayerSurface(
+        s,
+        g.target_output,
+        .overlay,
+        @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY),
+        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -1,
+        @intCast(c.ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE),
+        "tessa-overlay",
+    )) {
+        c.free(s);
+        return false;
     }
-    if (g.overlay != null and g.launcher_open) {
-        if (query_arg.len == 0) {
-            closeLauncher();
-            return;
-        }
-        m.setQuery(query_arg);
-        g.overlay.?.dirty = true;
-        return;
-    }
+    g.overlay = s;
+    return true;
+}
 
-    if (g.overlay == null) {
-        const s = @as(*m.Surface, @ptrCast(@alignCast(c.calloc(1, @sizeOf(m.Surface)).?)));
-        s.* = std.mem.zeroes(m.Surface);
-        if (!createLayerSurface(
-            s,
-            g.target_output,
-            .overlay,
-            @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY),
-            @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            -1,
-            @intCast(c.ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE),
-            "tessa-launcher",
-        )) {
-            c.free(s);
-            return;
-        }
-        g.overlay = s;
-    }
-
-    g.launcher_open = true;
+fn beginOverlay(mode: m.OverlayMode) void {
+    g.overlay_mode = mode;
+    g.launcher_open = mode == .launcher;
     g.hover = .{};
     g.overlay_row_hover = 999;
     g.preedit_len = 0;
@@ -419,21 +412,80 @@ fn openLauncher(query_arg: []const u8) void {
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
     g.next_blink_ms = m.nowMs() + 500;
-
-    m.setQuery(query_arg);
-    enableTextInput();
+    if (mode == .launcher) {
+        enableTextInput();
+    } else {
+        disableTextInput();
+    }
     g.overlay.?.dirty = true;
     g.bar.dirty = true;
 }
 
-fn closeLauncher() void {
-    if (g.overlay == null or !g.launcher_open) return;
+fn openLauncher(query_arg: []const u8) void {
+    if (g.overlay != null and
+        (g.overlay_mode != .launcher or !g.launcher_open or g.menu_target == 0))
+    {
+        destroyOverlay();
+    }
+    if (g.overlay != null and g.launcher_open) {
+        if (query_arg.len == 0) {
+            closeOverlay();
+            return;
+        }
+        m.setQuery(query_arg);
+        g.overlay.?.dirty = true;
+        return;
+    }
+
+    if (!ensureOverlay()) return;
+    beginOverlay(.launcher);
+    m.setQuery(query_arg);
+    g.overlay.?.dirty = true;
+}
+
+fn openCalendar() void {
+    if (g.overlay != null and g.overlay_mode == .calendar and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    m.resetCalendarToday();
+    if (!ensureOverlay()) return;
+    beginOverlay(.calendar);
+    logDebug("calendar open", .{});
+}
+
+fn openPower() void {
+    if (g.overlay != null and g.overlay_mode == .power and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    g.power_selected = 0;
+    beginOverlay(.power);
+    logDebug("power menu open", .{});
+}
+
+fn openPanel(name: []const u8) void {
+    if (std.mem.eql(u8, name, "calendar")) {
+        openCalendar();
+    } else if (std.mem.eql(u8, name, "power")) {
+        openPower();
+    } else {
+        logDebug("unknown panel '{s}'", .{name});
+    }
+}
+
+fn closeOverlay() void {
+    if (g.overlay == null or g.menu_target == 0) return;
     disableTextInput();
     g.launcher_open = false;
     g.menu_from = g.menu_anim;
     g.menu_target = 0;
     g.menu_anim_start = m.nowMs();
     g.overlay.?.dirty = true;
+    logDebug("overlay close", .{});
 }
 
 fn tickAnimation(now: i64) void {
@@ -480,7 +532,55 @@ fn launchApp(app_index: usize) void {
         n += 1;
     }
     sendCmd("CMD spawn {s}\n", .{clean_buf[0..n]});
-    closeLauncher();
+    closeOverlay();
+}
+
+fn runPowerAction(index: usize) void {
+    if (index >= m.POWER_ACTION_COUNT) return;
+    logMsg("power action: {s}", .{m.power_labels[index]});
+    if (index == 4) {
+        sendCmd("CMD quit\n", .{});
+    } else {
+        const command = m.powerCommand(index);
+        if (command.len > 0) sendCmd("CMD spawn {s}\n", .{command});
+    }
+    closeOverlay();
+}
+
+fn refreshOverlay() void {
+    if (g.overlay) |s| s.dirty = true;
+}
+
+fn shiftCalendar(months: i32) void {
+    m.shiftCalendar(months);
+    refreshOverlay();
+    logDebug("calendar month {d}-{d}", .{ g.calendar_year, g.calendar_month });
+}
+
+fn resetCalendar() void {
+    m.resetCalendarToday();
+    refreshOverlay();
+    logDebug("calendar today {d}-{d}", .{ g.calendar_year, g.calendar_month });
+}
+
+fn movePowerSelection(delta: isize) void {
+    const count: isize = m.POWER_ACTION_COUNT;
+    var next = @as(isize, @intCast(g.power_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.power_selected = @intCast(next);
+    refreshOverlay();
+}
+
+fn activateOverlayHit(h: m.Hit) void {
+    switch (h.kind) {
+        .app => launchApp(h.value),
+        .calendar_prev => shiftCalendar(-1),
+        .calendar_next => shiftCalendar(1),
+        .calendar_today => resetCalendar(),
+        .power => runPowerAction(h.value),
+        else => {},
+    }
 }
 
 fn addCustomApps() void {
@@ -626,15 +726,48 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
     _ = keyboard;
     _ = serial;
     _ = time;
-    if (state == 1 and g.launcher_open) logDebug("panel key {d} xkb={}", .{ key, g.xkb_state != null });
-    if (state != 1 or !g.launcher_open) return;
+    if (state == 1 and g.overlay != null) logDebug("panel key {d} xkb={}", .{ key, g.xkb_state != null });
+    if (state != 1 or g.overlay == null) return;
     const xstate = g.xkb_state orelse return;
     const keycode: c.xkb_keycode_t = key + 8;
     const sym = c.xkb_state_key_get_one_sym(xstate, keycode);
     logDebug("panel keysym {d}", .{sym});
 
+    if (g.overlay_mode == .power) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up) {
+            movePowerSelection(-1);
+        } else if (sym == c.XKB_KEY_Down) {
+            movePowerSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.power_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            g.power_selected = m.POWER_ACTION_COUNT - 1;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            runPowerAction(g.power_selected);
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .calendar) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Left or sym == c.XKB_KEY_Page_Up) {
+            shiftCalendar(-1);
+        } else if (sym == c.XKB_KEY_Right or sym == c.XKB_KEY_Page_Down) {
+            shiftCalendar(1);
+        } else if (sym == c.XKB_KEY_Home or sym == c.XKB_KEY_t) {
+            resetCalendar();
+        }
+        return;
+    }
+
+    if (!g.launcher_open) return;
     if (sym == c.XKB_KEY_Escape) {
-        closeLauncher();
+        closeOverlay();
         return;
     }
     if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
@@ -969,7 +1102,16 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
     if (s == &g.bar) {
         const h = hitBar(g.pointer_x, g.pointer_y);
         switch (h.kind) {
-            .menu => openLauncher(""),
+            .menu => {
+                if (button == 0x111) {
+                    openPower();
+                } else if (button == 0x110) {
+                    openLauncher("");
+                }
+            },
+            .clock => {
+                if (button == 0x110) openCalendar();
+            },
             .workspace => {
                 if (button == 0x110) sendWorkspace(h.value);
             },
@@ -993,17 +1135,14 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
     } else if (g.overlay) |ov| {
         if (s != ov) return;
         if (button == 0x111) {
-            closeLauncher();
+            closeOverlay();
             return;
         }
         if (!hitIn(&g.overlay_panel, g.pointer_x, g.pointer_y)) {
-            closeLauncher();
+            closeOverlay();
             return;
         }
-        const h = hitOverlay(g.pointer_x, g.pointer_y);
-        if (h.kind == .app) {
-            launchApp(h.value);
-        }
+        activateOverlayHit(hitOverlay(g.pointer_x, g.pointer_y));
     }
 }
 
@@ -1023,6 +1162,10 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
             ws = if (ws <= 1) 9 else ws - 1;
         }
         sendWorkspace(ws);
+    } else if (g.overlay_mode == .calendar) {
+        shiftCalendar(if (v > 0) 1 else -1);
+    } else if (g.overlay_mode == .power) {
+        movePowerSelection(if (v > 0) 1 else -1);
     } else if (g.overlay != null and g.launcher_open) {
         if (g.result_count > 0) {
             if (v > 0) {
@@ -1195,7 +1338,7 @@ fn onEvent(line: []const u8) void {
             reloadPanelConfig();
             return;
         }
-        if (!std.mem.eql(u8, name, "launcher")) return;
+        if (!std.mem.eql(u8, name, "launcher") and !std.mem.eql(u8, name, "panel")) return;
 
         var event_output: [64]u8 = undefined;
         var event_output_len: usize = 0;
@@ -1218,7 +1361,11 @@ fn onEvent(line: []const u8) void {
         } else if (!g.is_focused_output) {
             return;
         }
-        openLauncher(query[0..query_len]);
+        if (std.mem.eql(u8, name, "panel")) {
+            openPanel(query[0..query_len]);
+        } else {
+            openLauncher(query[0..query_len]);
+        }
         return;
     }
 

@@ -231,11 +231,35 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 | `bar_side_margin` | left/right margin (0–128) |
 | `panel_bg` | bar background color |
 | `panel_fg` | bar primary text color |
+| `power_lock` | command for the power menu's Lock action (default `loginctl lock-session`) |
+| `power_suspend` | command for Suspend (default `systemctl suspend`) |
+| `power_reboot` | command for Reboot (default `systemctl reboot`) |
+| `power_off` | command for Power Off (default `systemctl poweroff`) |
 
-The panel rereads the palette, launcher entries, and bar geometry when the
-compositor emits `config-reload`. A geometry change recreates the bar layer
-surface, so the reserved area follows immediately. A separately installed theme
-file and wallpaper-art controls are still planned.
+The panel rereads the palette, launcher entries, bar geometry, and power
+commands when the compositor emits `config-reload`. A geometry change recreates
+the bar layer surface, so the reserved area follows immediately. A separately
+installed theme file and wallpaper-art controls are still planned.
+
+## Calendar and power menu
+
+Click the clock to open the month calendar. `Left`/`Right`, the arrow buttons,
+or the scroll wheel change the month; `Home` returns to today. The power menu
+opens by right-clicking the `TESSA` mark. It offers Lock, Suspend, Reboot,
+Power Off, and Quit Tessa; the first four run the `power_*` commands above.
+`Up`/`Down` and `Enter` work from the keyboard, and clicking outside closes
+either popover.
+
+Both popovers can also be opened or toggled by an extension:
+
+```sh
+tessa-ctl panel calendar
+tessa-ctl panel power
+tessa-ctl panel power DP-1
+```
+
+Opening a popover emits the `panel` event with `arg=calendar` or `arg=power`
+and the output name, so hooks can observe or drive the shell as well.
 
 ## Keys and commands
 
@@ -276,14 +300,14 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
   version negotiation (the current helper is one process with a bounded
   request/response per arrangement).
 - Regex/boolean window-rule expressions and per-rule border/background colors.
-- Keybinding sequences, leader keys, and named input modes.
+- Keybinding sequences and leader keys (named input modes are available now).
 - Config-defined event-to-action rules and per-output theme roles.
 - Configurable animations and shader/effect hooks for window movement,
   workspace changes, borders, and the shell.
 - Interactive config editor/check with diff preview, built on the existing
   diagnostics and JSON snapshots.
-- More shell theming: bar size/margins, independent palette roles, and
-  replaceable shell surfaces.
+- More shell theming: font/palette roles per surface, wallpaper art, and
+  replaceable shell surfaces (bar size/margins are configurable now).
 
 The roadmap is in [ROADMAP.md](ROADMAP.md). A TypeScript/TSX configuration
 runtime remains a non-goal; Tessa's answer to ShojiWM-style composition is a

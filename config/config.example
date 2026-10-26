@@ -59,6 +59,12 @@ bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
 
+# Commands for the power menu (right-click the TESSA mark).
+power_lock = loginctl lock-session
+power_suspend = systemctl suspend
+power_reboot = systemctl reboot
+power_off = systemctl poweroff
+
 # Start xwayland-satellite for X11 applications and export DISPLAY.
 # "auto" picks the first free display (:0, :1, ...).
 xwayland = true

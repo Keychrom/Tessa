@@ -802,7 +802,11 @@ fn loadPath(
             std.mem.eql(u8, key, "panel_fg") or
             std.mem.eql(u8, key, "bar_height") or
             std.mem.eql(u8, key, "bar_top_margin") or
-            std.mem.eql(u8, key, "bar_side_margin"))
+            std.mem.eql(u8, key, "bar_side_margin") or
+            std.mem.eql(u8, key, "power_lock") or
+            std.mem.eql(u8, key, "power_suspend") or
+            std.mem.eql(u8, key, "power_reboot") or
+            std.mem.eql(u8, key, "power_off"))
         {
             // The panel parses these keys; the compositor only validates the file.
         } else {

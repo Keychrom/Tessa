@@ -58,6 +58,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   - ink/sun wallpaper
   - floating taskbar with workspace pills, window chips, clock, CPU/RAM
   - searchable application launcher with keyboard navigation and IME input
+  - clock popover with a month calendar and a power menu with configurable
+    lock/suspend/reboot/shutdown commands
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -71,8 +73,8 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
-`tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`, and panel
-screenshots.
+`tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
+`tests/panel-popovers.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -394,7 +396,11 @@ Mouse:
 - `Super+Left-drag` moves a floating window; `Super+Right-drag` resizes it.
 - Client-side titlebar drags work for floating windows too.
 - Click the petal/`TESSA` mark, or press `Super+D`, for the launcher.
+- Right-click the `TESSA` mark for the power menu. Click the clock for the
+  calendar. Both can also be opened with `tessa-ctl panel calendar|power`.
 - In the launcher: type to search, `Up`/`Down`, `Enter`, `Esc`, or click a row.
+- In the calendar: `Left`/`Right` or the arrow buttons change months; `Home`
+  returns to today. In the power menu: `Up`/`Down`, `Enter`, `Esc`, or click.
 
 ## Configuration
 
@@ -448,6 +454,10 @@ diagnostics. Selected keys:
 | `bar_side_margin` | panel left/right margin (0–128) |
 | `panel_bg` | panel bar background color |
 | `panel_fg` | panel bar primary text color |
+| `power_lock` | command for the power menu's Lock action |
+| `power_suspend` | command for Suspend (default `systemctl suspend`) |
+| `power_reboot` | command for Reboot (default `systemctl reboot`) |
+| `power_off` | command for Power Off (default `systemctl poweroff`) |
 | `border_active` | focused border color (defaults to `accent`) |
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |

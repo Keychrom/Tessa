@@ -271,6 +271,20 @@ pub fn emitLauncher(server: *Server, query: []const u8) void {
     });
 }
 
+fn emitPanel(server: *Server, name: []const u8, output_name: []const u8) void {
+    const output = if (output_name.len > 0)
+        output_name
+    else if (core.focusOutput(server)) |out|
+        core.outputName(out)
+    else
+        "";
+    events.emit(server, .{
+        .name = event_names.panel,
+        .arg = name,
+        .output = output,
+    });
+}
+
 fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
     var fields: [5][]const u8 = undefined;
     var count: usize = 0;
@@ -426,6 +440,17 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         const off = findWordOffset(line, "launcher");
         const arg = std.mem.trim(u8, line[off..], " \t");
         emitLauncher(server, arg);
+    } else if (std.mem.eql(u8, cmd, "panel")) {
+        if (start + 1 < n) {
+            const name = toks[start + 1];
+            if (start + 2 < n) {
+                if (core.outputByName(server, toks[start + 2])) |target| {
+                    emitPanel(server, name, core.outputName(target));
+                }
+            } else {
+                emitPanel(server, name, "");
+            }
+        }
     } else if (std.mem.eql(u8, cmd, "quit")) {
         c.wl_display_terminate(server.display);
     }

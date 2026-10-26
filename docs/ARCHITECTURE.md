@@ -376,6 +376,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
+CMD panel <calendar|power> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -395,7 +396,9 @@ snapshots for tools.
 `CMD workspace <n> <output>` changes the workspace on a specific monitor; the
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
-focused output; only the matching panel opens. State broadcasts are coalesced
+focused output; only the matching panel opens. `CMD panel calendar|power`
+likewise emits a `panel` event with the requested popover and target output.
+State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
 
@@ -430,21 +433,29 @@ output.
   input region. Draws the wallpaper once per configure.
 - **bar**: layer top, top/left/right anchors, configurable height
   (`bar_height`, default 44), top/side margins, exclusive zone equal to the
-  height. A geometry change recreates this surface. Hit rectangles for the menu, workspace pills,
-  window chips, and extension status pills are recomputed on each draw. The
-  panel reloads its own config and rescan when it receives `config-reload`.
+  height. A geometry change recreates this surface. Hit rectangles for the menu,
+  clock, workspace pills, window chips, and extension status pills are
+  recomputed on each draw. The panel reloads its own config and rescans apps
+  when it receives `config-reload`.
 - All panel surfaces use the target `wl_output` scale. Buffers are allocated at
   `logical_size * scale`, drawing applies a Cairo scale, and hit/IME rectangles
   stay in logical coordinates. The 760x620 launcher design is uniformly fitted
   to the logical surface; the same transform maps its visual hit rects and IME
   cursor rectangle.
-- **launcher**: created on demand, layer overlay, anchors all edges, exclusive
-  zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface:
-  the dim backdrop and the centered panel are drawn into it, so clicks outside
-  the panel can close it.
+- **overlay**: created on demand, layer overlay, anchors all edges, exclusive
+  zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface.
+  Its mode selects the centered launcher or one of the anchored popovers
+  (calendar below the clock, power menu below the Tessa mark). The dim backdrop
+  and panel are drawn into the same surface, so clicks outside the active panel
+  close it. Popover hit rectangles are in popover-local coordinates plus the
+  panel origin, and keyboard input switches to `Up`/`Down`/`Enter` navigation
+  for the power menu. Opening a popover emits a `panel` event, which the panel
+  process consumes like the `launcher` event.
 
-The launcher fades/scales over 150 ms. It is destroyed only after the fade-out;
-destroying the layer surface lets the compositor restore toplevel focus.
+The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
+destroying the layer surface lets the compositor restore toplevel focus. The
+launcher also enables text-input-v3 while the calendar and power modes disable
+it.
 
 ### Text input in the panel
 
