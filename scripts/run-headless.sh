@@ -16,7 +16,7 @@ chmod 700 "$runtime"
 export XDG_RUNTIME_DIR="$runtime"
 export WLR_BACKENDS=headless
 export WLR_RENDERER=pixman
-export WLR_HEADLESS_OUTPUTS=1
+export WLR_HEADLESS_OUTPUTS="${WLR_HEADLESS_OUTPUTS:-1}"
 export PATH="$PWD/zig-out/bin:$PATH"
 
 rm -f "$runtime/tessa.sock"

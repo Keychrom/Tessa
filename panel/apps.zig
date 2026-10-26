@@ -347,6 +347,20 @@ pub fn filter(list: *const AppList, query_in: []const u8, out: []usize) usize {
     return n;
 }
 
+pub fn addEntry(list: *AppList, name: []const u8, command: []const u8, comment: []const u8) void {
+    if (list.count >= list.apps.len or name.len == 0 or command.len == 0) return;
+    var app = App{};
+    var id_buf: [32]u8 = undefined;
+    const id = std.fmt.bufPrint(&id_buf, "custom-{d}", .{list.count}) catch return;
+    copyTrunc(&app.id, &app.id_len, id);
+    copyTrunc(&app.name, &app.name_len, name);
+    copyTrunc(&app.comment, &app.comment_len, comment);
+    copyTrunc(&app.exec, &app.exec_len, command);
+    app.terminal = false;
+    list.apps[list.count] = app;
+    list.count += 1;
+}
+
 pub fn buildCommand(list: *const AppList, index: usize, terminal: []const u8, out: []u8) []const u8 {
     const app = &list.apps[index];
     var cbuf: [1024]u8 = undefined;

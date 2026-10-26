@@ -12,8 +12,8 @@ a daily Japanese desktop, then by polish.
       right-click close, floating drag/resize, launcher typing).
 - [ ] Validate fullscreen, client popups, clipboard, and multi-window focus.
 - [ ] Fix any transient client repaint gaps after float/resize.
-- [ ] Add a small integration test that starts the headless compositor and
-      asserts the panel state/IPC.
+- [x] Add a small integration test that starts the headless compositor and
+      asserts state/IPC and extension hooks (`tests/smoke.sh`).
 - [x] Decide the license (MIT).
 - [ ] Package for Arch/Ubuntu and pin wlroots 0.19.
 
@@ -28,13 +28,18 @@ a daily Japanese desktop, then by polish.
 - [x] Keyboard layout, variant, model, options, and repeat settings in config.
 - [ ] Touchpad gesture support (workspace swipe, launcher gesture).
 - [ ] Touch and tablet support.
-- [ ] Pointer constraints / relative pointer for games.
+- [x] Relative pointer (`relative-pointer-v1`).
+- [ ] Pointer constraints (`pointer-constraints-v1`).
 - [x] Primary selection (`wlr_primary_selection_v1`).
 - [ ] XIM integration for X11 applications.
 
 ## 0.3 — shell and desktop integration
 
-- [ ] Bars on every output; per-output active workspace.
+- [x] Bars on every output; per-output active workspace.
+- [x] Process-based extension API: `tessa-ctl`, structured event stream, config
+      hooks, and startup commands.
+- [x] Custom bar status segments with optional click commands.
+- [x] Config includes and custom launcher entries.
 - [ ] Tray / StatusNotifier, media controls, battery, network, audio.
 - [ ] Calendar/clock popup.
 - [ ] Power menu.
@@ -54,7 +59,8 @@ a daily Japanese desktop, then by polish.
 - [ ] Theme/config for bar height, margins, fonts, palette, wallpaper art.
 - [ ] More tiling layouts and per-workspace layout profiles.
 - [ ] Mosaic layout minimum-size handling and keyboard resize.
-- [ ] HiDPI/scale and output mode configuration.
+- [x] Output mode/position/scale management via `wlr-output-management-v1` (`wlr-randr`).
+- [ ] HiDPI-aware panel buffer scaling; persist output configuration.
 - [ ] Multi-monitor workspace pinning.
 
 ## 1.0 — stability

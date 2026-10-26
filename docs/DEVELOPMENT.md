@@ -84,6 +84,24 @@ wtype -k Return
 
 `wtype` types into whichever surface currently has keyboard focus.
 
+`tessa-ctl` is the preferred way to drive the session. Put the build output in
+`PATH` and point it at the same runtime directory:
+
+```sh
+export PATH="$PWD/zig-out/bin:$PATH"
+export XDG_RUNTIME_DIR=/tmp/tessa-headless
+
+tessa-ctl state
+tessa-ctl spawn foot -T notes
+tessa-ctl dispatch layout
+tessa-ctl launcher ter
+tessa-ctl status demo "hello from an extension"
+tessa-ctl events window-focus
+```
+
+`tessa-ctl status --clear` removes an entry. `tessa-ctl events` only receives
+events after subscribing, so it is safe to run as a long-lived script.
+
 ### IME test
 
 Start Fcitx5 inside the session, select Mozc, and type into the launcher:
@@ -127,6 +145,33 @@ The `STATE` output should list `XEyes` and `XClock` as normal windows. Use
 installs its own small keymap, so a physical keyboard is better for realistic
 text-entry tests.
 
+### Multi-monitor test
+
+The headless backend can expose several outputs:
+
+```sh
+WLR_HEADLESS_OUTPUTS=2 ./scripts/run-headless.sh
+```
+
+Tessa starts one `tessa-panel` per output. Check that `pgrep -f tessa-panel`
+shows two processes, and that the state contains one `OUT` line per output:
+
+```sh
+printf 'STATE
+'   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock | head -12
+```
+
+`CMD workspace 2 HEADLESS-2` changes only the second output's workspace;
+`HEADLESS-1` keeps its own. Capture each monitor with:
+
+```sh
+./scripts/screenshot.sh /tmp/left.png HEADLESS-2
+./scripts/screenshot.sh /tmp/right.png HEADLESS-1
+```
+
+Output position/mode/scale can be exercised with `wlr-randr` if it is
+installed. The settings are runtime-only.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
@@ -143,6 +188,21 @@ after locking must not type into it, and if the lock client is killed while
 locked Tessa should terminate instead of exposing the desktop. For idle
 testing, run `swayidle -w timeout 5 'swaylock -f'` and verify that activity
 postpones the lock, while a client holding `idle-inhibit-v1` prevents it.
+
+## Extension and integration tests
+
+The headless smoke test starts a compositor with config includes, hooks, and a
+temporary runtime directory, then checks workspace changes, status set/clear,
+config reload, event subscriptions, IPC half-close handling, and (when `foot` is
+installed) window open/focus/close events:
+
+```sh
+./scripts/build.sh
+sh tests/smoke.sh
+```
+
+Use `TESSA_CTL_DEBUG=1 tessa-ctl events` to print received event lines to stderr.
+See [EXTENDING.md](EXTENDING.md) for the API and hook environment.
 
 ## Debug logging
 
@@ -164,6 +224,7 @@ Environment overrides:
 - `TESSA_CONFIG=/path/to/config`
 - `TESSA_NO_PANEL=1`
 - `TESSA_PANEL_BIN=/path/to/tessa-panel`
+- `TESSA_PANEL_OUTPUT=<output name>` (set automatically for per-output panels)
 - `TESSA_NO_XWAYLAND=1`
 - `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`
 - `TESSA_DEBUG=1`

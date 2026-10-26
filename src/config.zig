@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Config = types.Config;
@@ -147,6 +148,23 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
     }
 }
 
+pub fn addHook(cfg: *Config, event: []const u8, command: []const u8) void {
+    if (command.len == 0) return;
+    if (!event_names.isKnown(event)) {
+        core.logInfo("config: unknown hook event '{s}'", .{event});
+        return;
+    }
+    if (cfg.hook_count >= cfg.hooks.len) {
+        core.logInfo("config: too many hooks (max {d})", .{cfg.hooks.len});
+        return;
+    }
+
+    var hook = &cfg.hooks[cfg.hook_count];
+    core.copyString(&hook.event, &hook.event_len, event);
+    core.copyString(&hook.command, &hook.command_len, command);
+    cfg.hook_count += 1;
+}
+
 fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "spawn") or std.ascii.eqlIgnoreCase(name, "exec")) return .spawn;
     if (std.ascii.eqlIgnoreCase(name, "terminal")) return .terminal;
@@ -167,24 +185,28 @@ fn parseAction(name: []const u8) Action {
     return .none;
 }
 
-pub fn load(server: *Server) void {
-    initDefaults(&server.config);
-
-    var path_buf: [512]u8 = undefined;
-    var path: []const u8 = "";
-    if (c.getenv("TESSA_CONFIG")) |p| {
-        path = core.cstr(p);
-    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{core.cstr(p)}) catch "";
-    } else if (c.getenv("HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
+fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
+    if (std.fs.path.isAbsolute(value)) {
+        return std.fmt.bufPrint(dest, "{s}", .{value}) catch "";
     }
-    if (path.len == 0) return;
+    const dir = std.fs.path.dirname(base) orelse ".";
+    return std.fmt.bufPrint(dest, "{s}/{s}", .{ dir, value }) catch "";
+}
+
+fn loadPath(server: *Server, path: []const u8, depth: usize) void {
+    if (depth > 8) {
+        core.logInfo("config: include depth limit reached at {s}", .{path});
+        return;
+    }
 
     var zpath: [512:0]u8 = undefined;
+    if (path.len >= zpath.len) {
+        core.logInfo("config: path too long", .{});
+        return;
+    }
     core.copyZ(&zpath, path);
     const file = c.fopen(&zpath, "r") orelse {
-        core.logInfo("config: {s} not found, using defaults", .{path});
+        core.logInfo("config: {s} not found", .{path});
         return;
     };
     defer _ = c.fclose(file);
@@ -199,7 +221,15 @@ pub fn load(server: *Server) void {
         const value = std.mem.trim(u8, trimmed[eq + 1 ..], " \t");
         if (key.len == 0 or value.len == 0) continue;
 
-        if (std.mem.eql(u8, key, "terminal")) {
+        if (std.mem.eql(u8, key, "include")) {
+            var include_buf: [512]u8 = undefined;
+            const include_path = resolveInclude(&include_buf, path, value);
+            if (include_path.len == 0) {
+                core.logInfo("config: invalid include '{s}'", .{value});
+            } else {
+                loadPath(server, include_path, depth + 1);
+            }
+        } else if (std.mem.eql(u8, key, "terminal")) {
             core.copyString(&server.config.terminal, &server.config.terminal_len, value);
         } else if (std.mem.eql(u8, key, "gaps")) {
             server.config.gaps = std.fmt.parseInt(i32, value, 10) catch server.config.gaps;
@@ -253,8 +283,34 @@ pub fn load(server: *Server) void {
                 const arg = if (rest_sp) |p| std.mem.trimStart(u8, rest[p..], " \t") else "";
                 addBinding(&server.config, chord, action_name, arg);
             }
+        } else if (std.mem.eql(u8, key, "hook") or std.mem.eql(u8, key, "startup")) {
+            if (std.mem.eql(u8, key, "startup")) {
+                addHook(&server.config, event_names.startup, value);
+            } else if (std.mem.indexOfAny(u8, value, " \t")) |sp| {
+                const event = value[0..sp];
+                const command = std.mem.trimStart(u8, value[sp..], " \t");
+                addHook(&server.config, event, command);
+            } else {
+                core.logInfo("config: hook needs an event and a command", .{});
+            }
         }
     }
+}
+
+pub fn load(server: *Server) void {
+    initDefaults(&server.config);
+
+    var path_buf: [512]u8 = undefined;
+    var path: []const u8 = "";
+    if (c.getenv("TESSA_CONFIG")) |p| {
+        path = core.cstr(p);
+    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{core.cstr(p)}) catch "";
+    } else if (c.getenv("HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
+    }
+
+    if (path.len > 0) loadPath(server, path, 0);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;
@@ -267,9 +323,10 @@ pub fn load(server: *Server) void {
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
 
-    core.logInfo("config: {s} (terminal={s}, bindings={d})", .{
-        path,
+    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d})", .{
+        if (path.len > 0) path else "defaults",
         server.config.terminal[0..server.config.terminal_len],
         server.config.binding_count,
+        server.config.hook_count,
     });
 }

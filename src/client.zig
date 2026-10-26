@@ -3,6 +3,8 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -54,8 +56,8 @@ fn onActivationRequest(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c
         const cl = server.clients[i] orelse continue;
         if (tSurface(cl.xdg) != surface) continue;
         if (!cl.mapped) return;
-        if (cl.ws != server.active_ws) {
-            layout.switchWorkspace(server, cl.ws);
+        if (cl.ws != cl.output.active_ws) {
+            layout.switchWorkspaceOnOutput(server, cl.output, cl.ws);
         }
         layout.focusClient(server, cl);
         return;
@@ -128,15 +130,17 @@ fn nextClientOnWorkspace(server: *Server, exclude: *Client) ?*Client {
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl != exclude and cl.mapped and cl.ws == server.active_ws) return cl;
+        if (cl != exclude and cl.mapped and cl.output == exclude.output and
+            cl.ws == cl.output.active_ws) return cl;
     }
     return null;
 }
 
 fn clearLastFocused(server: *Server, client: *Client) void {
+    _ = server;
     var i: usize = 0;
-    while (i < server.last_focused.len) : (i += 1) {
-        if (server.last_focused[i] == client) server.last_focused[i] = null;
+    while (i < client.output.last_focused.len) : (i += 1) {
+        if (client.output.last_focused[i] == client) client.output.last_focused[i] = null;
     }
 }
 
@@ -144,8 +148,17 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const client: *Client = @fieldParentPtr("map", listener.?);
     client.mapped = true;
+    client.announced = true;
     copyMeta(client);
     layout.arrangeAll(client.server);
+    events.emit(client.server, .{
+        .name = event_names.window_open,
+        .id = client.id,
+        .workspace = client.ws,
+        .app_id = client.app_id[0..client.app_id_len],
+        .title = client.title[0..client.title_len],
+        .output = core.outputName(client.output),
+    });
     layout.focusClient(client.server, client);
     core.markDirty(client.server);
 }
@@ -199,6 +212,18 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server = client.server;
     const was_focused = server.focused == client;
 
+    if (client.announced) {
+        events.emit(server, .{
+            .name = event_names.window_close,
+            .id = client.id,
+            .workspace = client.ws,
+            .app_id = client.app_id[0..client.app_id_len],
+            .title = client.title[0..client.title_len],
+            .output = core.outputName(client.output),
+        });
+        client.announced = false;
+    }
+
     c.wl_list_remove(&client.map.link);
     c.wl_list_remove(&client.unmap.link);
     c.wl_list_remove(&client.commit.link);
@@ -225,7 +250,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.ws == server.active_ws) {
+            if (cl.mapped and cl.output == client.output and cl.ws == cl.output.active_ws) {
                 next = cl;
                 break;
             }
@@ -285,7 +310,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const server: *Server = @fieldParentPtr("new_xdg_toplevel", listener.?);
     const xdg: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(data.?));
 
-    const out = core.focusedOutput(server) orelse {
+    const out = core.focusOutput(server) orelse {
         c.wlr_xdg_toplevel_send_close(xdg);
         return;
     };
@@ -294,8 +319,9 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.server = server;
     client.xdg = xdg;
     client.output = out;
-    client.ws = server.active_ws;
+    client.ws = out.active_ws;
     client.mapped = false;
+    client.announced = false;
     client.floating = false;
     client.fullscreen = false;
     client.id = server.next_client_id;

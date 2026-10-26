@@ -2,11 +2,14 @@
 
 # Architecture
 
-Tessa is two processes:
+Tessa is three programs:
 
 1. **`tessa`** — the wlroots compositor and window manager.
 2. **`tessa-panel`** — a Wayland client that owns the wallpaper, taskbar, and
-   launcher.
+   launcher. Tessa starts one panel process per output; each panel is bound to
+   one `wl_output` through `TESSA_PANEL_OUTPUT`.
+3. **`tessa-ctl`** — an optional CLI and reference implementation of the
+   extension protocol. Extensions may be any local process, not just this CLI.
 
 They communicate over a Unix stream socket. Keeping the shell in a separate
 process means a panel crash does not take down the compositor, and it keeps all
@@ -34,6 +37,7 @@ text/font/UI code out of the compositor's hot path.
                                 │               │
              Wayland clients    │               │ spawn + DISPLAY
              + tessa-panel      │               ▼
+             (one per output)
                 ────────────────┘        xwayland-satellite
                                                 │
                                                 ▼
@@ -42,7 +46,10 @@ text/font/UI code out of the compositor's hot path.
 
 Wayland is used for clients and the panel. The compositor↔panel control channel
 is deliberately not a custom Wayland protocol: a line-based socket protocol is
-easy to debug with `socat` and does not require regenerating bindings.
+easy to debug with `socat` or `tessa-ctl`, works from any language, and does not
+require regenerating bindings. `events.zig` is the event plane: it formats
+events, runs configured hooks, and publishes the same records to subscribed IPC
+clients.
 
 ## Scene graph order
 
@@ -101,6 +108,12 @@ focus follows the same transition: `layout.focusLayer()` and
 `layout.focusClient()` call `ime.focusSurface()` with the surface origin, so the
 client's active text input receives `enter`/`leave`.
 
+Each panel process creates its layer surfaces with an explicit output object, so
+a bar/background is placed on its own monitor. The launcher is created on the
+panel's output when that panel receives the launcher event; panels for other
+outputs ignore it. The compositor uses the focused output for new toplevels,
+layer surfaces without an explicit output, and keyboard workspace bindings.
+
 ## Input
 
 `input.zig`:
@@ -116,7 +129,8 @@ client's active text input receives `enter`/`leave`.
   appears or its keymap changes,
 - routes keyboard events to the focused surface or to key bindings,
 - implements click-to-focus, floating move/resize, and pointer forwarding,
-- handles `request_set_cursor`, cursor-shape-v1, and selection requests,
+- handles `request_set_cursor`, cursor-shape-v1, selection requests, and
+  relative-pointer motion for games,
 - reports user activity to the idle notifier on key/pointer input.
 
 When an input method has grabbed the keyboard, raw key events and modifier
@@ -180,6 +194,16 @@ keysyms.
 When a layer has keyboard focus, WM shortcuts are bypassed and all keys are
 forwarded to the layer. This is what lets the launcher receive typing.
 
+## Output management
+
+`output.zig` creates `wlr-output-manager-v1` and keeps its head list current
+with the actual layout positions. `wlr-randr --output ... --mode/--pos/--scale`
+is supported. Apply requests are tested atomically with
+`wlr_backend_test`, committed, then the output layout is updated from the
+configuration head states; the layer layout is reconfigured and positions are
+republished to clients. Output configuration is not persisted across restarts.
+The output power-management protocol is separate and handled in `idle.zig`.
+
 ## Session lock
 
 `lock.zig` implements `ext-session-lock-v1`. On a new lock it:
@@ -214,6 +238,9 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 
 `layout.zig` holds the state transitions:
 
+- Each output owns an `active_ws` and a `last_focused[]` table. Workspaces are
+  therefore independent per monitor, and `Super+1`…`9` applies to the focused
+  output.
 - **master**: one master area (ratio, default 0.58) and a vertical stack.
 - **mosaic**: recursive spiral. Each remaining window takes a 62% slice of the
   current rectangle; the direction rotates left → top → right → bottom. The last
@@ -221,6 +248,9 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   to master/stack.
 - Workspaces are 1–9. A workspace's windows are hidden by disabling the frame
   scene node; hidden workspaces still report occupancy to the panel.
+- Tiled and floating clients stay assigned to the output they were opened on.
+  Directional focus can cross into an adjacent output; moving a window in a
+  direction with no same-output neighbor transfers it to that output.
 - Floating windows live in `tree_floating`; they start at 55% × 60% of the
   usable area, centered.
 - Fullscreen uses the full output (including the bar area) and the fullscreen
@@ -236,56 +266,89 @@ frame's rect.
 
 Socket: `$XDG_RUNTIME_DIR/tessa.sock` (or `$TESSA_IPC`), mode 0600.
 
-The panel receives a complete state snapshot after each change:
+A new connection receives nothing until it subscribes. The panel sends
+`CMD subscribe all`; the compositor then sends a complete state snapshot on each
+change:
 
 ```text
 STATE
 ACTIVE 1
+OUT eDP-1 1 1
+OUT HDMI-A-1 2 0
 OCC 1 2
 OCC 2 0
 ...
 FOCUSED 7
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes
-WIN\t8\t1\t0\t0\t0\tfoot\tshell
+STATUS\tweather\tTokyo 18C\t
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1
 END
 ```
 
-`WIN` fields are tab-separated: `WIN`, id, workspace, focused, floating,
-fullscreen, app_id, title. Backslash, tab, CR, and LF are escaped in the two
-string fields.
+`OUT` lines give each output's name, active workspace, and focused flag. `WIN`
+fields are tab-separated: `WIN`, id, workspace, focused, floating, fullscreen,
+app_id, title, output name. `STATUS` has id, text, and an optional click command.
+Backslash, tab, CR, and LF are escaped in string fields. Each panel filters
+`WIN` and `OUT` lines to its own output and recomputes workspace occupancy
+locally. Status entries are shared by all outputs.
 
-Panel → compositor:
+Subscriptions and client → compositor commands:
 
 ```text
-CMD workspace <1..9>
+CMD subscribe state|events|all
+CMD state
+CMD workspace <1..9> [output]
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
 CMD layout
+CMD reload
 CMD float <id>
+CMD status <id> <text>            (tab-separated form supports --exec)
 CMD quit
 ```
 
-`CMD launcher [query]` is primarily a development hook; the bar uses the
-`EVENT launcher` broadcast from the compositor for `Super+D`.
+`CMD workspace <n> <output>` changes the workspace on a specific monitor; the
+compositor's keyboard bindings use the focused output when the output is
+omitted. `CMD launcher [query]` emits a structured launcher event with the
+focused output; only the matching panel opens. State broadcasts are coalesced
+through a Wayland event-loop idle source and only go to state subscribers.
+Events are sent only to event subscribers.
 
-The compositor broadcasts `EVENT launcher` to all panel connections. State
-broadcasts are coalesced through a Wayland event-loop idle source.
+## Extension plane
+
+The extension API is intentionally process-based; there is no in-process plugin
+VM. `event_names.zig` defines the public topics. `events.zig` builds the wire
+record (`EVENT\t<topic>\tkey=value...`), broadcasts it to subscribed clients,
+and runs matching config hooks with `TESSA_*` environment variables. Event
+delivery is best-effort and never blocks the compositor; a client whose socket
+buffer is full is disconnected.
+
+`ipc.zig` owns status entries and state snapshots. Status updates are ordinary
+commands, capped at eight entries and included in every subsequent snapshot.
+`tessa-ctl` demonstrates the protocol and is useful for shell scripts. The
+complete schema and examples live in [EXTENDING.md](EXTENDING.md).
 
 ## Panel
 
 `panel/model.zig` holds state, config, clock, CPU/RAM sampling, and search
 results. `panel/draw.zig` contains all Cairo drawing. `panel/main.zig` owns the
-Wayland client, IPC, input callbacks, animations, and the poll loop.
+Wayland client, IPC, input callbacks, animations, and the poll loop. Tessa
+starts one panel per output; each panel binds `wl_output` globals, selects its
+target by `TESSA_PANEL_OUTPUT`, and passes that output to layer-shell. State
+lines are filtered to the target output, so each bar shows only its monitor's
+active workspace and windows. A panel without a target falls back to the first
+output.
 
 ### Surfaces
 
 - **background**: layer background, anchors all edges, exclusive zone -1, empty
   input region. Draws the wallpaper once per configure.
 - **bar**: layer top, top/left/right anchors, 44 px high, 12/16 px margins,
-  exclusive zone 44. Hit rectangles for the menu, workspace pills, and window
-  chips are recomputed on each draw.
+  exclusive zone 44. Hit rectangles for the menu, workspace pills, window
+  chips, and extension status pills are recomputed on each draw. The panel
+  reloads its own config and rescan when it receives `config-reload`.
 - **launcher**: created on demand, layer overlay, anchors all edges, exclusive
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface:
   the dim backdrop and the centered panel are drawn into it, so clicks outside
@@ -337,10 +400,11 @@ inside libwayland.
 
 ## Build and generated protocols
 
-`build.zig` builds both executables. The compositor's C import includes
-wlroots 0.19 with `WLR_USE_UNSTABLE`. The panel compiles generated client
-protocol C for layer-shell (which transitively needs xdg-shell's
-`xdg_popup_interface`).
+`build.zig` builds the compositor, panel, and `tessa-ctl`. The compositor's C
+import includes wlroots 0.19 with `WLR_USE_UNSTABLE`. The panel compiles
+generated client protocol C for layer-shell (which transitively needs
+xdg-shell's `xdg_popup_interface`). `tessa-ctl` only links libc and socket
+headers.
 
 The generated headers/C under `protocol/` are committed:
 
@@ -354,6 +418,9 @@ The generated headers/C under `protocol/` are committed:
 ## Failure behavior
 
 - A panel disconnect is cleaned up by the compositor; the panel exits on IPC EOF.
+- A slow event/state subscriber is disconnected instead of stalling the event
+  loop. Hooks run in detached shell processes; a failing hook does not affect
+  the compositor.
 - A panel crash leaves the compositor alive; restart `tessa-panel` manually.
 - Output removal moves clients to the first remaining output. Removing the last
   output terminates the compositor.
@@ -366,3 +433,5 @@ The generated headers/C under `protocol/` are committed:
 - Layer-shell popups are rendered under the layer surface that owns them. A
   layer client that creates a popup before `get_popup` is associated with the
   layer is ignored until that association happens.
+- Each panel process exits when its output disappears (its bar layer surface is
+  closed); the other monitors keep their panels.

@@ -22,6 +22,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_seat.h");
     @cInclude("wlr/types/wlr_cursor.h");
     @cInclude("wlr/types/wlr_cursor_shape_v1.h");
+    @cInclude("wlr/types/wlr_relative_pointer_v1.h");
     @cInclude("wlr/types/wlr_xcursor_manager.h");
     @cInclude("wlr/types/wlr_xdg_shell.h");
     @cInclude("wlr/types/wlr_xdg_decoration_v1.h");
@@ -39,6 +40,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_idle_notify_v1.h");
     @cInclude("wlr/types/wlr_idle_inhibit_v1.h");
     @cInclude("wlr/types/wlr_output_power_management_v1.h");
+    @cInclude("wlr/types/wlr_output_management_v1.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/util/edges.h");
 

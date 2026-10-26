@@ -1,6 +1,8 @@
 # Tessa configuration
 # Install this file as ~/.config/tessa/config.
 # Values are simple `key = value` lines. Lines starting with # are ignored.
+# Relative include paths are resolved next to the including file.
+# include = keybindings.conf
 
 terminal = kitty
 gaps = 10
@@ -35,6 +37,17 @@ repeat_delay = 600
 accent = #e2684f
 bg = #0a0f1a
 font = Inter
+
+# Run commands at startup, or react to compositor events.
+# Hooks receive TESSA_EVENT plus TESSA_WINDOW_ID, TESSA_WORKSPACE,
+# TESSA_OUTPUT, TESSA_APP_ID, TESSA_TITLE, and related variables.
+# startup = fcitx5 -d
+# hook = window-open notify-send "Window opened" "$TESSA_TITLE"
+# hook = workspace-change ~/.config/tessa/workspace.sh
+
+# Extra launcher entries (panel-side; included files also work).
+# launcher_entry = Notes | foot -e nvim ~/notes.md
+# launcher_entry = Lock screen | swaylock
 
 # Additional or overriding key bindings.
 # XKB keysym names are used: Return, Tab, Left, Right, 1, h, ...

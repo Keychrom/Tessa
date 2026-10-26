@@ -25,7 +25,13 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
 - master/stack layout **and** the Tessa "mosaic" spiral layout (`Super+T`)
-- nine workspaces, floating windows, fullscreen, click-to-focus
+- nine workspaces per output, floating windows, fullscreen, click-to-focus
+- multi-monitor support: a bar/background and independent active workspace on
+  every output; panels are auto-started per output; output management via
+  `wlr-randr`
+- external extension API: event subscriptions, config hooks, custom bar status
+  entries, custom launcher entries, and the `tessa-ctl` automation client
+- `relative-pointer-v1` for games and pointer-look applications
 - layer-shell popups from third-party clients (panel menus, dropdowns)
 - `ext-session-lock-v1` session locking, plus `ext-idle-notify-v1`,
   `idle-inhibit-v1`, and output-power management for tools such as swayidle and
@@ -40,12 +46,16 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   - ink/sun wallpaper
   - floating taskbar with workspace pills, window chips, clock, CPU/RAM
   - searchable application launcher with keyboard navigation and IME input
-- simple line-based IPC between compositor and panel
-- line-based configuration file
+- line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
+- line-based configuration file with includes and event hooks
 
 It has been built and tested on Ubuntu 26.04 with Zig 0.16.0 and wlroots
 0.19.2, primarily in the headless pixman backend with `grim`, `wtype`, Fcitx5 +
-Mozc, and X11 clients through `xwayland-satellite`.
+Mozc, and X11 clients through `xwayland-satellite`. Dual-headless-output
+workspaces, per-output panels, session locking across outputs, and `wlr-randr`
+output management were also verified. Event hooks, the event stream, custom
+status entries, custom launcher entries, and config reload were exercised by
+`tests/smoke.sh` and a panel screenshot test.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -86,6 +96,7 @@ Requirements:
   for X11 applications (auto-started when `xwayland = true`)
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
+- optional: `wlr-randr` for runtime output mode/position/scale changes
 
 On Ubuntu 26.04:
 
@@ -122,7 +133,8 @@ chmod +x scripts/*.sh scripts/tessa-session   # once, if not preserved
 This produces:
 
 - `zig-out/bin/tessa` — the compositor
-- `zig-out/bin/tessa-panel` — the shell panel (auto-started by tessa)
+- `zig-out/bin/tessa-panel` — the shell panel (one process per output, auto-started by tessa)
+- `zig-out/bin/tessa-ctl` — state/event/automation client for scripts and extensions
 
 The generated Wayland protocol headers are committed under `protocol/`, so a
 wlroots installation without generated `xdg-shell-protocol.h` still builds.
@@ -139,10 +151,10 @@ cd /path/to/Tessa
 PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
 ```
 
-wlroots autodetects the DRM backend and libinput. Tessa starts
-`tessa-panel` from `PATH`, so include `zig-out/bin` or install the binaries.
-The default terminal is `kitty`; install it, or set `terminal = foot` in the
-config.
+wlroots autodetects the DRM backend and libinput. Tessa starts one
+`tessa-panel` process per output from `PATH`, so include `zig-out/bin` or
+install the binaries. The default terminal is `kitty`; install it, or set
+`terminal = foot` in the config.
 
 ### Display manager / session file
 
@@ -188,7 +200,8 @@ XDG_RUNTIME_DIR=/tmp/tessa-headless WAYLAND_DISPLAY=wayland-0 \
 surface currently has keyboard focus. This is also how the IME and panel
 keyboard paths are tested without a TTY.
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the headless workflow.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the headless workflow and
+[docs/EXTENDING.md](docs/EXTENDING.md) for scripting and extension APIs.
 
 ## Input methods
 
@@ -265,6 +278,58 @@ Idle notifications and inhibitor handling work, and a visible video/player can
 inhibit idle through `idle-inhibit-v1`. Tessa implements the output-power
 management protocol, so `wlopm` can turn outputs off and back on.
 
+## Multiple monitors
+
+![Two headless outputs with independent bars and workspaces](docs/images/multi-monitor.png)
+
+Every output gets its own background, bar, and independent active workspace.
+`Super+1` … `Super+9` change the workspace of the focused output. Clicking or
+scrolling a bar changes that monitor's workspace and focuses that output.
+The launcher opens on the focused output, and new windows are placed there.
+`Super+Shift+H/J/K/L` swaps within the current output first; when there is no
+window in that direction it moves the focused window to the adjacent monitor.
+
+Tessa auto-starts one `tessa-panel` process per output with
+`TESSA_PANEL_OUTPUT=<name>`. If you disable auto-start (`panel = false` or
+`TESSA_NO_PANEL=1`), start a panel for each output manually:
+
+```sh
+TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
+```
+
+Output modes, positions, and scales can be changed with `wlr-randr`; Tessa
+implements `wlr-output-management-unstable-v1`. Settings are not persisted
+across restarts yet, and the panel's own buffer scale is still 1, so HiDPI
+outputs may show a scaled/blurred bar.
+
+## Extensions
+
+![Extension status entries and a custom launcher entry](docs/images/extensions.png)
+
+Tessa does not embed a plugin VM. Extensions are normal processes that speak the
+compositor's Unix-socket API; they can be written in any language. `tessa-ctl`
+exposes state snapshots, structured events, status entries, and commands:
+
+```sh
+tessa-ctl state
+tessa-ctl events window-focus
+tessa-ctl status weather "Tokyo 18C"
+tessa-ctl dispatch reload
+```
+
+Configuration can also start commands at login and react to compositor events:
+
+```ini
+startup = fcitx5 -d
+hook = window-open notify-send "Window opened" "$TESSA_TITLE"
+launcher_entry = Notes | foot -e nvim ~/notes.md
+include = /home/you/.config/tessa/launcher-entries.conf
+```
+
+The panel displays up to eight extension status entries and can run a command
+when one is clicked. See [docs/EXTENDING.md](docs/EXTENDING.md) for the complete
+event schema, hook environment, and status API.
+
 ## Key bindings
 
 | Binding | Action |
@@ -278,7 +343,7 @@ management protocol, so `wlopm` can turn outputs off and back on.
 | `Super+1` … `Super+9` | switch workspace |
 | `Super+Shift+1` … `Super+Shift+9` | move window to workspace |
 | `Super+H/J/K/L` | focus left/down/up/right |
-| `Super+Shift+H/J/K/L` | swap with window in that direction |
+| `Super+Shift+H/J/K/L` | swap with window in that direction; if there is none, move the window to the adjacent output |
 | `Super+Space` | toggle floating |
 | `Super+F` | toggle fullscreen |
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
@@ -328,6 +393,10 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `accent` | accent color used by borders, bar, launcher |
 | `bg` | base background color for the wallpaper |
 | `font` | UI family for the panel |
+| `include` | include another config file |
+| `startup` | command run once at startup |
+| `hook` | run a command for a compositor event |
+| `launcher_entry` | extra launcher item (`Name \| command`) |
 
 Additional bindings use XKB keysym names:
 
@@ -362,7 +431,7 @@ tessa (wlroots compositor, Zig)
   ├─ master/stack + mosaic tiling, 9 workspaces, floating, fullscreen
   └─ IPC: $XDG_RUNTIME_DIR/tessa.sock
                  ▲
-tessa-panel (Wayland client, Zig + Cairo/Pango)
+tessa-panel × outputs (Wayland client, Zig + Cairo/Pango)
   ├─ background layer (ink/sun wallpaper)
   ├─ top layer (floating taskbar)
   └─ overlay layer (launcher, exclusive keyboard)
@@ -380,7 +449,7 @@ OCC 1 2
 WIN\t1\t1\t1\t0\t0\tkitty\tnotes
 END
 
-CMD workspace 3
+CMD workspace 3 eDP-1
 CMD focus 4
 CMD close 4
 CMD spawn kitty
@@ -399,8 +468,13 @@ These are real and important:
 - **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
   the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
   pointer behavior and DRM mode setting still need a physical test pass.
-- **One panel.** The bar/background are created on the first output. Multiple
-  outputs tile windows, but they share one active workspace and only one bar.
+- **Output configuration is not persisted.** Use `wlr-randr` at runtime; modes,
+  positions, and scales are not saved to the config yet.
+- **HiDPI is partial.** Output scale works for clients, but the panel buffer is
+  still scale 1, so bars can be blurry on scaled outputs.
+- **One panel process per output.** This keeps each bar independent but uses
+  more memory than a single multi-surface panel; a panel crash only affects its
+  monitor.
 - **Lock-screen testing is basic.** `ext-session-lock-v1` is implemented and was
   tested with a minimal lock client; a real swaylock/PAM setup still needs a
   physical-session test. If the lock client disappears while locked, Tessa
@@ -408,14 +482,15 @@ These are real and important:
 - **Idle timing is external.** Tessa exposes idle notifications, inhibitors, and
   output power management; `swayidle`/`wlopm` (or another idle daemon) must be
   running if you want automatic blanking or locking.
-- **Scale is fixed to 1.** HiDPI output scale is not configurable, and X11
-  clients are not scaled.
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
   with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
   and input-method popup repositioning during scroll are not covered.
 - **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
   missing, X11 applications simply do not start; Wayland clients are unaffected.
 - **No portals, screen sharing, gamma, or output configuration UI.**
+- **Extensions are trusted local processes.** They run with the session user's
+  full privileges; there is no sandbox. The event protocol is line-oriented and
+  not yet JSON/versioned. Status entries are limited to eight short strings.
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the

@@ -673,6 +673,45 @@ pub fn drawBar(s: *m.Surface) void {
         drawSparkline(cr, right - 42, cy - 7, 42, 14);
     }
 
+    // Extension status entries. They are right-aligned next to the built-in
+    // cluster and only drawn when they fit between the window chips and it.
+    var status_widths: [m.MAX_STATUS]f64 = undefined;
+    var status_fit: usize = 0;
+    var status_total: f64 = 0;
+    while (status_fit < g.status_count) : (status_fit += 1) {
+        const st = &g.statuses[status_fit];
+        const text = st.text[0..st.text_len];
+        const tw2 = @min(textWidth(cr, text, g.font[0..g.font_len], "Medium", 8.4, 0), 112.0);
+        const status_pill = tw2 + 20.0;
+        const gap2: f64 = if (status_fit == 0) 0 else 6.0;
+        if (right - status_total - status_pill - gap2 < cx + 12.0) break;
+        status_widths[status_fit] = status_pill;
+        status_total += status_pill + gap2;
+    }
+
+    if (status_fit > 0) {
+        var sx = right - status_total;
+        var si: usize = 0;
+        while (si < status_fit) : (si += 1) {
+            const st = &g.statuses[si];
+            const status_w = status_widths[si];
+            const hovered = g.hover.kind == .status and g.hover.value == si;
+            fillRound(cr, sx, cy - 10, status_w, 20, 6, .{
+                1, 1, 1, if (hovered) 0.075 else 0.040,
+            });
+            strokeRound(cr, sx + 0.5, cy - 9.5, status_w - 1, 19, 5.5, .{
+                1, 1, 1, if (hovered) 0.10 else 0.045,
+            }, 1.0);
+            const col: [4]f64 = if (hovered)
+                .{ 0.92, 0.95, 0.99, 0.98 }
+            else
+                .{ 0.68, 0.74, 0.84, 0.88 };
+            _ = drawTextCentered(cr, st.text[0..st.text_len], sx + 10, cy + 0.3, g.font[0..g.font_len], "Medium", 8.4, col, status_w - 20, 0);
+            addBarHit(sx, cy - 11, status_w, 22, .{ .kind = .status, .value = si });
+            sx += status_w + 6.0;
+        }
+    }
+
     end(s, d);
 }
 

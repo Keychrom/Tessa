@@ -3,10 +3,13 @@ const c = @import("c.zig").c;
 const apps = @import("apps.zig");
 
 pub const MAX_WINDOWS = 64;
+pub const MAX_OUTPUTS = 8;
 pub const MAX_RESULTS = 256;
+pub const MAX_STATUS = 8;
+pub const MAX_CUSTOM_APPS = 16;
 pub const BAR_HEIGHT = 44;
 
-pub const HitKind = enum { none, menu, workspace, window, app };
+pub const HitKind = enum { none, menu, workspace, window, app, status };
 
 pub const Hit = struct {
     kind: HitKind = .none,
@@ -24,6 +27,8 @@ pub const HitRect = struct {
 pub const WindowInfo = struct {
     id: u64 = 0,
     ws: usize = 1,
+    output_name: [64]u8 = [_]u8{0} ** 64,
+    output_len: usize = 0,
     focused: bool = false,
     floating: bool = false,
     fullscreen: bool = false,
@@ -31,6 +36,35 @@ pub const WindowInfo = struct {
     app_len: usize = 0,
     title: [160]u8 = [_]u8{0} ** 160,
     title_len: usize = 0,
+};
+
+pub const StatusInfo = struct {
+    id: [48]u8 = [_]u8{0} ** 48,
+    id_len: usize = 0,
+    text: [160]u8 = [_]u8{0} ** 160,
+    text_len: usize = 0,
+    command: [256]u8 = [_]u8{0} ** 256,
+    command_len: usize = 0,
+};
+
+pub const CustomApp = struct {
+    name: [160]u8 = [_]u8{0} ** 160,
+    name_len: usize = 0,
+    comment: [192]u8 = [_]u8{0} ** 192,
+    comment_len: usize = 0,
+    exec: [512]u8 = [_]u8{0} ** 512,
+    exec_len: usize = 0,
+};
+
+pub const OutputInfo = struct {
+    wl: ?*c.wl_output = null,
+    name: [64]u8 = [_]u8{0} ** 64,
+    name_len: usize = 0,
+    x: i32 = 0,
+    y: i32 = 0,
+    width: i32 = 0,
+    height: i32 = 0,
+    done: bool = false,
 };
 
 pub const SurfaceKind = enum { background, bar, overlay };
@@ -74,11 +108,23 @@ pub const Panel = struct {
     bg: Surface = undefined,
     overlay: ?*Surface = null,
 
+    outputs: [MAX_OUTPUTS]OutputInfo = [_]OutputInfo{.{}} ** MAX_OUTPUTS,
+    output_count: usize = 0,
+    target_output: ?*c.wl_output = null,
+    target_name: [64]u8 = [_]u8{0} ** 64,
+    target_name_len: usize = 0,
+    is_focused_output: bool = false,
+
     active_ws: usize = 1,
     occ: [10]u32 = [_]u32{0} ** 10,
     focused_id: u64 = 0,
     windows: [MAX_WINDOWS]WindowInfo = undefined,
     window_count: usize = 0,
+    statuses: [MAX_STATUS]StatusInfo = undefined,
+    status_count: usize = 0,
+
+    custom_apps: [MAX_CUSTOM_APPS]CustomApp = undefined,
+    custom_count: usize = 0,
 
     ipc_fd: c_int = -1,
     ipc_buf: [65536]u8 = undefined,
@@ -179,25 +225,37 @@ fn trim(s: []const u8) []const u8 {
     return std.mem.trim(u8, s, " \t\r\n");
 }
 
-pub fn loadConfig() void {
-    copyTrunc(&g.terminal, &g.terminal_len, "kitty");
-    copyTrunc(&g.font, &g.font_len, "Inter");
-    g.accent = .{ 0.886, 0.408, 0.31 };
-    g.bg_rgb = .{ 0.039, 0.059, 0.102 };
+fn addCustomApp(value: []const u8) void {
+    if (g.custom_count >= g.custom_apps.len) return;
+    const bar = std.mem.indexOfScalar(u8, value, '|') orelse {
+        std.debug.print("tessa-panel: launcher_entry needs 'Name | command'\n", .{});
+        return;
+    };
+    const name = trim(value[0..bar]);
+    const command = trim(value[bar + 1 ..]);
+    if (name.len == 0 or command.len == 0) return;
 
-    var path_buf: [512]u8 = undefined;
-    var path: []const u8 = "";
-    if (c.getenv("TESSA_CONFIG")) |p| {
-        path = std.mem.span(p);
-    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{std.mem.span(p)}) catch "";
-    } else if (c.getenv("HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
+    const app = &g.custom_apps[g.custom_count];
+    app.* = std.mem.zeroes(CustomApp);
+    copyTrunc(&app.name, &app.name_len, name);
+    copyTrunc(&app.exec, &app.exec_len, command);
+    copyTrunc(&app.comment, &app.comment_len, "Custom launcher entry");
+    g.custom_count += 1;
+}
+
+fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
+    if (std.fs.path.isAbsolute(value)) {
+        return std.fmt.bufPrint(dest, "{s}", .{value}) catch "";
     }
-    if (path.len == 0) return;
+    const dir = std.fs.path.dirname(base) orelse ".";
+    return std.fmt.bufPrint(dest, "{s}/{s}", .{ dir, value }) catch "";
+}
 
+fn loadConfigFile(path: []const u8, depth: usize) void {
+    if (depth > 8) return;
     var zpath: [512:0]u8 = undefined;
-    const n = @min(path.len, zpath.len - 1);
+    if (path.len >= zpath.len) return;
+    const n = path.len;
     @memcpy(zpath[0..n], path[0..n]);
     zpath[n] = 0;
     const file = c.fopen(&zpath, "r") orelse return;
@@ -211,7 +269,11 @@ pub fn loadConfig() void {
         const eq = std.mem.indexOfScalar(u8, t, '=') orelse continue;
         const key = trim(t[0..eq]);
         const val = trim(t[eq + 1 ..]);
-        if (std.mem.eql(u8, key, "terminal")) {
+        if (std.mem.eql(u8, key, "include")) {
+            var include_buf: [512]u8 = undefined;
+            const include_path = resolveInclude(&include_buf, path, val);
+            if (include_path.len > 0) loadConfigFile(include_path, depth + 1);
+        } else if (std.mem.eql(u8, key, "terminal")) {
             copyTrunc(&g.terminal, &g.terminal_len, val);
         } else if (std.mem.eql(u8, key, "font")) {
             copyTrunc(&g.font, &g.font_len, val);
@@ -219,8 +281,29 @@ pub fn loadConfig() void {
             hexColor(val, &g.accent);
         } else if (std.mem.eql(u8, key, "bg")) {
             hexColor(val, &g.bg_rgb);
+        } else if (std.mem.eql(u8, key, "launcher_entry")) {
+            addCustomApp(val);
         }
     }
+}
+
+pub fn loadConfig() void {
+    copyTrunc(&g.terminal, &g.terminal_len, "kitty");
+    copyTrunc(&g.font, &g.font_len, "Inter");
+    g.accent = .{ 0.886, 0.408, 0.31 };
+    g.bg_rgb = .{ 0.039, 0.059, 0.102 };
+    g.custom_count = 0;
+
+    var path_buf: [512]u8 = undefined;
+    var path: []const u8 = "";
+    if (c.getenv("TESSA_CONFIG")) |p| {
+        path = std.mem.span(p);
+    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{std.mem.span(p)}) catch "";
+    } else if (c.getenv("HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
+    }
+    if (path.len > 0) loadConfigFile(path, 0);
 }
 
 pub fn updateClock() bool {

@@ -3,6 +3,8 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const ime = @import("ime.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -83,7 +85,7 @@ pub fn updateBorders(server: *Server) void {
         const cl = server.clients[i] orelse continue;
         const is_active = (cl == server.focused) and
             cl.mapped and
-            cl.ws == server.active_ws and
+            cl.ws == cl.output.active_ws and
             server.focused_layer == null;
         c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active else &inactive);
     }
@@ -94,7 +96,7 @@ pub fn refreshKeyboardFocus(server: *Server) void {
         c.wlr_seat_keyboard_clear_focus(server.seat);
         keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
     } else if (server.focused) |cl| {
-        if (cl.mapped and cl.ws == server.active_ws) {
+        if (cl.mapped and cl.ws == cl.output.active_ws) {
             c.wlr_seat_keyboard_clear_focus(server.seat);
             keyboardEnter(server, tSurface(cl.xdg));
         } else {
@@ -111,22 +113,36 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
     }
 
     if (target) |cl| {
-        if (!cl.mapped or cl.ws != server.active_ws) return;
+        if (!cl.mapped or cl.ws != cl.output.active_ws) return;
         if (server.focused == cl) {
+            server.focused_output = cl.output;
+            server.active_ws = cl.output.active_ws;
             raiseClient(cl);
             return;
         }
         if (server.focused) |prev| {
             if (prev != cl) _ = c.wlr_xdg_toplevel_set_activated(prev.xdg, false);
         }
+        const previous_id: u64 = if (server.focused) |prev| prev.id else 0;
         server.focused = cl;
-        server.last_focused[cl.ws] = cl;
+        server.focused_output = cl.output;
+        server.active_ws = cl.output.active_ws;
+        cl.output.last_focused[cl.ws] = cl;
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
         raiseClient(cl);
         keyboardEnter(server, tSurface(cl.xdg));
         const origin = clientSurfaceOrigin(cl);
         ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
         updateBorders(server);
+        events.emit(server, .{
+            .name = event_names.window_focus,
+            .id = cl.id,
+            .previous_id = previous_id,
+            .workspace = cl.ws,
+            .app_id = cl.app_id[0..cl.app_id_len],
+            .title = cl.title[0..cl.title_len],
+            .output = core.outputName(cl.output),
+        });
         core.markDirty(server);
         return;
     }
@@ -134,10 +150,22 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
     if (server.focused) |prev| {
         _ = c.wlr_xdg_toplevel_set_activated(prev.xdg, false);
     }
+    const cleared_id: u64 = if (server.focused) |prev| prev.id else 0;
+    const cleared_ws: usize = if (server.focused) |prev| prev.ws else server.active_ws;
+    const cleared_output = if (server.focused) |prev| core.outputName(prev.output) else "";
     server.focused = null;
     keyboardClear(server);
     ime.focusSurface(server, null, 0, 0);
     updateBorders(server);
+    if (cleared_id != 0) {
+        events.emit(server, .{
+            .name = event_names.window_focus,
+            .id = 0,
+            .previous_id = cleared_id,
+            .workspace = cleared_ws,
+            .output = cleared_output,
+        });
+    }
     core.markDirty(server);
 }
 
@@ -146,6 +174,7 @@ pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, false);
     }
     server.focused_layer = layer;
+    server.focused_output = layer.output;
     keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
     const layer_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(layer.scene_layer.tree));
     ime.focusSurface(
@@ -162,7 +191,9 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
     if (server.focused_layer != layer) return;
     server.focused_layer = null;
     if (server.focused) |cl| {
-        if (cl.mapped and cl.ws == server.active_ws) {
+        if (cl.mapped and cl.ws == cl.output.active_ws) {
+            server.focused_output = cl.output;
+            server.active_ws = cl.output.active_ws;
             _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
             keyboardEnter(server, tSurface(cl.xdg));
             const origin = clientSurfaceOrigin(cl);
@@ -254,7 +285,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         const cl = server.clients[i] orelse continue;
         if (cl.output != out) continue;
 
-        const visible = cl.mapped and cl.ws == server.active_ws;
+        const visible = cl.mapped and cl.ws == out.active_ws;
         c.wlr_scene_node_set_enabled(&cl.frame.node, visible);
         if (!visible) continue;
 
@@ -362,7 +393,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
     }
 
     if (server.focused) |fc| {
-        if (fc.output == out and fc.mapped and fc.ws == server.active_ws) {
+        if (fc.output == out and fc.mapped and fc.ws == out.active_ws) {
             raiseClient(fc);
         }
     }
@@ -394,7 +425,7 @@ fn visibleClientsOnOutput(server: *Server, out: *Output, out_list: []?*Client) u
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.ws == server.active_ws and cl.output == out) {
+        if (cl.mapped and cl.ws == out.active_ws and cl.output == out) {
             if (n < out_list.len) {
                 out_list[n] = cl;
                 n += 1;
@@ -461,6 +492,45 @@ fn findDirectional(server: *Server, from: *Client, dir: Dir, same_output: bool) 
     return best;
 }
 
+fn firstClientOnOutput(server: *Server, out: *Output) ?*Client {
+    if (out.last_focused[out.active_ws]) |cl| {
+        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) return cl;
+    }
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) return cl;
+    }
+    return null;
+}
+
+fn adjacentOutput(server: *Server, from: *Output, dir: Dir) ?*Output {
+    var best: ?*Output = null;
+    var best_dist: i32 = std.math.maxInt(i32);
+    const fx = from.full.x + @divTrunc(from.full.width, 2);
+    const fy = from.full.y + @divTrunc(from.full.height, 2);
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        if (out == from) continue;
+        const ox = out.full.x + @divTrunc(out.full.width, 2);
+        const oy = out.full.y + @divTrunc(out.full.height, 2);
+        const dx = ox - fx;
+        const dy = oy - fy;
+        const dist: i32 = switch (dir) {
+            .left => if (dx < -8 and @abs(dy) <= @divTrunc(from.full.height, 2) + out.full.height) -dx else continue,
+            .right => if (dx > 8 and @abs(dy) <= @divTrunc(from.full.height, 2) + out.full.height) dx else continue,
+            .up => if (dy < -8 and @abs(dx) <= @divTrunc(from.full.width, 2) + out.full.width) -dy else continue,
+            .down => if (dy > 8 and @abs(dx) <= @divTrunc(from.full.width, 2) + out.full.width) dy else continue,
+        };
+        if (dist < best_dist) {
+            best_dist = dist;
+            best = out;
+        }
+    }
+    return best;
+}
+
 pub fn focusDirection(server: *Server, arg: []const u8) void {
     const dir = parseDir(arg) orelse return;
     const cur = server.focused orelse {
@@ -469,6 +539,15 @@ pub fn focusDirection(server: *Server, arg: []const u8) void {
     };
     if (findDirectional(server, cur, dir, true)) |target| {
         focusClient(server, target);
+        return;
+    }
+    if (adjacentOutput(server, cur.output, dir)) |out| {
+        server.focused_output = out;
+        if (firstClientOnOutput(server, out)) |target| {
+            focusClient(server, target);
+        } else {
+            focusClient(server, null);
+        }
     }
 }
 
@@ -489,25 +568,40 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
         return;
     }
 
-    const target = findDirectional(server, cur, dir, true) orelse return;
-    if (target == cur) return;
+    if (findDirectional(server, cur, dir, true)) |target| {
+        if (target == cur) return;
+        const i = core.clientIndex(server, cur) orelse return;
+        const j = core.clientIndex(server, target) orelse return;
+        server.clients[i] = target;
+        server.clients[j] = cur;
+        arrangeOutput(server, cur.output);
+        focusClient(server, cur);
+        core.markDirty(server);
+        return;
+    }
 
-    const i = core.clientIndex(server, cur) orelse return;
-    const j = core.clientIndex(server, target) orelse return;
-    server.clients[i] = target;
-    server.clients[j] = cur;
-    arrangeAll(server);
-    focusClient(server, cur);
-    core.markDirty(server);
+    if (adjacentOutput(server, cur.output, dir)) |out| {
+        const old_out = cur.output;
+        if (old_out.last_focused[cur.ws] == cur) old_out.last_focused[cur.ws] = null;
+        cur.output = out;
+        cur.ws = out.active_ws;
+        out.last_focused[cur.ws] = cur;
+        server.focused_output = out;
+        arrangeOutput(server, old_out);
+        arrangeOutput(server, out);
+        focusClient(server, cur);
+        core.markDirty(server);
+    }
 }
 
 pub fn focusNext(server: *Server, step: i32) void {
+    const out = core.focusOutput(server) orelse return;
     var list: [types.MAX_CLIENTS]?*Client = undefined;
     var n: usize = 0;
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.ws == server.active_ws) {
+        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
             list[n] = cl;
             n += 1;
         }
@@ -533,31 +627,49 @@ pub fn focusNext(server: *Server, step: i32) void {
 }
 
 pub fn focusFirst(server: *Server) void {
-    var i: usize = 0;
-    while (i < server.clients.len) : (i += 1) {
-        const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.ws == server.active_ws) {
-            focusClient(server, cl);
-            return;
+    if (core.focusOutput(server)) |out| {
+        var i: usize = 0;
+        while (i < server.clients.len) : (i += 1) {
+            const cl = server.clients[i] orelse continue;
+            if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
+                focusClient(server, cl);
+                return;
+            }
         }
     }
     focusClient(server, null);
 }
 
 pub fn switchWorkspace(server: *Server, ws: usize) void {
+    const out = core.focusOutput(server) orelse return;
+    switchWorkspaceOnOutput(server, out, ws);
+}
+
+pub fn switchWorkspaceOnOutput(server: *Server, out: *Output, ws: usize) void {
     if (ws < 1 or ws > types.WS_COUNT) return;
+    const previous_ws = out.active_ws;
+    out.active_ws = ws;
+    server.focused_output = out;
     server.active_ws = ws;
-    arrangeAll(server);
+    arrangeOutput(server, out);
+    if (previous_ws != ws) {
+        events.emit(server, .{
+            .name = event_names.workspace_change,
+            .workspace = ws,
+            .previous_workspace = previous_ws,
+            .output = core.outputName(out),
+        });
+    }
 
     var target: ?*Client = null;
-    if (server.last_focused[ws]) |cl| {
-        if (cl.mapped and cl.ws == ws) target = cl;
+    if (out.last_focused[ws]) |cl| {
+        if (cl.mapped and cl.output == out and cl.ws == ws) target = cl;
     }
     if (target == null) {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.ws == ws) {
+            if (cl.mapped and cl.output == out and cl.ws == ws) {
                 target = cl;
                 break;
             }
@@ -570,23 +682,33 @@ pub fn switchWorkspace(server: *Server, ws: usize) void {
 pub fn moveToWorkspace(server: *Server, ws: usize) void {
     if (ws < 1 or ws > types.WS_COUNT) return;
     const cl = server.focused orelse return;
+    const out = cl.output;
     const old_ws = cl.ws;
+    if (old_ws == ws) return;
     cl.ws = ws;
-    server.last_focused[ws] = cl;
-    if (old_ws != ws) {
-        if (server.last_focused[old_ws] == cl) server.last_focused[old_ws] = null;
-        var next: ?*Client = null;
-        var i: usize = 0;
-        while (i < server.clients.len) : (i += 1) {
-            const other = server.clients[i] orelse continue;
-            if (other != cl and other.mapped and other.ws == old_ws) {
-                next = other;
-                break;
-            }
+    out.last_focused[ws] = cl;
+    if (out.last_focused[old_ws] == cl) out.last_focused[old_ws] = null;
+
+    var next: ?*Client = null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const other = server.clients[i] orelse continue;
+        if (other != cl and other.mapped and other.output == out and other.ws == old_ws) {
+            next = other;
+            break;
         }
-        focusClient(server, next);
     }
-    arrangeAll(server);
+    focusClient(server, next);
+    arrangeOutput(server, out);
+    events.emit(server, .{
+        .name = event_names.window_moved,
+        .id = cl.id,
+        .workspace = ws,
+        .previous_workspace = old_ws,
+        .app_id = cl.app_id[0..cl.app_id_len],
+        .title = cl.title[0..cl.title_len],
+        .output = core.outputName(out),
+    });
     core.markDirty(server);
 }
 
@@ -615,6 +737,10 @@ pub fn closeFocused(server: *Server) void {
 pub fn toggleLayout(server: *Server) void {
     server.config.layout_mode = if (server.config.layout_mode == .master) .mosaic else .master;
     arrangeAll(server);
+    events.emit(server, .{
+        .name = event_names.layout_change,
+        .arg = @tagName(server.config.layout_mode),
+    });
     core.markDirty(server);
     core.logInfo("layout: {s}", .{@tagName(server.config.layout_mode)});
 }

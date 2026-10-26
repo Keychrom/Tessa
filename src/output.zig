@@ -3,6 +3,8 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -21,6 +23,8 @@ pub fn init(server: *Server) void {
 
     server.new_layer_surface.notify = onNewLayerSurface;
     c.wl_signal_add(&server.layer_shell.events.new_surface, &server.new_layer_surface);
+
+    initOutputManagement(server);
 }
 
 fn layerTree(server: *Server, layer: anytype) *c.wlr_scene_tree {
@@ -91,6 +95,99 @@ fn onOutputRequestState(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.
     _ = c.wlr_output_commit_state(out.wlr, event.state);
 }
 
+fn updateOutputConfiguration(server: *Server) void {
+    const manager = server.output_manager orelse return;
+    const config = c.wlr_output_configuration_v1_create();
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        const head_raw = c.wlr_output_configuration_head_v1_create(config, out.wlr);
+        if (head_raw != null) {
+            const head: *c.wlr_output_configuration_head_v1 = @ptrCast(@alignCast(head_raw));
+            var box = c.wlr_box{ .x = 0, .y = 0, .width = 0, .height = 0 };
+            core.outputBox(server, out, &box);
+            head.state.x = box.x;
+            head.state.y = box.y;
+        }
+    }
+    c.wlr_output_manager_v1_set_configuration(manager, config);
+}
+
+fn onOutputTest(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("output_test", listener.?);
+    const config: *c.wlr_output_configuration_v1 = @ptrCast(@alignCast(data.?));
+    defer c.wlr_output_configuration_v1_destroy(config);
+
+    var len: usize = 0;
+    const states = c.wlr_output_configuration_v1_build_state(config, &len) orelse {
+        c.wlr_output_configuration_v1_send_failed(config);
+        return;
+    };
+    defer c.free(states);
+    if (c.wlr_backend_test(server.backend, states, len)) {
+        c.wlr_output_configuration_v1_send_succeeded(config);
+    } else {
+        c.wlr_output_configuration_v1_send_failed(config);
+    }
+}
+
+fn onOutputApply(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("output_apply", listener.?);
+    const config: *c.wlr_output_configuration_v1 = @ptrCast(@alignCast(data.?));
+    defer c.wlr_output_configuration_v1_destroy(config);
+
+    var len: usize = 0;
+    const states = c.wlr_output_configuration_v1_build_state(config, &len) orelse {
+        c.wlr_output_configuration_v1_send_failed(config);
+        return;
+    };
+    defer c.free(states);
+
+    if (!c.wlr_backend_test(server.backend, states, len) or
+        !c.wlr_backend_commit(server.backend, states, len))
+    {
+        c.wlr_output_configuration_v1_send_failed(config);
+        return;
+    }
+
+    var link_ptr: ?*c.wl_list = @ptrCast(config.heads.next);
+    while (link_ptr) |link| {
+        if (@intFromPtr(link) == @intFromPtr(&config.heads)) break;
+        const head: *c.wlr_output_configuration_head_v1 = @fieldParentPtr("link", link);
+        if (head.state.enabled and head.state.output != null) {
+            const outw: *c.wlr_output = @ptrCast(@alignCast(head.state.output));
+            _ = c.wlr_output_layout_add(server.output_layout, outw, head.state.x, head.state.y);
+        }
+        link_ptr = @ptrCast(link.next);
+    }
+
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        core.outputBox(server, out, &out.full);
+        out.usable = out.full;
+        core.updateBackground(out);
+        arrangeLayers(out);
+    }
+    layout.arrangeAll(server);
+    c.wlr_output_configuration_v1_send_succeeded(config);
+    updateOutputConfiguration(server);
+    core.markDirty(server);
+}
+
+pub fn initOutputManagement(server: *Server) void {
+    const raw = c.wlr_output_manager_v1_create(server.display);
+    if (raw == null) return;
+    const manager: *c.wlr_output_manager_v1 = @ptrCast(@alignCast(raw));
+    server.output_manager = manager;
+    server.output_apply.notify = onOutputApply;
+    c.wl_signal_add(&manager.events.apply, &server.output_apply);
+    server.output_test.notify = onOutputTest;
+    c.wl_signal_add(&manager.events.@"test", &server.output_test);
+    updateOutputConfiguration(server);
+    core.logInfo("output-management-v1 enabled", .{});
+}
+
 fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const out: *Output = @fieldParentPtr("destroy", listener.?);
@@ -128,15 +225,34 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
             const cl = server.clients[k] orelse continue;
             if (cl.output == out) {
                 cl.output = fb;
+                cl.ws = fb.active_ws;
                 cl.float_x = fb.full.x;
                 cl.float_y = fb.full.y;
             }
         }
+        if (server.focused_output == out) {
+            server.focused_output = fb;
+        }
     }
 
     core.logInfo("output removed: {s}", .{core.cstr(out.wlr.name)});
+    var removed_buf: [64]u8 = undefined;
+    const removed_name = core.copyStringBuf(&removed_buf, core.outputName(out));
+    var geometry_buf: [64]u8 = undefined;
+    const geometry = std.fmt.bufPrint(&geometry_buf, "{d}x{d}+{d}+{d}", .{
+        out.full.width,
+        out.full.height,
+        out.full.x,
+        out.full.y,
+    }) catch "";
+    events.emit(server, .{
+        .name = event_names.output_removed,
+        .output = removed_name,
+        .arg = geometry,
+    });
     c.free(out);
     layout.arrangeAll(server);
+    updateOutputConfiguration(server);
     core.markDirty(server);
 }
 
@@ -166,6 +282,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const out = @as(*Output, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Output)).?)));
     out.server = server;
     out.wlr = wlr_out;
+    out.active_ws = 1;
 
     out.frame.notify = onOutputFrame;
     c.wl_signal_add(&wlr_out.events.frame, &out.frame);
@@ -202,8 +319,24 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         out.full.y,
     });
 
+    if (server.focused_output == null) server.focused_output = out;
+    core.spawnPanel(server, out);
+
     arrangeLayers(out);
     layout.arrangeAll(server);
+    updateOutputConfiguration(server);
+    var geometry_buf: [64]u8 = undefined;
+    const geometry = std.fmt.bufPrint(&geometry_buf, "{d}x{d}+{d}+{d}", .{
+        out.full.width,
+        out.full.height,
+        out.full.x,
+        out.full.y,
+    }) catch "";
+    events.emit(server, .{
+        .name = event_names.output_added,
+        .output = core.outputName(out),
+        .arg = geometry,
+    });
     core.markDirty(server);
 }
 
@@ -304,7 +437,7 @@ fn onNewLayerSurface(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     if (wlr_ls.output) |wlr_out| {
         out = findOutput(server, wlr_out);
     }
-    if (out == null) out = core.focusedOutput(server);
+    if (out == null) out = core.focusOutput(server);
     if (out == null) out = core.firstOutput(server);
     if (out == null) {
         c.wlr_layer_surface_v1_destroy(wlr_ls);

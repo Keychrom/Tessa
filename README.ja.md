@@ -27,7 +27,13 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   wlr-screencopy（grim が動作）
 - マスター/スタックレイアウトと、Tessa 独自の「モザイク」スパイラル
   レイアウト（`Super+T`）
-- 9 ワークスペース、フローティング、フルスクリーン、クリックでフォーカス
+- 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
+  フォーカス
+- マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
+  持ち、パネルも出力ごとに自動起動。`wlr-randr` による出力管理に対応
+- 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
+  ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
+- ゲームやポインタルック向けの `relative-pointer-v1`
 - サードパーティクライアントの layer-shell ポップアップ（パネルのメニューや
   ドロップダウン）
 - `ext-session-lock-v1` によるセッションロック。`ext-idle-notify-v1`、
@@ -44,12 +50,16 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - ワークスペースピル、ウィンドウチップ、時計、CPU/RAM を表示する
     フローティングタスクバー
   - キーボード操作と IME 入力に対応した検索型ランチャー
-- コンポジタとパネル間のシンプルな行ベース IPC
-- 行ベースの設定ファイル
+- 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
+- include とイベントフックに対応した行ベース設定ファイル
 
 Ubuntu 26.04、Zig 0.16.0、wlroots 0.19.2 でビルド・動作確認しています。
 確認は主に headless の pixman バックエンドで、`grim`、`wtype`、Fcitx5 +
-Mozc、`xwayland-satellite` 経由の X11 クライアントを使用しました。
+Mozc、`xwayland-satellite` 経由の X11 クライアントを使用しました。2 出力の
+headless 環境で、出力ごとのワークスペース/パネル、両出力のセッションロック、
+`wlr-randr` による出力管理も確認しています。イベントフック、イベント
+ストリーム、カスタムステータス、カスタムランチャー項目、設定再読み込みは
+`tests/smoke.sh` とパネルのスクリーンショットで確認しました。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -92,6 +102,7 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 - 任意: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
+- 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
 
 Ubuntu 26.04 の場合:
 
@@ -130,7 +141,8 @@ chmod +x scripts/*.sh scripts/tessa-session   # 実行権限が失われてい�
 生成されるもの:
 
 - `zig-out/bin/tessa` — コンポジタ
-- `zig-out/bin/tessa-panel` — シェルパネル（Tessa が自動起動）
+- `zig-out/bin/tessa-panel` — シェルパネル（出力ごとに 1 プロセス、Tessa が自動起動）
+- `zig-out/bin/tessa-ctl` — スクリプト/拡張向けの状態・イベント・自動化クライアント
 
 生成済みの Wayland プロトコルヘッダーは `protocol/` にコミットされているので、
 wlroots 側に `xdg-shell-protocol.h` がなくてもビルドできます。
@@ -148,9 +160,9 @@ PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
 ```
 
 wlroots が DRM バックエンドと libinput を自動検出します。Tessa は `PATH` から
-`tessa-panel` を起動するので、`zig-out/bin` を通すか、バイナリをインストール
-してください。デフォルトのターミナルは `kitty` です。インストールするか、
-設定で `terminal = foot` に変更してください。
+出力ごとに 1 つずつ `tessa-panel` を起動するので、`zig-out/bin` を通すか、
+バイナリをインストールしてください。デフォルトのターミナルは `kitty` です。
+インストールするか、設定で `terminal = foot` に変更してください。
 
 ### ディスプレイマネージャ / セッションファイル
 
@@ -197,7 +209,8 @@ XDG_RUNTIME_DIR=/tmp/tessa-headless WAYLAND_DISPLAY=wayland-0 \
 テストするときにも使います。
 
 headless ワークフローの詳細は
-[docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) を参照してください。
+[docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md)、拡張 API は
+[docs/EXTENDING.ja.md](docs/EXTENDING.ja.md) を参照してください。
 
 ## 入力メソッド（IME）
 
@@ -279,6 +292,59 @@ idle 通知と inhibitor は動作し、動画プレイヤーなどは `idle-inh
 idle を抑制できます。Tessa は出力電源管理プロトコルも実装しているため、
 `wlopm` で出力をオフ/オンできます。
 
+## マルチモニタ
+
+![独立したバーとワークスペースを持つ 2 つの headless 出力](docs/images/multi-monitor.png)
+
+各出力に独立した壁紙、バー、アクティブワークスペースがあります。
+`Super+1` … `Super+9` はフォーカス中の出力のワークスペースを変更します。
+バーをクリック/スクロールすると、そのモニタのワークスペースを変更し、
+その出力へフォーカスします。ランチャーはフォーカス中の出力に開き、新しい
+ウィンドウもそこに配置されます。`Super+Shift+H/J/K/L` はまず同じ出力内で
+入れ替え、その方向にウィンドウがない場合はフォーカス中のウィンドウを隣の
+モニタへ移動します。
+
+Tessa は `TESSA_PANEL_OUTPUT=<name>` を設定して、出力ごとに 1 つの
+`tessa-panel` を自動起動します。自動起動を無効にした場合（`panel = false`
+または `TESSA_NO_PANEL=1`）は、出力ごとに手動で起動してください:
+
+```sh
+TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
+```
+
+出力のモード、位置、スケールは `wlr-randr` で変更できます。Tessa は
+`wlr-output-management-unstable-v1` を実装しています。設定はまだ再起動後に
+保持されず、パネル自身のバッファスケールは 1 のままなので、HiDPI 出力では
+バーが拡大/ぼやけて見えることがあります。
+
+## 拡張
+
+![外部ステータスとカスタムランチャー項目](docs/images/extensions.png)
+
+Tessa はプラグイン VM を埋め込みません。拡張はコンポジタの Unix ソケット API
+を話す通常のプロセスで、任意の言語で書けます。`tessa-ctl` が状態
+スナップショット、構造化イベント、ステータス、コマンド操作を公開します。
+
+```sh
+tessa-ctl state
+tessa-ctl events window-focus
+tessa-ctl status weather "Tokyo 18C"
+tessa-ctl dispatch reload
+```
+
+設定からログイン時のコマンド起動やイベントへの反応もできます。
+
+```ini
+startup = fcitx5 -d
+hook = window-open notify-send "Window opened" "$TESSA_TITLE"
+launcher_entry = Notes | foot -e nvim ~/notes.md
+include = /home/you/.config/tessa/launcher-entries.conf
+```
+
+パネルは最大 8 件の拡張ステータスを表示し、クリック時にコマンドを実行できます。
+イベントスキーマ、フックの環境変数、ステータス API の詳細は
+[docs/EXTENDING.ja.md](docs/EXTENDING.ja.md) にあります。
+
 ## キーバインド
 
 | バインド | 動作 |
@@ -292,7 +358,7 @@ idle を抑制できます。Tessa は出力電源管理プロトコルも実装
 | `Super+1` … `Super+9` | ワークスペースを切り替え |
 | `Super+Shift+1` … `Super+Shift+9` | ウィンドウをワークスペースへ移動 |
 | `Super+H/J/K/L` | 左/下/上/右のウィンドウへフォーカス |
-| `Super+Shift+H/J/K/L` | その方向のウィンドウと入れ替え |
+| `Super+Shift+H/J/K/L` | その方向のウィンドウと入れ替え。ない場合は隣の出力へ移動 |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
 | `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
@@ -346,6 +412,10 @@ cp config/config.example ~/.config/tessa/config
 | `accent` | ボーダー、バー、ランチャーのアクセント色 |
 | `bg` | 壁紙のベース背景色 |
 | `font` | パネルの UI フォントファミリー |
+| `include` | 別の設定ファイルを読み込む |
+| `startup` | 起動時に 1 回実行するコマンド |
+| `hook` | コンポジタイベントで実行するコマンド |
+| `launcher_entry` | ランチャー項目を追加（`名前 \| コマンド`） |
 
 追加のバインドには XKB keysym 名を使います:
 
@@ -369,6 +439,8 @@ bind = SUPER+ctrl+h ratio -0.03
 - [docs/ROADMAP.ja.md](docs/ROADMAP.ja.md) — 未実装の機能と今後の予定
 - [docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) — SSH / headless 開発
   ワークフロー
+- [docs/EXTENDING.ja.md](docs/EXTENDING.ja.md) — イベント、フック、
+  ステータス、`tessa-ctl` による拡張
 
 概要:
 
@@ -381,7 +453,7 @@ tessa (wlroots コンポジタ, Zig)
   │  フルスクリーン
   └─ IPC: $XDG_RUNTIME_DIR/tessa.sock
                  ▲
-tessa-panel (Wayland クライアント, Zig + Cairo/Pango)
+tessa-panel × 出力数 (Wayland クライアント, Zig + Cairo/Pango)
   ├─ background layer（墨と太陽の壁紙）
   ├─ top layer（フローティングタスクバー）
   └─ overlay layer（ランチャー、排他的キーボード）
@@ -399,7 +471,7 @@ OCC 1 2
 WIN\t1\t1\t1\t0\t0\tkitty\tnotes
 END
 
-CMD workspace 3
+CMD workspace 3 eDP-1
 CMD focus 4
 CMD close 4
 CMD spawn kitty
@@ -418,8 +490,14 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **DRM / キーボード / マウスは実機で未検証。** 開発は headless バックエンドで
   `wtype` / Fcitx5 とソフトウェアレンダリングを使って行っています。実際の
   ポインタ操作と DRM モード設定は、物理環境でのテストが必要です。
-- **パネルは 1 枚のみ。** バーと壁紙は最初の出力に作成されます。複数出力でも
-  ウィンドウはタイルされますが、アクティブワークスペースとバーは共有です。
+- **出力設定は永続化されません。** `wlr-randr` で実行中に変更できますが、
+  モード、位置、スケールは設定ファイルに保存されません。
+- **HiDPI は部分的。** クライアントの出力スケールは動きますが、パネルの
+  バッファスケールは 1 のままなので、スケールされた出力ではバーがぼやける
+  ことがあります。
+- **パネルは出力ごとに 1 プロセス。** バーが独立し、クラッシュの影響も
+  そのモニタだけに収まりますが、単一のマルチサーフェスパネルよりメモリを
+  使います。
 - **ロック画面の検証は基本的な範囲。** `ext-session-lock-v1` を実装し、
   最小限のロッククライアントで確認していますが、実際の swaylock/PAM 環境は
   物理セッションで追加検証が必要です。ロック中にロッククライアントが
@@ -427,14 +505,15 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **idle のタイミングは外部ツール任せ。** Tessa は idle 通知、inhibitor、
   出力電源管理を提供します。自動ブランクやロックには `swayidle` / `wlopm`
   などを別途起動してください。
-- **スケールは 1 固定。** HiDPI の出力スケールは設定できません。X11
-  クライアントもスケーリングされません。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
   Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。
 - **XWayland には `xwayland-satellite` が必要。** Tessa には同梱されません。
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
 - **ポータル、画面共有、ガンマ、出力設定 UI は未実装。**
+- **拡張は信頼されたローカルプロセス。** セッションユーザーの全権限で動き、
+  サンドボックスはありません。イベントプロトコルは行ベースで、JSON 化と
+  バージョニングは未対応です。ステータスは短い文字列 8 件までです。
 - layer-shell とキーボードフォーカスは wlroots 0.19 の unstable API を
   使っています。パッケージング時は wlroots のバージョンを固定してください。
 - ランチャーは `.desktop` ファイルを走査します。インストールされている

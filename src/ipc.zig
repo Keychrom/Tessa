@@ -3,6 +3,8 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -11,6 +13,7 @@ const Client = types.Client;
 pub fn init(server: *Server) void {
     server.ipc_fd = -1;
     server.schedule_ipc = schedule;
+    server.broadcast_line = broadcastLine;
 
     var path_buf: [256]u8 = undefined;
     var path: []const u8 = "";
@@ -116,6 +119,8 @@ fn onAccept(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
         cl.fd = cfd;
         cl.len = 0;
         cl.alive = true;
+        cl.wants_state = false;
+        cl.wants_events = false;
 
         if (server.ipc_count >= server.ipcs.len) {
             const msg = "ERR busy\n";
@@ -130,8 +135,7 @@ fn onAccept(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
         server.ipcs[server.ipc_count] = cl;
         server.ipc_count += 1;
 
-        sendState(server, cl);
-        core.logInfo("ipc: panel connected", .{});
+        core.logInfo("ipc: client connected", .{});
     }
     return 0;
 }
@@ -160,10 +164,6 @@ fn closeClient(cl: *IpcClient) void {
 fn onRead(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
     const cl: *IpcClient = @ptrCast(@alignCast(data.?));
     if (!cl.alive) return 0;
-    if ((mask & 0x10) != 0) {
-        closeClient(cl);
-        return 0;
-    }
 
     if (cl.len >= cl.buf.len) {
         closeClient(cl);
@@ -186,6 +186,10 @@ fn onRead(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
         if (remain > 0) std.mem.copyForwards(u8, cl.buf[0..remain], cl.buf[nl + 1 .. cl.len]);
         cl.len = remain;
     }
+
+    // Read queued data before honoring a half-close. A one-shot CLI may send a
+    // command and close immediately, which sets POLLHUP on the same wakeup.
+    if ((mask & 0x10) != 0 and cl.alive) closeClient(cl);
     return 0;
 }
 
@@ -211,8 +215,91 @@ fn findClient(server: *Server, id: u64) ?*Client {
     return null;
 }
 
+fn removeStatus(server: *Server, index: usize) void {
+    if (index >= server.status_count) return;
+    var i = index;
+    while (i + 1 < server.status_count) : (i += 1) {
+        server.statuses[i] = server.statuses[i + 1];
+    }
+    server.status_count -= 1;
+}
+
+fn setStatus(server: *Server, id: []const u8, text: []const u8, command: []const u8) void {
+    if (id.len == 0) return;
+
+    var found: ?usize = null;
+    var i: usize = 0;
+    while (i < server.status_count) : (i += 1) {
+        if (std.mem.eql(u8, server.statuses[i].id[0..server.statuses[i].id_len], id)) {
+            found = i;
+            break;
+        }
+    }
+
+    if (text.len == 0) {
+        if (found) |index| {
+            removeStatus(server, index);
+            core.markDirty(server);
+        }
+        return;
+    }
+
+    var index: usize = undefined;
+    if (found) |existing| {
+        index = existing;
+    } else {
+        if (server.status_count >= server.statuses.len) removeStatus(server, 0);
+        index = server.status_count;
+        server.status_count += 1;
+    }
+
+    const entry = &server.statuses[index];
+    core.copyString(&entry.id, &entry.id_len, id);
+    core.copyString(&entry.text, &entry.text_len, text);
+    core.copyString(&entry.command, &entry.command_len, command);
+    core.markDirty(server);
+}
+
+pub fn emitLauncher(server: *Server, query: []const u8) void {
+    const output = if (core.focusOutput(server)) |out| core.outputName(out) else "";
+    events.emit(server, .{
+        .name = event_names.launcher,
+        .arg = query,
+        .output = output,
+    });
+}
+
+fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
+    var fields: [5][]const u8 = undefined;
+    var count: usize = 0;
+    var start: usize = 0;
+    var i: usize = 0;
+    while (i <= line.len and count < fields.len) : (i += 1) {
+        if (i == line.len or line[i] == '\t') {
+            fields[count] = line[start..i];
+            count += 1;
+            start = i + 1;
+        }
+    }
+    if (count == 0) return false;
+    if (std.mem.eql(u8, fields[0], "status")) {
+        const id = if (count > 1) fields[1] else "";
+        const text = if (count > 2) fields[2] else "";
+        const command = if (count > 3) fields[3] else "";
+        setStatus(cl.server, id, text, command);
+        return true;
+    }
+    return false;
+}
+
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
     const server = cl.server;
+    if (std.mem.startsWith(u8, line, "CMD\t")) {
+        if (handleTabCommand(cl, line[4..])) return;
+        core.logInfo("ipc: unknown tab command", .{});
+        return;
+    }
+
     var toks: [8][]const u8 = undefined;
     const n = tokens(line, &toks);
     if (n == 0) return;
@@ -224,10 +311,42 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
 
     if (std.mem.eql(u8, cmd, "state")) {
         sendState(server, cl);
+    } else if (std.mem.eql(u8, cmd, "subscribe")) {
+        var want_snapshot = false;
+        var i = start + 1;
+        while (i < n) : (i += 1) {
+            if (std.mem.eql(u8, toks[i], "events")) {
+                cl.wants_events = true;
+            } else if (std.mem.eql(u8, toks[i], "state")) {
+                cl.wants_state = true;
+                want_snapshot = true;
+            } else if (std.mem.eql(u8, toks[i], "all")) {
+                cl.wants_state = true;
+                cl.wants_events = true;
+                want_snapshot = true;
+            }
+        }
+        core.logDebug("ipc: subscription state={} events={}", .{ cl.wants_state, cl.wants_events });
+        if (want_snapshot) sendState(server, cl);
+    } else if (std.mem.eql(u8, cmd, "status")) {
+        const off = findWordOffset(line, "status");
+        const rest = std.mem.trimStart(u8, line[off..], " \t");
+        if (rest.len > 0) {
+            const sp = std.mem.indexOfAny(u8, rest, " \t") orelse rest.len;
+            const id = rest[0..sp];
+            const text = std.mem.trim(u8, rest[sp..], " \t");
+            setStatus(server, id, text, "");
+        }
     } else if (std.mem.eql(u8, cmd, "workspace")) {
         if (start + 1 < n) {
             const ws = std.fmt.parseInt(usize, toks[start + 1], 10) catch return;
-            layout.switchWorkspace(server, ws);
+            if (start + 2 < n) {
+                if (core.outputByName(server, toks[start + 2])) |out| {
+                    layout.switchWorkspaceOnOutput(server, out, ws);
+                }
+            } else {
+                layout.switchWorkspace(server, ws);
+            }
             broadcastState(server);
         }
     } else if (std.mem.eql(u8, cmd, "focus")) {
@@ -263,14 +382,13 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "layout")) {
         layout.toggleLayout(server);
         broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "reload")) {
+        if (server.reload_runtime) |reload| reload(server);
+        broadcastState(server);
     } else if (std.mem.eql(u8, cmd, "launcher")) {
         const off = findWordOffset(line, "launcher");
         const arg = std.mem.trim(u8, line[off..], " \t");
-        if (arg.len > 0) {
-            broadcastEventArg(server, "launcher", arg);
-        } else {
-            broadcastEvent(server, "launcher");
-        }
+        emitLauncher(server, arg);
     } else if (std.mem.eql(u8, cmd, "quit")) {
         c.wl_display_terminate(server.display);
     }
@@ -328,6 +446,15 @@ fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     append(buf, &off, "STATE\n", .{});
     append(buf, &off, "ACTIVE {d}\n", .{server.active_ws});
+    var oi: usize = 0;
+    while (oi < server.outputs.len) : (oi += 1) {
+        const out = server.outputs[oi] orelse continue;
+        append(buf, &off, "OUT {s} {d} {d}\n", .{
+            core.outputName(out),
+            out.active_ws,
+            @as(u8, if (server.focused_output == out) 1 else 0),
+        });
+    }
 
     var ws: usize = 1;
     while (ws <= types.WS_COUNT) : (ws += 1) {
@@ -343,6 +470,18 @@ fn buildState(server: *Server, buf: []u8) usize {
     const focused_id: u64 = if (server.focused) |f| f.id else 0;
     append(buf, &off, "FOCUSED {d}\n", .{focused_id});
 
+    var si: usize = 0;
+    while (si < server.status_count) : (si += 1) {
+        const st = &server.statuses[si];
+        var id_buf: [types.MAX_STATUS_ID * 2 + 1]u8 = undefined;
+        var text_buf: [types.MAX_STATUS_TEXT * 2 + 1]u8 = undefined;
+        var cmd_buf: [types.MAX_STATUS_COMMAND * 2 + 1]u8 = undefined;
+        const id = escape(&id_buf, st.id[0..st.id_len]);
+        const text = escape(&text_buf, st.text[0..st.text_len]);
+        const command = escape(&cmd_buf, st.command[0..st.command_len]);
+        append(buf, &off, "STATUS\t{s}\t{s}\t{s}\n", .{ id, text, command });
+    }
+
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
@@ -353,7 +492,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -361,6 +500,7 @@ fn buildState(server: *Server, buf: []u8) usize {
             @as(u8, if (cl.fullscreen) 1 else 0),
             app,
             title,
+            core.outputName(cl.output),
         });
         if (off > buf.len - 2048) break;
     }
@@ -378,6 +518,7 @@ pub fn broadcastState(server: *Server) void {
     var i: usize = 0;
     while (i < server.ipcs.len) : (i += 1) {
         const cl = server.ipcs[i] orelse continue;
+        if (!cl.wants_state) continue;
         sendRaw(cl, buf[0..len]);
     }
 }
@@ -396,22 +537,12 @@ fn sendRaw(cl: *IpcClient, data: []const u8) void {
     }
 }
 
-pub fn broadcastEvent(server: *Server, name: []const u8) void {
-    var buf: [256]u8 = undefined;
-    const msg = std.fmt.bufPrint(&buf, "EVENT {s}\n", .{name}) catch return;
+pub fn broadcastLine(server: *Server, line: []const u8) void {
     var i: usize = 0;
     while (i < server.ipcs.len) : (i += 1) {
         const cl = server.ipcs[i] orelse continue;
-        sendRaw(cl, msg);
-    }
-}
-
-pub fn broadcastEventArg(server: *Server, name: []const u8, arg: []const u8) void {
-    var buf: [512]u8 = undefined;
-    const msg = std.fmt.bufPrint(&buf, "EVENT {s} {s}\n", .{ name, arg }) catch return;
-    var i: usize = 0;
-    while (i < server.ipcs.len) : (i += 1) {
-        const cl = server.ipcs[i] orelse continue;
-        sendRaw(cl, msg);
+        if (!cl.wants_events) continue;
+        core.logDebug("ipc: event to client fd={d}", .{cl.fd});
+        sendRaw(cl, line);
     }
 }

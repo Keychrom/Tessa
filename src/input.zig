@@ -7,6 +7,8 @@ const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
 const idle = @import("idle.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -60,6 +62,11 @@ pub fn init(server: *Server) void {
         c.wl_signal_add(&mgr.events.new_virtual_keyboard, &server.new_virtual_keyboard);
     }
 
+    const rel_raw = c.wlr_relative_pointer_manager_v1_create(server.display);
+    if (rel_raw != null) {
+        server.relative_pointer_manager = @ptrCast(@alignCast(rel_raw));
+    }
+
     const shape_mgr_raw = c.wlr_cursor_shape_manager_v1_create(server.display, 1);
     if (shape_mgr_raw != null) {
         const shape_mgr: *c.wlr_cursor_shape_manager_v1 = @ptrCast(@alignCast(shape_mgr_raw));
@@ -67,6 +74,7 @@ pub fn init(server: *Server) void {
         c.wl_signal_add(&shape_mgr.events.request_set_shape, &server.request_set_shape);
     }
 
+    server.reload_runtime = reloadRuntime;
     addSyntheticKeyboard(server);
     idle.init(server);
 }
@@ -285,6 +293,16 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     layout.refreshKeyboardFocus(server);
 }
 
+pub fn reloadRuntime(server: *Server) void {
+    const cfg = @import("config.zig");
+    cfg.load(server);
+    reloadKeymaps(server);
+    layout.arrangeAll(server);
+    events.emit(server, .{ .name = event_names.config_reload });
+    core.markDirty(server);
+    core.logInfo("config reloaded", .{});
+}
+
 fn executeBinding(server: *Server, b: *Binding) void {
     switch (b.action) {
         .none => {},
@@ -308,15 +326,8 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .toggle_fullscreen => layout.toggleFullscreen(server),
         .focus_next => layout.focusNext(server, 1),
         .focus_prev => layout.focusNext(server, -1),
-        .launcher => ipc.broadcastEvent(server, "launcher"),
-        .reload => {
-            const cfg = @import("config.zig");
-            cfg.load(server);
-            reloadKeymaps(server);
-            layout.arrangeAll(server);
-            core.markDirty(server);
-            core.logInfo("config reloaded", .{});
-        },
+        .launcher => ipc.emitLauncher(server, ""),
+        .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),
         .toggle_layout => layout.toggleLayout(server),
     }
@@ -444,6 +455,17 @@ fn onCursorMotion(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     const event: *c.wlr_pointer_motion_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = @ptrCast(@alignCast(event.pointer));
     idle.notifyActivity(server);
+    if (server.relative_pointer_manager) |mgr| {
+        c.wlr_relative_pointer_manager_v1_send_relative_motion(
+            mgr,
+            server.seat,
+            @as(u64, event.time_msec) * 1000,
+            event.delta_x,
+            event.delta_y,
+            event.unaccel_dx,
+            event.unaccel_dy,
+        );
+    }
     c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
     processMotion(server, event.time_msec);
 }
@@ -515,6 +537,13 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
     if (client) |cl| {
         layout.focusClient(server, cl);
+    } else if (core.outputAt(server, server.cursor.x, server.cursor.y)) |out| {
+        if (server.focused_output != out) {
+            server.focused_output = out;
+            server.active_ws = out.active_ws;
+            layout.focusFirst(server);
+            core.markDirty(server);
+        }
     }
 }
 

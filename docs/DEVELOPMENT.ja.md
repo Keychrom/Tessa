@@ -86,6 +86,24 @@ wtype -k Return
 
 `wtype` は現在キーボードフォーカスを持つサーフェスへ入力します。
 
+`tessa-ctl` でセッションを操作できます。ビルド出力を `PATH` に入れ、
+`XDG_RUNTIME_DIR` を揃えてください。
+
+```sh
+export PATH="$PWD/zig-out/bin:$PATH"
+export XDG_RUNTIME_DIR=/tmp/tessa-headless
+
+tessa-ctl state
+tessa-ctl spawn foot -T notes
+tessa-ctl dispatch layout
+tessa-ctl launcher ter
+tessa-ctl status demo "hello from an extension"
+tessa-ctl events window-focus
+```
+
+`tessa-ctl status --clear` でエントリを削除できます。`tessa-ctl events` は
+購読後にだけイベントを受け取るので、常駐スクリプトとして安全に使えます。
+
 ### IME テスト
 
 セッション内で Fcitx5 を起動し、Mozc を選択してランチャーに入力します:
@@ -147,6 +165,22 @@ sudo apt install swaylock swayidle wlopm
 必要があります。idle は `swayidle -w timeout 5 'swaylock -f'` で確認でき、
 操作でロックが延期されること、`idle-inhibit-v1` を持つクライアントが
 ある間はロックされないことを確認します。
+
+## 拡張と統合テスト
+
+headless スモークテストは、設定 include、フック、一時ランタイムを使って
+コンポジタを起動し、ワークスペース変更、ステータス設定/削除、設定
+再読み込み、イベント購読、IPC の半クローズ処理、`foot` があればウィンドウの
+生成/フォーカス/終了イベントを確認します。
+
+```sh
+./scripts/build.sh
+sh tests/smoke.sh
+```
+
+`TESSA_CTL_DEBUG=1 tessa-ctl events` は受信したイベント行を stderr に表示
+します。API とフック環境は [EXTENDING.ja.md](EXTENDING.ja.md) を参照して
+ください。
 
 ## デバッグログ
 

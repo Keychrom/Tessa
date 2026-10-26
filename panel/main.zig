@@ -11,6 +11,7 @@ var seat_listener: c.wl_seat_listener = undefined;
 var keyboard_listener: c.wl_keyboard_listener = undefined;
 var pointer_listener: c.wl_pointer_listener = undefined;
 var shm_listener: c.wl_shm_listener = undefined;
+var output_listener: c.wl_output_listener = undefined;
 
 fn logMsg(comptime fmt: []const u8, args: anytype) void {
     std.debug.print("tessa-panel: " ++ fmt ++ "\n", args);
@@ -67,6 +68,7 @@ fn onLayerClosed(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1) callconv(.
 
 fn createLayerSurface(
     s: *m.Surface,
+    output: ?*c.wl_output,
     kind: m.SurfaceKind,
     layer: u32,
     anchors: u32,
@@ -101,7 +103,7 @@ fn createLayerSurface(
     s.wl = wl;
     c.wl_surface_set_buffer_scale(wl, 1);
 
-    const ls = c.zwlr_layer_shell_v1_get_layer_surface(shell, wl, null, layer, namespace) orelse {
+    const ls = c.zwlr_layer_shell_v1_get_layer_surface(shell, wl, output, layer, namespace) orelse {
         c.wl_surface_destroy(wl);
         s.wl = null;
         return false;
@@ -130,6 +132,7 @@ fn createLayerSurface(
 fn createChrome() void {
     _ = createLayerSurface(
         &g.bg,
+        g.target_output,
         .background,
         0,
         @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
@@ -146,6 +149,7 @@ fn createChrome() void {
 
     _ = createLayerSurface(
         &g.bar,
+        g.target_output,
         .bar,
         @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
         @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
@@ -341,6 +345,7 @@ fn openLauncher(query_arg: []const u8) void {
         s.* = std.mem.zeroes(m.Surface);
         if (!createLayerSurface(
             s,
+            g.target_output,
             .overlay,
             @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY),
             @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
@@ -402,6 +407,14 @@ fn tickAnimation(now: i64) void {
     }
 }
 
+fn sendWorkspace(ws: usize) void {
+    if (g.target_name_len > 0) {
+        sendCmd("CMD workspace {d} {s}\n", .{ ws, g.target_name[0..g.target_name_len] });
+    } else {
+        sendCmd("CMD workspace {d}\n", .{ws});
+    }
+}
+
 fn sendCmd(comptime fmt: []const u8, args: anytype) void {
     if (g.ipc_fd < 0) return;
     var buf: [2048]u8 = undefined;
@@ -423,6 +436,30 @@ fn launchApp(app_index: usize) void {
     }
     sendCmd("CMD spawn {s}\n", .{clean_buf[0..n]});
     closeLauncher();
+}
+
+fn addCustomApps() void {
+    var i: usize = 0;
+    while (i < g.custom_count) : (i += 1) {
+        const app = &g.custom_apps[i];
+        apps.addEntry(
+            &g.app_list,
+            app.name[0..app.name_len],
+            app.exec[0..app.exec_len],
+            app.comment[0..app.comment_len],
+        );
+    }
+}
+
+fn reloadPanelConfig() void {
+    m.loadConfig();
+    apps.scan(&g.app_list);
+    addCustomApps();
+    m.recomputeResults();
+    g.bar.dirty = true;
+    g.bg.dirty = true;
+    if (g.overlay) |ov| ov.dirty = true;
+    logMsg("config reloaded ({d} launcher entries)", .{g.app_list.count});
 }
 
 fn launchSelected() void {
@@ -646,6 +683,85 @@ fn onShmFormat(data: ?*anyopaque, shm: ?*c.wl_shm, format: u32) callconv(.c) voi
     _ = format;
 }
 
+fn outputInfo(data: ?*anyopaque) *m.OutputInfo {
+    return @ptrCast(@alignCast(data.?));
+}
+
+fn onOutputGeometry(data: ?*anyopaque, output: ?*c.wl_output, x: c_int, y: c_int, physical_w: c_int, physical_h: c_int, subpixel: c_int, make: [*c]const u8, model: [*c]const u8, transform: c_int) callconv(.c) void {
+    _ = output;
+    _ = physical_w;
+    _ = physical_h;
+    _ = subpixel;
+    _ = make;
+    _ = model;
+    _ = transform;
+    const info = outputInfo(data);
+    info.x = x;
+    info.y = y;
+}
+
+fn onOutputMode(data: ?*anyopaque, output: ?*c.wl_output, flags: u32, width: c_int, height: c_int, refresh: c_int) callconv(.c) void {
+    _ = output;
+    _ = refresh;
+    if ((flags & c.WL_OUTPUT_MODE_CURRENT) == 0) return;
+    const info = outputInfo(data);
+    info.width = width;
+    info.height = height;
+}
+
+fn onOutputDone(data: ?*anyopaque, output: ?*c.wl_output) callconv(.c) void {
+    _ = output;
+    outputInfo(data).done = true;
+}
+
+fn onOutputScale(data: ?*anyopaque, output: ?*c.wl_output, factor: c_int) callconv(.c) void {
+    _ = output;
+    _ = factor;
+    _ = outputInfo(data);
+}
+
+fn onOutputName(data: ?*anyopaque, output: ?*c.wl_output, name: [*c]const u8) callconv(.c) void {
+    _ = output;
+    if (name == null) return;
+    const info = outputInfo(data);
+    m.copyTrunc(&info.name, &info.name_len, std.mem.span(name));
+    if (g.target_name_len > 0 and std.mem.eql(u8, info.name[0..info.name_len], g.target_name[0..g.target_name_len])) {
+        g.target_output = info.wl;
+    }
+}
+
+fn onOutputDescription(data: ?*anyopaque, output: ?*c.wl_output, description: [*c]const u8) callconv(.c) void {
+    _ = data;
+    _ = output;
+    _ = description;
+}
+
+fn selectTargetOutput() void {
+    if (g.target_output != null) return;
+    var i: usize = 0;
+    while (i < g.output_count) : (i += 1) {
+        const info = &g.outputs[i];
+        if (info.wl == null) continue;
+        if (g.target_name_len > 0 and std.mem.eql(u8, info.name[0..info.name_len], g.target_name[0..g.target_name_len])) {
+            g.target_output = info.wl;
+            return;
+        }
+    }
+    if (g.target_name_len > 0) {
+        logMsg("output {s} not found; using the first output", .{g.target_name[0..g.target_name_len]});
+    }
+    i = 0;
+    while (i < g.output_count) : (i += 1) {
+        if (g.outputs[i].wl) |wl| {
+            g.target_output = wl;
+            if (g.target_name_len == 0 and g.outputs[i].name_len > 0) {
+                m.copyTrunc(&g.target_name, &g.target_name_len, g.outputs[i].name[0..g.outputs[i].name_len]);
+            }
+            return;
+        }
+    }
+}
+
 fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, interface: [*c]const u8, version: u32) callconv(.c) void {
     _ = data;
     const reg = registry orelse g.registry orelse return;
@@ -670,6 +786,16 @@ fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, int
     } else if (std.mem.eql(u8, iface, "zwp_text_input_manager_v3") and g.text_input_manager == null) {
         if (c.wl_registry_bind(reg, name, &c.zwp_text_input_manager_v3_interface, 1)) |p| {
             g.text_input_manager = @ptrCast(@alignCast(p));
+        }
+    } else if (std.mem.eql(u8, iface, "wl_output")) {
+        if (g.output_count < g.outputs.len) {
+            const v = @min(version, 4);
+            if (c.wl_registry_bind(reg, name, &c.wl_output_interface, v)) |p| {
+                const info = &g.outputs[g.output_count];
+                g.output_count += 1;
+                info.wl = @ptrCast(@alignCast(p));
+                _ = c.wl_output_add_listener(info.wl.?, &output_listener, info);
+            }
         }
     } else if (std.mem.eql(u8, iface, "wl_seat") and g.seat == null) {
         if (c.wl_registry_bind(reg, name, &c.wl_seat_interface, 1)) |p| {
@@ -787,13 +913,21 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
         switch (h.kind) {
             .menu => openLauncher(""),
             .workspace => {
-                if (button == 0x110) sendCmd("CMD workspace {d}\n", .{h.value});
+                if (button == 0x110) sendWorkspace(h.value);
             },
             .window => {
                 if (button == 0x110) {
                     sendCmd("CMD focus {d}\n", .{h.value});
                 } else if (button == 0x111) {
                     sendCmd("CMD close {d}\n", .{h.value});
+                }
+            },
+            .status => {
+                if (button == 0x110 and h.value < g.status_count) {
+                    const st = &g.statuses[h.value];
+                    if (st.command_len > 0) {
+                        sendCmd("CMD spawn {s}{c}", .{ st.command[0..st.command_len], @as(u8, 10) });
+                    }
                 }
             },
             else => {},
@@ -830,7 +964,7 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
         } else {
             ws = if (ws <= 1) 9 else ws - 1;
         }
-        sendCmd("CMD workspace {d}\n", .{ws});
+        sendWorkspace(ws);
     } else if (g.overlay != null and g.launcher_open) {
         if (g.result_count > 0) {
             if (v > 0) {
@@ -869,6 +1003,28 @@ fn initListeners() void {
 
     shm_listener = std.mem.zeroes(c.wl_shm_listener);
     shm_listener.format = onShmFormat;
+
+    output_listener = std.mem.zeroes(c.wl_output_listener);
+    output_listener.geometry = onOutputGeometry;
+    output_listener.mode = onOutputMode;
+    output_listener.done = onOutputDone;
+    output_listener.scale = onOutputScale;
+    output_listener.name = onOutputName;
+    output_listener.description = onOutputDescription;
+}
+
+fn splitTabs(line: []const u8, fields: [][]const u8) usize {
+    var count: usize = 0;
+    var start: usize = 0;
+    var i: usize = 0;
+    while (i <= line.len and count < fields.len) : (i += 1) {
+        if (i == line.len or line[i] == 9) {
+            fields[count] = line[start..i];
+            count += 1;
+            start = i + 1;
+        }
+    }
+    return count;
 }
 
 fn handleStateLine(line: []const u8) void {
@@ -876,21 +1032,46 @@ fn handleStateLine(line: []const u8) void {
         g.window_count = 0;
         g.occ = [_]u32{0} ** 10;
         g.focused_id = 0;
+        g.is_focused_output = false;
+        g.status_count = 0;
         g.ipc_in_state = true;
         return;
     }
     if (std.mem.eql(u8, line, "END")) {
         g.ipc_in_state = false;
+        g.occ = [_]u32{0} ** 10;
+        var wi: usize = 0;
+        while (wi < g.window_count) : (wi += 1) {
+            const ws = g.windows[wi].ws;
+            if (ws >= 1 and ws <= 9) g.occ[ws] += 1;
+        }
         g.bar.dirty = true;
         if (c.getenv("TESSA_PANEL_DEBUG") != null) {
-            logMsg("state: ws={d} windows={d}", .{ g.active_ws, g.window_count });
+            logMsg("state: output={s} ws={d} windows={d}", .{
+                g.target_name[0..g.target_name_len],
+                g.active_ws,
+                g.window_count,
+            });
         }
         return;
     }
     if (!g.ipc_in_state) return;
 
+    if (std.mem.startsWith(u8, line, "STATUS") and line.len > 6 and line[6] == 9) {
+        var fields: [4][]const u8 = undefined;
+        const count = splitTabs(line, &fields);
+        if (count < 4 or g.status_count >= g.statuses.len) return;
+        const st = &g.statuses[g.status_count];
+        st.* = std.mem.zeroes(m.StatusInfo);
+        m.decodeEscapes(&st.id, &st.id_len, fields[1]);
+        m.decodeEscapes(&st.text, &st.text_len, fields[2]);
+        m.decodeEscapes(&st.command, &st.command_len, fields[3]);
+        g.status_count += 1;
+        return;
+    }
+
     if (std.mem.startsWith(u8, line, "WIN\t")) {
-        var fields: [8][]const u8 = undefined;
+        var fields: [9][]const u8 = undefined;
         var count: usize = 0;
         var start: usize = 0;
         var i: usize = 0;
@@ -901,7 +1082,9 @@ fn handleStateLine(line: []const u8) void {
                 start = i + 1;
             }
         }
-        if (count < 8) return;
+        if (count < 9) return;
+        if (g.target_name_len > 0 and
+            !std.mem.eql(u8, fields[8], g.target_name[0..g.target_name_len])) return;
         if (g.window_count >= g.windows.len) return;
         const w = &g.windows[g.window_count];
         w.* = std.mem.zeroes(m.WindowInfo);
@@ -912,22 +1095,29 @@ fn handleStateLine(line: []const u8) void {
         w.fullscreen = std.mem.eql(u8, fields[5], "1");
         m.decodeEscapes(&w.app_id, &w.app_len, fields[6]);
         m.decodeEscapes(&w.title, &w.title_len, fields[7]);
+        m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
         g.window_count += 1;
         return;
     }
 
     var it = std.mem.tokenizeAny(u8, line, " \t");
     const cmd = it.next() orelse return;
-    if (std.mem.eql(u8, cmd, "ACTIVE")) {
+    if (std.mem.eql(u8, cmd, "OUT")) {
+        const name = it.next() orelse return;
+        const ws_s = it.next() orelse return;
+        const focused_s = it.next() orelse return;
+        const ws = std.fmt.parseInt(usize, ws_s, 10) catch return;
+        if (g.target_name_len > 0 and std.mem.eql(u8, name, g.target_name[0..g.target_name_len])) {
+            if (ws >= 1 and ws <= 9) g.active_ws = ws;
+            g.is_focused_output = std.mem.eql(u8, focused_s, "1");
+        }
+    } else if (std.mem.eql(u8, cmd, "ACTIVE")) {
         const s = it.next() orelse return;
         const v = std.fmt.parseInt(usize, s, 10) catch return;
-        if (v >= 1 and v <= 9) g.active_ws = v;
+        if (g.target_name_len == 0 and v >= 1 and v <= 9) g.active_ws = v;
     } else if (std.mem.eql(u8, cmd, "OCC")) {
-        const ws_s = it.next() orelse return;
-        const n_s = it.next() orelse return;
-        const ws = std.fmt.parseInt(usize, ws_s, 10) catch return;
-        const n = std.fmt.parseInt(u32, n_s, 10) catch return;
-        if (ws >= 1 and ws <= 9) g.occ[ws] = n;
+        _ = it.next() orelse return;
+        _ = it.next() orelse return;
     } else if (std.mem.eql(u8, cmd, "FOCUSED")) {
         const s = it.next() orelse return;
         g.focused_id = std.fmt.parseInt(u64, s, 10) catch 0;
@@ -935,11 +1125,51 @@ fn handleStateLine(line: []const u8) void {
 }
 
 fn onEvent(line: []const u8) void {
+    if (!std.mem.startsWith(u8, line, "EVENT")) return;
+
+    if (line.len > 5 and line[5] == 9) {
+        var fields: [16][]const u8 = undefined;
+        const count = splitTabs(line, &fields);
+        if (count < 2) return;
+        const name = fields[1];
+
+        if (std.mem.eql(u8, name, "config-reload")) {
+            reloadPanelConfig();
+            return;
+        }
+        if (!std.mem.eql(u8, name, "launcher")) return;
+
+        var event_output: [64]u8 = undefined;
+        var event_output_len: usize = 0;
+        var query: [128]u8 = undefined;
+        var query_len: usize = 0;
+        var fi: usize = 2;
+        while (fi < count) : (fi += 1) {
+            const eq = std.mem.indexOfScalar(u8, fields[fi], '=') orelse continue;
+            const key = fields[fi][0..eq];
+            const value = fields[fi][eq + 1 ..];
+            if (std.mem.eql(u8, key, "output")) {
+                m.decodeEscapes(&event_output, &event_output_len, value);
+            } else if (std.mem.eql(u8, key, "arg") or std.mem.eql(u8, key, "query")) {
+                m.decodeEscapes(&query, &query_len, value);
+            }
+        }
+
+        if (event_output_len > 0 and g.target_name_len > 0) {
+            if (!std.mem.eql(u8, event_output[0..event_output_len], g.target_name[0..g.target_name_len])) return;
+        } else if (!g.is_focused_output) {
+            return;
+        }
+        openLauncher(query[0..query_len]);
+        return;
+    }
+
     var it = std.mem.tokenizeAny(u8, line, " \t");
     const tag = it.next() orelse return;
     if (!std.mem.eql(u8, tag, "EVENT")) return;
     const name = it.next() orelse return;
     if (std.mem.eql(u8, name, "launcher")) {
+        if (!g.is_focused_output) return;
         const rest = it.rest();
         openLauncher(std.mem.trim(u8, rest, " \t"));
     }
@@ -948,6 +1178,8 @@ fn onEvent(line: []const u8) void {
 fn handleIpcLine(line: []const u8) void {
     if (line.len == 0) return;
     if (std.mem.startsWith(u8, line, "EVENT ")) {
+        onEvent(line);
+    } else if (std.mem.startsWith(u8, line, "EVENT") and line.len > 5 and line[5] == 9) {
         onEvent(line);
     } else {
         handleStateLine(line);
@@ -1000,6 +1232,8 @@ fn connectIpc() bool {
     }
     const flags = c.fcntl(fd, c.F_GETFL, @as(c_int, 0));
     _ = c.fcntl(fd, c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    const subscribe = "CMD subscribe all\n";
+    _ = c.send(fd, subscribe.ptr, subscribe.len, c.MSG_NOSIGNAL);
     g.ipc_fd = fd;
     logMsg("connected to {s}", .{path});
     return true;
@@ -1099,9 +1333,13 @@ pub fn main() !void {
     g.* = std.mem.zeroes(m.Panel);
     g.running = true;
     g.active_ws = 1;
+    if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
+        m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
+    }
     initListeners();
     m.loadConfig();
     apps.scan(&g.app_list);
+    addCustomApps();
     logMsg("loaded {d} desktop entries", .{g.app_list.count});
     m.recomputeResults();
     _ = m.updateClock();
@@ -1123,6 +1361,7 @@ pub fn main() !void {
     _ = c.wl_registry_add_listener(g.registry.?, &registry_listener, null);
     _ = c.wl_display_roundtrip(g.display.?);
     _ = c.wl_display_roundtrip(g.display.?);
+    selectTargetOutput();
 
     if (g.compositor == null or g.shm == null or g.layer_shell == null) {
         logMsg("missing required globals (compositor={} shm={} layer_shell={})", .{

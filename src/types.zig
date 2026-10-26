@@ -7,10 +7,15 @@ pub const MAX_LAYERS = 64;
 pub const MAX_KEYBOARDS = 16;
 pub const MAX_IPC = 8;
 pub const MAX_BINDINGS = 96;
+pub const MAX_HOOKS = 32;
+pub const MAX_STATUS = 8;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
 pub const MAX_COMMAND = 512;
+pub const MAX_STATUS_ID = 48;
+pub const MAX_STATUS_TEXT = 160;
+pub const MAX_STATUS_COMMAND = 256;
 
 pub const CursorMode = enum {
     passthrough,
@@ -53,6 +58,22 @@ pub const Binding = struct {
     arg_len: usize,
 };
 
+pub const Hook = struct {
+    event: [32]u8,
+    event_len: usize,
+    command: [MAX_COMMAND]u8,
+    command_len: usize,
+};
+
+pub const StatusEntry = struct {
+    id: [MAX_STATUS_ID]u8 = undefined,
+    id_len: usize = 0,
+    text: [MAX_STATUS_TEXT]u8 = undefined,
+    text_len: usize = 0,
+    command: [MAX_STATUS_COMMAND]u8 = undefined,
+    command_len: usize = 0,
+};
+
 pub const Config = struct {
     terminal: [128]u8,
     terminal_len: usize,
@@ -86,6 +107,8 @@ pub const Config = struct {
     font_len: usize,
     bindings: [MAX_BINDINGS]Binding,
     binding_count: usize,
+    hooks: [MAX_HOOKS]Hook,
+    hook_count: usize,
 };
 
 pub const Output = struct {
@@ -96,6 +119,8 @@ pub const Output = struct {
     usable: c.wlr_box,
     full: c.wlr_box,
     bg_rect: *c.wlr_scene_rect,
+    active_ws: usize,
+    last_focused: [WS_COUNT + 1]?*Client,
 
     frame: c.wl_listener,
     request_state: c.wl_listener,
@@ -113,6 +138,7 @@ pub const Client = struct {
 
     ws: usize,
     mapped: bool,
+    announced: bool,
     floating: bool,
     fullscreen: bool,
 
@@ -208,6 +234,8 @@ pub const IpcClient = struct {
     buf: [8192]u8,
     len: usize,
     alive: bool,
+    wants_state: bool,
+    wants_events: bool,
 };
 
 pub const Popup = struct {
@@ -251,6 +279,8 @@ pub const Server = struct {
     keyboard_count: usize,
     ipcs: [MAX_IPC]?*IpcClient,
     ipc_count: usize,
+    statuses: [MAX_STATUS]StatusEntry,
+    status_count: usize,
     text_inputs: [16]?*TextInput,
     text_input_count: usize,
     im_popups: [8]?*ImPopup,
@@ -266,8 +296,8 @@ pub const Server = struct {
 
     active_ws: usize,
     focused: ?*Client,
+    focused_output: ?*Output,
     focused_layer: ?*LayerSurface,
-    last_focused: [WS_COUNT + 1]?*Client,
     next_client_id: u64,
 
     session_lock_manager: ?*c.wlr_session_lock_manager_v1,
@@ -287,6 +317,9 @@ pub const Server = struct {
     new_idle_inhibitor: c.wl_listener,
     output_power_manager: ?*c.wlr_output_power_manager_v1,
     output_power_set_mode: c.wl_listener,
+    output_manager: ?*c.wlr_output_manager_v1,
+    output_apply: c.wl_listener,
+    output_test: c.wl_listener,
 
     config: Config,
     ipc_fd: c_int,
@@ -295,6 +328,8 @@ pub const Server = struct {
     ipc_path: [256]u8,
     ipc_dirty: bool,
     schedule_ipc: ?*const fn (*Server) void,
+    broadcast_line: ?*const fn (*Server, []const u8) void,
+    reload_runtime: ?*const fn (*Server) void,
 
     cursor_mode: CursorMode,
     grabbed: ?*Client,
@@ -323,6 +358,7 @@ pub const Server = struct {
     request_set_selection: c.wl_listener,
     request_set_primary_selection: c.wl_listener,
     new_virtual_keyboard: c.wl_listener,
+    relative_pointer_manager: ?*c.wlr_relative_pointer_manager_v1,
     new_text_input: c.wl_listener,
     new_input_method: c.wl_listener,
     im_commit: c.wl_listener,

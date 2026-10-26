@@ -59,6 +59,18 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(panel);
 
+    const ctl_mod = b.createModule(.{
+        .root_source_file = b.path("src/ctl.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    const ctl = b.addExecutable(.{
+        .name = "tessa-ctl",
+        .root_module = ctl_mod,
+    });
+    b.installArtifact(ctl);
+
     const run_cmd = b.addRunArtifact(server);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);

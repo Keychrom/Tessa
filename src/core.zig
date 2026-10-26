@@ -37,6 +37,13 @@ pub fn copyString(dest: []u8, dest_len: *usize, src: []const u8) void {
     dest_len.* = n;
 }
 
+pub fn copyStringBuf(dest: []u8, src: []const u8) []const u8 {
+    const n = utf8Truncate(src, dest.len - 1).len;
+    @memcpy(dest[0..n], src[0..n]);
+    dest[n] = 0;
+    return dest[0..n];
+}
+
 pub fn copyZ(dest: []u8, src: []const u8) void {
     const n = utf8Truncate(src, dest.len - 1).len;
     @memcpy(dest[0..n], src[0..n]);
@@ -79,6 +86,40 @@ pub fn focusedOutput(server: *Server) ?*Output {
     return outputAt(server, server.cursor.x, server.cursor.y);
 }
 
+pub fn focusOutput(server: *Server) ?*Output {
+    if (server.focused_output) |out| return out;
+    return focusedOutput(server);
+}
+
+pub fn outputName(out: *Output) []const u8 {
+    return cstr(out.wlr.name);
+}
+
+pub fn outputByName(server: *Server, name: []const u8) ?*Output {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        if (std.mem.eql(u8, outputName(out), name)) return out;
+    }
+    return null;
+}
+
+pub fn spawnPanel(server: *Server, out: *Output) void {
+    if (!server.config.autostart_panel) return;
+    if (c.getenv("TESSA_NO_PANEL") != null) return;
+    const bin: [*:0]const u8 = if (c.getenv("TESSA_PANEL_BIN")) |p| p else "tessa-panel";
+    var name_buf: [128:0]u8 = undefined;
+    copyZ(&name_buf, outputName(out));
+    const pid = c.fork();
+    if (pid == 0) {
+        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        _ = c.setenv("TESSA_PANEL_OUTPUT", &name_buf, 1);
+        _ = c.execlp(bin, bin, @as(?[*:0]const u8, null));
+        c._exit(127);
+    }
+    logInfo("starting panel for {s}", .{outputName(out)});
+}
+
 pub fn spawn(cmd: []const u8) void {
     var buf: [2048]u8 = undefined;
     const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
@@ -86,6 +127,28 @@ pub fn spawn(cmd: []const u8) void {
     if (pid == 0) {
         _ = c.setsid();
         _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        _ = c.execl("/bin/sh", "/bin/sh", "-c", z.ptr, @as(?[*:0]const u8, null));
+        c._exit(127);
+    }
+}
+
+pub const EnvVar = struct {
+    name: [*:0]const u8,
+    value: []const u8,
+};
+
+pub fn spawnWithEnv(cmd: []const u8, envs: []const EnvVar) void {
+    var buf: [2048]u8 = undefined;
+    const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
+    const pid = c.fork();
+    if (pid == 0) {
+        _ = c.setsid();
+        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        for (envs) |env| {
+            var value_buf: [1024:0]u8 = undefined;
+            copyZ(&value_buf, env.value);
+            _ = c.setenv(env.name, &value_buf, 1);
+        }
         _ = c.execl("/bin/sh", "/bin/sh", "-c", z.ptr, @as(?[*:0]const u8, null));
         c._exit(127);
     }
@@ -121,7 +184,8 @@ pub fn updateBackground(out: *Output) void {
 }
 
 pub fn activeVisible(server: *Server, client: *types.Client) bool {
-    return client.mapped and client.ws == server.active_ws;
+    _ = server;
+    return client.mapped and client.ws == client.output.active_ws;
 }
 
 pub fn clientIndex(server: *Server, client: *types.Client) ?usize {
