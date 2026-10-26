@@ -25,8 +25,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - xdg-shell トップレベル、layer-shell、data-device と primary-selection
   （クリップボード）、xdg-activation、xdg-decoration、cursor-shape-v1、
   wlr-screencopy（grim が動作）
-- マスター/スタックレイアウトと、Tessa 独自の「モザイク」スパイラル
-  レイアウト（`Super+T`）
+- マスター/スタック、Tessa 独自の「モザイク」スパイラル、グリッド、
+  等幅カラムの各レイアウト。ワークスペースごとのレイアウト設定にも対応
+  （`Super+T` で巡回）
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -61,8 +62,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `wlr-randr` による出力管理も確認しています。イベントフック、イベント
 ストリーム、カスタムステータス、カスタムランチャー項目、設定再読み込みは
 `tests/smoke.sh`、`tests/output-persistence.sh`、パネルのスクリーンショットで
-確認しました。2 倍 HiDPI パネルと、再起動後の出力モード/位置/スケール復元も
-検証しています。
+確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
+2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール復元も検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -75,8 +76,8 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   プロジェクトにまとまっています。色と挙動が統一されているのは、それが
   同じコードだからです。
 - **違うレイアウト。** マスター/スタックに加えて、渦巻き状の「テセラ」
-  モザイクレイアウト（`Super+T`）があります。Tessa という名前は tessellation
-  （タイル張り）に由来します。
+  モザイク、均等グリッド、等幅カラムがあります（`Super+T` で巡回）。Tessa
+  という名前は tessellation（タイル張り）に由来します。
 - **墨絵の視覚言語。** 藍色の紙、墨だまり、朱色の太陽、粒子、ガラスのような
   フローティングバー。一般的なステータスバーにテーマを載せただけのものでは
   ありません。
@@ -337,6 +338,7 @@ Tessa はプラグイン VM を埋め込みません。拡張はコンポジタ�
 tessa-ctl state
 tessa-ctl events window-focus
 tessa-ctl status weather "Tokyo 18C"
+tessa-ctl layout grid
 tessa-ctl dispatch reload
 ```
 
@@ -359,7 +361,7 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | --- | --- |
 | `Super+Return` | ターミナル（設定の `terminal`） |
 | `Super+D` | ランチャー |
-| `Super+T` | マスター ↔ モザイクレイアウト切り替え |
+| `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
 | `Super+R` | 設定を再読み込み |
@@ -406,7 +408,8 @@ cp config/config.example ~/.config/tessa/config
 | `outer_gaps` | タイル領域の外周の隙間 |
 | `border_width` | アクティブ/非アクティブの枠の太さ |
 | `master_ratio` | マスター領域の比率（0.15–0.9） |
-| `layout` | `master` または `mosaic` |
+| `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns` |
+| `layout_1` … `layout_9` | ワークスペースごとのレイアウト上書き |
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
@@ -439,7 +442,12 @@ bind = SUPER+ctrl+h ratio -0.03
 
 利用可能なアクション: `terminal`、`spawn`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`。
+`focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
+`set-layout`。
+
+`Super+T` はフォーカス中のワークスペースのレイアウトを 4 種類巡回します。
+実行中のレイアウトは出力・ワークスペースごとに保持されます。`layout_N` は
+出力が現れたときの初期値だけを設定します。
 
 ## 仕組み
 
@@ -458,8 +466,8 @@ tessa (wlroots コンポジタ, Zig)
   ├─ backend: DRM / headless / ネストした Wayland
   ├─ wlr_scene: 壁紙 < layer background < ウィンドウ < floating < トップバー
   │              < fullscreen < ランチャーオーバーレイ
-  ├─ マスター/スタック + モザイクタイル、9 ワークスペース、フローティング、
-  │  フルスクリーン
+  ├─ マスター/スタック + モザイク + グリッド + カラム、9 ワークスペース、
+  │  フローティング、フルスクリーン
   └─ IPC: $XDG_RUNTIME_DIR/tessa.sock
                  ▲
 tessa-panel × 出力数 (Wayland クライアント, Zig + Cairo/Pango)

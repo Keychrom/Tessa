@@ -24,7 +24,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - xdg-shell toplevels, layer-shell, data-device and primary-selection
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
-- master/stack layout **and** the Tessa "mosaic" spiral layout (`Super+T`)
+- master/stack, Tessa "mosaic" spiral, grid, and equal-column layouts, with
+  per-workspace layout profiles (`Super+T` cycles)
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -54,8 +55,9 @@ It has been built and tested on Ubuntu 26.04 with Zig 0.16.0 and wlroots
 Mozc, and X11 clients through `xwayland-satellite`. Dual-headless-output
 workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
-status entries, custom launcher entries, config reload, 2x HiDPI panel scaling,
-and output mode/position/scale persistence across restarts were exercised by
+status entries, custom launcher entries, config reload, per-workspace
+master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
+mode/position/scale persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
@@ -68,7 +70,8 @@ desktop:
 - **Integrated shell.** The bar, launcher, wallpaper, and tiling live together.
   The palette and behavior are consistent because they are one project.
 - **A different layout.** Besides master/stack, Tessa has a spiral "tessera"
-  mosaic layout (`Super+T`). The name Tessa comes from tessellation.
+  mosaic layout, a balanced grid, and equal columns (`Super+T` cycles them).
+  The name Tessa comes from tessellation.
 - **Sumi-e visual language.** Indigo paper, ink washes, a vermilion sun, grain,
   and a floating glass-like bar. The panel is not a generic status bar with a
   theme on top.
@@ -341,7 +344,7 @@ event schema, hook environment, and status API.
 | --- | --- |
 | `Super+Return` | terminal (`terminal` config value) |
 | `Super+D` | launcher |
-| `Super+T` | toggle master ↔ mosaic layout |
+| `Super+T` | cycle master → mosaic → grid → columns |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
 | `Super+R` | reload config |
@@ -384,7 +387,8 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `outer_gaps` | gap around the tiling area |
 | `border_width` | active/inactive frame thickness |
 | `master_ratio` | master area ratio (0.15–0.9) |
-| `layout` | `master` or `mosaic` |
+| `layout` | default layout: `master`, `mosaic`, `grid`, or `columns` |
+| `layout_1` … `layout_9` | per-workspace layout override |
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
@@ -417,7 +421,12 @@ bind = SUPER+ctrl+h ratio -0.03
 
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`.
+`focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
+`set-layout`.
+
+`Super+T` cycles the focused workspace through all four layouts. Runtime layout
+choices are kept per output and workspace; `layout_N` only sets the initial
+choice when an output appears.
 
 ## How it works
 
@@ -434,7 +443,7 @@ tessa (wlroots compositor, Zig)
   ├─ backend: DRM / headless / nested Wayland
   ├─ wlr_scene: wallpaper < layer background < windows < floating < top bar
   │              < fullscreen < launcher overlay
-  ├─ master/stack + mosaic tiling, 9 workspaces, floating, fullscreen
+  ├─ master/stack + mosaic + grid + columns, 9 workspaces, floating, fullscreen
   └─ IPC: $XDG_RUNTIME_DIR/tessa.sock
                  ▲
 tessa-panel × outputs (Wayland client, Zig + Cairo/Pango)

@@ -26,6 +26,7 @@ tessa-ctl workspace 3                   # フォーカス中の出力
 tessa-ctl workspace 3 HEADLESS-2        # 出力を指定
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # クエリは省略可能
+tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
 tessa-ctl dispatch reload               # 任意のコンポジタコマンド
 tessa-ctl quit
 ```
@@ -54,13 +55,13 @@ CMD state               # 購読せずスナップショットを要求
 スナップショットが始まり、パネルは毎回バー全体を再構築します。主な行:
 
 ```text
-OUT HEADLESS-1 3 1
+OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1
 ```
 
-`OUT` は `名前 ワークスペース フォーカス` です。`WIN` はタブ区切りで、
+`OUT` は `名前 ワークスペース フォーカス レイアウト` です。`WIN` はタブ区切りで、
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
 された app_id、タイトル、出力名です。`STATUS` は後述します。
 
@@ -90,7 +91,7 @@ EVENT	launcher	arg=fire	output=HEADLESS-1
 | `window-focus` | ウィンドウフォーカス変更/解除 | id, previous, ws, app, title, output |
 | `workspace-change` | 出力のワークスペース変更 | ws, previous-ws, output |
 | `window-moved` | ウィンドウを別ワークスペースへ移動 | id, ws, previous-ws, app, title, output |
-| `layout-change` | マスター/モザイク切替 | arg |
+| `layout-change` | ワークスペースのレイアウト変更 | ws, output, arg |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |

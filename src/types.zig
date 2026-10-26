@@ -1,3 +1,4 @@
+const std = @import("std");
 const c = @import("c.zig").c;
 
 pub const WS_COUNT = 9;
@@ -26,7 +27,23 @@ pub const CursorMode = enum {
 pub const LayoutMode = enum {
     master,
     mosaic,
+    grid,
+    columns,
 };
+
+pub const layout_cycle = [_]LayoutMode{ .master, .mosaic, .grid, .columns };
+
+pub fn layoutFromName(name: []const u8) ?LayoutMode {
+    if (std.ascii.eqlIgnoreCase(name, "master")) return .master;
+    if (std.ascii.eqlIgnoreCase(name, "mosaic") or std.ascii.eqlIgnoreCase(name, "spiral")) return .mosaic;
+    if (std.ascii.eqlIgnoreCase(name, "grid")) return .grid;
+    if (std.ascii.eqlIgnoreCase(name, "columns") or std.ascii.eqlIgnoreCase(name, "column")) return .columns;
+    return null;
+}
+
+pub fn layoutName(mode: LayoutMode) []const u8 {
+    return @tagName(mode);
+}
 
 pub const Action = enum {
     none,
@@ -46,6 +63,7 @@ pub const Action = enum {
     reload,
     ratio,
     toggle_layout,
+    set_layout,
 };
 
 pub const Binding = struct {
@@ -95,6 +113,8 @@ pub const Config = struct {
     border_width: i32,
     master_ratio: f32,
     layout_mode: LayoutMode,
+    layout_by_ws: [WS_COUNT]LayoutMode,
+    layout_overrides: [WS_COUNT]bool,
     autostart_panel: bool,
     xwayland: bool,
     xwayland_display: [32]u8,
@@ -135,6 +155,7 @@ pub const Output = struct {
     full: c.wlr_box,
     bg_rect: *c.wlr_scene_rect,
     active_ws: usize,
+    ws_layouts: [WS_COUNT]LayoutMode,
     last_focused: [WS_COUNT + 1]?*Client,
 
     frame: c.wl_listener,

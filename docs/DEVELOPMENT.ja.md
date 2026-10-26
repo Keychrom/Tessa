@@ -172,6 +172,24 @@ WLR_RANDR=/path/to/wlr-randr sh tests/output-persistence.sh
 2 倍時のランチャーは同じ 760x620 デザインをフィットさせるため、ヒット矩形と
 IME カーソルも見た目のスケーリングに追従します。
 
+### レイアウトテスト
+
+セッション内で複数のターミナルを起動し、`tessa-ctl`（または `Super+T`）で
+レイアウトを巡回・設定します。
+
+```sh
+for n in one two three four; do tessa-ctl spawn foot -T "layout-$n"; done
+tessa-ctl layout grid
+./scripts/screenshot.sh /tmp/grid.png
+tessa-ctl layout columns
+./scripts/screenshot.sh /tmp/columns.png
+tessa-ctl layout mosaic
+```
+
+`tessa-ctl state` の `OUT` 行の末尾に現在のレイアウト名が出ます。ワークスペース
+ごとの初期レイアウトは `layout_1` … `layout_9` で設定します。実行中の変更は
+出力・ワークスペースごとに保持され、永続化はされません。
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

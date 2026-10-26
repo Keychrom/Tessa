@@ -42,11 +42,14 @@ EOF
 cat > "$runtime/config" <<EOF
 panel = false
 xwayland = false
+layout = master
+layout_2 = columns
 hook = startup $runtime/hook.sh
 hook = config-reload $runtime/hook.sh
 hook = window-open $runtime/hook.sh
 hook = window-focus $runtime/hook.sh
 hook = window-close $runtime/hook.sh
+hook = layout-change $runtime/hook.sh
 launcher_entry = Smoke Test | sh -c 'true'
 include = $runtime/extra.conf
 EOF
@@ -115,8 +118,23 @@ epid=$!
 sleep 0.3
 
 tessa-ctl workspace 3
-wait_state "OUT HEADLESS-1 3 1"
+wait_state "OUT HEADLESS-1 3 1 master"
 echo "workspace + IPC half-close: ok"
+
+tessa-ctl workspace 2
+wait_state "OUT HEADLESS-1 2 1 columns"
+tessa-ctl workspace 3
+wait_state "OUT HEADLESS-1 3 1 master"
+echo "per-workspace layout: ok"
+
+tessa-ctl layout grid
+wait_state "OUT HEADLESS-1 3 1 grid"
+wait_log "layout-change|3||HEADLESS-1|"
+tessa-ctl layout
+wait_state "OUT HEADLESS-1 3 1 columns"
+tessa-ctl layout master
+wait_state "OUT HEADLESS-1 3 1 master"
+echo "layout API: ok"
 
 tessa-ctl status smoke "Tessa extension status" --exec "sh -c 'true'"
 wait_state "STATUS.*smoke"

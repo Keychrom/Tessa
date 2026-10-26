@@ -11,8 +11,14 @@ border_width = 2
 master_ratio = 0.58
 
 # master: classic master/stack
-# mosaic: spiral tessera layout (Super+T toggles at runtime)
+# mosaic: spiral tessera layout
+# grid: balanced grid
+# columns: equal-width columns
+# Super+T cycles all four at runtime, per output and workspace.
 layout = master
+# Optional per-workspace initial layout overrides:
+# layout_1 = grid
+# layout_2 = columns
 
 # Start tessa-panel together with the compositor.
 panel = true
@@ -59,6 +65,7 @@ font = Inter
 # bind = SUPER+Return terminal
 # bind = SUPER+d launcher
 # bind = SUPER+t toggle-layout
+# bind = SUPER+g set-layout grid
 # bind = SUPER+1 workspace 1
 # bind = SUPER+SHIFT+1 move-to-workspace 1
 # bind = SUPER+h focus left

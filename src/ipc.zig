@@ -380,7 +380,20 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             core.spawn(std.mem.trimStart(u8, line[prefix_len..], " \t"));
         }
     } else if (std.mem.eql(u8, cmd, "layout")) {
-        layout.toggleLayout(server);
+        const off = findWordOffset(line, "layout");
+        const rest = std.mem.trim(u8, line[off..], " \t");
+        var lit = std.mem.tokenizeAny(u8, rest, " \t");
+        if (lit.next()) |name| {
+            if (lit.next()) |output_name| {
+                if (core.outputByName(server, output_name)) |out| {
+                    _ = layout.setLayoutOnOutput(server, out, name);
+                }
+            } else {
+                _ = layout.setLayout(server, name);
+            }
+        } else {
+            layout.toggleLayout(server);
+        }
         broadcastState(server);
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
@@ -449,10 +462,11 @@ fn buildState(server: *Server, buf: []u8) usize {
     var oi: usize = 0;
     while (oi < server.outputs.len) : (oi += 1) {
         const out = server.outputs[oi] orelse continue;
-        append(buf, &off, "OUT {s} {d} {d}\n", .{
+        append(buf, &off, "OUT {s} {d} {d} {s}\n", .{
             core.outputName(out),
             out.active_ws,
             @as(u8, if (server.focused_output == out) 1 else 0),
+            types.layoutName(out.ws_layouts[out.active_ws - 1]),
         });
     }
 

@@ -493,6 +493,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.server = server;
     out.wlr = wlr_out;
     out.active_ws = 1;
+    out.ws_layouts = server.config.layout_by_ws;
 
     out.frame.notify = onOutputFrame;
     c.wl_signal_add(&wlr_out.events.frame, &out.frame);

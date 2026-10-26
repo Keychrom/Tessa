@@ -273,6 +273,121 @@ fn applyFullscreen(client: *Client, out: *Output) void {
     applyFrame(client, full.x, full.y, full.width, full.height, 0, false);
 }
 
+fn arrangeMasterTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32, ratio: f32) void {
+    const master_w: i32 = blk: {
+        if (uw <= gap + 160) break :blk @divTrunc(uw - gap, 2);
+        var w: i32 = @intFromFloat(@round(@as(f32, @floatFromInt(uw - gap)) * ratio));
+        if (w < 100) w = 100;
+        if (uw - gap - w < 100) w = @divTrunc(uw - gap, 2);
+        break :blk w;
+    };
+    const stack_x = ux + master_w + gap;
+    const stack_w = @max(1, uw - master_w - gap);
+    const stack_n = tiles.len - 1;
+
+    applyFrame(tiles[0].?, ux, uy, master_w, uh, border, true);
+
+    const stack_total = uh - gap * @as(i32, @intCast(stack_n - 1));
+    const each: i32 = @divTrunc(stack_total, @as(i32, @intCast(stack_n)));
+    var sy = uy;
+    var i: usize = 1;
+    while (i < tiles.len) : (i += 1) {
+        const is_last = i == tiles.len - 1;
+        var h = each;
+        if (is_last) h = uy + uh - sy;
+        if (h < 1) h = 1;
+        applyFrame(tiles[i].?, stack_x, sy, stack_w, h, border, true);
+        sy += h + gap;
+    }
+}
+
+fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
+    var rx = ux;
+    var ry = uy;
+    var rw = uw;
+    var rh = uh;
+    var dir: u2 = 0;
+    var i: usize = 0;
+    while (i < tiles.len) : (i += 1) {
+        if (i == tiles.len - 1 or rw < 160 or rh < 160) {
+            applyFrame(tiles[i].?, rx, ry, rw, rh, border, true);
+            i += 1;
+            while (i < tiles.len) : (i += 1) {
+                applyFrame(tiles[i].?, rx, ry, rw, rh, border, true);
+            }
+            break;
+        }
+        if (dir == 0 or dir == 2) {
+            const slice = @max(120, @as(i32, @intFromFloat(
+                @as(f32, @floatFromInt(rw - gap)) * 0.62,
+            )));
+            if (dir == 0) {
+                applyFrame(tiles[i].?, rx, ry, slice, rh, border, true);
+                rx += slice + gap;
+                rw -= slice + gap;
+            } else {
+                applyFrame(tiles[i].?, rx + rw - slice, ry, slice, rh, border, true);
+                rw -= slice + gap;
+            }
+        } else {
+            const slice = @max(120, @as(i32, @intFromFloat(
+                @as(f32, @floatFromInt(rh - gap)) * 0.62,
+            )));
+            if (dir == 1) {
+                applyFrame(tiles[i].?, rx, ry, rw, slice, border, true);
+                ry += slice + gap;
+                rh -= slice + gap;
+            } else {
+                applyFrame(tiles[i].?, rx, ry + rh - slice, rw, slice, border, true);
+                rh -= slice + gap;
+            }
+        }
+        dir = @intCast((@as(u32, dir) + 1) % 4);
+    }
+}
+
+fn arrangeGridTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
+    const count = tiles.len;
+    const n: f64 = @floatFromInt(count);
+    var cols: usize = @intFromFloat(@ceil(@sqrt(n)));
+    if (cols < 1) cols = 1;
+    if (cols > count) cols = count;
+    const rows = (count + cols - 1) / cols;
+
+    const cell_w = @max(1, @divTrunc(uw - gap * @as(i32, @intCast(cols - 1)), @as(i32, @intCast(cols))));
+    const cell_h = @max(1, @divTrunc(uh - gap * @as(i32, @intCast(rows - 1)), @as(i32, @intCast(rows))));
+
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const row = i / cols;
+        const col = i % cols;
+        const last_row = row == rows - 1;
+        const last_count = count - row * cols;
+        var x = ux + @as(i32, @intCast(col)) * (cell_w + gap);
+        if (last_row and last_count < cols) {
+            const row_w = @as(i32, @intCast(last_count)) * cell_w +
+                gap * @as(i32, @intCast(last_count - 1));
+            const row_x = ux + @divTrunc(uw - row_w, 2);
+            x = row_x + @as(i32, @intCast(col)) * (cell_w + gap);
+        }
+        const y = uy + @as(i32, @intCast(row)) * (cell_h + gap);
+        applyFrame(tiles[i].?, x, y, cell_w, cell_h, border, true);
+    }
+}
+
+fn arrangeColumnsTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
+    const count = tiles.len;
+    const each = @max(1, @divTrunc(uw - gap * @as(i32, @intCast(count - 1)), @as(i32, @intCast(count))));
+    var x = ux;
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const is_last = i == count - 1;
+        const w = if (is_last) ux + uw - x else each;
+        applyFrame(tiles[i].?, x, uy, @max(1, w), uh, border, true);
+        x += w + gap;
+    }
+}
+
 pub fn arrangeOutput(server: *Server, out: *Output) void {
     var area = out.usable;
     if (area.width < 50 or area.height < 50) area = out.full;
@@ -314,79 +429,19 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         if (uw > 20 and uh > 20) {
             if (tile_count == 1) {
                 applyFrame(tiles[0].?, ux, uy, uw, uh, border, true);
-            } else if (cfg.layout_mode == .mosaic and tile_count <= 8) {
-                var rx = ux;
-                var ry = uy;
-                var rw = uw;
-                var rh = uh;
-                var dir: u2 = 0;
-                var mi: usize = 0;
-                while (mi < tile_count) : (mi += 1) {
-                    if (mi == tile_count - 1 or rw < 160 or rh < 160) {
-                        applyFrame(tiles[mi].?, rx, ry, rw, rh, border, true);
-                        mi += 1;
-                        while (mi < tile_count) : (mi += 1) {
-                            applyFrame(tiles[mi].?, rx, ry, rw, rh, border, true);
-                        }
-                        break;
-                    }
-                    if (dir == 0 or dir == 2) {
-                        const slice = @max(120, @as(i32, @intFromFloat(
-                            @as(f32, @floatFromInt(rw - gap)) * 0.62,
-                        )));
-                        if (dir == 0) {
-                            applyFrame(tiles[mi].?, rx, ry, slice, rh, border, true);
-                            rx += slice + gap;
-                            rw -= slice + gap;
-                        } else {
-                            applyFrame(tiles[mi].?, rx + rw - slice, ry, slice, rh, border, true);
-                            rw -= slice + gap;
-                        }
-                    } else {
-                        const slice = @max(120, @as(i32, @intFromFloat(
-                            @as(f32, @floatFromInt(rh - gap)) * 0.62,
-                        )));
-                        if (dir == 1) {
-                            applyFrame(tiles[mi].?, rx, ry, rw, slice, border, true);
-                            ry += slice + gap;
-                            rh -= slice + gap;
-                        } else {
-                            applyFrame(tiles[mi].?, rx, ry + rh - slice, rw, slice, border, true);
-                            rh -= slice + gap;
-                        }
-                    }
-                    dir = @intCast((@as(u32, dir) + 1) % 4);
-                }
             } else {
-                const gap_total = gap;
-                var master_w: i32 = 0;
-                if (uw > gap_total + 160) {
-                    master_w = @intFromFloat(@round(
-                        @as(f32, @floatFromInt(uw - gap_total)) * cfg.master_ratio,
-                    ));
-                    if (master_w < 100) master_w = 100;
-                    if (uw - gap_total - master_w < 100)
-                        master_w = @divTrunc(uw - gap_total, 2);
-                } else {
-                    master_w = @divTrunc(uw - gap_total, 2);
-                }
-                const stack_x = ux + master_w + gap_total;
-                const stack_w = @max(1, uw - master_w - gap_total);
-                const stack_n = tile_count - 1;
-
-                applyFrame(tiles[0].?, ux, uy, master_w, uh, border, true);
-
-                const stack_total = uh - gap * @as(i32, @intCast(stack_n - 1));
-                const each: i32 = @divTrunc(stack_total, @as(i32, @intCast(stack_n)));
-                var sy = uy;
-                var j: usize = 1;
-                while (j < tile_count) : (j += 1) {
-                    const is_last = (j == tile_count - 1);
-                    var h = each;
-                    if (is_last) h = uy + uh - sy;
-                    if (h < 1) h = 1;
-                    applyFrame(tiles[j].?, stack_x, sy, stack_w, h, border, true);
-                    sy += h + gap;
+                const mode = out.ws_layouts[out.active_ws - 1];
+                switch (mode) {
+                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio),
+                    .mosaic => {
+                        if (tile_count <= 8) {
+                            arrangeMosaicTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap);
+                        } else {
+                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio);
+                        }
+                    },
+                    .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
+                    .columns => arrangeColumnsTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
                 }
             }
         }
@@ -734,15 +789,55 @@ pub fn closeFocused(server: *Server) void {
     c.wlr_xdg_toplevel_send_close(cl.xdg);
 }
 
-pub fn toggleLayout(server: *Server) void {
-    server.config.layout_mode = if (server.config.layout_mode == .master) .mosaic else .master;
-    arrangeAll(server);
+pub fn cycleLayout(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    const ws = out.active_ws;
+    const current = out.ws_layouts[ws - 1];
+    var index: usize = 0;
+    while (index < types.layout_cycle.len) : (index += 1) {
+        if (types.layout_cycle[index] == current) break;
+    }
+    if (index >= types.layout_cycle.len) index = 0;
+    const next = types.layout_cycle[(index + 1) % types.layout_cycle.len];
+    out.ws_layouts[ws - 1] = next;
+    arrangeOutput(server, out);
     events.emit(server, .{
         .name = event_names.layout_change,
-        .arg = @tagName(server.config.layout_mode),
+        .workspace = ws,
+        .output = core.outputName(out),
+        .arg = types.layoutName(next),
     });
     core.markDirty(server);
-    core.logInfo("layout: {s}", .{@tagName(server.config.layout_mode)});
+    core.logInfo("layout: {s} workspace {d} on {s}", .{ types.layoutName(next), ws, core.outputName(out) });
+}
+
+pub fn setLayoutOnOutput(server: *Server, out: *Output, name: []const u8) bool {
+    const mode = types.layoutFromName(name) orelse return false;
+    const ws = out.active_ws;
+    if (out.ws_layouts[ws - 1] == mode) {
+        arrangeOutput(server, out);
+        return true;
+    }
+    out.ws_layouts[ws - 1] = mode;
+    arrangeOutput(server, out);
+    events.emit(server, .{
+        .name = event_names.layout_change,
+        .workspace = ws,
+        .output = core.outputName(out),
+        .arg = types.layoutName(mode),
+    });
+    core.markDirty(server);
+    core.logInfo("layout: {s} workspace {d} on {s}", .{ types.layoutName(mode), ws, core.outputName(out) });
+    return true;
+}
+
+pub fn setLayout(server: *Server, name: []const u8) bool {
+    const out = core.focusOutput(server) orelse return false;
+    return setLayoutOnOutput(server, out, name);
+}
+
+pub fn toggleLayout(server: *Server) void {
+    cycleLayout(server);
 }
 
 pub fn adjustRatio(server: *Server, delta: f32) void {

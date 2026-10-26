@@ -258,13 +258,24 @@ inhibitor が存在する間またはセッションロック中は
 
 `layout.zig` が状態遷移を管理します:
 
-- 各出力が `active_ws` と `last_focused[]` を持ちます。ワークスペースは
-  モニタごとに独立し、`Super+1`…`9` はフォーカス中の出力に適用されます。
+- 各出力が `active_ws`、ワークスペースごとの `ws_layouts[]`、
+  `last_focused[]` を持ちます。ワークスペースとレイアウト選択はモニタごとに
+  独立し、`Super+1`…`9` はフォーカス中の出力に適用されます。
 - **master**: 1 つのマスター領域（比率、デフォルト 0.58）と縦スタック。
 - **mosaic**: 再帰的なスパイラル。残りの各ウィンドウが現在の矩形の 62% を
   取り、方向が左 → 上 → 右 → 下と回転します。最後のウィンドウが中央を
   取ります。最大 8 ウィンドウまでスパイラルを使い、それ以降は
   マスター/スタックにフォールバックします。
+- **grid**: バランスの取れた行/列（`ceil(sqrt(n))` 列）。最終行が不完全な
+  場合は中央寄せします。
+- **columns**: 等幅・全高のカラム。
+- `Super+T` はフォーカス中の出力・ワークスペースのレイアウトを
+  マスター → モザイク → グリッド → カラムの順に巡回します。
+  `set-layout <name>` は `master`、`mosaic`/`spiral`、`grid`、
+  `columns`/`column` を受け付けます。実行中の選択は出力/ワークスペース
+  ごとに保持され、設定の `layout_N` は出力が現れたときの初期値だけを
+  設定します。変更時は workspace と output を含む `layout-change` を発行
+  します。
 - ワークスペースは 1〜9 です。ワークスペースのウィンドウはフレームの
   シーンノードを無効化して隠します。隠れたワークスペースもパネルには
   占有状況を報告します。
@@ -292,8 +303,8 @@ inhibitor が存在する間またはセッションロック中は
 ```text
 STATE
 ACTIVE 1
-OUT eDP-1 1 1
-OUT HDMI-A-1 2 0
+OUT eDP-1 1 1 master
+OUT HDMI-A-1 2 0 mosaic
 OCC 1 2
 OCC 2 0
 ...
@@ -322,7 +333,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD layout
+CMD layout [name] [output]
 CMD reload
 CMD float <id>
 CMD status <id> <text>            (タブ区切り形式は --exec に対応)
@@ -331,6 +342,8 @@ CMD quit
 
 `CMD workspace <n> <output>` は指定したモニタのワークスペースを変更します。
 output を省略したキーボード操作ではフォーカス中の出力が使われます。
+`CMD layout` は巡回、`CMD layout <name>` はフォーカス中の出力へ設定、末尾に
+output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
 発行し、一致するパネルだけがランチャーを開きます。状態のブロードキャストは
 Wayland イベントループの idle source でまとめられ、状態購読者にだけ届きます。

@@ -247,14 +247,22 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 
 `layout.zig` holds the state transitions:
 
-- Each output owns an `active_ws` and a `last_focused[]` table. Workspaces are
-  therefore independent per monitor, and `Super+1`…`9` applies to the focused
-  output.
+- Each output owns an `active_ws`, a per-workspace `ws_layouts[]` table, and a
+  `last_focused[]` table. Workspaces and layout choices are therefore
+  independent per monitor, and `Super+1`…`9` applies to the focused output.
 - **master**: one master area (ratio, default 0.58) and a vertical stack.
 - **mosaic**: recursive spiral. Each remaining window takes a 62% slice of the
   current rectangle; the direction rotates left → top → right → bottom. The last
   window gets the center. Up to eight windows use the spiral, then it falls back
   to master/stack.
+- **grid**: balanced rows/columns (`ceil(sqrt(n))` columns); the last row is
+  centered when it is incomplete.
+- **columns**: equal-width full-height columns.
+- `Super+T` cycles master → mosaic → grid → columns for the focused output and
+  workspace. `set-layout <name>` accepts `master`, `mosaic`/`spiral`, `grid`, or
+  `columns`/`column`. Runtime choices are per output/workspace; `layout_N`
+  config only seeds the initial choice when the output appears. Each change
+  emits `layout-change` with workspace and output fields.
 - Workspaces are 1–9. A workspace's windows are hidden by disabling the frame
   scene node; hidden workspaces still report occupancy to the panel.
 - Tiled and floating clients stay assigned to the output they were opened on.
@@ -282,8 +290,8 @@ change:
 ```text
 STATE
 ACTIVE 1
-OUT eDP-1 1 1
-OUT HDMI-A-1 2 0
+OUT eDP-1 1 1 master
+OUT HDMI-A-1 2 0 mosaic
 OCC 1 2
 OCC 2 0
 ...
@@ -294,7 +302,8 @@ WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1
 END
 ```
 
-`OUT` lines give each output's name, active workspace, and focused flag. `WIN`
+`OUT` lines give each output's name, active workspace, focused flag, and current
+layout name. `WIN`
 fields are tab-separated: `WIN`, id, workspace, focused, floating, fullscreen,
 app_id, title, output name. `STATUS` has id, text, and an optional click command.
 Backslash, tab, CR, and LF are escaped in string fields. Each panel filters
@@ -311,7 +320,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD layout
+CMD layout [name] [output]
 CMD reload
 CMD float <id>
 CMD status <id> <text>            (tab-separated form supports --exec)

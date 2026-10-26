@@ -195,6 +195,24 @@ file, restarts, and checks the restored mode/scale/position. The launcher at 2x
 uses the same fitted 760x620 design, so its hit rectangles and IME cursor follow
 the visual scaling.
 
+### Layout test
+
+Launch several terminals inside the session, then cycle or set layouts with
+`tessa-ctl` (or `Super+T`):
+
+```sh
+for n in one two three four; do tessa-ctl spawn foot -T "layout-$n"; done
+tessa-ctl layout grid
+./scripts/screenshot.sh /tmp/grid.png
+tessa-ctl layout columns
+./scripts/screenshot.sh /tmp/columns.png
+tessa-ctl layout mosaic
+```
+
+`OUT` in `tessa-ctl state` ends with the current layout name. Per-workspace
+initial layouts come from `layout_1` … `layout_9`; runtime changes are kept per
+output and workspace and are not persisted.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

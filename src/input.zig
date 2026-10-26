@@ -331,6 +331,11 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),
         .toggle_layout => layout.toggleLayout(server),
+        .set_layout => {
+            if (!layout.setLayout(server, b.arg[0..b.arg_len])) {
+                core.logInfo("layout: unknown layout '{s}'", .{b.arg[0..b.arg_len]});
+            }
+        },
     }
 }
 

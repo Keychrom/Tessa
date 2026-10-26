@@ -22,6 +22,7 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.border_width = 2;
     cfg.master_ratio = 0.58;
     cfg.layout_mode = .master;
+    for (&cfg.layout_by_ws) |*mode| mode.* = .master;
     cfg.autostart_panel = true;
     cfg.xwayland = true;
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
@@ -182,6 +183,7 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "reload")) return .reload;
     if (std.ascii.eqlIgnoreCase(name, "ratio")) return .ratio;
     if (std.ascii.eqlIgnoreCase(name, "toggle-layout")) return .toggle_layout;
+    if (std.ascii.eqlIgnoreCase(name, "set-layout")) return .set_layout;
     return .none;
 }
 
@@ -240,10 +242,20 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
         } else if (std.mem.eql(u8, key, "master_ratio")) {
             server.config.master_ratio = std.fmt.parseFloat(f32, value) catch server.config.master_ratio;
         } else if (std.mem.eql(u8, key, "layout")) {
-            if (std.ascii.eqlIgnoreCase(value, "mosaic") or std.ascii.eqlIgnoreCase(value, "spiral")) {
-                server.config.layout_mode = .mosaic;
-            } else if (std.ascii.eqlIgnoreCase(value, "master")) {
-                server.config.layout_mode = .master;
+            if (types.layoutFromName(value)) |mode| {
+                server.config.layout_mode = mode;
+            } else {
+                core.logInfo("config: unknown layout '{s}'", .{value});
+            }
+        } else if (std.mem.startsWith(u8, key, "layout_") and key.len == 8 and
+            key[7] >= '1' and key[7] <= '9')
+        {
+            const ws: usize = key[7] - '1';
+            if (types.layoutFromName(value)) |mode| {
+                server.config.layout_by_ws[ws] = mode;
+                server.config.layout_overrides[ws] = true;
+            } else {
+                core.logInfo("config: unknown layout '{s}'", .{value});
             }
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             server.config.autostart_panel = std.mem.eql(u8, value, "true") or
@@ -323,6 +335,12 @@ pub fn load(server: *Server) void {
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
+    var wi: usize = 0;
+    while (wi < types.WS_COUNT) : (wi += 1) {
+        if (!server.config.layout_overrides[wi]) {
+            server.config.layout_by_ws[wi] = server.config.layout_mode;
+        }
+    }
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
 
     core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d})", .{

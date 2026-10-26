@@ -20,6 +20,7 @@ fn usage() void {
         "  workspace <1-9> [output]      switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
+        "  layout [name]                 cycle or set the current workspace layout\n" ++
         "  status <id> <text>            set a bar status entry\n" ++
         "  status <id> --clear           remove a bar status entry\n" ++
         "  status <id> <text> --exec <command...>\n" ++
@@ -272,6 +273,15 @@ fn runWorkspace(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runLayout(args: []const []const u8) !void {
+    var line: [256]u8 = undefined;
+    const msg = if (args.len > 1)
+        std.fmt.bufPrint(&line, "CMD layout {s}\n", .{args[1]}) catch return error.LineTooLong
+    else
+        "CMD layout\n";
+    try sendCommand(msg);
+}
+
 fn runSpawn(args: []const []const u8) !void {
     if (args.len < 2) return error.BadArguments;
     var cmd_buf: [2048]u8 = undefined;
@@ -328,6 +338,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runSpawn(args)
     else if (std.mem.eql(u8, cmd, "launcher"))
         runLauncher(args)
+    else if (std.mem.eql(u8, cmd, "layout"))
+        runLayout(args)
     else if (std.mem.eql(u8, cmd, "status"))
         runStatus(args)
     else if (std.mem.eql(u8, cmd, "quit"))

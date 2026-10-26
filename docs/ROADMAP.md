@@ -57,7 +57,8 @@ a daily Japanese desktop, then by polish.
 - [ ] Rounded corners and blur via custom wlroots shaders.
 - [ ] Proper drop shadows.
 - [ ] Theme/config for bar height, margins, fonts, palette, wallpaper art.
-- [ ] More tiling layouts and per-workspace layout profiles.
+- [x] Grid and equal-column layouts, with per-workspace layout profiles and
+      runtime layout cycling.
 - [ ] Mosaic layout minimum-size handling and keyboard resize.
 - [x] Output mode/position/scale management via `wlr-output-management-v1` (`wlr-randr`).
 - [x] HiDPI-aware panel buffer scaling for integer output scales.

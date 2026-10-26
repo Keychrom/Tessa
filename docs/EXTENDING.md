@@ -26,6 +26,7 @@ tessa-ctl workspace 3                   # focused output
 tessa-ctl workspace 3 HEADLESS-2        # a specific output
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # query is optional
+tessa-ctl layout grid                   # set/cycle current workspace layout
 tessa-ctl dispatch reload               # any compositor command
 tessa-ctl quit
 ```
@@ -55,13 +56,13 @@ the panel reconstructs its entire bar from each snapshot. The most useful lines
 are:
 
 ```text
-OUT HEADLESS-1 3 1
+OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1
 ```
 
-`OUT` is `name workspace focused`. `WIN` fields are tab-separated: id,
+`OUT` is `name workspace focused layout`. `WIN` fields are tab-separated: id,
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output.
 `STATUS` is covered below.
 
@@ -90,7 +91,7 @@ names the window that lost focus.
 | `window-focus` | Window focus changes or clears | id, previous, ws, app, title, output |
 | `workspace-change` | An output changes workspace | ws, previous-ws, output |
 | `window-moved` | Window sent to another workspace | id, ws, previous-ws, app, title, output |
-| `layout-change` | Master/mosaic layout toggled | arg |
+| `layout-change` | Workspace layout changed | ws, output, arg |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
 | `output-added` | Output initialized | output, arg (geometry) |
