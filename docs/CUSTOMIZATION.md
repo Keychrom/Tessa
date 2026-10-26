@@ -83,6 +83,24 @@ Runtime layout choices are stored per output and workspace in `outputs.conf`.
 A config reload updates workspaces that have no runtime override. `layout_N`
 only seeds workspaces without a saved or runtime choice.
 
+`workspace-rule` overrides layout and spacing per workspace:
+
+```ini
+workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
+```
+
+| Clause | Meaning |
+| --- | --- |
+| `ws=1..9` | target workspace (required) |
+| `layout=master/mosaic/grid/columns` | initial layout seed |
+| `gaps=N` | gap between tiles on this workspace |
+| `outer-gaps=N` | outer gap on this workspace |
+| `master-ratio=0.15..0.9` | master-column width on this workspace |
+
+A runtime layout choice still wins over the seed and is persisted. The
+`Super+Ctrl+H/L` ratio binding adjusts the active workspace's ratio for the
+current session; config reload restores configured ratio values.
+
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.
@@ -137,7 +155,7 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 
 ## Planned customization work
 
-- Per-workspace and per-output layout/gap rules.
+- Per-output layout/gap rules (per-workspace rules are available now).
 - A long-lived external **layout helper** protocol: the compositor sends a
   window list and canvas, the helper returns rectangles. This enables custom
   tiling algorithms without a plugin ABI.

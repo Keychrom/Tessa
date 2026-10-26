@@ -556,6 +556,12 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {
         append(&buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
+        append(&buf, &off, "workspace_tuning {d} {d} {d} {d:.3}\n", .{
+            ws + 1,
+            cfg.ws_gaps[ws],
+            cfg.ws_outer_gaps[ws],
+            cfg.ws_master_ratio[ws],
+        });
     }
     append(&buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
     append(&buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});

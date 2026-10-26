@@ -26,8 +26,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   wlr-screencopy (grim works)
 - master/stack, Tessa "mosaic" spiral, grid, and equal-column layouts, with
   per-workspace layout profiles (`Super+T` cycles); configurable master count,
-  mosaic ratio/size, and grid columns; explicit runtime choices are restored on
-  restart, and config reload updates workspaces without a runtime override
+  mosaic ratio/size, grid columns, and per-workspace gaps/master ratio; explicit
+  runtime choices are restored on restart, and config reload updates workspaces
+  without a runtime override
 - declarative window rules matched by app-id/title/output, with floating,
   workspace, fullscreen, size, and position actions
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
@@ -422,6 +423,7 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `border_active` | focused border color (defaults to `accent`) |
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |
+| `workspace-rule` | per-workspace layout, gaps, and master ratio |
 
 Additional bindings use XKB keysym names:
 
@@ -459,6 +461,12 @@ window-rule = title=GIMP*; float=false
 Rules are applied when a window maps and re-evaluated on config reload. Run
 `tessa-ctl config` to inspect the effective values and parsed rules. See
 [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) for the complete reference.
+
+Per-workspace tuning uses the same `key=value; ...` style:
+
+```ini
+workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
+```
 
 ## How it works
 

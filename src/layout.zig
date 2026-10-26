@@ -537,9 +537,11 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
 
     if (tile_count > 0) {
         const cfg = &server.config;
+        const ws_idx = out.active_ws - 1;
         const border = cfg.border_width;
-        const outer = cfg.outer_gaps;
-        const gap = cfg.gaps;
+        const outer = cfg.ws_outer_gaps[ws_idx];
+        const gap = cfg.ws_gaps[ws_idx];
+        const master_ratio = cfg.ws_master_ratio[ws_idx];
 
         const ux = area.x + outer;
         const uy = area.y + outer;
@@ -552,7 +554,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
             } else {
                 const mode = out.ws_layouts[out.active_ws - 1];
                 switch (mode) {
-                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio, cfg.master_count),
+                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, cfg.master_count),
                     .mosaic => {
                         if (tile_count <= 8) {
                             arrangeMosaicTiles(
@@ -567,7 +569,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                                 cfg.mosaic_min_size,
                             );
                         } else {
-                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio, cfg.master_count);
+                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, cfg.master_count);
                         }
                     },
                     .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.grid_columns),
@@ -599,7 +601,7 @@ pub fn setProvisionalSize(client: *Client) void {
     if (area.width < 50 or area.height < 50) area = out.full;
     const cfg = &client.server.config;
     const b = cfg.border_width;
-    const outer = cfg.outer_gaps;
+    const outer = cfg.ws_outer_gaps[client.ws - 1];
     const w = @max(1, area.width - outer * 2 - b * 2);
     const h = @max(1, area.height - outer * 2 - b * 2);
     _ = c.wlr_xdg_toplevel_set_size(client.xdg, w, h);
@@ -977,7 +979,13 @@ pub fn toggleLayout(server: *Server) void {
 }
 
 pub fn adjustRatio(server: *Server, delta: f32) void {
-    server.config.master_ratio = std.math.clamp(server.config.master_ratio + delta, 0.15, 0.9);
+    const out = core.focusOutput(server) orelse return;
+    const ws = out.active_ws - 1;
+    server.config.ws_master_ratio[ws] = std.math.clamp(
+        server.config.ws_master_ratio[ws] + delta,
+        0.15,
+        0.9,
+    );
     arrangeAll(server);
     core.markDirty(server);
 }

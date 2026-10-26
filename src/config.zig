@@ -27,6 +27,12 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.mosaic_ratio = 0.62;
     cfg.mosaic_min_size = 160;
     cfg.grid_columns = 0;
+    var wi: usize = 0;
+    while (wi < types.WS_COUNT) : (wi += 1) {
+        cfg.ws_gaps[wi] = cfg.gaps;
+        cfg.ws_outer_gaps[wi] = cfg.outer_gaps;
+        cfg.ws_master_ratio[wi] = cfg.master_ratio;
+    }
     cfg.layout_mode = .master;
     for (&cfg.layout_by_ws) |*mode| mode.* = .master;
     cfg.autostart_panel = true;
@@ -320,6 +326,98 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
     cfg.rule_count += 1;
 }
 
+pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
+    var ws: ?usize = null;
+    var gaps: ?i32 = null;
+    var outer_gaps: ?i32 = null;
+    var master_ratio: ?f32 = null;
+    var layout_mode: ?types.LayoutMode = null;
+
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            core.logInfo("config: workspace-rule clause needs '=': '{s}'", .{clause});
+            return;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid workspace-rule clause '{s}'", .{clause});
+            return;
+        }
+
+        if (std.ascii.eqlIgnoreCase(key, "ws") or
+            std.ascii.eqlIgnoreCase(key, "workspace"))
+        {
+            const n = std.fmt.parseInt(usize, val, 10) catch {
+                core.logInfo("config: invalid workspace-rule workspace '{s}'", .{val});
+                return;
+            };
+            if (n < 1 or n > types.WS_COUNT) {
+                core.logInfo("config: workspace-rule workspace out of range: {d}", .{n});
+                return;
+            }
+            ws = n - 1;
+        } else if (std.ascii.eqlIgnoreCase(key, "gaps")) {
+            gaps = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid workspace-rule gaps '{s}'", .{val});
+                return;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "outer-gaps") or
+            std.ascii.eqlIgnoreCase(key, "outer_gaps"))
+        {
+            outer_gaps = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid workspace-rule outer-gaps '{s}'", .{val});
+                return;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "master-ratio") or
+            std.ascii.eqlIgnoreCase(key, "master_ratio"))
+        {
+            master_ratio = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid workspace-rule master-ratio '{s}'", .{val});
+                return;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "layout")) {
+            layout_mode = types.layoutFromName(val) orelse {
+                core.logInfo("config: unknown workspace-rule layout '{s}'", .{val});
+                return;
+            };
+        } else {
+            core.logInfo("config: unknown workspace-rule key '{s}'", .{key});
+            return;
+        }
+    }
+
+    const idx = ws orelse {
+        core.logInfo("config: workspace-rule needs ws=<1..9>", .{});
+        return;
+    };
+    if (gaps) |v| {
+        cfg.ws_gaps[idx] = v;
+        cfg.ws_gaps_set[idx] = true;
+    }
+    if (outer_gaps) |v| {
+        cfg.ws_outer_gaps[idx] = v;
+        cfg.ws_outer_set[idx] = true;
+    }
+    if (master_ratio) |v| {
+        cfg.ws_master_ratio[idx] = v;
+        cfg.ws_ratio_set[idx] = true;
+    }
+    if (layout_mode) |v| {
+        cfg.layout_by_ws[idx] = v;
+        cfg.layout_overrides[idx] = true;
+    }
+}
+
 fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "spawn") or std.ascii.eqlIgnoreCase(name, "exec")) return .spawn;
     if (std.ascii.eqlIgnoreCase(name, "terminal")) return .terminal;
@@ -454,6 +552,8 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
             core.copyString(&server.config.border_inactive, &server.config.border_inactive_len, value);
         } else if (std.mem.eql(u8, key, "window-rule") or std.mem.eql(u8, key, "window_rule")) {
             addRule(&server.config, value);
+        } else if (std.mem.eql(u8, key, "workspace-rule") or std.mem.eql(u8, key, "workspace_rule")) {
+            addWorkspaceRule(&server.config, value);
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
         } else if (std.mem.eql(u8, key, "output_config")) {
@@ -514,6 +614,13 @@ pub fn load(server: *Server) void {
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
+        if (!server.config.ws_gaps_set[wi]) server.config.ws_gaps[wi] = server.config.gaps;
+        if (!server.config.ws_outer_set[wi]) server.config.ws_outer_gaps[wi] = server.config.outer_gaps;
+        if (!server.config.ws_ratio_set[wi]) server.config.ws_master_ratio[wi] = server.config.master_ratio;
+        if (server.config.ws_gaps[wi] < 0) server.config.ws_gaps[wi] = 0;
+        if (server.config.ws_outer_gaps[wi] < 0) server.config.ws_outer_gaps[wi] = 0;
+        if (server.config.ws_master_ratio[wi] < 0.15) server.config.ws_master_ratio[wi] = 0.15;
+        if (server.config.ws_master_ratio[wi] > 0.9) server.config.ws_master_ratio[wi] = 0.9;
         if (!server.config.layout_overrides[wi]) {
             server.config.layout_by_ws[wi] = server.config.layout_mode;
         }

@@ -274,6 +274,9 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   saved or runtime override. A config reload updates every non-overridden
   workspace on existing outputs and preserves overridden ones. Each change
   emits `layout-change` with workspace and output fields.
+- Per-workspace `workspace-rule` entries supply gaps, outer gaps, and the
+  master ratio to `arrangeOutput`; runtime `Super+Ctrl+H/L` updates the active
+  workspace's ratio for the current session.
 - `rules.zig` evaluates declarative window rules after metadata is known at
   map time, and re-evaluates them for existing windows on config reload. Match
   fields are app-id, title, and output using a small `*`/`?` wildcard matcher;

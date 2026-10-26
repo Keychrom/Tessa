@@ -37,6 +37,10 @@ layout = master
 # window-rule = app-id=firefox; workspace=2
 # window-rule = title=GIMP*; float=false
 
+# Per-workspace layout/spacing overrides. Runtime layout choices still win over
+# the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
+# workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
+
 # Start tessa-panel together with the compositor.
 panel = true
 

@@ -35,6 +35,7 @@ xwayland = false
 layout = master
 master_count = 2
 grid_columns = 4
+workspace-rule = ws=1; gaps=0; outer-gaps=0; master-ratio=0.5
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -76,6 +77,9 @@ wait_state() {
 }
 
 wait_state "OUT HEADLESS-1 1 1 master"
+tessa-ctl config >"$runtime/config.out"
+grep -q "workspace_tuning 1 0 0 0.500" "$runtime/config.out"
+echo "workspace tuning config: ok"
 n=1
 while [ "$n" -le 8 ]; do
     tessa-ctl spawn foot -T "tile-$n"
@@ -155,6 +159,10 @@ END {
         printf "grid_columns=4 produced %d columns and %d rows\n", nx, ny > "/dev/stderr"
         exit 1
     }
+    if (x[1] != 0 || y[1] != 0) {
+        printf "workspace gaps/outer-gaps were not applied: first tile at %d,%d\n", x[1], y[1] > "/dev/stderr"
+        exit 1
+    }
 }' "$runtime/state"
 echo "configured grid columns: ok"
 
@@ -177,6 +185,10 @@ END {
     }
     if (!(x[1] == x[2] && w[1] == w[2] && y[1] != y[2] && x[3] > x[1])) {
         printf "master_count=2 did not stack the first two windows in the master column\n" > "/dev/stderr"
+        exit 1
+    }
+    if (!(x[1] == 0 && w[1] == 960 && y[2] == 540 && x[3] == 960)) {
+        printf "workspace master-ratio did not produce a 50%% master column\n" > "/dev/stderr"
         exit 1
     }
 }' "$runtime/state"

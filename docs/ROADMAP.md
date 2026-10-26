@@ -76,7 +76,8 @@ a daily Japanese desktop, then by polish.
 - [x] Layout tuning: master count, mosaic ratio/minimum, fixed grid columns.
 - [x] Active/inactive border colors.
 - [x] `tessa-ctl config` for effective configuration and parsed-rule inspection.
-- [ ] Per-workspace and per-output layout/gap rules.
+- [x] Per-workspace layout, gap, and master-ratio rules.
+- [ ] Per-output layout/gap rules.
 - [ ] A long-lived external layout-helper protocol with a timeout and built-in
       fallback.
 - [ ] Configurable animation/effect hooks.

@@ -204,8 +204,8 @@ tessa-ctl layout mosaic
 ウィンドウにフローティング、ワークスペース、フルスクリーン、サイズ、位置の
 ルールを適用します。`tessa-ctl config` を確認し、ルールファイルを書き換えて
 再読み込みした後、既存ウィンドウが再評価されることも検証します。
-`tests/layout-geometry.sh` は `master_count` と `grid_columns` の調整値も
-確認します。
+`tests/layout-geometry.sh` は `master_count`、`grid_columns`、ワークスペース別の
+隙間/マスター比率の調整値も確認します。
 
 ```sh
 sh tests/customization.sh
