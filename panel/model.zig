@@ -7,7 +7,6 @@ pub const MAX_OUTPUTS = 8;
 pub const MAX_RESULTS = 256;
 pub const MAX_STATUS = 8;
 pub const MAX_CUSTOM_APPS = 16;
-pub const BAR_HEIGHT = 44;
 
 pub const HitKind = enum { none, menu, workspace, window, app, status };
 
@@ -191,6 +190,11 @@ pub const Panel = struct {
 
     accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
+    panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    bar_height: i32 = 44,
+    bar_top_margin: i32 = 12,
+    bar_side_margin: i32 = 16,
     font: [64]u8 = undefined,
     font_len: usize = 0,
     terminal: [128]u8 = undefined,
@@ -307,6 +311,16 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             hexColor(val, &g.accent);
         } else if (std.mem.eql(u8, key, "bg")) {
             hexColor(val, &g.bg_rgb);
+        } else if (std.mem.eql(u8, key, "panel_bg")) {
+            hexColor(val, &g.panel_bg);
+        } else if (std.mem.eql(u8, key, "panel_fg")) {
+            hexColor(val, &g.panel_fg);
+        } else if (std.mem.eql(u8, key, "bar_height")) {
+            g.bar_height = std.fmt.parseInt(i32, val, 10) catch g.bar_height;
+        } else if (std.mem.eql(u8, key, "bar_top_margin")) {
+            g.bar_top_margin = std.fmt.parseInt(i32, val, 10) catch g.bar_top_margin;
+        } else if (std.mem.eql(u8, key, "bar_side_margin")) {
+            g.bar_side_margin = std.fmt.parseInt(i32, val, 10) catch g.bar_side_margin;
         } else if (std.mem.eql(u8, key, "launcher_entry")) {
             addCustomApp(val);
         }
@@ -318,6 +332,11 @@ pub fn loadConfig() void {
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.accent = .{ 0.886, 0.408, 0.31 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
+    g.panel_bg = .{ 0.055, 0.075, 0.115 };
+    g.panel_fg = .{ 0.93, 0.95, 0.98 };
+    g.bar_height = 44;
+    g.bar_top_margin = 12;
+    g.bar_side_margin = 16;
     g.custom_count = 0;
 
     var path_buf: [512]u8 = undefined;
@@ -330,6 +349,9 @@ pub fn loadConfig() void {
         path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
     }
     if (path.len > 0) loadConfigFile(path, 0);
+    g.bar_height = std.math.clamp(g.bar_height, 32, 96);
+    g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
+    g.bar_side_margin = std.math.clamp(g.bar_side_margin, 0, 128);
 }
 
 pub fn updateClock() bool {

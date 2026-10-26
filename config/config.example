@@ -51,6 +51,13 @@ layout = master
 
 # Start tessa-panel together with the compositor.
 panel = true
+# Panel geometry and bar palette. Changes apply on config reload by recreating
+# the bar layer surface.
+bar_height = 44
+bar_top_margin = 12
+bar_side_margin = 16
+panel_bg = #0e1320
+panel_fg = #eef2f8
 
 # Start xwayland-satellite for X11 applications and export DISPLAY.
 # "auto" picks the first free display (:0, :1, ...).

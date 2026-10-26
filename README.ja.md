@@ -37,6 +37,7 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
   リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット
 - 名前付き入力モードと、モード固有のキーバインド（`enter-mode`）
+- バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -75,7 +76,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
-`tests/json-ipc.sh`、`tests/modes.sh` で検証しています。
+`tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -119,6 +120,11 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
 - 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
+
+配布用パッケージ定義は `packaging/` と `debian/` にあります。
+`packaging/arch/PKGBUILD` と debhelper 用 `debian/` が、コンポジタ、パネル、
+CLI、セッションファイル、設定例をインストールします。詳細は
+[packaging/README.md](packaging/README.md) を参照してください。
 
 Ubuntu 26.04 の場合:
 
@@ -456,6 +462,11 @@ cp config/config.example ~/.config/tessa/config
 | `hook` | コンポジタイベントで実行するコマンド |
 | `launcher_entry` | ランチャー項目を追加（`名前 \| コマンド`） |
 | `output_config` | 出力モード/位置/スケール/変換とレイアウト上書きの保存先 |
+| `bar_height` | バーの高さ（32〜96 論理ピクセル） |
+| `bar_top_margin` | バーの上端からの距離（0〜64） |
+| `bar_side_margin` | バーの左右マージン（0〜128） |
+| `panel_bg` | バーの背景色 |
+| `panel_fg` | バーの主要テキスト色 |
 | `border_active` | フォーカス中ボーダー色（既定は `accent`） |
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |

@@ -513,12 +513,21 @@ pub fn drawBar(s: *m.Surface) void {
     const H: f64 = @floatFromInt(s.height);
     const cy = H / 2.0;
     const accent = g.accent;
+    const bg = g.panel_bg;
+    const fg = g.panel_fg;
+    const bar_top = [4]f64{
+        std.math.clamp(bg[0] + 0.030, 0, 1),
+        std.math.clamp(bg[1] + 0.040, 0, 1),
+        std.math.clamp(bg[2] + 0.055, 0, 1),
+        0.97,
+    };
+    const bar_bottom = [4]f64{ bg[0] * 0.62, bg[1] * 0.65, bg[2] * 0.70, 0.97 };
 
     g.bar_hit_count = 0;
 
-    fillRound(cr, 0, 0, W, H, 18, .{ 0.055, 0.075, 0.115, 0.96 });
+    fillRound(cr, 0, 0, W, H, 18, .{ bg[0], bg[1], bg[2], 0.96 });
     roundRect(cr, 0, 0, W, H, 18);
-    linearGradient(cr, 0, 0, 0, H, .{ 0.085, 0.115, 0.17, 0.97 }, .{ 0.035, 0.05, 0.08, 0.97 });
+    linearGradient(cr, 0, 0, 0, H, bar_top, bar_bottom);
     c.cairo_fill(cr);
 
     c.cairo_save(cr);
@@ -551,7 +560,7 @@ pub fn drawBar(s: *m.Surface) void {
 
     const word = "TESSA";
     const word_w = textWidth(cr, word, g.font[0..g.font_len], "Semi-Bold", 10.0, 1.8);
-    _ = drawTextCentered(cr, word, mark_x + 38, cy + 0.5, g.font[0..g.font_len], "Semi-Bold", 10.0, .{ 0.93, 0.95, 0.98, 0.92 }, 0, 1.8);
+    _ = drawTextCentered(cr, word, mark_x + 38, cy + 0.5, g.font[0..g.font_len], "Semi-Bold", 10.0, .{ fg[0], fg[1], fg[2], 0.92 }, 0, 1.8);
 
     const menu_end = mark_x + 38 + word_w + 8;
     addBarHit(mark_x, 4, menu_end - mark_x, H - 8, .{ .kind = .menu });
@@ -660,7 +669,7 @@ pub fn drawBar(s: *m.Surface) void {
     var right = W - 16.0;
     const time = std.mem.sliceTo(&g.clock_buf, 0);
     const tw = textWidth(cr, time, MONO, "Medium", 12.0, 0);
-    _ = drawTextCentered(cr, time, right - tw, cy + 0.3, MONO, "Medium", 12.0, .{ 0.94, 0.96, 0.99, 0.95 }, 0, 0);
+    _ = drawTextCentered(cr, time, right - tw, cy + 0.3, MONO, "Medium", 12.0, .{ fg[0], fg[1], fg[2], 0.95 }, 0, 0);
     right -= tw + 12.0;
 
     const date = std.mem.sliceTo(&g.date_buf, 0);

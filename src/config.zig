@@ -797,8 +797,14 @@ fn loadPath(
             } else {
                 addIssue(server, path, line_no, "hook needs an event and a command", .{});
             }
-        } else if (std.mem.eql(u8, key, "launcher_entry")) {
-            // The panel parses this key; the compositor only validates the file.
+        } else if (std.mem.eql(u8, key, "launcher_entry") or
+            std.mem.eql(u8, key, "panel_bg") or
+            std.mem.eql(u8, key, "panel_fg") or
+            std.mem.eql(u8, key, "bar_height") or
+            std.mem.eql(u8, key, "bar_top_margin") or
+            std.mem.eql(u8, key, "bar_side_margin"))
+        {
+            // The panel parses these keys; the compositor only validates the file.
         } else {
             addIssue(server, path, line_no, "unknown key '{s}'", .{key});
         }

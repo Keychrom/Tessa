@@ -250,6 +250,17 @@ sh tests/json-ipc.sh
 sh tests/modes.sh
 ```
 
+### パネルテーマのテスト
+
+`tests/panel-theme.sh` は実際のパネルをカスタムのバー高さ、マージン、配色で
+起動し、起動ログを確認します。その後ジオメトリを変更してリロードし、
+パネルを落とさずにバーの layer surface が新しいサイズで再作成されることを
+検証します。
+
+```sh
+sh tests/panel-theme.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

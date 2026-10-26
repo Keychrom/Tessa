@@ -95,8 +95,11 @@ bottom → background; exclusive surfaces first, then non-exclusive surfaces.
 `wlr_scene_layer_surface_v1_configure()` computes the surface box and shrinks
 the usable area.
 
-The panel bar is 44 px high, anchored to the top, with a 12 px top margin and a
-44 px exclusive zone. The tiling area therefore starts at 56 px plus the
+The panel bar defaults to 44 px high, anchored to the top, with a 12 px top
+margin and a 44 px exclusive zone. `bar_height`, `bar_top_margin`, and
+`bar_side_margin` change these values; a config reload recreates the bar layer
+surface when they change. The tiling area therefore starts at the bar top plus
+height plus the
 `outer_gaps` value.
 
 `arrangeLayers()` only reflows tiled clients when the usable area changes. It is
@@ -425,8 +428,9 @@ output.
 
 - **background**: layer background, anchors all edges, exclusive zone -1, empty
   input region. Draws the wallpaper once per configure.
-- **bar**: layer top, top/left/right anchors, 44 logical px high, 12/16 px
-  margins, exclusive zone 44. Hit rectangles for the menu, workspace pills,
+- **bar**: layer top, top/left/right anchors, configurable height
+  (`bar_height`, default 44), top/side margins, exclusive zone equal to the
+  height. A geometry change recreates this surface. Hit rectangles for the menu, workspace pills,
   window chips, and extension status pills are recomputed on each draw. The
   panel reloads its own config and rescan when it receives `config-reload`.
 - All panel surfaces use the target `wl_output` scale. Buffers are allocated at

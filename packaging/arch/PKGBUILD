@@ -1,0 +1,47 @@
+# Maintainer: Tessa contributors <maintainers@tessa.invalid>
+pkgname=tessa-git
+pkgver=r0
+pkgrel=1
+pkgdesc="A quiet tiled Wayland compositor and desktop shell written in Zig"
+arch=('x86_64')
+url="https://github.com/Keychrom/Tessa"
+license=('MIT')
+depends=('wlroots' 'wayland' 'libxkbcommon' 'pixman' 'cairo' 'pango')
+makedepends=('git' 'zig')
+optdepends=(
+    'xwayland-satellite: run X11 applications'
+    'foot: terminal'
+    'kitty: terminal'
+    'swaylock: session lock binding'
+)
+provides=('tessa')
+conflicts=('tessa')
+source=('git+https://github.com/Keychrom/Tessa.git')
+sha256sums=('SKIP')
+
+pkgver() {
+    cd Tessa
+    printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+    cd Tessa
+    zig build -Doptimize=ReleaseSafe --prefix "$srcdir/out"
+}
+
+package() {
+    cd Tessa
+    install -Dm755 "$srcdir/out/bin/tessa" "$pkgdir/usr/bin/tessa"
+    install -Dm755 "$srcdir/out/bin/tessa-panel" "$pkgdir/usr/bin/tessa-panel"
+    install -Dm755 "$srcdir/out/bin/tessa-ctl" "$pkgdir/usr/bin/tessa-ctl"
+    install -Dm755 scripts/tessa-session "$pkgdir/usr/bin/tessa-session"
+    install -Dm644 session/tessa.desktop \
+        "$pkgdir/usr/share/wayland-sessions/tessa.desktop"
+    install -Dm644 config/config.example "$pkgdir/usr/share/tessa/config.example"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/tessa/README.md"
+    install -Dm644 README.ja.md "$pkgdir/usr/share/doc/tessa/README.ja.md"
+    install -Dm644 docs/ARCHITECTURE.md "$pkgdir/usr/share/doc/tessa/ARCHITECTURE.md"
+    install -Dm644 docs/CUSTOMIZATION.md "$pkgdir/usr/share/doc/tessa/CUSTOMIZATION.md"
+    install -Dm644 docs/EXTENDING.md "$pkgdir/usr/share/doc/tessa/EXTENDING.md"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -15,7 +15,9 @@ a daily Japanese desktop, then by polish.
 - [x] Add a small integration test that starts the headless compositor and
       asserts state/IPC and extension hooks (`tests/smoke.sh`).
 - [x] Decide the license (MIT).
-- [ ] Package for Arch/Ubuntu and pin wlroots 0.19.
+- [x] Arch PKGBUILD and Debian packaging definitions, with wlroots 0.19
+      explicitly pinned by the build and package dependencies.
+- [ ] CI-built signed packages and release artifacts.
 
 ## 0.2 — input and apps
 
@@ -56,7 +58,8 @@ a daily Japanese desktop, then by polish.
       reduced-motion setting).
 - [ ] Rounded corners and blur via custom wlroots shaders.
 - [ ] Proper drop shadows.
-- [ ] Theme/config for bar height, margins, fonts, palette, wallpaper art.
+- [x] Theme/config for bar height, margins, fonts, and palette.
+- [ ] Configurable wallpaper art/gradients.
 - [x] Grid and equal-column layouts, with per-workspace layout profiles and
       runtime layout cycling.
 - [x] Mosaic minimum-size fallback and keyboard floating resize.

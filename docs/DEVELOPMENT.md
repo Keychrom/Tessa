@@ -271,6 +271,17 @@ default mode.
 sh tests/modes.sh
 ```
 
+### Panel theme test
+
+`tests/panel-theme.sh` starts the real panel with a custom bar height, margins,
+and palette, checks its startup log, changes the geometry, reloads, and verifies
+that the bar layer surface was recreated at the new size without killing the
+panel.
+
+```sh
+sh tests/panel-theme.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	zig build -Doptimize=ReleaseSafe
+
+override_dh_auto_clean:
+	rm -rf zig-out .zig-cache zig-cache
+
+override_dh_auto_install:
+	install -Dm755 zig-out/bin/tessa debian/tessa/usr/bin/tessa
+	install -Dm755 zig-out/bin/tessa-panel debian/tessa/usr/bin/tessa-panel
+	install -Dm755 zig-out/bin/tessa-ctl debian/tessa/usr/bin/tessa-ctl
+	install -Dm755 scripts/tessa-session debian/tessa/usr/bin/tessa-session
+	install -Dm644 session/tessa.desktop \
+		debian/tessa/usr/share/wayland-sessions/tessa.desktop
+	install -Dm644 config/config.example \
+		debian/tessa/usr/share/tessa/config.example
+
+.PHONY: override_dh_auto_build override_dh_auto_clean override_dh_auto_install

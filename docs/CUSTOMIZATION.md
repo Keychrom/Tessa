@@ -226,11 +226,16 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 | `border_inactive` | unfocused border color |
 | `border_width` | border thickness in logical pixels |
 | `font` | panel/launcher family |
+| `bar_height` | bar height in logical pixels (32–96) |
+| `bar_top_margin` | distance from the top edge (0–64) |
+| `bar_side_margin` | left/right margin (0–128) |
+| `panel_bg` | bar background color |
+| `panel_fg` | bar primary text color |
 
-The panel rereads `accent`, `bg`, `font`, and launcher entries when the
-compositor emits `config-reload`. Panel height, margins, and a fully separated
-theme file are planned so the shell can be themed independently of the
-compositor.
+The panel rereads the palette, launcher entries, and bar geometry when the
+compositor emits `config-reload`. A geometry change recreates the bar layer
+surface, so the reserved area follows immediately. A separately installed theme
+file and wallpaper-art controls are still planned.
 
 ## Keys and commands
 

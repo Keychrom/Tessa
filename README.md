@@ -36,6 +36,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - file/line config diagnostics, transactional reload, and versioned JSON
   state/config snapshots for external tools
 - named input modes with mode-specific key bindings and `enter-mode`
+- configurable bar height, top/side margins, and bar background/foreground colors
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -70,7 +71,8 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
-`tests/json-ipc.sh`, `tests/modes.sh`, and panel screenshots.
+`tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`, and panel
+screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -113,6 +115,11 @@ Requirements:
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
+
+Distribution packaging definitions live in `packaging/` and `debian/`:
+`packaging/arch/PKGBUILD` and the debhelper `debian/` tree both install the
+compositor, panel, CLI, session file, and example config. See
+[packaging/README.md](packaging/README.md).
 
 On Ubuntu 26.04:
 
@@ -436,6 +443,11 @@ diagnostics. Selected keys:
 | `hook` | run a command for a compositor event |
 | `launcher_entry` | extra launcher item (`Name \| command`) |
 | `output_config` | path for persisted output mode/position/scale/transform and layout overrides |
+| `bar_height` | panel bar height (32–96 logical pixels) |
+| `bar_top_margin` | panel distance from the top edge (0–64) |
+| `bar_side_margin` | panel left/right margin (0–128) |
+| `panel_bg` | panel bar background color |
+| `panel_fg` | panel bar primary text color |
 | `border_active` | focused border color (defaults to `accent`) |
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |

@@ -147,6 +147,50 @@ fn applyPanelScale(scale: i32) void {
     logMsg("output scale: {d}", .{scl});
 }
 
+fn createBar() void {
+    const created = createLayerSurface(
+        &g.bar,
+        g.target_output,
+        .bar,
+        @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
+        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+        0,
+        @intCast(g.bar_height),
+        g.bar_top_margin,
+        g.bar_side_margin,
+        0,
+        g.bar_side_margin,
+        g.bar_height,
+        0,
+        "tessa-bar",
+    );
+    if (created) {
+        logMsg("bar: {d}px top={d} side={d}", .{
+            g.bar_height,
+            g.bar_top_margin,
+            g.bar_side_margin,
+        });
+    }
+}
+
+fn destroyBar() void {
+    if (g.pointer_surface == &g.bar) g.pointer_surface = null;
+    draw.destroyBuffers(&g.bar);
+    if (g.bar.layer) |ls| {
+        g.bar.layer = null;
+        c.zwlr_layer_surface_v1_destroy(ls);
+    }
+    if (g.bar.wl) |wl| {
+        g.bar.wl = null;
+        c.wl_surface_destroy(wl);
+    }
+    g.bar.configured = false;
+    g.bar.width = 0;
+    g.bar.height = 0;
+    g.bar.dirty = true;
+    g.bar_hit_count = 0;
+}
+
 fn createChrome() void {
     _ = createLayerSurface(
         &g.bg,
@@ -164,23 +208,7 @@ fn createChrome() void {
         0,
         "tessa-background",
     );
-
-    _ = createLayerSurface(
-        &g.bar,
-        g.target_output,
-        .bar,
-        @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
-        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
-        0,
-        @intCast(m.BAR_HEIGHT),
-        12,
-        16,
-        0,
-        16,
-        @intCast(m.BAR_HEIGHT),
-        0,
-        "tessa-bar",
-    );
+    createBar();
 }
 
 fn computeSearchRect() void {
@@ -469,11 +497,21 @@ fn addCustomApps() void {
 }
 
 fn reloadPanelConfig() void {
+    const old_height = g.bar_height;
+    const old_top = g.bar_top_margin;
+    const old_side = g.bar_side_margin;
     m.loadConfig();
     apps.scan(&g.app_list);
     addCustomApps();
     m.recomputeResults();
-    g.bar.dirty = true;
+    if (g.bar_height != old_height or g.bar_top_margin != old_top or
+        g.bar_side_margin != old_side)
+    {
+        destroyBar();
+        createBar();
+    } else {
+        g.bar.dirty = true;
+    }
     g.bg.dirty = true;
     if (g.overlay) |ov| ov.dirty = true;
     logMsg("config reloaded ({d} launcher entries)", .{g.app_list.count});
