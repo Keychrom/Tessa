@@ -68,6 +68,21 @@ a daily Japanese desktop, then by polish.
 - [ ] Fractional desktop scaling and XWayland scaling.
 - [ ] Multi-monitor workspace pinning.
 
+## 0.5 — deep customization
+
+- [x] Declarative window rules (app-id/title/output patterns; float,
+      fullscreen, workspace, size, and position actions).
+- [x] Rule re-evaluation on config reload.
+- [x] Layout tuning: master count, mosaic ratio/minimum, fixed grid columns.
+- [x] Active/inactive border colors.
+- [x] `tessa-ctl config` for effective configuration and parsed-rule inspection.
+- [ ] Per-workspace and per-output layout/gap rules.
+- [ ] A long-lived external layout-helper protocol with a timeout and built-in
+      fallback.
+- [ ] Configurable animation/effect hooks.
+- [ ] Config validation with file/line diagnostics.
+- [ ] JSON state/config output and a documented schema version.
+
 ## 1.0 — stability
 
 - [ ] Config validation with useful errors.
@@ -79,7 +94,9 @@ a daily Japanese desktop, then by polish.
 
 ## Non-goals
 
-- A TypeScript/JS config runtime or a plugin VM. ShojiWM does that better.
+- Embedding a TypeScript/JS config runtime or a native plugin VM. Tessa's
+  answer to ShojiWM-style composition is declarative rules plus process
+  protocols, so extensions do not load code into the compositor.
 - Chasing every Hyprland effect/plugin. Tessa should stay a coherent, quiet
   desktop rather than a bag of effects.
 - A built-in terminal. Kitty/foot are better terminals than a rushed one, and

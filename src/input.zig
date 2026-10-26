@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const rules = @import("rules.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
@@ -298,8 +299,10 @@ pub fn reloadRuntime(server: *Server) void {
     const cfg = @import("config.zig");
     cfg.load(server);
     reloadKeymaps(server);
+    rules.applyAll(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);
+    layout.ensureVisibleFocus(server);
     events.emit(server, .{ .name = event_names.config_reload });
     core.markDirty(server);
     core.logInfo("config reloaded", .{});

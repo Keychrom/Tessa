@@ -15,12 +15,13 @@ fn usage() void {
     writeAll(1, "usage: tessa-ctl <command>\n" ++
         "\n" ++
         "  state                         print one state snapshot\n" ++
+        "  config                        print the effective configuration\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
         "  workspace <1-9> [output]      switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
-        "  layout [name]                 cycle or set the current workspace layout\n" ++
+        "  layout [name] [output]       cycle or set a workspace layout\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
         "  status <id> <text>            set a bar status entry\n" ++
         "  status <id> --clear           remove a bar status entry\n" ++
@@ -153,6 +154,21 @@ fn eventMatches(line: []const u8, filter: []const u8) bool {
     return std.mem.eql(u8, line[start..i], filter);
 }
 
+fn printConfig() !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "CMD config\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    var in_config = false;
+    while (try reader.next(&line_buf)) |line| {
+        if (std.mem.eql(u8, line, "CONFIG")) in_config = true;
+        if (in_config) writeLine(line);
+        if (in_config and std.mem.eql(u8, line, "END")) return;
+    }
+    return error.Closed;
+}
+
 fn printEvents(filter: []const u8) !void {
     const nl = [_]u8{10};
     while (true) {
@@ -276,7 +292,9 @@ fn runWorkspace(args: []const []const u8) !void {
 
 fn runLayout(args: []const []const u8) !void {
     var line: [256]u8 = undefined;
-    const msg = if (args.len > 1)
+    const msg = if (args.len > 2)
+        std.fmt.bufPrint(&line, "CMD layout {s} {s}\n", .{ args[1], args[2] }) catch return error.LineTooLong
+    else if (args.len > 1)
         std.fmt.bufPrint(&line, "CMD layout {s}\n", .{args[1]}) catch return error.LineTooLong
     else
         "CMD layout\n";
@@ -339,6 +357,8 @@ pub fn main(init: std.process.Init.Minimal) void {
 
     const result: anyerror!void = if (std.mem.eql(u8, cmd, "state"))
         printState()
+    else if (std.mem.eql(u8, cmd, "config"))
+        printConfig()
     else if (std.mem.eql(u8, cmd, "events"))
         printEvents(if (args.len > 1) args[1] else "")
     else if (std.mem.eql(u8, cmd, "dispatch"))

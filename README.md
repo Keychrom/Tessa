@@ -25,9 +25,11 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
 - master/stack, Tessa "mosaic" spiral, grid, and equal-column layouts, with
-  per-workspace layout profiles (`Super+T` cycles); explicit runtime choices
-  are restored on restart, and config reload updates workspaces without a
-  runtime override
+  per-workspace layout profiles (`Super+T` cycles); configurable master count,
+  mosaic ratio/size, and grid columns; explicit runtime choices are restored on
+  restart, and config reload updates workspaces without a runtime override
+- declarative window rules matched by app-id/title/output, with floating,
+  workspace, fullscreen, size, and position actions
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -60,8 +62,8 @@ output management were also verified. Event hooks, the event stream, custom
 status entries, custom launcher entries, config reload, per-workspace
 master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
-`tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`, and
-panel screenshots.
+`tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
+`tests/customization.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -323,6 +325,7 @@ exposes state snapshots, structured events, status entries, and commands:
 
 ```sh
 tessa-ctl state
+tessa-ctl config
 tessa-ctl events window-focus
 tessa-ctl status weather "Tokyo 18C"
 tessa-ctl dispatch reload
@@ -392,6 +395,10 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `outer_gaps` | gap around the tiling area |
 | `border_width` | active/inactive frame thickness |
 | `master_ratio` | master area ratio (0.15–0.9) |
+| `master_count` | windows stacked in the master column |
+| `mosaic_ratio` | slice ratio for mosaic (0.25–0.85) |
+| `mosaic_min_size` | minimum mosaic tile before falling back to grid |
+| `grid_columns` | fixed grid columns; `0` chooses `ceil(sqrt(n))` |
 | `layout` | default layout: `master`, `mosaic`, `grid`, or `columns` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `panel` | auto-start `tessa-panel` |
@@ -412,6 +419,9 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `hook` | run a command for a compositor event |
 | `launcher_entry` | extra launcher item (`Name \| command`) |
 | `output_config` | path for persisted output mode/position/scale/transform and layout overrides |
+| `border_active` | focused border color (defaults to `accent`) |
+| `border_inactive` | unfocused border color |
+| `window-rule` | declarative rule; see the customization guide |
 
 Additional bindings use XKB keysym names:
 
@@ -436,8 +446,24 @@ updates every workspace you have not overridden and leaves your runtime choices
 alone. `resize-width` and `resize-height` take a pixel delta and act on the focused
 floating window.
 
+Window rules are one line each. Match app-id, title, or output with `*`/`?`
+patterns and apply actions in order:
+
+```ini
+window-rule = app-id=pavucontrol; float=true
+window-rule = title=Picture-in-Picture; float=true; position=40,40
+window-rule = app-id=firefox; workspace=2
+window-rule = title=GIMP*; float=false
+```
+
+Rules are applied when a window maps and re-evaluated on config reload. Run
+`tessa-ctl config` to inspect the effective values and parsed rules. See
+[docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) for the complete reference.
+
 ## How it works
 
+- [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) — window rules, layout
+  tuning, appearance, and the customization model
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, scene graph, IPC,
   layer-shell sizing, panel rendering
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is missing and what comes next

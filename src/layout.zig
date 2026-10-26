@@ -76,9 +76,14 @@ pub fn raiseClient(client: *Client) void {
 }
 
 pub fn updateBorders(server: *Server) void {
-    const accent = server.config.accent_rgb;
-    const active = [4]f32{ accent[0], accent[1], accent[2], 1.0 };
-    const inactive = [4]f32{ 0.16, 0.20, 0.28, 1.0 };
+    const cfg = &server.config;
+    const active_rgb = if (cfg.border_active_len > 0) cfg.border_active_rgb else cfg.accent_rgb;
+    const inactive_rgb = if (cfg.border_inactive_len > 0)
+        cfg.border_inactive_rgb
+    else
+        [3]f32{ 0.16, 0.20, 0.28 };
+    const active = [4]f32{ active_rgb[0], active_rgb[1], active_rgb[2], 1.0 };
+    const inactive = [4]f32{ inactive_rgb[0], inactive_rgb[1], inactive_rgb[2], 1.0 };
 
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
@@ -167,6 +172,25 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         });
     }
     core.markDirty(server);
+}
+
+pub fn ensureVisibleFocus(server: *Server) void {
+    if (server.focused) |cl| {
+        if (cl.mapped and cl.ws == cl.output.active_ws) return;
+    }
+    focusClient(server, null);
+
+    const out = core.focusOutput(server) orelse return;
+    var target: ?*Client = null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
+            target = cl;
+            break;
+        }
+    }
+    focusClient(server, target);
 }
 
 pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
@@ -273,26 +297,51 @@ fn applyFullscreen(client: *Client, out: *Output) void {
     applyFrame(client, full.x, full.y, full.width, full.height, 0, false);
 }
 
-fn arrangeMasterTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32, ratio: f32) void {
-    const master_w: i32 = blk: {
+fn arrangeMasterTiles(
+    tiles: []const ?*Client,
+    ux: i32,
+    uy: i32,
+    uw: i32,
+    uh: i32,
+    border: i32,
+    gap: i32,
+    ratio: f32,
+    master_count: usize,
+) void {
+    const count = tiles.len;
+    var master_n = @min(master_count, count);
+    if (master_n < 1) master_n = 1;
+    const stack_n = count - master_n;
+
+    const master_w: i32 = if (stack_n == 0) uw else blk: {
         if (uw <= gap + 160) break :blk @divTrunc(uw - gap, 2);
         var w: i32 = @intFromFloat(@round(@as(f32, @floatFromInt(uw - gap)) * ratio));
         if (w < 100) w = 100;
         if (uw - gap - w < 100) w = @divTrunc(uw - gap, 2);
         break :blk w;
     };
+
+    const master_total = uh - gap * @as(i32, @intCast(master_n - 1));
+    const master_h: i32 = @divTrunc(master_total, @as(i32, @intCast(master_n)));
+    var my = uy;
+    var mi: usize = 0;
+    while (mi < master_n) : (mi += 1) {
+        var h = master_h;
+        if (mi == master_n - 1) h = uy + uh - my;
+        if (h < 1) h = 1;
+        applyFrame(tiles[mi].?, ux, my, master_w, h, border, true);
+        my += h + gap;
+    }
+
+    if (stack_n == 0) return;
     const stack_x = ux + master_w + gap;
     const stack_w = @max(1, uw - master_w - gap);
-    const stack_n = tiles.len - 1;
-
-    applyFrame(tiles[0].?, ux, uy, master_w, uh, border, true);
-
     const stack_total = uh - gap * @as(i32, @intCast(stack_n - 1));
     const each: i32 = @divTrunc(stack_total, @as(i32, @intCast(stack_n)));
     var sy = uy;
-    var i: usize = 1;
-    while (i < tiles.len) : (i += 1) {
-        const is_last = i == tiles.len - 1;
+    var i = master_n;
+    while (i < count) : (i += 1) {
+        const is_last = i == count - 1;
         var h = each;
         if (is_last) h = uy + uh - sy;
         if (h < 1) h = 1;
@@ -301,7 +350,7 @@ fn arrangeMasterTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
     }
 }
 
-fn mosaicCanFit(count: usize, uw: i32, uh: i32, gap: i32, min_size: i32) bool {
+fn mosaicCanFit(count: usize, uw: i32, uh: i32, gap: i32, ratio: f32, min_size: i32) bool {
     var rw = uw;
     var rh = uh;
     var dir: u2 = 0;
@@ -311,7 +360,7 @@ fn mosaicCanFit(count: usize, uw: i32, uh: i32, gap: i32, min_size: i32) bool {
         const horizontal = dir == 0 or dir == 2;
         const avail = if (horizontal) rw - gap else rh - gap;
         if (avail < min_size * 2) return false;
-        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * 0.62);
+        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * ratio);
         const slice = std.math.clamp(raw, min_size, avail - min_size);
         if (horizontal) {
             rw -= slice + gap;
@@ -323,10 +372,19 @@ fn mosaicCanFit(count: usize, uw: i32, uh: i32, gap: i32, min_size: i32) bool {
     return true;
 }
 
-fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
-    const min_size: i32 = 160;
-    if (!mosaicCanFit(tiles.len, uw, uh, gap, min_size)) {
-        arrangeGridTiles(tiles, ux, uy, uw, uh, border, gap);
+fn arrangeMosaicTiles(
+    tiles: []const ?*Client,
+    ux: i32,
+    uy: i32,
+    uw: i32,
+    uh: i32,
+    border: i32,
+    gap: i32,
+    ratio: f32,
+    min_size: i32,
+) void {
+    if (!mosaicCanFit(tiles.len, uw, uh, gap, ratio, min_size)) {
+        arrangeGridTiles(tiles, ux, uy, uw, uh, border, gap, 0);
         return;
     }
     var rx = ux;
@@ -344,17 +402,17 @@ fn arrangeMosaicTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i3
         // When a slice would leave less than a usable tile, stop spiraling
         // and divide the remaining rectangle with the grid layout.
         if (rw < min_size or rh < min_size) {
-            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap);
+            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap, 0);
             break;
         }
         const horizontal = dir == 0 or dir == 2;
         const avail = if (horizontal) rw - gap else rh - gap;
         if (avail < min_size * 2) {
-            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap);
+            arrangeGridTiles(tiles[i..], rx, ry, rw, rh, border, gap, 0);
             break;
         }
 
-        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * 0.62);
+        const raw: i32 = @intFromFloat(@as(f32, @floatFromInt(avail)) * ratio);
         const slice = std.math.clamp(raw, min_size, avail - min_size);
         if (horizontal) {
             if (dir == 0) {
@@ -396,10 +454,22 @@ pub fn applyConfigLayouts(server: *Server) void {
     }
 }
 
-fn arrangeGridTiles(tiles: []const ?*Client, ux: i32, uy: i32, uw: i32, uh: i32, border: i32, gap: i32) void {
+fn arrangeGridTiles(
+    tiles: []const ?*Client,
+    ux: i32,
+    uy: i32,
+    uw: i32,
+    uh: i32,
+    border: i32,
+    gap: i32,
+    fixed_columns: usize,
+) void {
     const count = tiles.len;
     const n: f64 = @floatFromInt(count);
-    var cols: usize = @intFromFloat(@ceil(@sqrt(n)));
+    var cols: usize = if (fixed_columns > 0)
+        fixed_columns
+    else
+        @intFromFloat(@ceil(@sqrt(n)));
     if (cols < 1) cols = 1;
     if (cols > count) cols = count;
     const rows = (count + cols - 1) / cols;
@@ -482,15 +552,25 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
             } else {
                 const mode = out.ws_layouts[out.active_ws - 1];
                 switch (mode) {
-                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio),
+                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio, cfg.master_count),
                     .mosaic => {
                         if (tile_count <= 8) {
-                            arrangeMosaicTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap);
+                            arrangeMosaicTiles(
+                                tiles[0..tile_count],
+                                ux,
+                                uy,
+                                uw,
+                                uh,
+                                border,
+                                gap,
+                                cfg.mosaic_ratio,
+                                cfg.mosaic_min_size,
+                            );
                         } else {
-                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio);
+                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.master_ratio, cfg.master_count);
                         }
                     },
-                    .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
+                    .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.grid_columns),
                     .columns => arrangeColumnsTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
                 }
             }

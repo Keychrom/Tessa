@@ -22,6 +22,21 @@ layout = master
 # layout_1 = grid
 # layout_2 = columns
 
+# Layout tuning. master_count stacks that many windows in the master column.
+# mosaic falls back to grid when a tile would be smaller than mosaic_min_size.
+# grid_columns = 0 chooses ceil(sqrt(window_count)).
+# master_count = 2
+# mosaic_ratio = 0.62
+# mosaic_min_size = 160
+# grid_columns = 0
+
+# Declarative window rules. Match app-id, title, and/or output; values support
+# shell-style * and ? patterns. Actions are separated by semicolons.
+# window-rule = app-id=pavucontrol; float=true
+# window-rule = title=Picture-in-Picture; float=true; position=40,40
+# window-rule = app-id=firefox; workspace=2
+# window-rule = title=GIMP*; float=false
+
 # Start tessa-panel together with the compositor.
 panel = true
 
@@ -49,6 +64,9 @@ repeat_delay = 600
 # The shell palette. Both the compositor borders and the panel use these.
 accent = #e2684f
 bg = #0a0f1a
+# Empty border_active uses accent.
+# border_active = #e2684f
+# border_inactive = #293347
 font = Inter
 
 # Run commands at startup, or react to compositor events.

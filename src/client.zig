@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -152,6 +153,7 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     client.mapped = true;
     client.announced = true;
     copyMeta(client);
+    rules.applyToClient(client);
     layout.arrangeAll(client.server);
     events.emit(client.server, .{
         .name = event_names.window_open,
@@ -332,7 +334,11 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.frame = c.wlr_scene_tree_create(server.tree_windows);
     client.frame.node.data = @ptrCast(client);
 
-    const inactive = [4]f32{ 0.16, 0.20, 0.28, 1.0 };
+    const inactive_rgb = if (server.config.border_inactive_len > 0)
+        server.config.border_inactive_rgb
+    else
+        [3]f32{ 0.16, 0.20, 0.28 };
+    const inactive = [4]f32{ inactive_rgb[0], inactive_rgb[1], inactive_rgb[2], 1.0 };
     client.border_rect = c.wlr_scene_rect_create(client.frame, 1, 1, &inactive);
 
     client.surface_tree = c.wlr_scene_xdg_surface_create(client.frame, tBase(xdg));

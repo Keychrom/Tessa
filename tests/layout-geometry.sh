@@ -33,6 +33,8 @@ cat > "$runtime/config" <<EOF
 panel = false
 xwayland = false
 layout = master
+master_count = 2
+grid_columns = 4
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -116,6 +118,70 @@ END {
 }' "$runtime/state"
 
 echo "mosaic minimum-size fallback: ok"
+
+tessa-ctl layout grid
+sleep 0.3
+state=$(tessa-ctl state)
+printf '%s\n' "$state" >"$runtime/state"
+awk -F '	' '
+$1 == "WIN" {
+    n++
+    x[n] = $10
+    y[n] = $11
+    w[n] = $12
+    h[n] = $13
+}
+END {
+    if (n != 8) {
+        printf "expected 8 grid windows, got %d\n", n > "/dev/stderr"
+        exit 1
+    }
+    for (i = 1; i <= n; i++) {
+        xs[x[i]] = 1
+        ys[y[i]] = 1
+        for (j = i + 1; j <= n; j++) {
+            if (x[i] < x[j] + w[j] && x[j] < x[i] + w[i] &&
+                y[i] < y[j] + h[j] && y[j] < y[i] + h[i]) {
+                printf "grid windows %d and %d overlap\n", i, j > "/dev/stderr"
+                exit 1
+            }
+        }
+    }
+    nx = 0
+    ny = 0
+    for (k in xs) nx++
+    for (k in ys) ny++
+    if (nx != 4 || ny != 2) {
+        printf "grid_columns=4 produced %d columns and %d rows\n", nx, ny > "/dev/stderr"
+        exit 1
+    }
+}' "$runtime/state"
+echo "configured grid columns: ok"
+
+tessa-ctl layout master
+sleep 0.3
+state=$(tessa-ctl state)
+printf '%s\n' "$state" >"$runtime/state"
+awk -F '	' '
+$1 == "WIN" {
+    n++
+    x[n] = $10
+    y[n] = $11
+    w[n] = $12
+    h[n] = $13
+}
+END {
+    if (n != 8) {
+        printf "expected 8 master windows, got %d\n", n > "/dev/stderr"
+        exit 1
+    }
+    if (!(x[1] == x[2] && w[1] == w[2] && y[1] != y[2] && x[3] > x[1])) {
+        printf "master_count=2 did not stack the first two windows in the master column\n" > "/dev/stderr"
+        exit 1
+    }
+}' "$runtime/state"
+echo "configured master count: ok"
+
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true
 tpid=

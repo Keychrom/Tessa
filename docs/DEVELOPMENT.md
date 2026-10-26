@@ -218,7 +218,19 @@ override. `Super+Alt+H/J/K/L` or `tessa-ctl resize <dx> <dy>` resizes the
 focused floating window, with a 160×120 minimum.
 
 `tests/layout-geometry.sh` spawns eight windows, selects mosaic, and verifies
-that no tiles overlap and every tile is at least 160×160.
+that no tiles overlap and every tile is at least 160×160. It also checks the
+configured `master_count` and `grid_columns` values.
+
+### Rules and customization test
+
+`tests/customization.sh` starts a private headless session, applies float,
+workspace, fullscreen, size, and position rules to `foot` windows, verifies
+`tessa-ctl config`, rewrites the rule file, reloads, and checks that existing
+windows are re-evaluated.
+
+```sh
+sh tests/customization.sh
+```
 
 ### Lock and idle test
 

@@ -20,6 +20,7 @@ they had run it in a terminal.
 
 ```sh
 tessa-ctl state                         # one snapshot
+tessa-ctl config                        # effective configuration + rules
 tessa-ctl events                        # stream all events
 tessa-ctl events window-focus           # stream one topic
 tessa-ctl workspace 3                   # focused output
@@ -28,6 +29,7 @@ tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # query is optional
 tessa-ctl layout grid                   # set/cycle current workspace layout
 tessa-ctl resize 40 30                  # grow the focused floating window
+tessa-ctl config                        # inspect parsed rules and tuning
 tessa-ctl dispatch reload               # any compositor command
 tessa-ctl quit
 ```
@@ -53,8 +55,9 @@ CMD state               # request one snapshot without subscribing
 ```
 
 Snapshots are line-oriented and end with `END`. `STATE` begins a new snapshot;
-the panel reconstructs its entire bar from each snapshot. The most useful lines
-are:
+the panel reconstructs its entire bar from each snapshot. `CONFIG` is a separate
+request/response snapshot used by `tessa-ctl config`; it contains effective
+settings and `rule <raw>` lines. The most useful state lines are:
 
 ```text
 OUT HEADLESS-1 3 1 grid

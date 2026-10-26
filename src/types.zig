@@ -10,6 +10,7 @@ pub const MAX_IPC = 8;
 pub const MAX_BINDINGS = 96;
 pub const MAX_HOOKS = 32;
 pub const MAX_STATUS = 8;
+pub const MAX_RULES = 64;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -101,6 +102,28 @@ pub const SavedLayout = struct {
 
 pub const MAX_SAVED_LAYOUTS = MAX_OUTPUTS * WS_COUNT;
 
+pub const RuleBool = enum { unset, on, off };
+
+pub const WindowRule = struct {
+    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw_len: usize = 0,
+    app_id: [MAX_APP_ID]u8 = [_]u8{0} ** MAX_APP_ID,
+    app_id_len: usize = 0,
+    title: [MAX_TITLE]u8 = [_]u8{0} ** MAX_TITLE,
+    title_len: usize = 0,
+    output: [64]u8 = [_]u8{0} ** 64,
+    output_len: usize = 0,
+    workspace: usize = 0,
+    floating: RuleBool = .unset,
+    fullscreen: RuleBool = .unset,
+    has_size: bool = false,
+    width: i32 = 0,
+    height: i32 = 0,
+    has_position: bool = false,
+    x: i32 = 0,
+    y: i32 = 0,
+};
+
 pub const Hook = struct {
     event: [32]u8,
     event_len: usize,
@@ -124,6 +147,10 @@ pub const Config = struct {
     outer_gaps: i32,
     border_width: i32,
     master_ratio: f32,
+    master_count: usize,
+    mosaic_ratio: f32,
+    mosaic_min_size: i32,
+    grid_columns: usize,
     layout_mode: LayoutMode,
     layout_by_ws: [WS_COUNT]LayoutMode,
     layout_overrides: [WS_COUNT]bool,
@@ -148,6 +175,12 @@ pub const Config = struct {
     accent_rgb: [3]f32,
     bg: [16]u8,
     bg_len: usize,
+    border_active: [16]u8,
+    border_active_len: usize,
+    border_active_rgb: [3]f32,
+    border_inactive: [16]u8,
+    border_inactive_len: usize,
+    border_inactive_rgb: [3]f32,
     font: [64]u8,
     font_len: usize,
     output_config: [512]u8,
@@ -156,6 +189,8 @@ pub const Config = struct {
     binding_count: usize,
     hooks: [MAX_HOOKS]Hook,
     hook_count: usize,
+    rules: [MAX_RULES]WindowRule,
+    rule_count: usize,
 };
 
 pub const Output = struct {

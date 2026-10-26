@@ -20,6 +20,7 @@ Tessa はプラグイン VM や JavaScript 設定ランタイムを意図的に�
 
 ```sh
 tessa-ctl state                         # スナップショットを 1 回表示
+tessa-ctl config                        # 実効設定とルールを表示
 tessa-ctl events                        # 全イベントを購読
 tessa-ctl events window-focus           # 1 トピックだけ購読
 tessa-ctl workspace 3                   # フォーカス中の出力
@@ -28,6 +29,7 @@ tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # クエリは省略可能
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
 tessa-ctl resize 40 30                  # フォーカス中のフローティングウィンドウを拡大
+tessa-ctl config                        # 解析済みルールと調整値を確認
 tessa-ctl dispatch reload               # 任意のコンポジタコマンド
 tessa-ctl quit
 ```
@@ -53,7 +55,9 @@ CMD state               # 購読せずスナップショットを要求
 ```
 
 スナップショットは行指向で、`END` で終わります。`STATE` から新しい
-スナップショットが始まり、パネルは毎回バー全体を再構築します。主な行:
+スナップショットが始まり、パネルは毎回バー全体を再構築します。`CONFIG` は
+`tessa-ctl config` が使う別の要求/応答スナップショットで、実効設定と
+`rule <raw>` 行を含みます。主な状態行:
 
 ```text
 OUT HEADLESS-1 3 1 grid

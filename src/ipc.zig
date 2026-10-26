@@ -402,6 +402,8 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             layout.keyboardResize(server, dx, dy);
             broadcastState(server);
         }
+    } else if (std.mem.eql(u8, cmd, "config")) {
+        sendConfig(server, cl);
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -532,6 +534,62 @@ fn buildState(server: *Server, buf: []u8) usize {
 
     append(buf, &off, "END\n", .{});
     return off;
+}
+
+fn sendConfig(server: *Server, cl: *IpcClient) void {
+    var buf: [65536]u8 = undefined;
+    var off: usize = 0;
+    const cfg = &server.config;
+    append(&buf, &off, "CONFIG\n", .{});
+    append(&buf, &off, "terminal {s}\n", .{cfg.terminal[0..cfg.terminal_len]});
+    append(&buf, &off, "gaps {d}\n", .{cfg.gaps});
+    append(&buf, &off, "outer_gaps {d}\n", .{cfg.outer_gaps});
+    append(&buf, &off, "border_width {d}\n", .{cfg.border_width});
+    append(&buf, &off, "border_active {s}\n", .{cfg.border_active[0..cfg.border_active_len]});
+    append(&buf, &off, "border_inactive {s}\n", .{cfg.border_inactive[0..cfg.border_inactive_len]});
+    append(&buf, &off, "master_ratio {d:.3}\n", .{cfg.master_ratio});
+    append(&buf, &off, "master_count {d}\n", .{cfg.master_count});
+    append(&buf, &off, "mosaic_ratio {d:.3}\n", .{cfg.mosaic_ratio});
+    append(&buf, &off, "mosaic_min_size {d}\n", .{cfg.mosaic_min_size});
+    append(&buf, &off, "grid_columns {d}\n", .{cfg.grid_columns});
+    append(&buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
+    var ws: usize = 0;
+    while (ws < types.WS_COUNT) : (ws += 1) {
+        append(&buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
+    }
+    append(&buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
+    append(&buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});
+    append(&buf, &off, "xwayland_display {s}\n", .{cfg.xwayland_display[0..cfg.xwayland_display_len]});
+    append(&buf, &off, "kb_layout {s}\n", .{cfg.kb_layout[0..cfg.kb_layout_len]});
+    append(&buf, &off, "kb_variant {s}\n", .{cfg.kb_variant[0..cfg.kb_variant_len]});
+    append(&buf, &off, "kb_options {s}\n", .{cfg.kb_options[0..cfg.kb_options_len]});
+    append(&buf, &off, "kb_model {s}\n", .{cfg.kb_model[0..cfg.kb_model_len]});
+    append(&buf, &off, "kb_rules {s}\n", .{cfg.kb_rules[0..cfg.kb_rules_len]});
+    append(&buf, &off, "repeat_rate {d}\n", .{cfg.repeat_rate});
+    append(&buf, &off, "repeat_delay {d}\n", .{cfg.repeat_delay});
+    append(&buf, &off, "font {s}\n", .{cfg.font[0..cfg.font_len]});
+    append(&buf, &off, "accent {s}\n", .{cfg.accent[0..cfg.accent_len]});
+    append(&buf, &off, "bg {s}\n", .{cfg.bg[0..cfg.bg_len]});
+    append(&buf, &off, "output_config {s}\n", .{cfg.output_config[0..cfg.output_config_len]});
+    append(&buf, &off, "binding_count {d}\n", .{cfg.binding_count});
+    append(&buf, &off, "hook_count {d}\n", .{cfg.hook_count});
+    append(&buf, &off, "rule_count {d}\n", .{cfg.rule_count});
+    var hi: usize = 0;
+    while (hi < cfg.hook_count) : (hi += 1) {
+        const hook = &cfg.hooks[hi];
+        var command_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        const command = escape(&command_buf, hook.command[0..hook.command_len]);
+        append(&buf, &off, "hook {s} {s}\n", .{ hook.event[0..hook.event_len], command });
+    }
+    var i: usize = 0;
+    while (i < cfg.rule_count) : (i += 1) {
+        const rule = &cfg.rules[i];
+        var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
+        append(&buf, &off, "rule {s}\n", .{raw});
+    }
+    append(&buf, &off, "END\n", .{});
+    sendRaw(cl, buf[0..off]);
 }
 
 pub fn broadcastState(server: *Server) void {

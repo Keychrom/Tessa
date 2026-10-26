@@ -198,6 +198,20 @@ tessa-ctl layout mosaic
 `tessa-ctl resize <dx> <dy>` でフォーカス中のフローティングウィンドウを
 最小 160×120 でリサイズできます。
 
+### ルールとカスタマイズのテスト
+
+`tests/customization.sh` は専用の headless セッションを起動し、`foot` の
+ウィンドウにフローティング、ワークスペース、フルスクリーン、サイズ、位置の
+ルールを適用します。`tessa-ctl config` を確認し、ルールファイルを書き換えて
+再読み込みした後、既存ウィンドウが再評価されることも検証します。
+`tests/layout-geometry.sh` は `master_count` と `grid_columns` の調整値も
+確認します。
+
+```sh
+sh tests/customization.sh
+sh tests/layout-geometry.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

@@ -26,9 +26,12 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   （クリップボード）、xdg-activation、xdg-decoration、cursor-shape-v1、
   wlr-screencopy（grim が動作）
 - マスター/スタック、Tessa 独自の「モザイク」スパイラル、グリッド、
-  等幅カラムの各レイアウト。ワークスペースごとのレイアウト設定にも対応
-  （`Super+T` で巡回）。実行中に選んだレイアウトは再起動後も復元され、
-  設定の再読み込みは上書きしていないワークスペースだけを更新
+  等幅カラムの各レイアウト。ワークスペースごとのレイアウト設定、マスター
+  列の数、モザイク比率/最小サイズ、グリッド列数も設定可能（`Super+T` で
+  巡回）。実行中に選んだレイアウトは再起動後も復元され、設定の再読み込みは
+  上書きしていないワークスペースだけを更新
+- app-id/タイトル/出力でマッチする宣言的ウィンドウルール。フローティング、
+  ワークスペース、フルスクリーン、サイズ、位置を指定可能
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -65,8 +68,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/smoke.sh`、`tests/output-persistence.sh`、パネルのスクリーンショットで
 確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
-`tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`
-で検証しています。
+`tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
+`tests/customization.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -339,6 +342,7 @@ Tessa はプラグイン VM を埋め込みません。拡張はコンポジタ�
 
 ```sh
 tessa-ctl state
+tessa-ctl config
 tessa-ctl events window-focus
 tessa-ctl status weather "Tokyo 18C"
 tessa-ctl layout grid
@@ -413,6 +417,10 @@ cp config/config.example ~/.config/tessa/config
 | `outer_gaps` | タイル領域の外周の隙間 |
 | `border_width` | アクティブ/非アクティブの枠の太さ |
 | `master_ratio` | マスター領域の比率（0.15–0.9） |
+| `master_count` | マスター列に縦積みするウィンドウ数 |
+| `mosaic_ratio` | モザイクのスライス比率（0.25–0.85） |
+| `mosaic_min_size` | グリッドへ切り替える前の最小モザイクタイル |
+| `grid_columns` | グリッドの固定列数。`0` は `ceil(sqrt(n))` |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
 | `panel` | `tessa-panel` を自動起動 |
@@ -433,6 +441,9 @@ cp config/config.example ~/.config/tessa/config
 | `hook` | コンポジタイベントで実行するコマンド |
 | `launcher_entry` | ランチャー項目を追加（`名前 \| コマンド`） |
 | `output_config` | 出力モード/位置/スケール/変換とレイアウト上書きの保存先 |
+| `border_active` | フォーカス中ボーダー色（既定は `accent`） |
+| `border_inactive` | 非フォーカス時ボーダー色 |
+| `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |
 
 追加のバインドには XKB keysym 名を使います:
 
@@ -458,8 +469,24 @@ bind = SUPER+ctrl+h ratio -0.03
 `resize-width` と `resize-height` はフォーカス中のフローティングウィンドウを
 ピクセル単位の差分でリサイズします。
 
+ウィンドウルールは 1 行 1 ルールです。app-id、タイトル、出力を `*`/`?` の
+パターンでマッチし、アクションを順に適用します。
+
+```ini
+window-rule = app-id=pavucontrol; float=true
+window-rule = title=Picture-in-Picture; float=true; position=40,40
+window-rule = app-id=firefox; workspace=2
+window-rule = title=GIMP*; float=false
+```
+
+ルールはウィンドウのマップ時と設定再読み込み時に評価されます。
+`tessa-ctl config` で実効設定と解析済みルールを確認できます。完全な
+リファレンスは [docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) にあります。
+
 ## 仕組み
 
+- [docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) — ウィンドウルール、
+  レイアウト調整、外観、カスタマイズモデル
 - [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) — コンポーネント、
   シーングラフ、IPC、layer-shell のサイズ計算、パネル描画
 - [docs/ROADMAP.ja.md](docs/ROADMAP.ja.md) — 未実装の機能と今後の予定

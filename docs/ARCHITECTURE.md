@@ -13,7 +13,8 @@ Tessa is three programs:
 
 They communicate over a Unix stream socket. Keeping the shell in a separate
 process means a panel crash does not take down the compositor, and it keeps all
-text/font/UI code out of the compositor's hot path.
+text/font/UI code out of the compositor's hot path. The customization model and
+its configuration reference are in [CUSTOMIZATION.md](CUSTOMIZATION.md).
 
 ## Process and protocol map
 
@@ -273,6 +274,13 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   saved or runtime override. A config reload updates every non-overridden
   workspace on existing outputs and preserves overridden ones. Each change
   emits `layout-change` with workspace and output fields.
+- `rules.zig` evaluates declarative window rules after metadata is known at
+  map time, and re-evaluates them for existing windows on config reload. Match
+  fields are app-id, title, and output using a small `*`/`?` wildcard matcher;
+  actions set floating/fullscreen state, workspace, and floating geometry. A
+  rule-driven move updates the per-workspace focus history, and the reload path
+  calls `ensureVisibleFocus` after arranging so keyboard focus cannot remain on
+  a hidden window.
 - Workspaces are 1–9. A workspace's windows are hidden by disabling the frame
   scene node; hidden workspaces still report occupancy to the panel.
 - Tiled and floating clients stay assigned to the output they were opened on.
@@ -335,11 +343,16 @@ CMD spawn <shell command>
 CMD launcher [query]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
+CMD config
 CMD reload
 CMD float <id>
 CMD status <id> <text>            (tab-separated form supports --exec)
 CMD quit
 ```
+
+`CMD config` replies with a `CONFIG` marker, one `key value` line per
+effective setting, one `rule <raw>` line per parsed window rule, and `END`. It is
+what `tessa-ctl config` prints and is intended for control panels and debugging.
 
 `CMD workspace <n> <output>` changes the workspace on a specific monitor; the
 compositor's keyboard bindings use the focused output when the output is

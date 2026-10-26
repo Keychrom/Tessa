@@ -15,12 +15,18 @@ pub fn initDefaults(cfg: *Config) void {
     copyDefault(&cfg.terminal, &cfg.terminal_len, "kitty");
     copyDefault(&cfg.accent, &cfg.accent_len, "#e2684f");
     copyDefault(&cfg.bg, &cfg.bg_len, "#0a0f1a");
+    copyDefault(&cfg.border_inactive, &cfg.border_inactive_len, "#293347");
+    core.parseHexColor(cfg.border_inactive[0..cfg.border_inactive_len], &cfg.border_inactive_rgb);
     copyDefault(&cfg.font, &cfg.font_len, "Inter");
 
     cfg.gaps = 10;
     cfg.outer_gaps = 16;
     cfg.border_width = 2;
     cfg.master_ratio = 0.58;
+    cfg.master_count = 1;
+    cfg.mosaic_ratio = 0.62;
+    cfg.mosaic_min_size = 160;
+    cfg.grid_columns = 0;
     cfg.layout_mode = .master;
     for (&cfg.layout_by_ws) |*mode| mode.* = .master;
     cfg.autostart_panel = true;
@@ -173,6 +179,147 @@ pub fn addHook(cfg: *Config, event: []const u8, command: []const u8) void {
     cfg.hook_count += 1;
 }
 
+fn parseRuleBool(value: []const u8) ?bool {
+    if (std.ascii.eqlIgnoreCase(value, "true") or
+        std.ascii.eqlIgnoreCase(value, "on") or
+        std.ascii.eqlIgnoreCase(value, "yes") or
+        std.mem.eql(u8, value, "1")) return true;
+    if (std.ascii.eqlIgnoreCase(value, "false") or
+        std.ascii.eqlIgnoreCase(value, "off") or
+        std.ascii.eqlIgnoreCase(value, "no") or
+        std.mem.eql(u8, value, "0")) return false;
+    return null;
+}
+
+pub fn addRule(cfg: *Config, value: []const u8) void {
+    if (cfg.rule_count >= cfg.rules.len) {
+        core.logInfo("config: too many window rules (max {d})", .{cfg.rules.len});
+        return;
+    }
+
+    var rule = types.WindowRule{};
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    var clauses_seen: usize = 0;
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            core.logInfo("config: window-rule clause needs '=': '{s}'", .{clause});
+            return;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid window-rule clause '{s}'", .{clause});
+            return;
+        }
+        clauses_seen += 1;
+
+        if (std.ascii.eqlIgnoreCase(key, "app-id") or
+            std.ascii.eqlIgnoreCase(key, "app_id") or
+            std.ascii.eqlIgnoreCase(key, "class"))
+        {
+            core.copyString(&rule.app_id, &rule.app_id_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "title")) {
+            core.copyString(&rule.title, &rule.title_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "output") or
+            std.ascii.eqlIgnoreCase(key, "monitor"))
+        {
+            core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "workspace") or
+            std.ascii.eqlIgnoreCase(key, "ws"))
+        {
+            const ws = std.fmt.parseInt(usize, val, 10) catch {
+                core.logInfo("config: invalid rule workspace '{s}'", .{val});
+                return;
+            };
+            if (ws < 1 or ws > types.WS_COUNT) {
+                core.logInfo("config: rule workspace out of range: {d}", .{ws});
+                return;
+            }
+            rule.workspace = ws;
+        } else if (std.ascii.eqlIgnoreCase(key, "float") or
+            std.ascii.eqlIgnoreCase(key, "floating"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule float value '{s}'", .{val});
+                return;
+            };
+            rule.floating = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "tile")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule tile value '{s}'", .{val});
+                return;
+            };
+            rule.floating = if (on) .off else .on;
+        } else if (std.ascii.eqlIgnoreCase(key, "fullscreen")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule fullscreen value '{s}'", .{val});
+                return;
+            };
+            rule.fullscreen = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "size")) {
+            const sep = std.mem.indexOfAny(u8, val, "xX") orelse {
+                core.logInfo("config: rule size needs WxH: '{s}'", .{val});
+                return;
+            };
+            const w = std.fmt.parseInt(i32, std.mem.trim(u8, val[0..sep], " \t"), 10) catch 0;
+            const h = std.fmt.parseInt(i32, std.mem.trim(u8, val[sep + 1 ..], " \t"), 10) catch 0;
+            if (w <= 0 or h <= 0) {
+                core.logInfo("config: invalid rule size '{s}'", .{val});
+                return;
+            }
+            rule.has_size = true;
+            rule.width = w;
+            rule.height = h;
+        } else if (std.ascii.eqlIgnoreCase(key, "width")) {
+            const w = std.fmt.parseInt(i32, val, 10) catch 0;
+            if (w <= 0) {
+                core.logInfo("config: invalid rule width '{s}'", .{val});
+                return;
+            }
+            rule.has_size = true;
+            rule.width = w;
+            if (rule.height <= 0) rule.height = 1;
+        } else if (std.ascii.eqlIgnoreCase(key, "height")) {
+            const h = std.fmt.parseInt(i32, val, 10) catch 0;
+            if (h <= 0) {
+                core.logInfo("config: invalid rule height '{s}'", .{val});
+                return;
+            }
+            rule.has_size = true;
+            rule.height = h;
+            if (rule.width <= 0) rule.width = 1;
+        } else if (std.ascii.eqlIgnoreCase(key, "position") or
+            std.ascii.eqlIgnoreCase(key, "pos"))
+        {
+            const sep = std.mem.indexOfScalar(u8, val, ',') orelse {
+                core.logInfo("config: rule position needs X,Y: '{s}'", .{val});
+                return;
+            };
+            const x = std.fmt.parseInt(i32, std.mem.trim(u8, val[0..sep], " \t"), 10) catch 0;
+            const y = std.fmt.parseInt(i32, std.mem.trim(u8, val[sep + 1 ..], " \t"), 10) catch 0;
+            rule.has_position = true;
+            rule.x = x;
+            rule.y = y;
+        } else {
+            core.logInfo("config: unknown window-rule key '{s}'", .{key});
+            return;
+        }
+    }
+
+    if (clauses_seen == 0) return;
+    core.copyString(&rule.raw, &rule.raw_len, value);
+    cfg.rules[cfg.rule_count] = rule;
+    cfg.rule_count += 1;
+}
+
 fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "spawn") or std.ascii.eqlIgnoreCase(name, "exec")) return .spawn;
     if (std.ascii.eqlIgnoreCase(name, "terminal")) return .terminal;
@@ -250,6 +397,14 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
             server.config.border_width = std.fmt.parseInt(i32, value, 10) catch server.config.border_width;
         } else if (std.mem.eql(u8, key, "master_ratio")) {
             server.config.master_ratio = std.fmt.parseFloat(f32, value) catch server.config.master_ratio;
+        } else if (std.mem.eql(u8, key, "master_count")) {
+            server.config.master_count = std.fmt.parseInt(usize, value, 10) catch server.config.master_count;
+        } else if (std.mem.eql(u8, key, "mosaic_ratio")) {
+            server.config.mosaic_ratio = std.fmt.parseFloat(f32, value) catch server.config.mosaic_ratio;
+        } else if (std.mem.eql(u8, key, "mosaic_min_size")) {
+            server.config.mosaic_min_size = std.fmt.parseInt(i32, value, 10) catch server.config.mosaic_min_size;
+        } else if (std.mem.eql(u8, key, "grid_columns")) {
+            server.config.grid_columns = std.fmt.parseInt(usize, value, 10) catch server.config.grid_columns;
         } else if (std.mem.eql(u8, key, "layout")) {
             if (types.layoutFromName(value)) |mode| {
                 server.config.layout_mode = mode;
@@ -293,6 +448,12 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
             core.copyString(&server.config.accent, &server.config.accent_len, value);
         } else if (std.mem.eql(u8, key, "bg")) {
             core.copyString(&server.config.bg, &server.config.bg_len, value);
+        } else if (std.mem.eql(u8, key, "border_active") or std.mem.eql(u8, key, "active_border")) {
+            core.copyString(&server.config.border_active, &server.config.border_active_len, value);
+        } else if (std.mem.eql(u8, key, "border_inactive") or std.mem.eql(u8, key, "inactive_border")) {
+            core.copyString(&server.config.border_inactive, &server.config.border_inactive_len, value);
+        } else if (std.mem.eql(u8, key, "window-rule") or std.mem.eql(u8, key, "window_rule")) {
+            addRule(&server.config, value);
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
         } else if (std.mem.eql(u8, key, "output_config")) {
@@ -341,6 +502,13 @@ pub fn load(server: *Server) void {
     if (server.config.border_width > 16) server.config.border_width = 16;
     if (server.config.master_ratio < 0.15) server.config.master_ratio = 0.15;
     if (server.config.master_ratio > 0.9) server.config.master_ratio = 0.9;
+    if (server.config.master_count < 1) server.config.master_count = 1;
+    if (server.config.master_count > 8) server.config.master_count = 8;
+    if (server.config.mosaic_ratio < 0.25) server.config.mosaic_ratio = 0.25;
+    if (server.config.mosaic_ratio > 0.85) server.config.mosaic_ratio = 0.85;
+    if (server.config.mosaic_min_size < 80) server.config.mosaic_min_size = 80;
+    if (server.config.mosaic_min_size > 600) server.config.mosaic_min_size = 600;
+    if (server.config.grid_columns > 8) server.config.grid_columns = 8;
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
@@ -351,11 +519,18 @@ pub fn load(server: *Server) void {
         }
     }
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
+    if (server.config.border_active_len > 0) {
+        core.parseHexColor(server.config.border_active[0..server.config.border_active_len], &server.config.border_active_rgb);
+    }
+    if (server.config.border_inactive_len > 0) {
+        core.parseHexColor(server.config.border_inactive[0..server.config.border_inactive_len], &server.config.border_inactive_rgb);
+    }
 
-    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d})", .{
+    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d})", .{
         if (path.len > 0) path else "defaults",
         server.config.terminal[0..server.config.terminal_len],
         server.config.binding_count,
         server.config.hook_count,
+        server.config.rule_count,
     });
 }
