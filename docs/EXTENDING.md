@@ -71,6 +71,42 @@ workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height. Geometry is in logical compositor coordinates and is
 included for tooling that tracks windows. `STATUS` is covered below.
 
+## JSON snapshots
+
+For tools, state and effective configuration are available as versioned JSON.
+The text commands still work:
+
+```text
+CMD state-json
+STATE_JSON
+{"schema":1,"active_workspace":1,"outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
+END
+
+CMD config-json
+CONFIG_JSON
+{"schema":1,"errors":0,"terminal":"kitty",...,"layouts":[...],"workspace_tuning":[...],"rules":[...],"hooks":[...],"diagnostics":[]}
+END
+```
+
+`tessa-ctl state --json` and `tessa-ctl config --json` print only the JSON line.
+`STATE_JSON` and `CONFIG_JSON` are framing markers, not part of the JSON.
+`schema` is currently `1`; consumers should reject unknown versions.
+
+State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
+`app_id`, `title`, `output`, `x`, `y`, `width`, and `height`. Config
+`diagnostics` entries contain `severity`, `path`, `line`, and `message`.
+
+Text `CMD config` also includes diagnostics in this human-readable form:
+
+```text
+diagnostic error /home/you/.config/tessa/config:12: unknown key 'widht'
+```
+
+A reload with errors is rejected and keeps the previous configuration.
+`tessa-ctl config-check` prints diagnostics and exits non-zero while errors
+remain. It checks the most recently loaded or rejected configuration, so run a
+reload after editing.
+
 ## Events
 
 Events are key/value records. Tabs separate fields and values are escaped
@@ -218,7 +254,7 @@ lines to stderr.
 
 ## Current limits
 
-The protocol is line-oriented and not JSON yet. There is no explicit protocol
-version field, no extension ordering, no sandbox, and no acknowledgement for
-fire-and-forget commands. Status entries are text-only. A future release can add
-JSON framing and versioning without changing the scripting model.
+The command/event protocol is still line-oriented. JSON snapshots are versioned
+with `schema: 1`, but the command plane has no version negotiation or JSON-RPC
+request ids yet. There is no extension ordering or sandbox, and fire-and-forget
+commands have no acknowledgement. Status entries are text-only.

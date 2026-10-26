@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const json_snapshot = @import("json_snapshot.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -311,6 +312,8 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
 
     if (std.mem.eql(u8, cmd, "state")) {
         sendState(server, cl);
+    } else if (std.mem.eql(u8, cmd, "state-json")) {
+        sendStateJson(server, cl);
     } else if (std.mem.eql(u8, cmd, "subscribe")) {
         var want_snapshot = false;
         var i = start + 1;
@@ -404,6 +407,8 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         }
     } else if (std.mem.eql(u8, cmd, "config")) {
         sendConfig(server, cl);
+    } else if (std.mem.eql(u8, cmd, "config-json")) {
+        sendConfigJson(server, cl);
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -596,6 +601,16 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
         append(&buf, &off, "rule {s}\n", .{raw});
     }
+    i = 0;
+    while (i < server.config_issue_count) : (i += 1) {
+        const issue = &server.config_issues[i];
+        append(&buf, &off, "diagnostic {s} {s}:{d}: {s}\n", .{
+            if (issue.is_error) "error" else "warning",
+            issue.path[0..issue.path_len],
+            issue.line,
+            issue.message[0..issue.message_len],
+        });
+    }
     append(&buf, &off, "END\n", .{});
     sendRaw(cl, buf[0..off]);
 }
@@ -620,11 +635,32 @@ fn sendState(server: *Server, cl: *IpcClient) void {
     sendRaw(cl, buf[0..len]);
 }
 
+fn sendStateJson(server: *Server, cl: *IpcClient) void {
+    var buf: [131072]u8 = undefined;
+    const len = json_snapshot.buildState(server, &buf);
+    sendRaw(cl, "STATE_JSON\n");
+    sendRaw(cl, buf[0..len]);
+    sendRaw(cl, "\nEND\n");
+}
+
+fn sendConfigJson(server: *Server, cl: *IpcClient) void {
+    var buf: [131072]u8 = undefined;
+    const len = json_snapshot.buildConfig(server, &buf);
+    sendRaw(cl, "CONFIG_JSON\n");
+    sendRaw(cl, buf[0..len]);
+    sendRaw(cl, "\nEND\n");
+}
+
 fn sendRaw(cl: *IpcClient, data: []const u8) void {
     if (!cl.alive) return;
-    const n = c.send(cl.fd, data.ptr, data.len, c.MSG_NOSIGNAL);
-    if (n < 0) {
-        closeClient(cl);
+    var sent: usize = 0;
+    while (sent < data.len) {
+        const n = c.send(cl.fd, data.ptr + sent, data.len - sent, c.MSG_NOSIGNAL);
+        if (n <= 0) {
+            closeClient(cl);
+            return;
+        }
+        sent += @intCast(n);
     }
 }
 

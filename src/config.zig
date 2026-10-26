@@ -50,44 +50,114 @@ fn copyDefault(dest: []u8, len: *usize, value: []const u8) void {
     core.copyString(dest, len, value);
 }
 
+fn addIssue(server: *Server, path: []const u8, line: u32, comptime fmt: []const u8, args: anytype) void {
+    if (server.config_issue_count >= server.config_issues.len) return;
+    var message_buf: [192]u8 = undefined;
+    const message = std.fmt.bufPrint(&message_buf, fmt, args) catch "configuration diagnostic message too long";
+    const issue = &server.config_issues[server.config_issue_count];
+    issue.* = std.mem.zeroes(types.ConfigIssue);
+    core.copyString(&issue.path, &issue.path_len, path);
+    issue.line = line;
+    core.copyString(&issue.message, &issue.message_len, message);
+    issue.is_error = true;
+    server.config_issue_count += 1;
+    server.config_error_count += 1;
+}
+
+fn parseIntValue(
+    comptime T: type,
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) ?T {
+    return std.fmt.parseInt(T, value, 10) catch {
+        addIssue(server, path, line, "invalid integer for {s}: '{s}'", .{ key, value });
+        return null;
+    };
+}
+
+fn parseFloatValue(
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) ?f32 {
+    return std.fmt.parseFloat(f32, value) catch {
+        addIssue(server, path, line, "invalid number for {s}: '{s}'", .{ key, value });
+        return null;
+    };
+}
+
+fn parseBoolValue(
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) ?bool {
+    if (std.ascii.eqlIgnoreCase(value, "true") or
+        std.ascii.eqlIgnoreCase(value, "on") or
+        std.ascii.eqlIgnoreCase(value, "yes") or
+        std.mem.eql(u8, value, "1")) return true;
+    if (std.ascii.eqlIgnoreCase(value, "false") or
+        std.ascii.eqlIgnoreCase(value, "off") or
+        std.ascii.eqlIgnoreCase(value, "no") or
+        std.mem.eql(u8, value, "0")) return false;
+    addIssue(server, path, line, "invalid boolean for {s}: '{s}'", .{ key, value });
+    return null;
+}
+
+fn validHexColor(value: []const u8) bool {
+    var hex = value;
+    if (hex.len > 0 and hex[0] == '#') hex = hex[1..];
+    if (hex.len != 6) return false;
+    for (hex[0..6]) |ch| {
+        if (!std.ascii.isHex(ch)) return false;
+    }
+    return true;
+}
+
 fn addDefaults(cfg: *Config) void {
-    addBinding(cfg, "super+return", "terminal", "");
-    addBinding(cfg, "super+d", "launcher", "");
-    addBinding(cfg, "super+q", "close", "");
-    addBinding(cfg, "super+shift+e", "quit", "");
-    addBinding(cfg, "super+r", "reload", "");
-    addBinding(cfg, "super+t", "toggle-layout", "");
-    addBinding(cfg, "super+space", "toggle-float", "");
-    addBinding(cfg, "super+f", "toggle-fullscreen", "");
-    addBinding(cfg, "super+escape", "spawn", "swaylock");
-    addBinding(cfg, "super+tab", "focus-next", "");
-    addBinding(cfg, "super+shift+tab", "focus-prev", "");
-    addBinding(cfg, "super+h", "focus", "left");
-    addBinding(cfg, "super+j", "focus", "down");
-    addBinding(cfg, "super+k", "focus", "up");
-    addBinding(cfg, "super+l", "focus", "right");
-    addBinding(cfg, "super+shift+h", "move", "left");
-    addBinding(cfg, "super+shift+j", "move", "down");
-    addBinding(cfg, "super+shift+k", "move", "up");
-    addBinding(cfg, "super+shift+l", "move", "right");
-    addBinding(cfg, "super+ctrl+h", "ratio", "-0.03");
-    addBinding(cfg, "super+ctrl+l", "ratio", "+0.03");
-    addBinding(cfg, "super+alt+h", "resize-width", "-30");
-    addBinding(cfg, "super+alt+l", "resize-width", "30");
-    addBinding(cfg, "super+alt+k", "resize-height", "-30");
-    addBinding(cfg, "super+alt+j", "resize-height", "30");
+    _ = addBinding(cfg, "super+return", "terminal", "");
+    _ = addBinding(cfg, "super+d", "launcher", "");
+    _ = addBinding(cfg, "super+q", "close", "");
+    _ = addBinding(cfg, "super+shift+e", "quit", "");
+    _ = addBinding(cfg, "super+r", "reload", "");
+    _ = addBinding(cfg, "super+t", "toggle-layout", "");
+    _ = addBinding(cfg, "super+space", "toggle-float", "");
+    _ = addBinding(cfg, "super+f", "toggle-fullscreen", "");
+    _ = addBinding(cfg, "super+escape", "spawn", "swaylock");
+    _ = addBinding(cfg, "super+tab", "focus-next", "");
+    _ = addBinding(cfg, "super+shift+tab", "focus-prev", "");
+    _ = addBinding(cfg, "super+h", "focus", "left");
+    _ = addBinding(cfg, "super+j", "focus", "down");
+    _ = addBinding(cfg, "super+k", "focus", "up");
+    _ = addBinding(cfg, "super+l", "focus", "right");
+    _ = addBinding(cfg, "super+shift+h", "move", "left");
+    _ = addBinding(cfg, "super+shift+j", "move", "down");
+    _ = addBinding(cfg, "super+shift+k", "move", "up");
+    _ = addBinding(cfg, "super+shift+l", "move", "right");
+    _ = addBinding(cfg, "super+ctrl+h", "ratio", "-0.03");
+    _ = addBinding(cfg, "super+ctrl+l", "ratio", "+0.03");
+    _ = addBinding(cfg, "super+alt+h", "resize-width", "-30");
+    _ = addBinding(cfg, "super+alt+l", "resize-width", "30");
+    _ = addBinding(cfg, "super+alt+k", "resize-height", "-30");
+    _ = addBinding(cfg, "super+alt+j", "resize-height", "30");
 
     var chord: [64]u8 = undefined;
     var i: usize = 1;
     while (i <= types.WS_COUNT) : (i += 1) {
         const c1 = std.fmt.bufPrint(&chord, "super+{d}", .{i}) catch continue;
-        addBinding(cfg, c1, "workspace", c1[c1.len - 1 ..]);
+        _ = addBinding(cfg, c1, "workspace", c1[c1.len - 1 ..]);
         const c2 = std.fmt.bufPrint(&chord, "super+shift+{d}", .{i}) catch continue;
-        addBinding(cfg, c2, "move-to-workspace", c2[c2.len - 1 ..]);
+        _ = addBinding(cfg, c2, "move-to-workspace", c2[c2.len - 1 ..]);
     }
 }
 
-pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg: []const u8) void {
+pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg: []const u8) bool {
     var mods: u32 = 0;
     var key: []const u8 = "";
 
@@ -110,7 +180,7 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
             key = tok;
         }
     }
-    if (key.len == 0) return;
+    if (key.len == 0) return false;
 
     var kbuf: [64:0]u8 = undefined;
     core.copyZ(&kbuf, key);
@@ -123,13 +193,13 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
     }
     if (sym == c.XKB_KEY_NoSymbol) {
         core.logInfo("config: unknown keysym '{s}'", .{key});
-        return;
+        return false;
     }
 
     const action = parseAction(action_name);
     if (action == .none) {
         core.logInfo("config: unknown action '{s}'", .{action_name});
-        return;
+        return false;
     }
 
     var binding: Binding = .{
@@ -145,13 +215,40 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
 
     switch (action) {
         .workspace, .move_to_workspace => {
-            binding.num = std.fmt.parseInt(i32, arg, 10) catch 0;
+            binding.num = std.fmt.parseInt(i32, arg, 10) catch {
+                core.logInfo("config: invalid workspace for bind '{s}'", .{arg});
+                return false;
+            };
+            if (binding.num < 1 or binding.num > types.WS_COUNT) {
+                core.logInfo("config: bind workspace out of range: {d}", .{binding.num});
+                return false;
+            }
         },
         .ratio => {
-            binding.ratio = std.fmt.parseFloat(f32, arg) catch 0;
+            binding.ratio = std.fmt.parseFloat(f32, arg) catch {
+                core.logInfo("config: invalid ratio for bind '{s}'", .{arg});
+                return false;
+            };
         },
         .resize_width, .resize_height => {
-            binding.num = std.fmt.parseInt(i32, arg, 10) catch 0;
+            binding.num = std.fmt.parseInt(i32, arg, 10) catch {
+                core.logInfo("config: invalid resize delta for bind '{s}'", .{arg});
+                return false;
+            };
+        },
+        .focus, .move => {
+            if (!std.mem.eql(u8, arg, "left") and !std.mem.eql(u8, arg, "right") and
+                !std.mem.eql(u8, arg, "up") and !std.mem.eql(u8, arg, "down"))
+            {
+                core.logInfo("config: invalid direction for bind '{s}'", .{arg});
+                return false;
+            }
+        },
+        .set_layout => {
+            if (types.layoutFromName(arg) == null) {
+                core.logInfo("config: unknown layout for bind '{s}'", .{arg});
+                return false;
+            }
         },
         else => {},
     }
@@ -160,30 +257,34 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
     while (i < cfg.binding_count) : (i += 1) {
         if (cfg.bindings[i].mods == mods and cfg.bindings[i].sym == binding.sym) {
             cfg.bindings[i] = binding;
-            return;
+            return true;
         }
     }
     if (cfg.binding_count < cfg.bindings.len) {
         cfg.bindings[cfg.binding_count] = binding;
         cfg.binding_count += 1;
+        return true;
     }
+    core.logInfo("config: too many bindings (max {d})", .{cfg.bindings.len});
+    return false;
 }
 
-pub fn addHook(cfg: *Config, event: []const u8, command: []const u8) void {
-    if (command.len == 0) return;
+pub fn addHook(cfg: *Config, event: []const u8, command: []const u8) bool {
+    if (command.len == 0) return false;
     if (!event_names.isKnown(event)) {
         core.logInfo("config: unknown hook event '{s}'", .{event});
-        return;
+        return false;
     }
     if (cfg.hook_count >= cfg.hooks.len) {
         core.logInfo("config: too many hooks (max {d})", .{cfg.hooks.len});
-        return;
+        return false;
     }
 
     var hook = &cfg.hooks[cfg.hook_count];
     core.copyString(&hook.event, &hook.event_len, event);
     core.copyString(&hook.command, &hook.command_len, command);
     cfg.hook_count += 1;
+    return true;
 }
 
 fn parseRuleBool(value: []const u8) ?bool {
@@ -198,10 +299,10 @@ fn parseRuleBool(value: []const u8) ?bool {
     return null;
 }
 
-pub fn addRule(cfg: *Config, value: []const u8) void {
+pub fn addRule(cfg: *Config, value: []const u8) bool {
     if (cfg.rule_count >= cfg.rules.len) {
         core.logInfo("config: too many window rules (max {d})", .{cfg.rules.len});
-        return;
+        return false;
     }
 
     var rule = types.WindowRule{};
@@ -212,7 +313,7 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
         if (clause.len == 0) continue;
         const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
             core.logInfo("config: window-rule clause needs '=': '{s}'", .{clause});
-            return;
+            return false;
         };
         const key = std.mem.trim(u8, clause[0..eq], " \t");
         var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
@@ -224,7 +325,7 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
         }
         if (key.len == 0 or val.len == 0) {
             core.logInfo("config: invalid window-rule clause '{s}'", .{clause});
-            return;
+            return false;
         }
         clauses_seen += 1;
 
@@ -244,11 +345,11 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
         {
             const ws = std.fmt.parseInt(usize, val, 10) catch {
                 core.logInfo("config: invalid rule workspace '{s}'", .{val});
-                return;
+                return false;
             };
             if (ws < 1 or ws > types.WS_COUNT) {
                 core.logInfo("config: rule workspace out of range: {d}", .{ws});
-                return;
+                return false;
             }
             rule.workspace = ws;
         } else if (std.ascii.eqlIgnoreCase(key, "float") or
@@ -256,31 +357,31 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
         {
             const on = parseRuleBool(val) orelse {
                 core.logInfo("config: invalid rule float value '{s}'", .{val});
-                return;
+                return false;
             };
             rule.floating = if (on) .on else .off;
         } else if (std.ascii.eqlIgnoreCase(key, "tile")) {
             const on = parseRuleBool(val) orelse {
                 core.logInfo("config: invalid rule tile value '{s}'", .{val});
-                return;
+                return false;
             };
             rule.floating = if (on) .off else .on;
         } else if (std.ascii.eqlIgnoreCase(key, "fullscreen")) {
             const on = parseRuleBool(val) orelse {
                 core.logInfo("config: invalid rule fullscreen value '{s}'", .{val});
-                return;
+                return false;
             };
             rule.fullscreen = if (on) .on else .off;
         } else if (std.ascii.eqlIgnoreCase(key, "size")) {
             const sep = std.mem.indexOfAny(u8, val, "xX") orelse {
                 core.logInfo("config: rule size needs WxH: '{s}'", .{val});
-                return;
+                return false;
             };
             const w = std.fmt.parseInt(i32, std.mem.trim(u8, val[0..sep], " \t"), 10) catch 0;
             const h = std.fmt.parseInt(i32, std.mem.trim(u8, val[sep + 1 ..], " \t"), 10) catch 0;
             if (w <= 0 or h <= 0) {
                 core.logInfo("config: invalid rule size '{s}'", .{val});
-                return;
+                return false;
             }
             rule.has_size = true;
             rule.width = w;
@@ -289,7 +390,7 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
             const w = std.fmt.parseInt(i32, val, 10) catch 0;
             if (w <= 0) {
                 core.logInfo("config: invalid rule width '{s}'", .{val});
-                return;
+                return false;
             }
             rule.has_size = true;
             rule.width = w;
@@ -298,7 +399,7 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
             const h = std.fmt.parseInt(i32, val, 10) catch 0;
             if (h <= 0) {
                 core.logInfo("config: invalid rule height '{s}'", .{val});
-                return;
+                return false;
             }
             rule.has_size = true;
             rule.height = h;
@@ -308,26 +409,33 @@ pub fn addRule(cfg: *Config, value: []const u8) void {
         {
             const sep = std.mem.indexOfScalar(u8, val, ',') orelse {
                 core.logInfo("config: rule position needs X,Y: '{s}'", .{val});
-                return;
+                return false;
             };
-            const x = std.fmt.parseInt(i32, std.mem.trim(u8, val[0..sep], " \t"), 10) catch 0;
-            const y = std.fmt.parseInt(i32, std.mem.trim(u8, val[sep + 1 ..], " \t"), 10) catch 0;
+            const x = std.fmt.parseInt(i32, std.mem.trim(u8, val[0..sep], " \t"), 10) catch {
+                core.logInfo("config: invalid rule position '{s}'", .{val});
+                return false;
+            };
+            const y = std.fmt.parseInt(i32, std.mem.trim(u8, val[sep + 1 ..], " \t"), 10) catch {
+                core.logInfo("config: invalid rule position '{s}'", .{val});
+                return false;
+            };
             rule.has_position = true;
             rule.x = x;
             rule.y = y;
         } else {
             core.logInfo("config: unknown window-rule key '{s}'", .{key});
-            return;
+            return false;
         }
     }
 
-    if (clauses_seen == 0) return;
+    if (clauses_seen == 0) return false;
     core.copyString(&rule.raw, &rule.raw_len, value);
     cfg.rules[cfg.rule_count] = rule;
     cfg.rule_count += 1;
+    return true;
 }
 
-pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
+pub fn addWorkspaceRule(cfg: *Config, value: []const u8) bool {
     var ws: ?usize = null;
     var gaps: ?i32 = null;
     var outer_gaps: ?i32 = null;
@@ -340,7 +448,7 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
         if (clause.len == 0) continue;
         const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
             core.logInfo("config: workspace-rule clause needs '=': '{s}'", .{clause});
-            return;
+            return false;
         };
         const key = std.mem.trim(u8, clause[0..eq], " \t");
         var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
@@ -352,7 +460,7 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
         }
         if (key.len == 0 or val.len == 0) {
             core.logInfo("config: invalid workspace-rule clause '{s}'", .{clause});
-            return;
+            return false;
         }
 
         if (std.ascii.eqlIgnoreCase(key, "ws") or
@@ -360,46 +468,46 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
         {
             const n = std.fmt.parseInt(usize, val, 10) catch {
                 core.logInfo("config: invalid workspace-rule workspace '{s}'", .{val});
-                return;
+                return false;
             };
             if (n < 1 or n > types.WS_COUNT) {
                 core.logInfo("config: workspace-rule workspace out of range: {d}", .{n});
-                return;
+                return false;
             }
             ws = n - 1;
         } else if (std.ascii.eqlIgnoreCase(key, "gaps")) {
             gaps = std.fmt.parseInt(i32, val, 10) catch {
                 core.logInfo("config: invalid workspace-rule gaps '{s}'", .{val});
-                return;
+                return false;
             };
         } else if (std.ascii.eqlIgnoreCase(key, "outer-gaps") or
             std.ascii.eqlIgnoreCase(key, "outer_gaps"))
         {
             outer_gaps = std.fmt.parseInt(i32, val, 10) catch {
                 core.logInfo("config: invalid workspace-rule outer-gaps '{s}'", .{val});
-                return;
+                return false;
             };
         } else if (std.ascii.eqlIgnoreCase(key, "master-ratio") or
             std.ascii.eqlIgnoreCase(key, "master_ratio"))
         {
             master_ratio = std.fmt.parseFloat(f32, val) catch {
                 core.logInfo("config: invalid workspace-rule master-ratio '{s}'", .{val});
-                return;
+                return false;
             };
         } else if (std.ascii.eqlIgnoreCase(key, "layout")) {
             layout_mode = types.layoutFromName(val) orelse {
                 core.logInfo("config: unknown workspace-rule layout '{s}'", .{val});
-                return;
+                return false;
             };
         } else {
             core.logInfo("config: unknown workspace-rule key '{s}'", .{key});
-            return;
+            return false;
         }
     }
 
     const idx = ws orelse {
         core.logInfo("config: workspace-rule needs ws=<1..9>", .{});
-        return;
+        return false;
     };
     if (gaps) |v| {
         cfg.ws_gaps[idx] = v;
@@ -417,6 +525,7 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) void {
         cfg.layout_by_ws[idx] = v;
         cfg.layout_overrides[idx] = true;
     }
+    return true;
 }
 
 fn parseAction(name: []const u8) Action {
@@ -450,69 +559,91 @@ fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
     return std.fmt.bufPrint(dest, "{s}/{s}", .{ dir, value }) catch "";
 }
 
-fn loadPath(server: *Server, path: []const u8, depth: usize) void {
+fn loadPath(
+    server: *Server,
+    path: []const u8,
+    depth: usize,
+    origin_path: []const u8,
+    origin_line: u32,
+) void {
+    const source_path = if (origin_path.len > 0) origin_path else path;
+    const source_line = if (origin_path.len > 0) origin_line else 0;
+
     if (depth > 8) {
-        core.logInfo("config: include depth limit reached at {s}", .{path});
+        addIssue(server, source_path, source_line, "include depth limit reached for '{s}'", .{path});
+        return;
+    }
+    if (path.len >= 512) {
+        addIssue(server, source_path, source_line, "config path too long: '{s}'", .{path});
         return;
     }
 
     var zpath: [512:0]u8 = undefined;
-    if (path.len >= zpath.len) {
-        core.logInfo("config: path too long", .{});
-        return;
-    }
     core.copyZ(&zpath, path);
     const file = c.fopen(&zpath, "r") orelse {
-        core.logInfo("config: {s} not found", .{path});
+        if (depth == 0) {
+            core.logInfo("config: {s} not found; using defaults", .{path});
+        } else {
+            addIssue(server, source_path, source_line, "included config not found: '{s}'", .{path});
+        }
         return;
     };
     defer _ = c.fclose(file);
 
-    var line: [1024]u8 = undefined;
-    while (c.fgets(&line, @intCast(line.len), file)) |_| {
-        const raw = std.mem.span(@as([*:0]const u8, @ptrCast(&line)));
+    var line_buf: [1024]u8 = undefined;
+    var line_no: u32 = 0;
+    while (c.fgets(&line_buf, @intCast(line_buf.len), file)) |_| {
+        line_no += 1;
+        const raw = std.mem.span(@as([*:0]const u8, @ptrCast(&line_buf)));
         const trimmed = std.mem.trim(u8, raw, " \t\r\n");
         if (trimmed.len == 0 or trimmed[0] == '#') continue;
-        const eq = std.mem.indexOfScalar(u8, trimmed, '=') orelse continue;
+
+        const eq = std.mem.indexOfScalar(u8, trimmed, '=') orelse {
+            addIssue(server, path, line_no, "expected key = value: '{s}'", .{trimmed});
+            continue;
+        };
         const key = std.mem.trim(u8, trimmed[0..eq], " \t");
         const value = std.mem.trim(u8, trimmed[eq + 1 ..], " \t");
-        if (key.len == 0 or value.len == 0) continue;
+        if (key.len == 0) {
+            addIssue(server, path, line_no, "empty key", .{});
+            continue;
+        }
 
         if (std.mem.eql(u8, key, "include")) {
             var include_buf: [512]u8 = undefined;
             const include_path = resolveInclude(&include_buf, path, value);
             if (include_path.len == 0) {
-                core.logInfo("config: invalid include '{s}'", .{value});
+                addIssue(server, path, line_no, "invalid include '{s}'", .{value});
             } else {
-                loadPath(server, include_path, depth + 1);
+                loadPath(server, include_path, depth + 1, path, line_no);
             }
         } else if (std.mem.eql(u8, key, "terminal")) {
             core.copyString(&server.config.terminal, &server.config.terminal_len, value);
         } else if (std.mem.eql(u8, key, "gaps")) {
-            server.config.gaps = std.fmt.parseInt(i32, value, 10) catch server.config.gaps;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.gaps = v;
         } else if (std.mem.eql(u8, key, "outer_gaps")) {
-            server.config.outer_gaps = std.fmt.parseInt(i32, value, 10) catch server.config.outer_gaps;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.outer_gaps = v;
         } else if (std.mem.eql(u8, key, "border_width")) {
-            server.config.border_width = std.fmt.parseInt(i32, value, 10) catch server.config.border_width;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.border_width = v;
         } else if (std.mem.eql(u8, key, "master_ratio")) {
-            server.config.master_ratio = std.fmt.parseFloat(f32, value) catch server.config.master_ratio;
+            if (parseFloatValue(server, path, line_no, key, value)) |v| server.config.master_ratio = v;
         } else if (std.mem.eql(u8, key, "master_count")) {
-            server.config.master_count = std.fmt.parseInt(usize, value, 10) catch server.config.master_count;
+            if (parseIntValue(usize, server, path, line_no, key, value)) |v| server.config.master_count = v;
         } else if (std.mem.eql(u8, key, "mosaic_ratio")) {
-            server.config.mosaic_ratio = std.fmt.parseFloat(f32, value) catch server.config.mosaic_ratio;
+            if (parseFloatValue(server, path, line_no, key, value)) |v| server.config.mosaic_ratio = v;
         } else if (std.mem.eql(u8, key, "mosaic_min_size")) {
-            server.config.mosaic_min_size = std.fmt.parseInt(i32, value, 10) catch server.config.mosaic_min_size;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.mosaic_min_size = v;
         } else if (std.mem.eql(u8, key, "grid_columns")) {
-            server.config.grid_columns = std.fmt.parseInt(usize, value, 10) catch server.config.grid_columns;
+            if (parseIntValue(usize, server, path, line_no, key, value)) |v| server.config.grid_columns = v;
         } else if (std.mem.eql(u8, key, "layout_helper")) {
             core.copyString(&server.config.layout_helper, &server.config.layout_helper_len, value);
         } else if (std.mem.eql(u8, key, "layout_helper_timeout")) {
-            server.config.layout_helper_timeout = std.fmt.parseInt(i32, value, 10) catch server.config.layout_helper_timeout;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.layout_helper_timeout = v;
         } else if (std.mem.eql(u8, key, "layout")) {
             if (types.layoutFromName(value)) |mode| {
                 server.config.layout_mode = mode;
             } else {
-                core.logInfo("config: unknown layout '{s}'", .{value});
+                addIssue(server, path, line_no, "unknown layout '{s}'", .{value});
             }
         } else if (std.mem.startsWith(u8, key, "layout_") and key.len == 8 and
             key[7] >= '1' and key[7] <= '9')
@@ -522,15 +653,12 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
                 server.config.layout_by_ws[ws] = mode;
                 server.config.layout_overrides[ws] = true;
             } else {
-                core.logInfo("config: unknown layout '{s}'", .{value});
+                addIssue(server, path, line_no, "unknown layout '{s}'", .{value});
             }
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
-            server.config.autostart_panel = std.mem.eql(u8, value, "true") or
-                std.mem.eql(u8, value, "1") or std.mem.eql(u8, value, "yes");
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
         } else if (std.mem.eql(u8, key, "xwayland")) {
-            server.config.xwayland = std.mem.eql(u8, value, "true") or
-                std.mem.eql(u8, value, "1") or
-                std.mem.eql(u8, value, "yes");
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.xwayland = v;
         } else if (std.mem.eql(u8, key, "xwayland_display")) {
             core.copyString(&server.config.xwayland_display, &server.config.xwayland_display_len, value);
         } else if (std.mem.eql(u8, key, "kb_layout") or std.mem.eql(u8, key, "keyboard_layout")) {
@@ -544,21 +672,41 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
         } else if (std.mem.eql(u8, key, "kb_rules") or std.mem.eql(u8, key, "keyboard_rules")) {
             core.copyString(&server.config.kb_rules, &server.config.kb_rules_len, value);
         } else if (std.mem.eql(u8, key, "repeat_rate")) {
-            server.config.repeat_rate = std.fmt.parseInt(i32, value, 10) catch server.config.repeat_rate;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.repeat_rate = v;
         } else if (std.mem.eql(u8, key, "repeat_delay")) {
-            server.config.repeat_delay = std.fmt.parseInt(i32, value, 10) catch server.config.repeat_delay;
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.repeat_delay = v;
         } else if (std.mem.eql(u8, key, "accent")) {
-            core.copyString(&server.config.accent, &server.config.accent_len, value);
+            if (validHexColor(value)) {
+                core.copyString(&server.config.accent, &server.config.accent_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for accent: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "bg")) {
-            core.copyString(&server.config.bg, &server.config.bg_len, value);
+            if (validHexColor(value)) {
+                core.copyString(&server.config.bg, &server.config.bg_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for bg: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "border_active") or std.mem.eql(u8, key, "active_border")) {
-            core.copyString(&server.config.border_active, &server.config.border_active_len, value);
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.border_active, &server.config.border_active_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
         } else if (std.mem.eql(u8, key, "border_inactive") or std.mem.eql(u8, key, "inactive_border")) {
-            core.copyString(&server.config.border_inactive, &server.config.border_inactive_len, value);
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.border_inactive, &server.config.border_inactive_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
         } else if (std.mem.eql(u8, key, "window-rule") or std.mem.eql(u8, key, "window_rule")) {
-            addRule(&server.config, value);
+            if (!addRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid window-rule: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "workspace-rule") or std.mem.eql(u8, key, "workspace_rule")) {
-            addWorkspaceRule(&server.config, value);
+            if (!addWorkspaceRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid workspace-rule: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
         } else if (std.mem.eql(u8, key, "output_config")) {
@@ -570,23 +718,37 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
                 const rest_sp = std.mem.indexOfAny(u8, rest, " \t");
                 const action_name = if (rest_sp) |p| rest[0..p] else rest;
                 const arg = if (rest_sp) |p| std.mem.trimStart(u8, rest[p..], " \t") else "";
-                addBinding(&server.config, chord, action_name, arg);
+                if (!addBinding(&server.config, chord, action_name, arg)) {
+                    addIssue(server, path, line_no, "invalid bind: '{s}'", .{value});
+                }
+            } else {
+                addIssue(server, path, line_no, "bind needs a chord and action: '{s}'", .{value});
             }
         } else if (std.mem.eql(u8, key, "hook") or std.mem.eql(u8, key, "startup")) {
             if (std.mem.eql(u8, key, "startup")) {
-                addHook(&server.config, event_names.startup, value);
+                if (!addHook(&server.config, event_names.startup, value)) {
+                    addIssue(server, path, line_no, "invalid startup command", .{});
+                }
             } else if (std.mem.indexOfAny(u8, value, " \t")) |sp| {
                 const event = value[0..sp];
                 const command = std.mem.trimStart(u8, value[sp..], " \t");
-                addHook(&server.config, event, command);
+                if (!addHook(&server.config, event, command)) {
+                    addIssue(server, path, line_no, "invalid hook '{s}'", .{event});
+                }
             } else {
-                core.logInfo("config: hook needs an event and a command", .{});
+                addIssue(server, path, line_no, "hook needs an event and a command", .{});
             }
+        } else if (std.mem.eql(u8, key, "launcher_entry")) {
+            // The panel parses this key; the compositor only validates the file.
+        } else {
+            addIssue(server, path, line_no, "unknown key '{s}'", .{key});
         }
     }
 }
 
 pub fn load(server: *Server) void {
+    server.config_issue_count = 0;
+    server.config_error_count = 0;
     initDefaults(&server.config);
 
     var path_buf: [512]u8 = undefined;
@@ -599,7 +761,7 @@ pub fn load(server: *Server) void {
         path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
     }
 
-    if (path.len > 0) loadPath(server, path, 0);
+    if (path.len > 0) loadPath(server, path, 0, "", 0);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;
@@ -647,6 +809,19 @@ pub fn load(server: *Server) void {
     }
     if (wants_custom and server.config.layout_helper_len == 0) {
         core.logInfo("config: custom layout selected without layout_helper; using master fallback", .{});
+    }
+
+    if (server.config_issue_count > 0) {
+        core.logInfo("config: {d} error(s) while loading", .{server.config_issue_count});
+        var ei: usize = 0;
+        while (ei < server.config_issue_count) : (ei += 1) {
+            const issue = &server.config_issues[ei];
+            core.logInfo("config: {s}:{d}: {s}", .{
+                issue.path[0..issue.path_len],
+                issue.line,
+                issue.message[0..issue.message_len],
+            });
+        }
     }
 
     core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d})", .{

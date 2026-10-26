@@ -33,6 +33,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   workspace, fullscreen, size, and position actions
 - external layout-helper protocol for custom tiling algorithms, with a timeout,
   process restart, and built-in fallback
+- file/line config diagnostics, transactional reload, and versioned JSON
+  state/config snapshots for external tools
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -66,7 +68,8 @@ status entries, custom launcher entries, config reload, per-workspace
 master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
-`tests/customization.sh`, `tests/layout-helper.sh`, and panel screenshots.
+`tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
+`tests/json-ipc.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -328,13 +331,19 @@ exposes state snapshots, structured events, status entries, and commands:
 
 ```sh
 tessa-ctl state
+tessa-ctl state --json
 tessa-ctl config
+tessa-ctl config --json
+tessa-ctl config-check
 tessa-ctl events window-focus
 tessa-ctl status weather "Tokyo 18C"
 tessa-ctl dispatch reload
 ```
 
-Configuration can also start commands at login and react to compositor events:
+`state --json` and `config --json` return schema-versioned snapshots for tools.
+`config-check` prints file/line diagnostics and exits non-zero while the loaded
+configuration has errors. Configuration can also start commands at login and
+react to compositor events:
 
 ```ini
 startup = fcitx5 -d
@@ -389,7 +398,9 @@ cp config/config.example ~/.config/tessa/config
 ```
 
 The format is `key = value`. Comments are lines starting with `#`.
-At runtime `Super+R` reloads the config. Selected keys:
+At runtime `Super+R` reloads the config. A reload with errors is rejected and
+the previous configuration stays active; `tessa-ctl config-check` reports the
+diagnostics. Selected keys:
 
 | Key | Meaning |
 | --- | --- |
@@ -569,8 +580,9 @@ These are real and important:
   missing, X11 applications simply do not start; Wayland clients are unaffected.
 - **No portals, screen sharing, gamma, or output configuration UI.**
 - **Extensions are trusted local processes.** They run with the session user's
-  full privileges; there is no sandbox. The event protocol is line-oriented and
-  not yet JSON/versioned. Status entries are limited to eight short strings.
+  full privileges; there is no sandbox. State/config snapshots are versioned JSON,
+  but the command/event plane is still line-oriented and has no JSON-RPC
+  request/version negotiation. Status entries are limited to eight short strings.
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the

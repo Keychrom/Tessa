@@ -298,7 +298,14 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
 
 pub fn reloadRuntime(server: *Server) void {
     const cfg = @import("config.zig");
+    const previous = server.config;
     cfg.load(server);
+    if (server.config_error_count > 0) {
+        server.config = previous;
+        core.logInfo("config reload rejected: {d} error(s); keeping previous configuration", .{server.config_error_count});
+        core.markDirty(server);
+        return;
+    }
     reloadKeymaps(server);
     layout_helper.reload(server);
     rules.applyAll(server);

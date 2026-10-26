@@ -81,13 +81,27 @@ a daily Japanese desktop, then by polish.
 - [x] A long-lived external layout-helper protocol with a timeout, restart,
       and built-in fallback.
 - [ ] Configurable animation/effect hooks.
-- [ ] Config validation with file/line diagnostics.
-- [ ] JSON state/config output and a documented schema version.
+- [x] Config validation with file/line diagnostics, `tessa-ctl config-check`,
+      and transactional reload (failed reloads keep the previous config).
+- [x] JSON state/config output with documented `schema: 1`.
+
+## 0.6 — customization depth
+
+- [ ] Regex/boolean window-rule expressions and per-rule decoration colors.
+- [ ] Keybinding sequences, leader keys, and named input modes.
+- [ ] Per-output theme rules and named workspace/output profiles.
+- [ ] Layout-helper v2: per-output instances, asynchronous/incremental updates,
+      focus/urgent metadata, and protocol version negotiation.
+- [ ] Config-defined event-to-action rules for policy automation.
+- [ ] Theme role system and configurable, reduced-motion-aware animations.
+- [ ] JSON-RPC/event stream with request ids and capability negotiation.
+- [ ] Interactive config editor/check with diff preview.
 
 ## 1.0 — stability
 
-- [ ] Config validation with useful errors.
-- [ ] IPC schema/versioning and a JSON option for external tools.
+- [x] Config validation with useful errors and transactional reload.
+- [x] JSON state/config snapshots with schema version 1.
+- [ ] IPC line-protocol version negotiation and JSON-RPC request ids.
 - [ ] Fuzzing/ASan runs of config and IPC parsers.
 - [ ] Crash recovery for the panel.
 - [ ] Documentation with a full user guide and theme guide.

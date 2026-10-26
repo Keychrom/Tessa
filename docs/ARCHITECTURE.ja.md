@@ -322,6 +322,26 @@ inhibitor が存在する間またはセッションロック中は
 `outer_gaps` を引いたものです。ウィンドウ間の隙間は `gaps` です。ボーダーは
 各フレームの矩形に含まれます。
 
+## 設定と診断
+
+`config.zig` は `key = value` ファイルと位置依存の include を、元のファイル
+パスと行番号を追跡しながら解析します。数値、真偽値、色、レイアウト名、
+バインド、フック、ウィンドウルール、include 先を検証します。問題は
+`Server.config_issues` に保存され、`CMD config` の
+`diagnostic error path:line: message` 行として公開されます。
+
+リロード時は解析前に以前の `Config` をスナップショットします。新しい
+ファイルにエラーがあればスナップショットを復元し、キーマップの再読み込み、
+ウィンドウルールやレイアウトの適用を行いません。これにより失敗した
+`Super+R` は何も変更しません。診断は残るため、
+`tessa-ctl config-check` で理由を確認できます。初回起動は寛容で、既定値と
+有効な行を使って起動しますが、診断は同様に報告します。
+
+`json_snapshot.zig` がスキーマバージョン付きの `state-json` と
+`config-json` スナップショットを組み立てます。転送は従来の行ベースの
+コマンドプロトコルを使い、JSON は `STATE_JSON`/`CONFIG_JSON` と `END` の
+間に送るため、既存クライアントに影響しません。
+
 ## IPC
 
 ソケット: `$XDG_RUNTIME_DIR/tessa.sock`（または `$TESSA_IPC`）、モード 0600。
@@ -373,9 +393,12 @@ CMD status <id> <text>            (タブ区切り形式は --exec に対応)
 CMD quit
 ```
 
-`CMD config` は `CONFIG` マーカー、実効設定の `key value` 行、解析済み
-ウィンドウルールの `rule <raw>` 行、`END` を返します。`tessa-ctl config` の
-出力であり、コントロールパネルやデバッグ向けです。
+`CMD config` は `CONFIG` マーカー、実効設定の `key value` 行、各
+ワークスペースの `layout_ws` と `workspace_tuning` 行、解析済みウィンドウ
+ルールの `rule <raw>` 行、`diagnostic` 行、`END` を返します。
+`tessa-ctl config` の出力であり、コントロールパネルやデバッグ向けです。
+`CMD state-json` と `CMD config-json` は、ツール向けのスキーマバージョン付き
+JSON スナップショットを返します。
 
 `CMD workspace <n> <output>` は指定したモニタのワークスペースを変更します。
 output を省略したキーボード操作ではフォーカス中の出力が使われます。

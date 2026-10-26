@@ -223,6 +223,22 @@ Python ヘルパーに既知の矩形を返させてジオメトリを検証し�
 sh tests/layout-helper.sh
 ```
 
+### 設定検証と JSON のテスト
+
+`tests/config-validation.sh` は未知キー、不正値、壊れたルール、存在しない
+include を含む設定を書き、報告される行番号を確認します。さらに、リロードが
+以前の設定を維持すること、ファイルを直すまで
+`tessa-ctl config-check` が失敗することを検証します。
+
+`tests/json-ipc.sh` は `state --json` と `config --json` を Python で解析し、
+スキーマバージョン 1 とウィンドウジオメトリを確認します。拒否された
+リロードの JSON 診断も検証します。
+
+```sh
+sh tests/config-validation.sh
+sh tests/json-ipc.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

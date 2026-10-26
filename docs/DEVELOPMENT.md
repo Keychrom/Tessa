@@ -244,6 +244,22 @@ working helper to verify restart-after-reload.
 sh tests/layout-helper.sh
 ```
 
+### Config validation and JSON test
+
+`tests/config-validation.sh` writes an invalid config with unknown keys, bad
+values, a malformed rule, and a missing include. It checks the reported line
+numbers, verifies that reload keeps the previous configuration, and checks that
+`tessa-ctl config-check` fails until the file is fixed.
+
+`tests/json-ipc.sh` parses `state --json` and `config --json` with Python,
+checks schema version 1 and window geometry, then verifies JSON diagnostics for
+a rejected reload.
+
+```sh
+sh tests/config-validation.sh
+sh tests/json-ipc.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

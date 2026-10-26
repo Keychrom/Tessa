@@ -164,6 +164,33 @@ command runs as your user through `/bin/sh`, like a hook. See
 [`examples/layout-cascade.py`](../examples/layout-cascade.py) for a minimal
 working helper.
 
+## Validation and JSON
+
+Configuration is parsed with file and line tracking. Unknown keys, invalid
+numbers/booleans/colors, malformed rules, and missing includes are reported
+instead of being silently ignored:
+
+```sh
+tessa-ctl config-check
+```
+
+`Super+R` / `tessa-ctl dispatch reload` rejects a configuration with errors and
+keeps the previously active one. `tessa-ctl config` shows the effective values
+plus `diagnostic error <path>:<line>: <message>` lines. `config-check` exits
+non-zero when errors remain.
+
+For tools, both snapshots have a schema version and are available as JSON:
+
+```sh
+tessa-ctl state --json
+tessa-ctl config --json
+```
+
+State JSON contains `schema: 1`, outputs, occupancy, focused id, statuses, and
+window geometry. Config JSON contains scalar settings, per-workspace layouts and
+tuning, rules, hooks, and diagnostics. The full wire format is in
+[EXTENDING.md](EXTENDING.md).
+
 ## Appearance
 
 | Key | Meaning |
@@ -215,12 +242,16 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 ## Planned customization work
 
 - Per-output layout/gap rules (per-workspace rules are available now).
-- Per-output helper instances and incremental layout updates (the current
-  helper is a single process with one request/response per arrangement).
+- Per-output helper instances, asynchronous/incremental updates, and protocol
+  version negotiation (the current helper is one process with a bounded
+  request/response per arrangement).
+- Regex/boolean window-rule expressions and per-rule border/background colors.
+- Keybinding sequences, leader keys, and named input modes.
+- Config-defined event-to-action rules and per-output theme roles.
 - Configurable animations and shader/effect hooks for window movement,
   workspace changes, borders, and the shell.
-- Schema validation with file/line diagnostics, and a JSON view of state and
-  configuration for third-party control panels.
+- Interactive config editor/check with diff preview, built on the existing
+  diagnostics and JSON snapshots.
 - More shell theming: bar size/margins, independent palette roles, and
   replaceable shell surfaces.
 

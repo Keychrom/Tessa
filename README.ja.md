@@ -34,6 +34,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   ワークスペース、フルスクリーン、サイズ、位置を指定可能
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
+- 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
+  リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -71,7 +73,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
-`tests/customization.sh`、`tests/layout-helper.sh` で検証しています。
+`tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
+`tests/json-ipc.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -344,14 +347,20 @@ Tessa はプラグイン VM を埋め込みません。拡張はコンポジタ�
 
 ```sh
 tessa-ctl state
+tessa-ctl state --json
 tessa-ctl config
+tessa-ctl config --json
+tessa-ctl config-check
 tessa-ctl events window-focus
 tessa-ctl status weather "Tokyo 18C"
 tessa-ctl layout grid
 tessa-ctl dispatch reload
 ```
 
-設定からログイン時のコマンド起動やイベントへの反応もできます。
+`state --json` と `config --json` はツール向けのスキーマバージョン付き
+スナップショットを返します。`config-check` はファイル名/行番号付きの診断を
+表示し、読み込み済み設定にエラーがある間は非ゼロで終了します。設定から
+ログイン時のコマンド起動やイベントへの反応もできます。
 
 ```ini
 startup = fcitx5 -d
@@ -410,7 +419,8 @@ cp config/config.example ~/.config/tessa/config
 ```
 
 形式は `key = value` です。`#` で始まる行はコメントです。実行中に `Super+R`
-で設定を再読み込みできます。主なキー:
+で設定を再読み込みできます。エラーのあるリロードは拒否され、以前の設定が
+維持されます。`tessa-ctl config-check` で診断を確認できます。主なキー:
 
 | キー | 意味 |
 | --- | --- |
@@ -595,8 +605,9 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
 - **ポータル、画面共有、ガンマ、出力設定 UI は未実装。**
 - **拡張は信頼されたローカルプロセス。** セッションユーザーの全権限で動き、
-  サンドボックスはありません。イベントプロトコルは行ベースで、JSON 化と
-  バージョニングは未対応です。ステータスは短い文字列 8 件までです。
+  サンドボックスはありません。状態/設定スナップショットはバージョン付き JSON
+  ですが、コマンド/イベントは引き続き行ベースで、JSON-RPC のリクエスト/
+  バージョン交渉は未対応です。ステータスは短い文字列 8 件までです。
 - layer-shell とキーボードフォーカスは wlroots 0.19 の unstable API を
   使っています。パッケージング時は wlroots のバージョンを固定してください。
 - ランチャーは `.desktop` ファイルを走査します。インストールされている

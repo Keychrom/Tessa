@@ -14,8 +14,9 @@ const MAX_SOCKET_PATH = 100;
 fn usage() void {
     writeAll(1, "usage: tessa-ctl <command>\n" ++
         "\n" ++
-        "  state                         print one state snapshot\n" ++
-        "  config                        print the effective configuration\n" ++
+        "  state [--json]                print one state snapshot\n" ++
+        "  config [--json]               print the effective configuration\n" ++
+        "  config-check                  check config diagnostics; exit 1 on errors\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
         "  workspace <1-9> [output]      switch workspace\n" ++
@@ -89,7 +90,7 @@ fn sendAll(fd: c_int, data: []const u8) !void {
 
 const LineReader = struct {
     fd: c_int,
-    buf: [65536]u8 = undefined,
+    buf: [262144]u8 = undefined,
     start: usize = 0,
     end: usize = 0,
 
@@ -152,6 +153,50 @@ fn eventMatches(line: []const u8, filter: []const u8) bool {
     const start = i;
     while (i < line.len and line[i] != '\t' and line[i] != ' ') : (i += 1) {}
     return std.mem.eql(u8, line[start..i], filter);
+}
+
+fn printJson(command: []const u8, header: []const u8) !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, command);
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [262144]u8 = undefined;
+    var in_json = false;
+    while (try reader.next(&line_buf)) |line| {
+        if (std.mem.eql(u8, line, header)) {
+            in_json = true;
+            continue;
+        }
+        if (!in_json) continue;
+        if (std.mem.eql(u8, line, "END")) return;
+        writeLine(line);
+    }
+    return error.Closed;
+}
+
+fn printConfigCheck() !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "CMD config\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    var in_config = false;
+    var diagnostics: usize = 0;
+    var errors: usize = 0;
+    while (try reader.next(&line_buf)) |line| {
+        if (std.mem.eql(u8, line, "CONFIG")) in_config = true;
+        if (in_config and std.mem.startsWith(u8, line, "diagnostic ")) {
+            diagnostics += 1;
+            if (std.mem.startsWith(u8, line, "diagnostic error ")) errors += 1;
+            writeLine(line);
+        }
+        if (in_config and std.mem.eql(u8, line, "END")) {
+            if (diagnostics == 0) writeLine("config: ok");
+            if (errors > 0) return error.ConfigInvalid;
+            return;
+        }
+    }
+    return error.Closed;
 }
 
 fn printConfig() !void {
@@ -290,6 +335,22 @@ fn runWorkspace(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runState(args: []const []const u8) !void {
+    if (args.len > 1 and std.mem.eql(u8, args[1], "--json")) {
+        try printJson("CMD state-json\n", "STATE_JSON");
+    } else {
+        try printState();
+    }
+}
+
+fn runConfig(args: []const []const u8) !void {
+    if (args.len > 1 and std.mem.eql(u8, args[1], "--json")) {
+        try printJson("CMD config-json\n", "CONFIG_JSON");
+    } else {
+        try printConfig();
+    }
+}
+
 fn runLayout(args: []const []const u8) !void {
     var line: [256]u8 = undefined;
     const msg = if (args.len > 2)
@@ -356,9 +417,11 @@ pub fn main(init: std.process.Init.Minimal) void {
     }
 
     const result: anyerror!void = if (std.mem.eql(u8, cmd, "state"))
-        printState()
+        runState(args)
     else if (std.mem.eql(u8, cmd, "config"))
-        printConfig()
+        runConfig(args)
+    else if (std.mem.eql(u8, cmd, "config-check"))
+        printConfigCheck()
     else if (std.mem.eql(u8, cmd, "events"))
         printEvents(if (args.len > 1) args[1] else "")
     else if (std.mem.eql(u8, cmd, "dispatch"))
@@ -385,6 +448,7 @@ pub fn main(init: std.process.Init.Minimal) void {
             usage();
             std.process.exit(2);
         }
+        if (err == error.ConfigInvalid) std.process.exit(1);
         std.debug.print("tessa-ctl: {s}\n", .{@errorName(err)});
         std.process.exit(1);
     };

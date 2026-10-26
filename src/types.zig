@@ -11,6 +11,7 @@ pub const MAX_BINDINGS = 96;
 pub const MAX_HOOKS = 32;
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
+pub const MAX_CONFIG_ISSUES = 64;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -103,6 +104,15 @@ pub const SavedLayout = struct {
 };
 
 pub const MAX_SAVED_LAYOUTS = MAX_OUTPUTS * WS_COUNT;
+
+pub const ConfigIssue = struct {
+    path: [256]u8 = [_]u8{0} ** 256,
+    path_len: usize = 0,
+    line: u32 = 0,
+    message: [192]u8 = [_]u8{0} ** 192,
+    message_len: usize = 0,
+    is_error: bool = true,
+};
 
 pub const RuleBool = enum { unset, on, off };
 
@@ -426,6 +436,9 @@ pub const Server = struct {
     output_test: c.wl_listener,
 
     config: Config,
+    config_issues: [MAX_CONFIG_ISSUES]ConfigIssue,
+    config_issue_count: usize,
+    config_error_count: usize,
     layout_helper_fd: c_int,
     layout_helper_pid: c.pid_t,
     layout_helper_hash: u64,

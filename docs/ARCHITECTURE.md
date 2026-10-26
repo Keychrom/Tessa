@@ -308,6 +308,26 @@ The tiling area is the output's usable area (after the bar's exclusive zone)
 minus `outer_gaps`. Gaps between windows are `gaps`. Borders are part of each
 frame's rect.
 
+## Configuration and diagnostics
+
+`config.zig` parses `key = value` files and positional includes while tracking
+the source path and line number. The parser validates numbers, booleans, colors,
+layout names, bindings, hooks, window rules, and include targets. Problems are
+stored in `Server.config_issues` and exposed through `CMD config` as
+`diagnostic error path:line: message`.
+
+On reload, the previous `Config` value is snapshotted before parsing. If the new
+file has errors, the snapshot is restored, keymaps are not reloaded, and no
+window rules or layouts are applied. This makes a failed `Super+R` a no-op. The
+diagnostics remain available so `tessa-ctl config-check` can explain why.
+Initial startup is lenient: defaults and any valid lines are used, but the
+diagnostics are still reported.
+
+`json_snapshot.zig` builds schema-versioned `state-json` and `config-json`
+snapshots. The line-based command protocol remains the transport; JSON is sent
+between `STATE_JSON`/`CONFIG_JSON` and `END` markers so existing clients are
+unaffected.
+
 ## IPC
 
 Socket: `$XDG_RUNTIME_DIR/tessa.sock` (or `$TESSA_IPC`), mode 0600.
@@ -360,8 +380,11 @@ CMD quit
 ```
 
 `CMD config` replies with a `CONFIG` marker, one `key value` line per
-effective setting, one `rule <raw>` line per parsed window rule, and `END`. It is
-what `tessa-ctl config` prints and is intended for control panels and debugging.
+effective setting, `layout_ws` and `workspace_tuning` lines for each workspace,
+one `rule <raw>` line per parsed window rule, `diagnostic` lines, and `END`. It
+is what `tessa-ctl config` prints and is intended for control panels and
+debugging. `CMD state-json` and `CMD config-json` return schema-versioned JSON
+snapshots for tools.
 
 `CMD workspace <n> <output>` changes the workspace on a specific monitor; the
 compositor's keyboard bindings use the focused output when the output is

@@ -72,6 +72,44 @@ id、ワークスペース、フォーカス、フローティング、フルス
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
 `STATUS` は後述します。
 
+## JSON スナップショット
+
+ツール向けに、状態と実効設定をバージョン付き JSON でも取得できます。
+テキストコマンドもそのまま使えます。
+
+```text
+CMD state-json
+STATE_JSON
+{"schema":1,"active_workspace":1,"outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
+END
+
+CMD config-json
+CONFIG_JSON
+{"schema":1,"errors":0,"terminal":"kitty",...,"layouts":[...],"workspace_tuning":[...],"rules":[...],"hooks":[...],"diagnostics":[]}
+END
+```
+
+`tessa-ctl state --json` と `tessa-ctl config --json` は JSON 行だけを出力
+します。`STATE_JSON` と `CONFIG_JSON` はフレーミング用マーカーで、JSON 本体
+ではありません。`schema` は現在 `1` です。未知のバージョンは拒否して
+ください。
+
+状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
+`fullscreen`、`app_id`、`title`、`output`、`x`、`y`、`width`、`height` が
+入ります。設定の `diagnostics` は `severity`、`path`、`line`、`message` を
+持ちます。
+
+テキストの `CMD config` にも、次の形式で診断が含まれます。
+
+```text
+diagnostic error /home/you/.config/tessa/config:12: unknown key 'widht'
+```
+
+エラーのあるリロードは拒否され、以前の設定が維持されます。
+`tessa-ctl config-check` は診断を表示し、エラーが残っている間は非ゼロで
+終了します。直近に読み込まれた、または拒否された設定を検査するため、
+編集後はリロードしてから実行してください。
+
 ## イベント
 
 イベントは key/value のレコードです。フィールドはタブ区切りで、値は
@@ -221,7 +259,8 @@ sh tests/smoke.sh
 
 ## 現在の制限
 
-プロトコルは行ベースで、まだ JSON ではありません。明示的なプロトコル
-バージョン、拡張間の順序制御、サンドボックス、投げっぱなしコマンドの ACK は
-ありません。ステータスはテキストのみです。将来のリリースで JSON フレーミング
-とバージョニングを追加しても、スクリプトによる拡張モデルは維持できます。
+コマンド/イベントプロトコルは引き続き行ベースです。JSON スナップショットは
+`schema: 1` でバージョン管理していますが、コマンドプレーンにはバージョン
+交渉や JSON-RPC のリクエスト ID はまだありません。拡張間の順序制御、
+サンドボックス、投げっぱなしコマンドの ACK もありません。ステータスは
+テキストのみです。
