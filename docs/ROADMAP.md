@@ -59,9 +59,10 @@ a daily Japanese desktop, then by polish.
       lists, and a packaged `tessa.portal` selector for
       `xdg-desktop-portal-wlr`. End-to-end monitor ScreenCast is tested; window
       capture depends on the portal backend's protocol support.
-- [x] Notification daemon: `org.freedesktop.Notifications` plain-text toasts
-      with replacement, close, and expiry.
-- [ ] Notification actions/icons, markup, and cross-output routing.
+- [x] Notification daemon: `org.freedesktop.Notifications` toasts with
+      replacement, close, expiry, action buttons, `default` activation,
+      image-data/icon-name icons, Pango markup, and routing to the focused
+      output.
 - [x] Clipboard history for text, using `wlr-data-control-v1` (memory only).
 
 ## 0.4 — visual and layout depth

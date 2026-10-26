@@ -409,17 +409,35 @@ protocols; Tessa currently advertises output capture sources.
 
 The panel implements the `org.freedesktop.Notifications` D-Bus service on the
 session bus, so applications can use it without a separate daemon. Up to four
-plain-text toasts stack below the bar. They support replacement by notification
-id, timeout (`0` keeps a notification until dismissed), `CloseNotification`, and
-click-to-dismiss; clicking sends `NotificationClosed` back to the application.
-Notifications marked with an expiry time remove themselves and emit the
-corresponding signal.
+toasts stack below the bar. They support replacement by notification id, timeout
+(`0` keeps a notification until dismissed), `CloseNotification`, and
+click-to-dismiss. Notifications marked with an expiry time remove themselves and
+emit the corresponding signal.
 
-The advertised capabilities are `body` and `persistence`: markup, actions, and
-icon lookup are not implemented. If another notification daemon is already
-running, Tessa cannot own the bus name and leaves notifications to that daemon.
-Only one panel owns the bus name, so on multi-output setups toasts currently
-appear on that panel's output.
+Advertised capabilities are `actions`, `body`, `body-markup`, `icon-static`, and
+`persistence`:
+
+- **Actions.** Non-default action pairs become buttons at the bottom of the
+  toast. Clicking one emits `ActionInvoked` and closes the notification. A
+  `default` action is triggered by clicking the card body. Notification actions
+  can also be invoked from an extension with
+  `tessa-ctl notify-action <id> <key>`, which is useful for scripted tests and
+  keyboard-driven automation.
+- **Icons.** `image-data`/`image_data`, `image-path`/`image_path`, the
+  `icon-name` hint, and the `app_icon` argument are supported. PNG theme icons
+  are searched under the usual XDG icon directories; otherwise a colored
+  monogram is shown.
+- **Markup.** The body is rendered with Pango markup when it parses cleanly
+  (bold, italic, underline, spans, and links). Invalid markup falls back to
+  plain text.
+- **Routing.** New toasts are created on the currently focused output. When
+  focus moves while toasts are visible, the stack moves to the new output.
+  Actions still work because a single panel owns the D-Bus name and renders the
+  surface on the chosen output.
+
+If another notification daemon is already running, Tessa cannot own the bus name
+and leaves notifications to that daemon. Notification sounds and HTML beyond
+Pango's supported subset are not implemented.
 
 You can exercise the service with:
 

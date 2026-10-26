@@ -12,4 +12,7 @@ void tessa_notifications_stop(void);
  * reason follows the desktop notification spec: 1 expired, 2 dismissed. */
 void tessa_notifications_close(unsigned int id, unsigned int reason);
 
+/* Emit ActionInvoked for a notification action selected in the panel. */
+void tessa_notifications_action(unsigned int id, const char *key);
+
 #endif

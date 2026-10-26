@@ -4,12 +4,12 @@
 #   sh tests/notifications.sh
 set -eu
 
-if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+if [ -z "${TESSA_PRIVATE_BUS:-}" ]; then
     if ! command -v dbus-run-session >/dev/null 2>&1; then
         echo "dbus-run-session not found; skipping notification test"
         exit 0
     fi
-    exec dbus-run-session -- sh "$0" "$@"
+    exec dbus-run-session -- env TESSA_PRIVATE_BUS=1 sh "$0" "$@"
 fi
 
 cd "$(dirname "$0")/.."
@@ -27,8 +27,11 @@ fi
 
 runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-notifications.XXXXXX")
 tpid=
+mpid=
 cleanup() {
+    [ -n "${mpid:-}" ] && kill "$mpid" 2>/dev/null || true
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
+    wait "$mpid" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
     pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
@@ -124,6 +127,9 @@ gdbus call --session \
     --method org.freedesktop.Notifications.GetCapabilities \
     >"$runtime/capabilities"
 grep -q "body" "$runtime/capabilities"
+grep -q "actions" "$runtime/capabilities"
+grep -q "body-markup" "$runtime/capabilities"
+grep -q "icon-static" "$runtime/capabilities"
 gdbus call --session \
     --dest org.freedesktop.Notifications \
     --object-path /org/freedesktop/Notifications \
@@ -131,6 +137,45 @@ gdbus call --session \
     >"$runtime/server"
 grep -q "Tessa" "$runtime/server"
 echo "notification service + introspection: ok"
+
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 not found; skipping rich notification test"
+else
+    gdbus monitor --session --dest org.freedesktop.Notifications \
+        >"$runtime/monitor.log" 2>&1 &
+    mpid=$!
+    sleep 0.3
+    if ! rid=$(python3 "$root/tests/rich-notification.py" 2>"$runtime/rich.err"); then
+        echo "rich Notify failed" >&2
+        cat "$runtime/rich.err" >&2
+        exit 1
+    fi
+    wait_log "notification: added id=$rid total=1 actions=3 icon=32x32"
+    wait_log "layer map: tessa-notifications layer=2 keyboard=0"
+    if command -v grim >/dev/null 2>&1; then
+        grim -o HEADLESS-1 "$runtime/rich.png" 2>/dev/null || true
+    fi
+    tessa-ctl notify-action "$rid" reply
+    wait_log "notification: removed id=$rid total=0"
+    i=0
+    while [ "$i" -lt 100 ]; do
+        if grep -q "ActionInvoked" "$runtime/monitor.log" 2>/dev/null &&
+            grep -q "reply" "$runtime/monitor.log" 2>/dev/null; then
+            break
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    if ! grep -q "ActionInvoked" "$runtime/monitor.log" 2>/dev/null; then
+        echo "ActionInvoked was not emitted" >&2
+        cat "$runtime/monitor.log" >&2
+        exit 1
+    fi
+    kill "$mpid" 2>/dev/null || true
+    wait "$mpid" 2>/dev/null || true
+    mpid=
+    echo "actions, markup, icon metadata, and ActionInvoked: ok"
+fi
 
 out=$(notify "test-app" 0 "Build finished" "Notification body" 10000)
 id=$(printf '%s\n' "$out" | notification_id)

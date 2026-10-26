@@ -65,9 +65,10 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
       foreign-toplevel リスト、`xdg-desktop-portal-wlr` 用の
       `tessa.portal` セレクタ。モニターの ScreenCast は端から端までテスト済み。
       ウィンドウ単位のキャプチャはポータルバックエンドのプロトコル対応に依存。
-- [x] 通知デーモン（`org.freedesktop.Notifications`、プレーンテキストの
-      トースト、置換/閉じる/期限切れ対応）。
-- [ ] 通知のアクション/アイコン/マークアップと出力間ルーティング。
+- [x] 通知デーモン（`org.freedesktop.Notifications`、トースト、置換/閉じる/
+      期限切れ、アクションボタンと `default` アクティベート、
+      image-data/icon-name アイコン、Pango マークアップ、フォーカス出力への
+      ルーティング対応）。
 - [x] テキストのクリップボード履歴（`wlr-data-control-v1`、メモリ上のみ）。
 
 ## 0.4 — 見た目とレイアウトの深化

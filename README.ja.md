@@ -67,8 +67,10 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - `Super+V` で開き、クリックまたはキーボードで貼り付けられるメモリ上だけの
     クリップボード履歴
   - `wlr-screencopy` を使った範囲/全画面スクリーンショット UI（PNG 保存）
-  - `org.freedesktop.Notifications` サービスと、置換・閉じる・期限切れに
-    対応したプレーンテキストのトースト通知
+  - `org.freedesktop.Notifications` サービス。アクションボタン、
+    `default` アクティベート、image-data/icon-name アイコン、Pango
+    マークアップ、置換/閉じる/期限切れ、フォーカス出力へのルーティングに
+    対応したトースト通知
   - バッテリーとデフォルトルートのネットワーク表示
   - MPRIS メディアチップと操作（`Super+M`）
   - StatusNotifier トレイの watcher/host、アイコン描画、アクティベート
@@ -94,11 +96,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
-`tests/notifications.sh`、`tests/system-status.sh`、`tests/media.sh`、
-`tests/tray.sh`、`tests/audio.sh`、`tests/foreign-toplevels.sh`、
-`tests/portal.sh` で検証しています。ポータルのテストはポータルと PipeWire
-がインストールされている場合に ScreenCast を端から端まで実行し、なければ
-スキップします。
+`tests/notifications.sh`、`tests/notification-routing.sh`、
+`tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
+`tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/portal.sh` で
+検証しています。ポータルのテストはポータルと PipeWire がインストール
+されている場合に ScreenCast を端から端まで実行し、なければスキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -702,9 +704,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   なしでセレクションを読めます。セッション内アプリを信頼できる前提で使って
   ください。
 - **通知は意図的に最小限。** パネルが `org.freedesktop.Notifications` を所有し、
-  プレーンテキストのトースト表示、置換、閉じる、期限切れに対応します。
-  アクション、マークアップ、アイコン検索は未対応です。また D-Bus 名を所有
-  したパネルの出力にだけ表示され、出力間ルーティングは今後の課題です。
+  アクション、`default` クリック、静的アイコン（`image-data` /
+  `image-path` / `icon-name`）、Pango マークアップ、置換、閉じる、
+  期限切れに対応します。トーストはフォーカス中の出力へルーティングされます。
+  Pango が扱えない HTML、通知音、通知ごとの出力固定は未対応です。
 - **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
   使います。MPRIS は最初に見つかったプレイヤーを操作し、アルバムアートは

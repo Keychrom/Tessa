@@ -310,9 +310,20 @@ sh tests/screenshot.sh
 headless セッションを起動して `gdbus` から
 `org.freedesktop.Notifications` を呼びます。サーバー情報と capability、
 トースト表示、`CloseNotification`、期限切れ、置換、積み重ねを確認します。
+リッチ通知のセクションでは `tests/rich-notification.py` でアクション、
+Pango マークアップ、32×32 の `image-data` アイコンを送り、
+`tessa-ctl notify-action <id> reply` で `ActionInvoked` を確認します。
 
 ```sh
 sh tests/notifications.sh
+```
+
+`tests/notification-routing.sh` は headless 出力を 2 つ起動し、トーストの
+layer サーフェスがフォーカス出力に作られること、フォーカス移動時に
+移動すること、次の通知もその出力に出ることを確認します。
+
+```sh
+sh tests/notification-routing.sh
 ```
 
 パネルの通知サービスにはセッション D-Bus が必要です。bus がない場合でも

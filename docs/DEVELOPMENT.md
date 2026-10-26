@@ -327,10 +327,21 @@ pointer path and still needs a physical pointer or a virtual-pointer test.
 `tests/notifications.sh` re-executes itself under `dbus-run-session`, starts the
 headless session, and calls `org.freedesktop.Notifications` through `gdbus`. It
 checks server information/capabilities, a toast, `CloseNotification`, expiry,
-replacement, and stacking.
+replacement, and stacking. The rich-notification section uses
+`tests/rich-notification.py` to send actions, Pango markup, and a 32×32
+`image-data` icon, then invokes an action with
+`tessa-ctl notify-action <id> reply` and checks for `ActionInvoked`.
 
 ```sh
 sh tests/notifications.sh
+```
+
+`tests/notification-routing.sh` starts two headless outputs and checks that the
+toast layer surface is created on the focused output, moves when focus changes,
+and stays there for the next notification.
+
+```sh
+sh tests/notification-routing.sh
 ```
 
 The panel's notification service needs a session D-Bus. If no bus is available,

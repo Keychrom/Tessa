@@ -534,18 +534,28 @@ XKB_KEYMAP_COMPILE_NO_FLAGS)` で読み込みます。`xkb_keymap_new_from_strin
 パネルは GIO をリンクし、小さな C シム `panel/notifications.c` が専用の
 GLib スレッド上でセッション bus の `org.freedesktop.Notifications` を所有
 します。シムは `Notify`、`CloseNotification`、`GetCapabilities`、
-`GetServerInformation` を実装し、`NotificationClosed` を発行します。通知は
-socketpair 上の小さなフレーム化バイナリプロトコルで Zig のイベントループへ
-渡し、パネルからの閉じる/期限切れは GLib メインコンテキストへの呼び出しで
-戻すため、D-Bus アクセスはすべて GDBus スレッド上に留まります。
+`GetServerInformation` を実装し、`NotificationClosed` と `ActionInvoked` を
+発行します。通知は socketpair 上のフレーム化バイナリプロトコルで Zig の
+イベントループへ渡し、パネルからの閉じる/期限切れ/アクションは GLib
+メインコンテキストへの呼び出しで戻すため、D-Bus アクセスはすべて GDBus
+スレッド上に留まります。
+
+各通知レコードは ID、タイムアウト、app/summary/body、最大 4 個の
+アクション、任意のアイコン名/パス、プリマルチプライ済みネイティブ ARGB32 の
+画面アイコンを持ちます。`Notify` は `actions` 配列と `image-data` /
+`image_path` / `icon-name` ヒントを解析し、`image-data` は 64×64 までに
+制限して行単位でコピーし、アルファをプリマルチプライします。
 
 Zig 側は最大 4 件を保持し、ID による置換、期限切れ、`tessa-notifications`
-という右上の layer サーフェスへの描画を行います。高さは通知スタックに追従し、
-Wayland の入力リージョンはカード部分だけで透明な隙間を含みません。カードの
-クリックで閉じ、`NotificationClosed` を発行します。広告する capability は
-`body` と `persistence` のみで、アクション、本文マークアップ、アイコン検索は
-未実装です。bus 名を所有するパネルだけがトーストを表示できるため、出力間
-ルーティングは今後の課題です。
+という右上の layer サーフェスへの描画を行います。アクションボタンがある
+場合はトーストの高さが増えます。カード本体のクリックは `default`
+アクション、ボタンは `ActionInvoked`、× は閉じる操作になります。本文は
+Pango マークアップとして解析できればマークアップ描画し、失敗時は
+プレーンテキストへフォールバックします。アイコンは一般的な XDG アイコン
+パスから読み込み、なければモノグラムを表示します。D-Bus 名を所有する
+パネルがフォーカス中の出力にトーストサーフェスを描画し、フォーカス移動時は
+サーフェスを作り直すため、単一の D-Bus 所有者のまま通知がアクティブな
+モニターへ追従します。
 
 ### システム表示とメディア
 

@@ -9,6 +9,7 @@ const g = &m.g;
 extern fn tessa_notifications_start() c_int;
 extern fn tessa_notifications_stop() void;
 extern fn tessa_notifications_close(id: c_uint, reason: c_uint) void;
+extern fn tessa_notifications_action(id: c_uint, key: [*:0]const u8) void;
 extern fn tessa_media_start() c_int;
 extern fn tessa_media_stop() void;
 extern fn tessa_media_command(code: c_uint) void;
@@ -1474,24 +1475,55 @@ fn openScreenshot() void {
 }
 
 const TOAST_WIDTH: i32 = 380;
-const TOAST_HEIGHT: i32 = 82;
 const TOAST_GAP: i32 = 8;
 
 fn toastSurfaceHeight() i32 {
     if (g.notification_count == 0) return 0;
+    var height: i32 = 0;
+    var i: usize = 0;
+    while (i < g.notification_count) : (i += 1) {
+        height += m.toastHeight(&g.notifications[i]);
+    }
     const count: i32 = @intCast(g.notification_count);
-    return count * TOAST_HEIGHT + (count - 1) * TOAST_GAP;
+    return height + (count - 1) * TOAST_GAP;
+}
+
+fn outputInfoFor(wl: ?*c.wl_output) ?*m.OutputInfo {
+    if (wl == null) return null;
+    var i: usize = 0;
+    while (i < g.output_count) : (i += 1) {
+        if (g.outputs[i].wl == wl) return &g.outputs[i];
+    }
+    return null;
+}
+
+fn focusedOutputInfo() ?*m.OutputInfo {
+    if (g.focused_output_name_len > 0) {
+        var i: usize = 0;
+        while (i < g.output_count) : (i += 1) {
+            const info = &g.outputs[i];
+            if (info.name_len == g.focused_output_name_len and
+                std.mem.eql(u8, info.name[0..info.name_len], g.focused_output_name[0..g.focused_output_name_len]))
+            {
+                return info;
+            }
+        }
+    }
+    return outputInfoFor(g.target_output);
 }
 
 fn destroyToasts() void {
     const s = g.toasts orelse return;
     g.toasts = null;
+    g.toasts_output_len = 0;
+    g.toasts_output[0] = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
     draw.destroyBuffers(s);
     if (s.layer) |layer| c.zwlr_layer_surface_v1_destroy(layer);
     if (s.wl) |wl| c.wl_surface_destroy(wl);
     c.free(s);
     g.toast_hit_count = 0;
+    g.toast_action_hit_count = 0;
 }
 
 fn updateToastsSurface() void {
@@ -1500,13 +1532,21 @@ fn updateToastsSurface() void {
         return;
     }
     const height = toastSurfaceHeight();
+    const focused = focusedOutputInfo();
+    const out_name = if (focused) |info| info.name[0..info.name_len] else g.target_name[0..g.target_name_len];
     if (g.toasts) |s| {
-        if (s.layer) |layer| {
-            c.zwlr_layer_surface_v1_set_size(layer, @intCast(TOAST_WIDTH), @intCast(height));
+        const same_output = g.toasts_output_len == out_name.len and
+            std.mem.eql(u8, g.toasts_output[0..g.toasts_output_len], out_name);
+        if (!same_output) {
+            destroyToasts();
+        } else {
+            if (s.layer) |layer| {
+                c.zwlr_layer_surface_v1_set_size(layer, @intCast(TOAST_WIDTH), @intCast(height));
+            }
+            if (s.wl) |wl| c.wl_surface_commit(wl);
+            s.dirty = true;
+            return;
         }
-        if (s.wl) |wl| c.wl_surface_commit(wl);
-        s.dirty = true;
-        return;
     }
 
     const s = @as(*m.Surface, @ptrCast(@alignCast(c.calloc(1, @sizeOf(m.Surface)).?)));
@@ -1514,7 +1554,7 @@ fn updateToastsSurface() void {
     const top = g.bar_top_margin + g.bar_height + 8;
     if (!createLayerSurface(
         s,
-        g.target_output,
+        if (focused) |info| info.wl else g.target_output,
         .toasts,
         @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
         @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
@@ -1531,13 +1571,27 @@ fn updateToastsSurface() void {
         c.free(s);
         return;
     }
+    if (focused) |info| draw.setSurfaceScale(s, info.scale);
     g.toasts = s;
-    logDebug("notifications: toast surface {d}x{d}", .{ TOAST_WIDTH, height });
+    m.copyTrunc(&g.toasts_output, &g.toasts_output_len, out_name);
+    logDebug("notifications: toast surface {d}x{d} output={s}", .{
+        TOAST_WIDTH,
+        height,
+        g.toasts_output[0..g.toasts_output_len],
+    });
+}
+
+fn freeNotificationIcon(n: *m.NotificationEntry) void {
+    if (n.icon_surface) |surf| {
+        c.cairo_surface_destroy(surf);
+        n.icon_surface = null;
+    }
 }
 
 fn notificationRemoveAt(index: usize, notify_service: bool, reason: u32) void {
     if (index >= g.notification_count) return;
     const id = g.notifications[index].id;
+    freeNotificationIcon(&g.notifications[index]);
     var i = index;
     while (i + 1 < g.notification_count) : (i += 1) {
         g.notifications[i] = g.notifications[i + 1];
@@ -1562,13 +1616,96 @@ fn notificationDismiss(id: u32) void {
     }
 }
 
-fn notificationAdd(id: u32, replaces_id: u32, timeout: i32, app: []const u8, summary: []const u8, body: []const u8) void {
+fn notificationDefaultAction(n: *const m.NotificationEntry) ?usize {
+    var i: usize = 0;
+    while (i < n.action_count and i < n.actions.len) : (i += 1) {
+        const action = &n.actions[i];
+        if (action.key_len > 0 and
+            std.mem.eql(u8, action.key[0..action.key_len], "default")) return i;
+    }
+    return null;
+}
+
+fn notificationAction(index: usize, action_index: usize) void {
+    if (index >= g.notification_count) return;
+    const n = &g.notifications[index];
+    if (action_index >= n.action_count) return;
+    const action = &n.actions[action_index];
+    if (action.key_len > 0) {
+        tessa_notifications_action(n.id, action.key[0..action.key_len :0].ptr);
+    }
+    notificationRemoveAt(index, false, 0);
+}
+
+fn notificationActionByKey(id: u32, key: []const u8) void {
+    const index = notificationFind(id) orelse return;
+    const n = &g.notifications[index];
+    var i: usize = 0;
+    while (i < n.action_count and i < n.actions.len) : (i += 1) {
+        const action = &n.actions[i];
+        if (action.key_len == key.len and
+            std.mem.eql(u8, action.key[0..action.key_len], key))
+        {
+            notificationAction(index, i);
+            return;
+        }
+    }
+}
+
+fn notificationDefaultOrDismiss(index: usize) void {
+    if (index >= g.notification_count) return;
+    const n = &g.notifications[index];
+    if (notificationDefaultAction(n)) |action_index| {
+        notificationAction(index, action_index);
+    } else {
+        notificationRemoveAt(index, true, 2);
+    }
+}
+
+fn clearNotifications() void {
+    while (g.notification_count > 0) {
+        notificationRemoveAt(g.notification_count - 1, false, 0);
+    }
+}
+
+fn notificationAdd(
+    id: u32,
+    replaces_id: u32,
+    timeout: i32,
+    app: []const u8,
+    summary: []const u8,
+    body: []const u8,
+    actions: []const m.NotificationAction,
+    icon_name: []const u8,
+    icon_data: []const u8,
+    icon_w: u32,
+    icon_h: u32,
+) void {
     _ = replaces_id;
     var entry = std.mem.zeroes(m.NotificationEntry);
     entry.id = id;
     m.copyTrunc(&entry.app, &entry.app_len, app);
     m.copyTrunc(&entry.summary, &entry.summary_len, summary);
     m.copyTrunc(&entry.body, &entry.body_len, body);
+    entry.action_count = @min(actions.len, entry.actions.len);
+    var ai: usize = 0;
+    while (ai < entry.action_count) : (ai += 1) {
+        const src = &actions[ai];
+        const dst = &entry.actions[ai];
+        m.copyTrunc(&dst.key, &dst.key_len, src.key[0..src.key_len]);
+        m.copyTrunc(&dst.label, &dst.label_len, src.label[0..src.label_len]);
+    }
+    if (icon_w > 0 and icon_h > 0 and
+        icon_data.len == @as(usize, icon_w) * @as(usize, icon_h) * 4 and
+        icon_data.len <= m.MAX_NOTIFICATION_ICON_BYTES)
+    {
+        @memcpy(entry.icon_data[0..icon_data.len], icon_data);
+        entry.icon_w = icon_w;
+        entry.icon_h = icon_h;
+        entry.icon_len = icon_data.len;
+    } else if (icon_name.len > 0) {
+        entry.icon_surface = loadNotificationIcon(icon_name);
+    }
     const effective: i64 = if (timeout == 0)
         0
     else if (timeout < 0)
@@ -1578,6 +1715,7 @@ fn notificationAdd(id: u32, replaces_id: u32, timeout: i32, app: []const u8, sum
     entry.expire_ms = if (effective == 0) 0 else m.nowMs() + @max(@as(i64, 1000), effective);
 
     if (notificationFind(id)) |existing| {
+        freeNotificationIcon(&g.notifications[existing]);
         var i = existing;
         while (i > 0) : (i -= 1) {
             g.notifications[i] = g.notifications[i - 1];
@@ -1595,7 +1733,13 @@ fn notificationAdd(id: u32, replaces_id: u32, timeout: i32, app: []const u8, sum
         g.notifications[0] = entry;
     }
     updateToastsSurface();
-    logDebug("notification: added id={d} total={d}", .{ id, g.notification_count });
+    logDebug("notification: added id={d} total={d} actions={d} icon={d}x{d}", .{
+        id,
+        g.notification_count,
+        entry.action_count,
+        entry.icon_w,
+        entry.icon_h,
+    });
 }
 
 fn expireNotifications(now: i64) void {
@@ -1630,7 +1774,7 @@ fn processNotificationMessages() void {
     while (g.notification_len > 0) {
         const kind = g.notification_buf[0];
         if (kind == 1) {
-            if (g.notification_len < 28) return;
+            if (g.notification_len < 48) return;
             const id = readU32(&g.notification_buf, 4);
             const replaces = readU32(&g.notification_buf, 8);
             const timeout_bits = readU32(&g.notification_buf, 12);
@@ -1638,17 +1782,72 @@ fn processNotificationMessages() void {
             const app_len: usize = @intCast(readU32(&g.notification_buf, 16));
             const summary_len: usize = @intCast(readU32(&g.notification_buf, 20));
             const body_len: usize = @intCast(readU32(&g.notification_buf, 24));
-            const total = 28 + app_len + summary_len + body_len;
+            const action_count: usize = @intCast(readU32(&g.notification_buf, 28));
+            const icon_name_len: usize = @intCast(readU32(&g.notification_buf, 32));
+            const icon_w = readU32(&g.notification_buf, 36);
+            const icon_h = readU32(&g.notification_buf, 40);
+            const icon_len: usize = @intCast(readU32(&g.notification_buf, 44));
+            var total = 48 + app_len + summary_len + body_len + icon_name_len + icon_len;
             if (total > g.notification_buf.len) {
                 logMsg("notification: oversized message", .{});
                 g.notification_len = 0;
                 return;
             }
             if (g.notification_len < total) return;
-            const app = g.notification_buf[28 .. 28 + app_len];
-            const summary = g.notification_buf[28 + app_len .. 28 + app_len + summary_len];
-            const body = g.notification_buf[28 + app_len + summary_len .. total];
-            notificationAdd(id, replaces, timeout, app, summary, body);
+            const app = g.notification_buf[48 .. 48 + app_len];
+            const summary = g.notification_buf[48 + app_len .. 48 + app_len + summary_len];
+            const body_start = 48 + app_len + summary_len;
+            const body = g.notification_buf[body_start .. body_start + body_len];
+            const icon_name_start = body_start + body_len;
+            const icon_name = g.notification_buf[icon_name_start .. icon_name_start + icon_name_len];
+            const icon_start = icon_name_start + icon_name_len;
+            const icon_data = g.notification_buf[icon_start .. icon_start + icon_len];
+
+            var actions: [m.MAX_NOTIFICATION_ACTIONS]m.NotificationAction = undefined;
+            const action_total = @min(action_count, actions.len);
+            var action_parsed: usize = 0;
+            var off = total;
+            while (action_parsed < action_total) : (action_parsed += 1) {
+                if (off + 8 > g.notification_buf.len) {
+                    logMsg("notification: truncated actions", .{});
+                    g.notification_len = 0;
+                    return;
+                }
+                const key_len: usize = @intCast(readU32(&g.notification_buf, off));
+                const label_len: usize = @intCast(readU32(&g.notification_buf, off + 4));
+                if (key_len >= actions[action_parsed].key.len or
+                    label_len >= actions[action_parsed].label.len or
+                    off + 8 + key_len + label_len > g.notification_buf.len)
+                {
+                    logMsg("notification: malformed action", .{});
+                    g.notification_len = 0;
+                    return;
+                }
+                actions[action_parsed] = std.mem.zeroes(m.NotificationAction);
+                @memcpy(actions[action_parsed].key[0..key_len], g.notification_buf[off + 8 .. off + 8 + key_len]);
+                actions[action_parsed].key[key_len] = 0;
+                actions[action_parsed].key_len = key_len;
+                @memcpy(actions[action_parsed].label[0..label_len], g.notification_buf[off + 8 + key_len .. off + 8 + key_len + label_len]);
+                actions[action_parsed].label[label_len] = 0;
+                actions[action_parsed].label_len = label_len;
+                off += 8 + key_len + label_len;
+            }
+            if (off > total) total = off;
+            if (g.notification_len < total) return;
+
+            notificationAdd(
+                id,
+                replaces,
+                timeout,
+                app,
+                summary,
+                body,
+                actions[0..action_parsed],
+                icon_name,
+                icon_data,
+                icon_w,
+                icon_h,
+            );
             notificationShift(total);
         } else if (kind == 2) {
             if (g.notification_len < 5) return;
@@ -1685,6 +1884,7 @@ fn readNotifications() void {
         logMsg("notifications: service disconnected", .{});
         _ = c.close(g.notification_fd);
         g.notification_fd = -1;
+        clearNotifications();
         return;
     }
     g.notification_len += @intCast(n);
@@ -1863,6 +2063,16 @@ fn loadTrayIcon(name: []const u8) ?*c.cairo_surface_t {
         }
     }
     return null;
+}
+
+fn loadNotificationIcon(name: []const u8) ?*c.cairo_surface_t {
+    if (name.len == 0 or name.len > 500) return null;
+    var path = name;
+    if (std.mem.startsWith(u8, path, "file://")) path = path[7..];
+    if ((path.len > 0 and path[0] == '/') or std.mem.indexOfScalar(u8, path, '/') != null) {
+        if (tryTrayPng(path)) |s| return s;
+    }
+    return loadTrayIcon(name);
 }
 
 fn decodeTrayPixmap(raw: []const u8, w: u32, h: u32, out: []u8) bool {
@@ -2549,6 +2759,33 @@ fn hitToast(x: f64, y: f64) ?u32 {
     return null;
 }
 
+fn hitToastAction(x: f64, y: f64) ?m.ToastActionHit {
+    var i: usize = 0;
+    while (i < g.toast_action_hit_count) : (i += 1) {
+        const r = &g.toast_action_hits[i];
+        if (x >= r.x and x < r.x + r.w and y >= r.y and y < r.y + r.h) return r.*;
+    }
+    return null;
+}
+
+fn hitToastClose(x: f64, y: f64) ?u32 {
+    var i: usize = 0;
+    while (i < g.toast_hit_count) : (i += 1) {
+        const r = &g.toast_hits[i];
+        if (!hitIn(r, x, y)) continue;
+        if (x >= r.x + r.w - 36.0 and y < r.y + 32.0) return @intCast(r.hit.value);
+    }
+    return null;
+}
+
+fn notificationDefaultOrDismissById(id: u32) void {
+    if (notificationFind(id)) |index| notificationDefaultOrDismiss(index);
+}
+
+fn notificationActionById(id: u32, action: usize) void {
+    if (notificationFind(id)) |index| notificationAction(index, action);
+}
+
 fn updateHover() void {
     if (g.pointer_surface == &g.bar) {
         const h = hitBar(g.pointer_x, g.pointer_y);
@@ -2561,6 +2798,10 @@ fn updateHover() void {
             g.hover = .{};
             g.bar.dirty = true;
         }
+    }
+
+    if (g.toasts) |toasts| {
+        if (g.pointer_surface == toasts) toasts.dirty = true;
     }
 
     if (g.overlay) |ov| {
@@ -2603,6 +2844,7 @@ fn onPointerLeave(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, surfa
     _ = serial;
     const s = surfaceFor(surface) orelse return;
     if (g.pointer_surface == s) g.pointer_surface = null;
+    if (s.kind == .toasts) s.dirty = true;
     if (g.overlay_mode == .screenshot) {
         refreshOverlay();
         return;
@@ -2656,8 +2898,18 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
         return;
     }
     if (g.toasts == pointer_surface) {
-        if (state == 1 and (button == 0x110 or button == 0x111)) {
-            if (hitToast(g.pointer_x, g.pointer_y)) |id| notificationDismiss(id);
+        if (state == 1) {
+            if (button == 0x111) {
+                if (hitToast(g.pointer_x, g.pointer_y)) |id| notificationDismiss(id);
+            } else if (button == 0x110) {
+                if (hitToastAction(g.pointer_x, g.pointer_y)) |hit| {
+                    notificationActionById(hit.id, hit.action);
+                } else if (hitToastClose(g.pointer_x, g.pointer_y)) |id| {
+                    notificationDismiss(id);
+                } else if (hitToast(g.pointer_x, g.pointer_y)) |id| {
+                    notificationDefaultOrDismissById(id);
+                }
+            }
         }
         return;
     }
@@ -2896,6 +3148,14 @@ fn handleStateLine(line: []const u8) void {
             if (ws >= 1 and ws <= 9) g.active_ws = ws;
             g.is_focused_output = std.mem.eql(u8, focused_s, "1");
         }
+        if (std.mem.eql(u8, focused_s, "1")) {
+            const changed = g.focused_output_name_len != name.len or
+                !std.mem.eql(u8, g.focused_output_name[0..g.focused_output_name_len], name);
+            if (changed) {
+                m.copyTrunc(&g.focused_output_name, &g.focused_output_name_len, name);
+                if (g.notification_count > 0) updateToastsSurface();
+            }
+        }
     } else if (std.mem.eql(u8, cmd, "ACTIVE")) {
         const s = it.next() orelse return;
         const v = std.fmt.parseInt(usize, s, 10) catch return;
@@ -2920,6 +3180,26 @@ fn onEvent(line: []const u8) void {
 
         if (std.mem.eql(u8, name, "config-reload")) {
             reloadPanelConfig();
+            return;
+        }
+        if (std.mem.eql(u8, name, "notification-action")) {
+            var id: u32 = 0;
+            var action_buf: [128]u8 = undefined;
+            var action_len: usize = 0;
+            var fi: usize = 2;
+            while (fi < count) : (fi += 1) {
+                const eq = std.mem.indexOfScalar(u8, fields[fi], '=') orelse continue;
+                const key = fields[fi][0..eq];
+                const value = fields[fi][eq + 1 ..];
+                if (std.mem.eql(u8, key, "id")) {
+                    id = std.fmt.parseInt(u32, value, 10) catch 0;
+                } else if (std.mem.eql(u8, key, "action")) {
+                    m.decodeEscapes(&action_buf, &action_len, value);
+                }
+            }
+            if (id > 0 and action_len > 0) {
+                notificationActionByKey(id, action_buf[0..action_len]);
+            }
             return;
         }
         if (!std.mem.eql(u8, name, "launcher") and !std.mem.eql(u8, name, "panel")) return;
@@ -3215,6 +3495,10 @@ pub fn main() !void {
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
     }
+    if (c.getenv("TESSA_PANEL_NOTIFY_OWNER")) |owner| {
+        const value = std.mem.span(owner);
+        g.notification_owner = !(value.len > 0 and value[0] == '0');
+    }
     initListeners();
     m.loadConfig();
     apps.scan(&g.app_list);
@@ -3258,7 +3542,7 @@ pub fn main() !void {
     }
 
     createChrome();
-    startNotificationService();
+    if (g.notification_owner) startNotificationService();
     startMediaService();
     startTrayService();
     startAudioService();
@@ -3273,6 +3557,7 @@ pub fn main() !void {
 
     tessa_notifications_stop();
     g.notification_fd = -1;
+    clearNotifications();
     tessa_media_stop();
     g.media_fd = -1;
     tessa_tray_stop();

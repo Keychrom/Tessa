@@ -33,6 +33,7 @@ tessa-ctl panel screenshot             # 範囲/全画面スクリーンショ�
 tessa-ctl panel media                  # MPRIS メディア操作
 tessa-ctl panel tray                   # StatusNotifier トレイ
 tessa-ctl panel audio                  # 音量操作
+tessa-ctl notify-action 12 reply       # 通知アクションを実行
 tessa-ctl panel power HEADLESS-2        # 出力を指定
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
 tessa-ctl mode resize                   # 入力モードを切り替え
@@ -137,6 +138,7 @@ EVENT	panel	arg=screenshot	output=HEADLESS-1
 EVENT	panel	arg=media	output=HEADLESS-1
 EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
+EVENT	notification-action	id=12	action=reply
 ```
 
 該当しないフィールドは省略されます。`id` / `previous` はウィンドウ ID、
@@ -158,6 +160,7 @@ EVENT	panel	arg=audio	output=HEADLESS-1
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
 | `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`、`screenshot`、`media`、`tray`、`audio`）, output |
+| `notification-action` | IPC 経由の通知アクション要求 | id, action（アクションキー） |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |
 | `output-removed` | 出力削除 | output, arg（ジオメトリ） |
 

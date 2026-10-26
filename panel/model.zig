@@ -11,6 +11,9 @@ pub const POWER_ACTION_COUNT = 5;
 pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
 pub const MAX_NOTIFICATIONS = 4;
+pub const MAX_NOTIFICATION_ACTIONS = 4;
+pub const MAX_NOTIFICATION_ICON = 64;
+pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION_ICON * 4;
 pub const MAX_TRAY_ITEMS = 8;
 pub const MAX_TRAY_ICON = 32;
 pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
@@ -148,6 +151,13 @@ pub const ClipboardEntry = struct {
     len: usize = 0,
 };
 
+pub const NotificationAction = struct {
+    key: [64]u8 = [_]u8{0} ** 64,
+    key_len: usize = 0,
+    label: [96]u8 = [_]u8{0} ** 96,
+    label_len: usize = 0,
+};
+
 pub const NotificationEntry = struct {
     id: u32 = 0,
     app: [64]u8 = [_]u8{0} ** 64,
@@ -157,7 +167,43 @@ pub const NotificationEntry = struct {
     body: [512]u8 = [_]u8{0} ** 512,
     body_len: usize = 0,
     expire_ms: i64 = 0,
+    actions: [MAX_NOTIFICATION_ACTIONS]NotificationAction = undefined,
+    action_count: usize = 0,
+    icon_w: u32 = 0,
+    icon_h: u32 = 0,
+    icon_len: usize = 0,
+    icon_data: [MAX_NOTIFICATION_ICON_BYTES]u8 = [_]u8{0} ** MAX_NOTIFICATION_ICON_BYTES,
+    icon_surface: ?*c.cairo_surface_t = null,
 };
+
+pub const ToastActionHit = struct {
+    x: f64 = 0,
+    y: f64 = 0,
+    w: f64 = 0,
+    h: f64 = 0,
+    id: u32 = 0,
+    action: usize = 0,
+};
+
+pub const TOAST_BASE_HEIGHT: i32 = 82;
+pub const TOAST_ACTION_EXTRA: i32 = 30;
+
+pub fn toastActionCount(n: *const NotificationEntry) usize {
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i < n.action_count and i < n.actions.len) : (i += 1) {
+        const action = &n.actions[i];
+        if (action.key_len == 0 or
+            std.mem.eql(u8, action.key[0..action.key_len], "default")) continue;
+        count += 1;
+        if (count >= 3) break;
+    }
+    return count;
+}
+
+pub fn toastHeight(n: *const NotificationEntry) i32 {
+    return TOAST_BASE_HEIGHT + if (toastActionCount(n) > 0) TOAST_ACTION_EXTRA else 0;
+}
 
 pub const TrayItem = struct {
     title: [160]u8 = [_]u8{0} ** 160,
@@ -191,12 +237,16 @@ pub const Panel = struct {
     overlay: ?*Surface = null,
     overlay_mode: OverlayMode = .none,
     toasts: ?*Surface = null,
+    toasts_output: [64]u8 = [_]u8{0} ** 64,
+    toasts_output_len: usize = 0,
 
     outputs: [MAX_OUTPUTS]OutputInfo = [_]OutputInfo{.{}} ** MAX_OUTPUTS,
     output_count: usize = 0,
     target_output: ?*c.wl_output = null,
     target_name: [64]u8 = [_]u8{0} ** 64,
     target_name_len: usize = 0,
+    focused_output_name: [64]u8 = [_]u8{0} ** 64,
+    focused_output_name_len: usize = 0,
     is_focused_output: bool = false,
     scale: i32 = 1,
 
@@ -213,8 +263,11 @@ pub const Panel = struct {
     notification_buf: [65536]u8 = undefined,
     notification_len: usize = 0,
     notification_service_ready: bool = false,
+    notification_owner: bool = true,
     toast_hits: [MAX_NOTIFICATIONS]HitRect = undefined,
     toast_hit_count: usize = 0,
+    toast_action_hits: [MAX_NOTIFICATIONS * 3]ToastActionHit = undefined,
+    toast_action_hit_count: usize = 0,
 
     custom_apps: [MAX_CUSTOM_APPS]CustomApp = undefined,
     custom_count: usize = 0,

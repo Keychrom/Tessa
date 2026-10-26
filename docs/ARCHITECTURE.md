@@ -519,18 +519,28 @@ PNG. The default directory is `~/Pictures/Screenshots`, configurable with
 The panel links GIO and loads a small C shim, `panel/notifications.c`, which owns
 `org.freedesktop.Notifications` on the session bus from a dedicated GLib thread.
 The shim implements `Notify`, `CloseNotification`, `GetCapabilities`, and
-`GetServerInformation`, and emits `NotificationClosed`. It sends notifications to
-the Zig event loop over a socketpair using a small framed binary protocol; the
-panel sends dismissal/expiry back through a GLib main-context invocation so all
-D-Bus access stays on the GDBus thread.
+`GetServerInformation`, and emits `NotificationClosed` and `ActionInvoked`. It
+sends notifications to the Zig event loop over a socketpair using a framed binary
+protocol; panel dismissal/expiry/action requests go back through a GLib
+main-context invocation so all D-Bus access stays on the GDBus thread.
+
+Each notification record contains the id, timeout, app/summary/body, up to four
+actions, an optional icon name/path, and a screen icon as premultiplied native
+ARGB32. `Notify` parses the `actions` array and the `image-data`/`image_path`/
+`icon-name` hints; `image-data` is capped at 64×64 and copied row by row with
+alpha premultiplication.
 
 The Zig side keeps four active notifications, applies replacement by id, expires
 timed notifications, and draws a top-right layer surface named
-`tessa-notifications`. Its height follows the stack, and its Wayland input region
-contains only the cards, not the transparent gaps. Clicking a card dismisses it
-and emits `NotificationClosed`. Only `body` and `persistence` are advertised:
-actions, body markup, and icon lookup are not implemented. Only the panel that
-owns the bus name can show toasts, so cross-output routing remains future work.
+`tessa-notifications`. Toast heights grow when action buttons are present.
+Clicking the card activates the `default` action if one exists, action buttons
+emit `ActionInvoked`, and the close button dismisses. Body text is rendered with
+Pango markup when it parses; otherwise it falls back to plain text. Theme icons
+are loaded from common XDG icon paths and monogram fallbacks are used when no
+icon is available. The panel that owns the D-Bus name renders the toast surface
+on the currently focused output and recreates that surface when focus moves, so
+new and existing notifications follow the active monitor while a single D-Bus
+owner remains responsible for actions.
 
 ### System indicators and media
 

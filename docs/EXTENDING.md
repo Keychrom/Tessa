@@ -33,6 +33,7 @@ tessa-ctl panel screenshot             # region/full screenshot UI
 tessa-ctl panel media                  # MPRIS controls
 tessa-ctl panel tray                   # StatusNotifier tray
 tessa-ctl panel audio                  # volume controls
+tessa-ctl notify-action 12 reply       # invoke a notification action
 tessa-ctl panel power HEADLESS-2        # target a specific output
 tessa-ctl layout grid                   # set/cycle current workspace layout
 tessa-ctl mode resize                   # switch input mode
@@ -133,6 +134,7 @@ EVENT	panel	arg=screenshot	output=HEADLESS-1
 EVENT	panel	arg=media	output=HEADLESS-1
 EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
+EVENT	notification-action	id=12	action=reply
 ```
 
 Fields are omitted when they do not apply. `id` and `previous` are ids; `ws` and
@@ -154,6 +156,7 @@ names the window that lost focus.
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
 | `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, `screenshot`, `media`, `tray`, or `audio`), output |
+| `notification-action` | A notification action was requested through IPC | id, action (action key) |
 | `output-added` | Output initialized | output, arg (geometry) |
 | `output-removed` | Output removed | output, arg (geometry) |
 

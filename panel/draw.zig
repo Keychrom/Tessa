@@ -87,6 +87,17 @@ fn drawTextCentered(cr: *c.cairo_t, text: []const u8, x: f64, cy: f64, family: [
     return .{ .w = w, .h = h };
 }
 
+fn drawTextMarkup(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, family: []const u8, style: []const u8, size: f64, col: [4]f64, max_w: f64, spacing: f64) TextSize {
+    if (text.len == 0) return .{};
+    var fam_buf: [128:0]u8 = undefined;
+    var style_buf: [64:0]u8 = undefined;
+    const fam = copyZBuf(128, &fam_buf, family);
+    const sty = copyZBuf(64, &style_buf, style);
+    var h: f64 = 0;
+    const w = c.tessa_text_draw_markup(cr, text.ptr, @intCast(text.len), fam, sty, size, max_w, spacing, x, y, 0, col[0], col[1], col[2], col[3], &h);
+    return .{ .w = w, .h = h };
+}
+
 fn textWidth(cr: *c.cairo_t, text: []const u8, family: []const u8, style: []const u8, size: f64, spacing: f64) f64 {
     if (text.len == 0) return 0;
     var fam_buf: [128:0]u8 = undefined;
@@ -594,6 +605,55 @@ fn drawVolumeIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
         col[0], col[1], col[2], 0.82,
     }, 0, 0);
     return x - 14;
+}
+
+fn paintNotificationIcon(cr: *c.cairo_t, n: *const m.NotificationEntry, x: f64, y: f64, size: f64) void {
+    const accent = g.accent;
+    var source: ?*c.cairo_surface_t = null;
+    var temp = false;
+    var iw: f64 = 0;
+    var ih: f64 = 0;
+
+    if (n.icon_len > 0 and n.icon_w > 0 and n.icon_h > 0) {
+        iw = @floatFromInt(n.icon_w);
+        ih = @floatFromInt(n.icon_h);
+        const surf = c.cairo_image_surface_create_for_data(
+            @ptrCast(@constCast(&n.icon_data)),
+            c.CAIRO_FORMAT_ARGB32,
+            @intCast(n.icon_w),
+            @intCast(n.icon_h),
+            @intCast(n.icon_w * 4),
+        );
+        if (c.cairo_surface_status(surf) == c.CAIRO_STATUS_SUCCESS) {
+            source = surf;
+            temp = true;
+        } else {
+            c.cairo_surface_destroy(surf);
+        }
+    } else if (n.icon_surface) |surf| {
+        iw = @floatFromInt(c.cairo_image_surface_get_width(surf));
+        ih = @floatFromInt(c.cairo_image_surface_get_height(surf));
+        if (iw > 0 and ih > 0) source = surf;
+    }
+
+    if (source) |surf| {
+        const scale = @min(size / iw, size / ih);
+        c.cairo_save(cr);
+        c.cairo_translate(cr, x + size / 2.0, y + size / 2.0);
+        c.cairo_scale(cr, scale, scale);
+        c.cairo_set_source_surface(cr, surf, -iw / 2.0, -ih / 2.0);
+        c.cairo_paint(cr);
+        c.cairo_restore(cr);
+        if (temp) c.cairo_surface_destroy(surf);
+    } else {
+        fillRound(cr, x, y, size, size, 9, .{ accent[0], accent[1], accent[2], 0.86 });
+        const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
+        var glyph_buf: [8]u8 = undefined;
+        const glyph = upperFirst(&glyph_buf, firstGlyph(app));
+        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.8, y + size / 2.0 + 0.4, g.font[0..g.font_len], "Semi-Bold", 10.5, .{
+            1, 1, 1, 0.96,
+        }, 0, 0);
+    }
 }
 
 fn paintTrayIcon(cr: *c.cairo_t, item: *const m.TrayItem, x: f64, y: f64, size: f64) void {
@@ -1485,29 +1545,32 @@ pub fn drawToasts(s: *m.Surface) void {
     const fg = g.panel_fg;
     const fam = g.font[0..g.font_len];
     g.toast_hit_count = 0;
+    g.toast_action_hit_count = 0;
 
     var region: ?*c.wl_region = null;
     if (g.compositor) |compositor| region = c.wl_compositor_create_region(compositor);
 
+    var y: f64 = 0;
     var i: usize = 0;
     while (i < g.notification_count) : (i += 1) {
         const n = &g.notifications[i];
-        const y = @as(f64, @floatFromInt(i)) * 90.0;
+        const th = m.toastHeight(n);
+        const height: f64 = @floatFromInt(th);
         if (y >= H) break;
         const hovered = g.pointer_surface == s and
             g.pointer_x >= 0 and g.pointer_x < W and
-            g.pointer_y >= y and g.pointer_y < y + 82.0;
+            g.pointer_y >= y and g.pointer_y < y + height;
 
-        fillRound(cr, 0, y, W, 82, 14, .{ 0.016, 0.023, 0.038, 0.72 });
-        roundRect(cr, 0, y, W, 82, 14);
-        linearGradient(cr, 0, y, 0, y + 82, .{
+        fillRound(cr, 0, y, W, height, 14, .{ 0.016, 0.023, 0.038, 0.72 });
+        roundRect(cr, 0, y, W, height, 14);
+        linearGradient(cr, 0, y, 0, y + height, .{
             bg[0] * 1.7 + 0.01,
             bg[1] * 1.7 + 0.01,
             bg[2] * 1.7 + 0.02,
             if (hovered) 0.985 else 0.965,
         }, .{ bg[0] * 1.05, bg[1] * 1.05, bg[2] * 1.08, 0.965 });
         c.cairo_fill(cr);
-        strokeRound(cr, 0.5, y + 0.5, W - 1, 81, 13.5, .{ 1, 1, 1, if (hovered) 0.16 else 0.09 }, 1);
+        strokeRound(cr, 0.5, y + 0.5, W - 1, height - 1, 13.5, .{ 1, 1, 1, if (hovered) 0.16 else 0.09 }, 1);
 
         const top_pat = c.cairo_pattern_create_linear(16, 0, W - 16, 0);
         c.cairo_pattern_add_color_stop_rgba(top_pat, 0, accent[0], accent[1], accent[2], 0.65);
@@ -1517,15 +1580,10 @@ pub fn drawToasts(s: *m.Surface) void {
         c.cairo_fill(cr);
         c.cairo_pattern_destroy(top_pat);
 
-        fillRound(cr, 16, y + 26, 28, 28, 9, .{ accent[0], accent[1], accent[2], 0.86 });
-        var glyph_buf: [8]u8 = undefined;
-        const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
-        const glyph = upperFirst(&glyph_buf, firstGlyph(app));
-        _ = drawTextCentered(cr, glyph, 25, y + 40, fam, "Semi-Bold", 10.5, .{
-            1, 1, 1, 0.96,
-        }, 0, 0);
+        paintNotificationIcon(cr, n, 16, y + 26, 28);
 
         var app_buf: [80]u8 = undefined;
+        const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
         const app_line = toastLine(&app_buf, app);
         _ = drawText(cr, app_line, 54, y + 10, fam, "Medium", 7.2, .{
             0.68, 0.74, 0.84, 0.55,
@@ -1541,7 +1599,7 @@ pub fn drawToasts(s: *m.Surface) void {
         if (n.body_len > 0) {
             var body_buf: [560]u8 = undefined;
             const body = toastLine(&body_buf, n.body[0..n.body_len]);
-            _ = drawText(cr, body, 54, y + 44, fam, "Regular", 8.3, .{
+            _ = drawTextMarkup(cr, body, 54, y + 44, fam, "Regular", 8.3, .{
                 0.68, 0.74, 0.83, 0.72,
             }, W - 96, 0);
         }
@@ -1550,17 +1608,70 @@ pub fn drawToasts(s: *m.Surface) void {
             0.76, 0.81, 0.88, if (hovered) 0.9 else 0.45,
         }, 0, 0);
 
+        const action_count = m.toastActionCount(n);
+        if (action_count > 0) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, 16, y + 70);
+            c.cairo_line_to(cr, W - 16, y + 70);
+            setColor(cr, .{ 1, 1, 1, 0.055 });
+            c.cairo_set_line_width(cr, 1);
+            c.cairo_stroke(cr);
+
+            const action_gap = 6.0;
+            const available = W - 32.0 - action_gap * @as(f64, @floatFromInt(action_count - 1));
+            const button_w = @min(168.0, available / @as(f64, @floatFromInt(action_count)));
+            const button_h = 26.0;
+            var shown: usize = 0;
+            var ai: usize = 0;
+            while (ai < n.action_count and ai < n.actions.len) : (ai += 1) {
+                const action = &n.actions[ai];
+                if (action.key_len == 0 or
+                    std.mem.eql(u8, action.key[0..action.key_len], "default")) continue;
+                if (shown >= action_count) break;
+                const bx = 16.0 + @as(f64, @floatFromInt(shown)) * (button_w + action_gap);
+                const action_hovered = g.pointer_surface == s and
+                    g.pointer_x >= bx and g.pointer_x < bx + button_w and
+                    g.pointer_y >= y + 76 and g.pointer_y < y + 76 + button_h;
+                fillRound(cr, bx, y + 76, button_w, button_h, 8, if (action_hovered) .{
+                    accent[0], accent[1], accent[2], 0.22,
+                } else .{ 1, 1, 1, 0.065 });
+                strokeRound(cr, bx + 0.5, y + 76.5, button_w - 1, button_h - 1, 7.5, .{
+                    accent[0], accent[1], accent[2], if (action_hovered) 0.42 else 0.18,
+                }, 1);
+                const label = if (action.label_len > 0)
+                    action.label[0..action.label_len]
+                else
+                    action.key[0..action.key_len];
+                _ = drawTextCentered(cr, label, bx + button_w / 2.0, y + 76 + button_h / 2.0, fam, "Semi-Bold", 8.4, .{
+                    0.88, 0.92, 0.97, 0.95,
+                }, button_w - 12, 0);
+                if (g.toast_action_hit_count < g.toast_action_hits.len) {
+                    g.toast_action_hits[g.toast_action_hit_count] = .{
+                        .x = bx,
+                        .y = y + 76,
+                        .w = button_w,
+                        .h = button_h,
+                        .id = n.id,
+                        .action = ai,
+                    };
+                    g.toast_action_hit_count += 1;
+                }
+                shown += 1;
+            }
+        }
+
         if (g.toast_hit_count < g.toast_hits.len) {
             g.toast_hits[g.toast_hit_count] = .{
                 .x = 0,
                 .y = y,
                 .w = W,
-                .h = 82,
+                .h = height,
                 .hit = .{ .kind = .notification, .value = @intCast(n.id) },
             };
             g.toast_hit_count += 1;
         }
-        if (region) |r| c.wl_region_add(r, 0, @intFromFloat(y), @intFromFloat(W), 82);
+        if (region) |r| c.wl_region_add(r, 0, @intFromFloat(y), @intFromFloat(W), @intFromFloat(height));
+        y += height + 8.0;
     }
 
     if (region) |r| {

@@ -433,6 +433,7 @@ pub const Server = struct {
     focused_output: ?*Output,
     focused_layer: ?*LayerSurface,
     next_client_id: u64,
+    panel_notify_owner_assigned: bool,
 
     session_lock_manager: ?*c.wlr_session_lock_manager_v1,
     session_lock: ?*c.wlr_session_lock_v1,

@@ -62,8 +62,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
     lock/suspend/reboot/shutdown commands
   - memory-only clipboard history with `Super+V` and click-to-copy
   - region/full-output screenshot UI using `wlr-screencopy`, saved as PNG
-  - `org.freedesktop.Notifications` service with plain-text toast cards,
-    replacement, close, and expiry
+  - `org.freedesktop.Notifications` service with action buttons, default-action
+    activation, image/data icons, Pango markup, replacement, close, expiry, and
+    routing to the focused output
   - battery and default-route network indicators
   - MPRIS media chip and controls (`Super+M`)
   - StatusNotifier tray watcher/host with icon rendering and activation
@@ -88,10 +89,11 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
-`tests/notifications.sh`, `tests/system-status.sh`, `tests/media.sh`,
-`tests/tray.sh`, `tests/audio.sh`, `tests/foreign-toplevels.sh`, and
-`tests/portal.sh`. The portal test performs an end-to-end ScreenCast when the
-portal and PipeWire services are installed; otherwise it skips.
+`tests/notifications.sh`, `tests/notification-routing.sh`,
+`tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
+`tests/foreign-toplevels.sh`, and `tests/portal.sh`. The portal test performs an
+end-to-end ScreenCast when the portal and PipeWire services are installed;
+otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -674,10 +676,11 @@ These are real and important:
   session clients, so any trusted application can read the selection without
   keyboard focus; treat session applications as trusted.
 - **Notifications are intentionally basic.** The panel owns
-  `org.freedesktop.Notifications` and shows plain-text toasts with replacement,
-  close, and expiry. Actions, markup, and icon lookup are not implemented, and
-  only the panel that owns the D-Bus name shows toasts (cross-output routing is
-  still pending).
+  `org.freedesktop.Notifications` and supports actions, a `default` click
+  action, static icons (`image-data`/`image-path`/`icon-name`), Pango markup,
+  replacement, close, and expiry. Cross-output routing sends toasts to the
+  focused output. Rich HTML markup beyond Pango's subset, notification sounds,
+  and per-notification output pinning are not implemented.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
   MPRIS controls the first discovered player and does not display album art.

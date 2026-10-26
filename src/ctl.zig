@@ -24,6 +24,7 @@ fn usage() void {
         "  launcher [query...]           open the launcher\n" ++
         "  panel <calendar|power|clipboard|screenshot|media|tray|audio> [out]\n" ++
         "                                open a panel popover\n" ++
+        "  notify-action <id> <key>      invoke a notification action\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
         "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
@@ -418,6 +419,15 @@ fn runQuit() !void {
     try sendCommand("CMD quit\n");
 }
 
+fn runNotificationAction(args: []const []const u8) !void {
+    if (args.len < 3) return error.BadArguments;
+    var line: [512]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD notification-action {s} {s}\n", .{
+        args[1], args[2],
+    }) catch return error.LineTooLong;
+    try sendCommand(msg);
+}
+
 pub fn main(init: std.process.Init.Minimal) void {
     var args_buf: [32][]const u8 = undefined;
     var arg_count: usize = 0;
@@ -456,6 +466,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runLauncher(args)
     else if (std.mem.eql(u8, cmd, "panel"))
         runPanel(args)
+    else if (std.mem.eql(u8, cmd, "notify-action"))
+        runNotificationAction(args)
     else if (std.mem.eql(u8, cmd, "layout"))
         runLayout(args)
     else if (std.mem.eql(u8, cmd, "mode"))

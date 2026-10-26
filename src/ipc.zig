@@ -451,6 +451,26 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
                 emitPanel(server, name, "");
             }
         }
+    } else if (std.mem.eql(u8, cmd, "notification-action")) {
+        const off = findWordOffset(line, "notification-action");
+        const rest = std.mem.trimStart(u8, line[off..], " \t");
+        const sp = std.mem.indexOfAny(u8, rest, " \t") orelse rest.len;
+        const id_s = std.mem.trim(u8, rest[0..sp], " \t");
+        const key = std.mem.trim(u8, rest[sp..], " \t");
+        if (id_s.len > 0 and key.len > 0) {
+            const id = std.fmt.parseInt(u32, id_s, 10) catch 0;
+            if (id > 0) {
+                var key_buf: [512]u8 = undefined;
+                const escaped = escape(&key_buf, key);
+                var out_buf: [640]u8 = undefined;
+                const out = std.fmt.bufPrint(
+                    &out_buf,
+                    "EVENT\tnotification-action\tid={d}\taction={s}\n",
+                    .{ id, escaped },
+                ) catch return;
+                broadcastLine(server, out);
+            }
+        }
     } else if (std.mem.eql(u8, cmd, "quit")) {
         c.wl_display_terminate(server.display);
     }

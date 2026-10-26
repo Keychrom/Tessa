@@ -12,7 +12,8 @@ static PangoLayout *tessa_make_layout(
     const char *style,
     double size,
     double max_width,
-    double spacing) {
+    double spacing,
+    int markup) {
     PangoLayout *layout = pango_cairo_create_layout(cr);
     if (!layout) return NULL;
 
@@ -27,7 +28,17 @@ static PangoLayout *tessa_make_layout(
         pango_layout_set_font_description(layout, desc);
         pango_font_description_free(desc);
     }
-    pango_layout_set_text(layout, utf8, len);
+    if (markup) {
+        GError *error = NULL;
+        if (pango_parse_markup(utf8, len, 0, NULL, NULL, NULL, &error)) {
+            pango_layout_set_markup(layout, utf8, len);
+        } else {
+            if (error) g_error_free(error);
+            pango_layout_set_text(layout, utf8, len);
+        }
+    } else {
+        pango_layout_set_text(layout, utf8, len);
+    }
 
     if (max_width > 1.0) {
         pango_layout_set_width(layout, (int)(max_width * PANGO_SCALE));
@@ -63,7 +74,43 @@ double tessa_text_draw(
     double a,
     double *out_height) {
     if (!cr || !utf8 || len <= 0) return 0;
-    PangoLayout *layout = tessa_make_layout(cr, utf8, len, family, style, size, max_width, spacing);
+    PangoLayout *layout = tessa_make_layout(cr, utf8, len, family, style, size, max_width, spacing, 0);
+    if (!layout) return 0;
+
+    int pw = 0, ph = 0;
+    pango_layout_get_pixel_size(layout, &pw, &ph);
+
+    cairo_save(cr);
+    cairo_set_source_rgba(cr, r, g, b, a);
+    const double draw_y = vertical_center ? y - (double)ph / 2.0 : y;
+    cairo_move_to(cr, x, draw_y);
+    pango_cairo_show_layout(cr, layout);
+    cairo_restore(cr);
+
+    if (out_height) *out_height = (double)ph;
+    g_object_unref(layout);
+    return (double)pw;
+}
+
+double tessa_text_draw_markup(
+    cairo_t *cr,
+    const char *utf8,
+    int len,
+    const char *family,
+    const char *style,
+    double size,
+    double max_width,
+    double spacing,
+    double x,
+    double y,
+    int vertical_center,
+    double r,
+    double g,
+    double b,
+    double a,
+    double *out_height) {
+    if (!cr || !utf8 || len <= 0) return 0;
+    PangoLayout *layout = tessa_make_layout(cr, utf8, len, family, style, size, max_width, spacing, 1);
     if (!layout) return 0;
 
     int pw = 0, ph = 0;
@@ -91,7 +138,7 @@ double tessa_text_measure(
     double spacing,
     double *out_height) {
     if (!cr || !utf8 || len <= 0) return 0;
-    PangoLayout *layout = tessa_make_layout(cr, utf8, len, family, style, size, 0, spacing);
+    PangoLayout *layout = tessa_make_layout(cr, utf8, len, family, style, size, 0, spacing, 0);
     if (!layout) return 0;
     int pw = 0, ph = 0;
     pango_layout_get_pixel_size(layout, &pw, &ph);
