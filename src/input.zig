@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
 const rules = @import("rules.zig");
+const layout_helper = @import("layout_helper.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
@@ -299,6 +300,7 @@ pub fn reloadRuntime(server: *Server) void {
     const cfg = @import("config.zig");
     cfg.load(server);
     reloadKeymaps(server);
+    layout_helper.reload(server);
     rules.applyAll(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);

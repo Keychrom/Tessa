@@ -212,6 +212,17 @@ sh tests/customization.sh
 sh tests/layout-geometry.sh
 ```
 
+### レイアウトヘルパーのテスト
+
+`tests/layout-helper.sh` は `layout = custom` でコンポジタを起動し、小さな
+Python ヘルパーに既知の矩形を返させてジオメトリを検証します。壊れた
+ヘルパーへ切り替えてマスターレイアウトへのフォールバックを確認し、元の
+ヘルパーへ戻して再読み込み後の再起動も検証します。
+
+```sh
+sh tests/layout-helper.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

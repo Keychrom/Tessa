@@ -1,5 +1,6 @@
 const c = @import("c.zig").c;
 const types = @import("types.zig");
+const layout_helper = @import("layout_helper.zig");
 
 const Server = types.Server;
 
@@ -7,6 +8,7 @@ const Server = types.Server;
 /// wlroots asserts that its signal listener lists are empty when its globals
 /// are destroyed; client-owned listeners are already gone by this point.
 pub fn cleanupGlobals(server: *Server) void {
+    layout_helper.deinit(server);
     var i: usize = 0;
     while (i < server.outputs.len) : (i += 1) {
         const out = server.outputs[i] orelse continue;

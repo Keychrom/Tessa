@@ -30,6 +30,7 @@ pub const LayoutMode = enum {
     mosaic,
     grid,
     columns,
+    custom,
 };
 
 pub const layout_cycle = [_]LayoutMode{ .master, .mosaic, .grid, .columns };
@@ -39,6 +40,7 @@ pub fn layoutFromName(name: []const u8) ?LayoutMode {
     if (std.ascii.eqlIgnoreCase(name, "mosaic") or std.ascii.eqlIgnoreCase(name, "spiral")) return .mosaic;
     if (std.ascii.eqlIgnoreCase(name, "grid")) return .grid;
     if (std.ascii.eqlIgnoreCase(name, "columns") or std.ascii.eqlIgnoreCase(name, "column")) return .columns;
+    if (std.ascii.eqlIgnoreCase(name, "custom") or std.ascii.eqlIgnoreCase(name, "helper")) return .custom;
     return null;
 }
 
@@ -151,6 +153,9 @@ pub const Config = struct {
     mosaic_ratio: f32,
     mosaic_min_size: i32,
     grid_columns: usize,
+    layout_helper: [MAX_COMMAND]u8,
+    layout_helper_len: usize,
+    layout_helper_timeout: i32,
     ws_gaps: [WS_COUNT]i32,
     ws_outer_gaps: [WS_COUNT]i32,
     ws_master_ratio: [WS_COUNT]f32,
@@ -421,6 +426,10 @@ pub const Server = struct {
     output_test: c.wl_listener,
 
     config: Config,
+    layout_helper_fd: c_int,
+    layout_helper_pid: c.pid_t,
+    layout_helper_hash: u64,
+    layout_helper_fail_until: i64,
     ipc_fd: c_int,
     ipc_source: ?*c.wl_event_source,
     ipc_idle: ?*c.wl_event_source,

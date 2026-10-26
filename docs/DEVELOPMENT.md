@@ -233,6 +233,17 @@ windows are re-evaluated.
 sh tests/customization.sh
 ```
 
+### Layout helper test
+
+`tests/layout-helper.sh` starts the compositor with `layout = custom`, uses a
+small Python helper to return known rectangles, verifies the geometry, switches
+to a broken helper to check the master-layout fallback, and then restores the
+working helper to verify restart-after-reload.
+
+```sh
+sh tests/layout-helper.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

@@ -31,6 +31,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   without a runtime override
 - declarative window rules matched by app-id/title/output, with floating,
   workspace, fullscreen, size, and position actions
+- external layout-helper protocol for custom tiling algorithms, with a timeout,
+  process restart, and built-in fallback
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -64,7 +66,7 @@ status entries, custom launcher entries, config reload, per-workspace
 master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
-`tests/customization.sh`, and panel screenshots.
+`tests/customization.sh`, `tests/layout-helper.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -400,7 +402,9 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `mosaic_ratio` | slice ratio for mosaic (0.25–0.85) |
 | `mosaic_min_size` | minimum mosaic tile before falling back to grid |
 | `grid_columns` | fixed grid columns; `0` chooses `ceil(sqrt(n))` |
-| `layout` | default layout: `master`, `mosaic`, `grid`, or `columns` |
+| `layout_helper` | command for the long-lived external layout helper |
+| `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
+| `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
@@ -467,6 +471,23 @@ Per-workspace tuning uses the same `key=value; ...` style:
 ```ini
 workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 ```
+
+Custom tiling is selectable with `layout = custom`. Tessa starts the configured
+helper once and sends it the active tiled windows and usable area; the helper
+returns frame rectangles. The helper is not part of the `Super+T` cycle, so bind
+it explicitly if wanted:
+
+```ini
+layout = custom
+layout_helper = python3 ~/.config/tessa/layout.py
+layout_helper_timeout = 100
+bind = SUPER+SHIFT+T set-layout custom
+```
+
+Timeouts, crashes, malformed replies, and missing rectangles fall back to the
+master layout for that frame. See
+[docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md#external-layout-helper) for the
+protocol.
 
 ## How it works
 

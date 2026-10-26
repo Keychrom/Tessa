@@ -9,9 +9,10 @@ runtime or a native plugin VM. Customization has three layers:
    colors, includes, and live reload.
 2. **A process extension surface** — hooks, structured events, status entries,
    the launcher, and the Unix-socket IPC used by `tessa-ctl`.
-3. **Protocols for external policy engines** — a layout-helper protocol and
-   richer effect control are the next steps. The design goal is that a policy
-   engine can live in any language without loading code into the compositor.
+3. **Protocols for external policy engines** — the long-lived layout-helper
+   protocol is available now; richer effect control is next. The design goal is
+   that a policy engine can live in any language without loading code into the
+   compositor.
 
 The flat `key = value` format is intentional: it keeps the parser small,
 supports positional includes, and makes effective values and parsed rules
@@ -92,7 +93,7 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | Clause | Meaning |
 | --- | --- |
 | `ws=1..9` | target workspace (required) |
-| `layout=master/mosaic/grid/columns` | initial layout seed |
+| `layout=master/mosaic/grid/columns/custom` | initial layout seed |
 | `gaps=N` | gap between tiles on this workspace |
 | `outer-gaps=N` | outer gap on this workspace |
 | `master-ratio=0.15..0.9` | master-column width on this workspace |
@@ -104,6 +105,64 @@ current session; config reload restores configured ratio values.
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.
+
+## External layout helper
+
+Custom tiling lives in a long-lived helper process. Select it with
+`layout = custom`, point `layout_helper` at a command, and bind it if you want
+it outside the `Super+T` cycle:
+
+```ini
+layout = custom
+layout_helper = python3 ~/.config/tessa/layout.py
+layout_helper_timeout = 100
+bind = SUPER+SHIFT+T set-layout custom
+```
+
+Tessa sends one tab-separated request describing the usable area and the tiled
+windows, then reads a response with one rectangle per window. `	` below means
+a literal tab:
+
+```text
+LAYOUT	1
+OUTPUT	HEADLESS-1
+AREA	0	0	1920	1080
+OUTER_GAP	16
+GAP	10
+BORDER	2
+SCALE	1.000
+TRANSFORM	0
+COUNT	2
+WINDOW	7	foot	notes
+WINDOW	8	kitty	shell
+END
+```
+
+The helper replies:
+
+```text
+RECT	7	16	16	940	1048
+RECT	8	966	16	938	1048
+END
+```
+
+Coordinates are absolute logical compositor coordinates. Rectangle width and
+height are frame sizes including the border. Floating and fullscreen windows are
+not sent. A response must contain exactly one rectangle for every request window
+and may not contain unknown ids. Return `ERR` instead of rectangles to reject
+the frame.
+
+The helper is started lazily, kept across layout changes, and shared by all
+outputs. It is restarted when `layout_helper` changes or after a failure. A
+missing command, timeout, crash, malformed response, or rectangle mismatch
+falls back to the master layout for that arrangement; after a failure the same
+command is retried after one second. The request is limited to 64 tiled windows.
+The default timeout is 100 ms and the allowed range is 10–1000 ms.
+
+`stdout` is reserved for the protocol. Write diagnostics to `stderr`. The
+command runs as your user through `/bin/sh`, like a hook. See
+[`examples/layout-cascade.py`](../examples/layout-cascade.py) for a minimal
+working helper.
 
 ## Appearance
 
@@ -156,9 +215,8 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 ## Planned customization work
 
 - Per-output layout/gap rules (per-workspace rules are available now).
-- A long-lived external **layout helper** protocol: the compositor sends a
-  window list and canvas, the helper returns rectangles. This enables custom
-  tiling algorithms without a plugin ABI.
+- Per-output helper instances and incremental layout updates (the current
+  helper is a single process with one request/response per arrangement).
 - Configurable animations and shader/effect hooks for window movement,
   workspace changes, borders, and the shell.
 - Schema validation with file/line diagnostics, and a JSON view of state and

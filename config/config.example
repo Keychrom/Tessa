@@ -14,7 +14,8 @@ master_ratio = 0.58
 # mosaic: spiral tessera layout
 # grid: balanced grid
 # columns: equal-width columns
-# Super+T cycles all four at runtime, per output and workspace.
+# custom: external layout helper (see below)
+# Super+T cycles the four built-in layouts at runtime, per output and workspace.
 # Runtime choices are saved to outputs.conf and restored on restart.
 layout = master
 # Optional per-workspace initial layout overrides. These seed workspaces with no
@@ -40,6 +41,13 @@ layout = master
 # Per-workspace layout/spacing overrides. Runtime layout choices still win over
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
 # workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
+
+# External custom tiling. The helper is a long-lived process; it receives
+# tab-separated LAYOUT/AREA/WINDOW/END requests and returns RECT/END responses.
+# See docs/CUSTOMIZATION.md and examples/layout-cascade.py.
+# layout = custom
+# layout_helper = python3 ~/.config/tessa/layout.py
+# layout_helper_timeout = 100
 
 # Start tessa-panel together with the compositor.
 panel = true

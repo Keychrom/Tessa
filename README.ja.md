@@ -32,6 +32,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   設定の再読み込みは上書きしていないワークスペースだけを更新
 - app-id/タイトル/出力でマッチする宣言的ウィンドウルール。フローティング、
   ワークスペース、フルスクリーン、サイズ、位置を指定可能
+- 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
+  タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -69,7 +71,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
-`tests/customization.sh` で検証しています。
+`tests/customization.sh`、`tests/layout-helper.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -421,7 +423,9 @@ cp config/config.example ~/.config/tessa/config
 | `mosaic_ratio` | モザイクのスライス比率（0.25–0.85） |
 | `mosaic_min_size` | グリッドへ切り替える前の最小モザイクタイル |
 | `grid_columns` | グリッドの固定列数。`0` は `ceil(sqrt(n))` |
-| `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns` |
+| `layout_helper` | 常駐外部レイアウトヘルパーのコマンド |
+| `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
+| `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
@@ -489,6 +493,23 @@ window-rule = title=GIMP*; float=false
 ```ini
 workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 ```
+
+`layout = custom` でカスタムタイルを選べます。Tessa は設定されたヘルパーを
+1 回起動して保持し、アクティブなタイルウィンドウと使用可能領域を送り、
+フレーム矩形を受け取ります。`Super+T` の巡回には含まれないため、使う場合は
+明示的にバインドしてください。
+
+```ini
+layout = custom
+layout_helper = python3 ~/.config/tessa/layout.py
+layout_helper_timeout = 100
+bind = SUPER+SHIFT+T set-layout custom
+```
+
+タイムアウト、クラッシュ、不正な応答、矩形不足の場合は、その配置だけ
+マスターへフォールバックします。プロトコルは
+[docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md#外部レイアウトヘルパー)
+にあります。
 
 ## 仕組み
 

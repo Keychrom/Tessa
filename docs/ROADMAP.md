@@ -78,8 +78,8 @@ a daily Japanese desktop, then by polish.
 - [x] `tessa-ctl config` for effective configuration and parsed-rule inspection.
 - [x] Per-workspace layout, gap, and master-ratio rules.
 - [ ] Per-output layout/gap rules.
-- [ ] A long-lived external layout-helper protocol with a timeout and built-in
-      fallback.
+- [x] A long-lived external layout-helper protocol with a timeout, restart,
+      and built-in fallback.
 - [ ] Configurable animation/effect hooks.
 - [ ] Config validation with file/line diagnostics.
 - [ ] JSON state/config output and a documented schema version.

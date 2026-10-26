@@ -27,6 +27,7 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.mosaic_ratio = 0.62;
     cfg.mosaic_min_size = 160;
     cfg.grid_columns = 0;
+    cfg.layout_helper_timeout = 100;
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
         cfg.ws_gaps[wi] = cfg.gaps;
@@ -503,6 +504,10 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
             server.config.mosaic_min_size = std.fmt.parseInt(i32, value, 10) catch server.config.mosaic_min_size;
         } else if (std.mem.eql(u8, key, "grid_columns")) {
             server.config.grid_columns = std.fmt.parseInt(usize, value, 10) catch server.config.grid_columns;
+        } else if (std.mem.eql(u8, key, "layout_helper")) {
+            core.copyString(&server.config.layout_helper, &server.config.layout_helper_len, value);
+        } else if (std.mem.eql(u8, key, "layout_helper_timeout")) {
+            server.config.layout_helper_timeout = std.fmt.parseInt(i32, value, 10) catch server.config.layout_helper_timeout;
         } else if (std.mem.eql(u8, key, "layout")) {
             if (types.layoutFromName(value)) |mode| {
                 server.config.layout_mode = mode;
@@ -609,6 +614,8 @@ pub fn load(server: *Server) void {
     if (server.config.mosaic_min_size < 80) server.config.mosaic_min_size = 80;
     if (server.config.mosaic_min_size > 600) server.config.mosaic_min_size = 600;
     if (server.config.grid_columns > 8) server.config.grid_columns = 8;
+    if (server.config.layout_helper_timeout < 10) server.config.layout_helper_timeout = 10;
+    if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
@@ -631,6 +638,15 @@ pub fn load(server: *Server) void {
     }
     if (server.config.border_inactive_len > 0) {
         core.parseHexColor(server.config.border_inactive[0..server.config.border_inactive_len], &server.config.border_inactive_rgb);
+    }
+
+    var wants_custom = server.config.layout_mode == .custom;
+    var si: usize = 0;
+    while (si < types.WS_COUNT) : (si += 1) {
+        if (server.config.layout_by_ws[si] == .custom) wants_custom = true;
+    }
+    if (wants_custom and server.config.layout_helper_len == 0) {
+        core.logInfo("config: custom layout selected without layout_helper; using master fallback", .{});
     }
 
     core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d})", .{

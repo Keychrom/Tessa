@@ -268,8 +268,8 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   centered when it is incomplete.
 - **columns**: equal-width full-height columns.
 - `Super+T` cycles master → mosaic → grid → columns for the focused output and
-  workspace. `set-layout <name>` accepts `master`, `mosaic`/`spiral`, `grid`, or
-  `columns`/`column`. Explicit runtime choices mark the workspace overridden and
+  workspace. `set-layout <name>` accepts `master`, `mosaic`/`spiral`, `grid`,
+  `columns`/`column`, or `custom`. Explicit runtime choices mark the workspace overridden and
   are written to `outputs.conf`; `layout_N` only seeds workspaces without a
   saved or runtime override. A config reload updates every non-overridden
   workspace on existing outputs and preserves overridden ones. Each change
@@ -277,6 +277,12 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 - Per-workspace `workspace-rule` entries supply gaps, outer gaps, and the
   master ratio to `arrangeOutput`; runtime `Super+Ctrl+H/L` updates the active
   workspace's ratio for the current session.
+- `layout_helper.zig` owns an optional long-lived child process connected by a
+  `socketpair`. The `custom` layout sends a tab-separated request
+  (`LAYOUT`, `AREA`, `WINDOW`, `END`) and reads `RECT` lines. Requests use a
+  bounded poll timeout; a crash, timeout, malformed reply, or id mismatch stops
+  the child and falls back to master for that arrangement. The helper is
+  restarted when its command changes and terminated during shutdown.
 - `rules.zig` evaluates declarative window rules after metadata is known at
   map time, and re-evaluates them for existing windows on config reload. Match
   fields are app-id, title, and output using a small `*`/`?` wildcard matcher;

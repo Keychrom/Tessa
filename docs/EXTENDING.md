@@ -159,6 +159,15 @@ truncated for display. If a click command is supplied, clicking the entry sends
 This is intentionally a text API, not an image/icon protocol. An extension can
 update text on a timer or in response to events.
 
+## External layout helper
+
+For custom tiling algorithms, set `layout = custom` and configure
+`layout_helper`. Tessa keeps the helper process alive and exchanges a
+tab-separated request/response containing the usable area, window ids,
+app-id/title metadata, and returned frame rectangles. The full protocol,
+timeout behavior, and fallback rules are in
+[CUSTOMIZATION.md](CUSTOMIZATION.md#external-layout-helper).
+
 ## Launcher entries and includes
 
 The panel's launcher scans normal `.desktop` files. You can also add commands

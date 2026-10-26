@@ -552,6 +552,8 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "mosaic_ratio {d:.3}\n", .{cfg.mosaic_ratio});
     append(&buf, &off, "mosaic_min_size {d}\n", .{cfg.mosaic_min_size});
     append(&buf, &off, "grid_columns {d}\n", .{cfg.grid_columns});
+    append(&buf, &off, "layout_helper {s}\n", .{cfg.layout_helper[0..cfg.layout_helper_len]});
+    append(&buf, &off, "layout_helper_timeout {d}\n", .{cfg.layout_helper_timeout});
     append(&buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {

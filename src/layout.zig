@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const ime = @import("ime.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const layout_helper = @import("layout_helper.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -454,6 +455,35 @@ pub fn applyConfigLayouts(server: *Server) void {
     }
 }
 
+fn applyHelperRects(
+    tiles: []const ?*Client,
+    rects: []const layout_helper.Rect,
+    border: i32,
+) bool {
+    var order: [types.MAX_CLIENTS]usize = undefined;
+    var used = [_]bool{false} ** types.MAX_CLIENTS;
+
+    for (rects, 0..) |rect, ri| {
+        var found: ?usize = null;
+        for (tiles, 0..) |maybe_client, ti| {
+            const client = maybe_client orelse return false;
+            if (client.id == rect.id) {
+                found = ti;
+                break;
+            }
+        }
+        const index = found orelse return false;
+        if (used[index]) return false;
+        used[index] = true;
+        order[ri] = index;
+    }
+
+    for (rects, 0..) |rect, ri| {
+        applyFrame(tiles[order[ri]].?, rect.x, rect.y, rect.w, rect.h, border, true);
+    }
+    return true;
+}
+
 fn arrangeGridTiles(
     tiles: []const ?*Client,
     ux: i32,
@@ -549,10 +579,10 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         const uh = area.height - outer * 2;
 
         if (uw > 20 and uh > 20) {
-            if (tile_count == 1) {
+            const mode = out.ws_layouts[out.active_ws - 1];
+            if (tile_count == 1 and mode != .custom) {
                 applyFrame(tiles[0].?, ux, uy, uw, uh, border, true);
             } else {
-                const mode = out.ws_layouts[out.active_ws - 1];
                 switch (mode) {
                     .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, cfg.master_count),
                     .mosaic => {
@@ -574,6 +604,38 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                     },
                     .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.grid_columns),
                     .columns => arrangeColumnsTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
+                    .custom => {
+                        var rects: [types.MAX_CLIENTS]layout_helper.Rect = undefined;
+                        var applied = false;
+                        if (layout_helper.query(
+                            server,
+                            out,
+                            tiles[0..tile_count],
+                            area,
+                            border,
+                            gap,
+                            outer,
+                            rects[0..tile_count],
+                        )) |rect_count| {
+                            applied = applyHelperRects(tiles[0..tile_count], rects[0..rect_count], border);
+                            if (!applied) {
+                                core.logInfo("layout helper returned an invalid rectangle set; using master fallback", .{});
+                            }
+                        }
+                        if (!applied) {
+                            arrangeMasterTiles(
+                                tiles[0..tile_count],
+                                ux,
+                                uy,
+                                uw,
+                                uh,
+                                border,
+                                gap,
+                                master_ratio,
+                                cfg.master_count,
+                            );
+                        }
+                    },
                 }
             }
         }
@@ -925,12 +987,13 @@ pub fn cycleLayout(server: *Server) void {
     const out = core.focusOutput(server) orelse return;
     const ws = out.active_ws;
     const current = out.ws_layouts[ws - 1];
-    var index: usize = 0;
-    while (index < types.layout_cycle.len) : (index += 1) {
-        if (types.layout_cycle[index] == current) break;
+    var next = types.layout_cycle[0];
+    for (types.layout_cycle, 0..) |mode, index| {
+        if (mode == current) {
+            next = types.layout_cycle[(index + 1) % types.layout_cycle.len];
+            break;
+        }
     }
-    if (index >= types.layout_cycle.len) index = 0;
-    const next = types.layout_cycle[(index + 1) % types.layout_cycle.len];
     out.ws_layouts[ws - 1] = next;
     out.layout_overridden[ws - 1] = true;
     persistLayouts(server);
