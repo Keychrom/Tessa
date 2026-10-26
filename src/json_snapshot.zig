@@ -175,6 +175,31 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addBool(buf, &off, cfg.xwayland);
     addRaw(buf, &off, ",\"xwayland_display\":");
     addString(buf, &off, cfg.xwayland_display[0..cfg.xwayland_display_len]);
+    addRaw(buf, &off, ",\"animations\":");
+    addBool(buf, &off, cfg.animations);
+    add(buf, &off, ",\"animation_ms\":{d},\"reduce_motion\":", .{cfg.animation_ms});
+    addBool(buf, &off, cfg.reduce_motion);
+    addRaw(buf, &off, ",\"shadows\":");
+    addBool(buf, &off, cfg.shadows);
+    addRaw(buf, &off, ",\"gestures\":");
+    addBool(buf, &off, cfg.gestures);
+    add(buf, &off, ",\"gesture_fingers\":{d},\"gesture_workspace_threshold\":{d},\"gesture_launcher_threshold\":{d}", .{
+        cfg.gesture_fingers,
+        cfg.gesture_workspace_threshold,
+        cfg.gesture_launcher_threshold,
+    });
+    addRaw(buf, &off, ",\"touch\":");
+    addBool(buf, &off, cfg.touch);
+    addRaw(buf, &off, ",\"tablet\":");
+    addBool(buf, &off, cfg.tablet);
+    addRaw(buf, &off, ",\"pointer_constraints\":");
+    addBool(buf, &off, cfg.pointer_constraints);
+    addRaw(buf, &off, ",\"xim\":");
+    addBool(buf, &off, cfg.xim);
+    addRaw(buf, &off, ",\"xim_server\":");
+    addString(buf, &off, cfg.xim_server[0..cfg.xim_server_len]);
+    addRaw(buf, &off, ",\"xim_start\":");
+    addString(buf, &off, cfg.xim_start[0..cfg.xim_start_len]);
     addRaw(buf, &off, ",\"kb_layout\":");
     addString(buf, &off, cfg.kb_layout[0..cfg.kb_layout_len]);
     addRaw(buf, &off, ",\"kb_variant\":");

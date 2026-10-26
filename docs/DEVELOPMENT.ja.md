@@ -275,6 +275,37 @@ sh tests/panel-theme.sh
 sh tests/animations.sh
 ```
 
+### 入力・ジェスチャ・pointer constraints のテスト
+
+`tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定
+キー、JSON スナップショット、起動ログ、`zwp_pointer_gestures_v1`、
+`zwp_tablet_manager_v2`、`zwp_pointer_constraints_v1` グローバルの公開を
+確認します。headless バックエンドにはタッチ/タブレットの実デバイスが
+ないため、デバイスイベント自体は実機での検証が必要です。
+
+`tests/pointer-constraints.sh` は小さな xdg-shell クライアントをコンパイルし、
+persistent な locked pointer を作成します。ワークスペース切り替えで
+ウィンドウがフォーカスを失う/取り戻すたびに `locked`、`unlocked`、
+再 `locked` が届くことを確認します。
+
+```sh
+sh tests/input.sh
+sh tests/pointer-constraints.sh
+```
+
+### XIM のテスト
+
+`tests/xim.sh` はプライベートな `dbus-run-session` の下で自分自身を再実行し、
+XWayland と `xim_start = fcitx5 -d` を有効にして Tessa を起動します。
+startup コマンドが `XMODIFIERS` を継承したこと、X ディスプレイ出現後に
+Fcitx5 が起動されたこと、Fcitx5 が XIM サーバセレクション
+（`XIM_SERVERS`）を所有していることを確認します。
+`xwayland-satellite`、`fcitx5`、`xprop` がない場合はスキップします。
+
+```sh
+sh tests/xim.sh
+```
+
 ### パネルポップオーバーのテスト
 
 `tests/panel-popovers.sh` はコンポジタとパネルを起動し、`panel` IPC

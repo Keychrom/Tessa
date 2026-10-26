@@ -10,6 +10,10 @@ const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
 const idle = @import("idle.zig");
+const gestures = @import("gestures.zig");
+const touch = @import("touch.zig");
+const tablet = @import("tablet.zig");
+const constraints = @import("constraints.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -17,6 +21,7 @@ const Server = types.Server;
 const Client = types.Client;
 const Keyboard = types.Keyboard;
 const Binding = types.Binding;
+const TouchDevice = types.TouchDevice;
 
 pub fn init(server: *Server) void {
     server.cursor = c.wlr_cursor_create() orelse {
@@ -80,6 +85,10 @@ pub fn init(server: *Server) void {
 
     server.reload_runtime = reloadRuntime;
     addSyntheticKeyboard(server);
+    gestures.init(server);
+    touch.init(server);
+    tablet.init(server);
+    constraints.init(server);
     idle.init(server);
 }
 
@@ -157,7 +166,40 @@ fn addSyntheticKeyboard(server: *Server) void {
 fn updateCapabilities(server: *Server) void {
     var caps: u32 = c.WL_SEAT_CAPABILITY_POINTER;
     if (server.keyboard_count > 0) caps |= c.WL_SEAT_CAPABILITY_KEYBOARD;
+    if (server.touch_device_count > 0) caps |= c.WL_SEAT_CAPABILITY_TOUCH;
     c.wlr_seat_set_capabilities(server.seat, caps);
+}
+
+fn onTouchDeviceDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const state: *TouchDevice = @fieldParentPtr("destroy", listener.?);
+    const server = state.server;
+    c.wl_list_remove(&state.destroy.link);
+    var i: usize = 0;
+    while (i < server.touch_device_count) : (i += 1) {
+        if (server.touch_devices[i] != state) continue;
+        server.touch_devices[i] = server.touch_devices[server.touch_device_count - 1];
+        server.touch_devices[server.touch_device_count - 1] = null;
+        server.touch_device_count -= 1;
+        break;
+    }
+    c.free(state);
+    updateCapabilities(server);
+}
+
+fn addTouchDevice(server: *Server, device: *c.wlr_input_device) bool {
+    if (!server.config.touch) return false;
+    if (server.touch_device_count >= server.touch_devices.len) return false;
+    c.wlr_cursor_attach_input_device(server.cursor, device);
+    const state = @as(*TouchDevice, @ptrCast(@alignCast(c.calloc(1, @sizeOf(TouchDevice)).?)));
+    state.server = server;
+    state.device = device;
+    state.destroy.notify = onTouchDeviceDestroy;
+    c.wl_signal_add(&device.events.destroy, &state.destroy);
+    server.touch_devices[server.touch_device_count] = state;
+    server.touch_device_count += 1;
+    core.logInfo("touch device added: {s}", .{core.cstr(device.name)});
+    return true;
 }
 
 fn onNewInput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -168,6 +210,14 @@ fn onNewInput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         addKeyboard(server, device);
     } else if (device.type == c.WLR_INPUT_DEVICE_POINTER) {
         c.wlr_cursor_attach_input_device(server.cursor, device);
+    } else if (device.type == c.WLR_INPUT_DEVICE_TOUCH) {
+        _ = addTouchDevice(server, device);
+    } else if (device.type == c.WLR_INPUT_DEVICE_TABLET) {
+        if (tablet.addTablet(server, device)) {
+            c.wlr_cursor_attach_input_device(server.cursor, device);
+        }
+    } else if (device.type == c.WLR_INPUT_DEVICE_TABLET_PAD) {
+        _ = tablet.addPad(server, device);
     }
     updateCapabilities(server);
 }
@@ -311,6 +361,7 @@ pub fn reloadRuntime(server: *Server) void {
     reloadKeymaps(server);
     layout_helper.reload(server);
     rules.applyAll(server);
+    constraints.reload(server);
     layout.clearAnimations(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);
@@ -517,7 +568,12 @@ fn onCursorMotion(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
             event.unaccel_dy,
         );
     }
-    c.wlr_cursor_move(server.cursor, &pointer.base, event.delta_x, event.delta_y);
+    var dx = event.delta_x;
+    var dy = event.delta_y;
+    if (server.cursor_mode == .passthrough) {
+        _ = constraints.confineMotion(server, &dx, &dy);
+    }
+    c.wlr_cursor_move(server.cursor, &pointer.base, dx, dy);
     processMotion(server, event.time_msec);
 }
 
@@ -526,7 +582,12 @@ fn onCursorMotionAbsolute(listener: ?*c.wl_listener, data: ?*anyopaque) callconv
     const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data.?));
     const pointer: *c.wlr_pointer = @ptrCast(@alignCast(event.pointer));
     idle.notifyActivity(server);
+    if (server.cursor_mode == .passthrough and constraints.isLocked(server)) {
+        processMotion(server, event.time_msec);
+        return;
+    }
     c.wlr_cursor_warp_absolute(server.cursor, &pointer.base, event.x, event.y);
+    if (server.cursor_mode == .passthrough) constraints.clampCursor(server);
     processMotion(server, event.time_msec);
 }
 

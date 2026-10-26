@@ -32,13 +32,19 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
       メニューなど）。
 - [x] 設定でのキーボードレイアウト、バリアント、モデル、オプション、
       キーリピート設定。
-- [ ] タッチパッドジェスチャ（ワークスペーススワイプ、ランチャー
-      ジェスチャ）。
-- [ ] タッチとタブレットの対応。
+- [x] タッチパッドジェスチャ: ワークスペーススワイプとランチャー
+      スワイプ。指の本数としきい値を調整でき、それ以外のジェスチャは
+      クライアントへ転送。
+- [x] タッチ入力（seat の touch capability、シーンのヒットテスト、
+      パネルのタッチ UI）と tablet-v2 のツール/パッド（筆圧、傾き、
+      回転、ボタン、リング、ストリップ）。実機のタッチ/タブレットでの
+      検証は別途必要。
 - [x] relative pointer（`relative-pointer-v1`）。
-- [ ] pointer constraints（`pointer-constraints-v1`）。
+- [x] pointer constraints（`pointer-constraints-v1`）。フォーカス時の
+      有効化、locked/confined のポインタ移動、カーソルヒントに対応。
 - [x] primary selection（`wlr_primary_selection_v1`）。
-- [ ] X11 アプリケーション向けの XIM 統合。
+- [x] X11 アプリケーション向けの XIM 統合。`XMODIFIERS` のエクスポート、
+      X ディスプレイの待機、設定した XIM サーバの起動に対応。
 
 ## 0.3 — シェルとデスクトップ統合
 

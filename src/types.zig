@@ -14,6 +14,11 @@ pub const MAX_HOOKS = 32;
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
 pub const MAX_CONFIG_ISSUES = 64;
+pub const MAX_TOUCH_DEVICES = 8;
+pub const MAX_TABLETS = 8;
+pub const MAX_TABLET_TOOLS = 16;
+pub const MAX_TABLET_PADS = 8;
+pub const MAX_CONSTRAINTS = 32;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -188,6 +193,18 @@ pub const Config = struct {
     reduce_motion: bool,
     animation_ms: i32,
     shadows: bool,
+    gestures: bool,
+    gesture_fingers: i32,
+    gesture_workspace_threshold: i32,
+    gesture_launcher_threshold: i32,
+    touch: bool,
+    tablet: bool,
+    pointer_constraints: bool,
+    xim: bool,
+    xim_server: [64]u8,
+    xim_server_len: usize,
+    xim_start: [MAX_COMMAND]u8,
+    xim_start_len: usize,
     autostart_panel: bool,
     xwayland: bool,
     xwayland_display: [32]u8,
@@ -381,6 +398,59 @@ pub const Popup = struct {
     destroy: c.wl_listener,
 };
 
+pub const TouchDevice = struct {
+    server: *Server,
+    device: *c.wlr_input_device,
+    destroy: c.wl_listener,
+};
+
+pub const Tablet = struct {
+    server: *Server,
+    device: *c.wlr_input_device,
+    wlr: *c.wlr_tablet,
+    v2: *c.wlr_tablet_v2_tablet,
+    axis: c.wl_listener,
+    proximity: c.wl_listener,
+    tip: c.wl_listener,
+    button: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+pub const TabletTool = struct {
+    server: *Server,
+    tablet: ?*Tablet,
+    wlr: *c.wlr_tablet_tool,
+    v2: *c.wlr_tablet_v2_tablet_tool,
+    surface: ?*c.wlr_surface,
+    tablet_down: bool,
+    pointer_down: bool,
+    buttons: u32,
+    pointer_buttons: u32,
+    destroy: c.wl_listener,
+    set_cursor: c.wl_listener,
+};
+
+pub const TabletPad = struct {
+    server: *Server,
+    device: *c.wlr_input_device,
+    wlr: *c.wlr_tablet_pad,
+    v2: *c.wlr_tablet_v2_tablet_pad,
+    tablet_v2: ?*c.wlr_tablet_v2_tablet,
+    enter_surface: ?*c.wlr_surface,
+    attach: c.wl_listener,
+    button: c.wl_listener,
+    ring: c.wl_listener,
+    strip: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+pub const PointerConstraint = struct {
+    server: *Server,
+    wlr: *c.wlr_pointer_constraint_v1,
+    set_region: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
 pub const Server = struct {
     display: *c.wl_display,
     backend: *c.wlr_backend,
@@ -440,6 +510,31 @@ pub const Server = struct {
     ime_focus_x: i32,
     ime_focus_y: i32,
     virtual_keyboard_manager: ?*c.wlr_virtual_keyboard_manager_v1,
+    pointer_gestures: ?*c.wlr_pointer_gestures_v1,
+    tablet_manager: ?*c.wlr_tablet_manager_v2,
+    pointer_constraints_manager: ?*c.wlr_pointer_constraints_v1,
+    touch_devices: [MAX_TOUCH_DEVICES]?*TouchDevice,
+    touch_device_count: usize,
+    tablets: [MAX_TABLETS]?*Tablet,
+    tablet_count: usize,
+    tablet_tools: [MAX_TABLET_TOOLS]?*TabletTool,
+    tablet_tool_count: usize,
+    tablet_pads: [MAX_TABLET_PADS]?*TabletPad,
+    tablet_pad_count: usize,
+    constraints: [MAX_CONSTRAINTS]?*PointerConstraint,
+    constraint_count: usize,
+    active_constraint: ?*c.wlr_pointer_constraint_v1,
+    gesture_active: bool,
+    gesture_fingers: u32,
+    gesture_dx: f64,
+    gesture_dy: f64,
+    gesture_forward: bool,
+    gesture_handled: bool,
+    xim_timer: ?*c.wl_event_source,
+    xim_display: [34]u8,
+    xim_display_len: usize,
+    xim_attempts: u32,
+    xim_started: bool,
 
     active_ws: usize,
     focused: ?*Client,
@@ -512,6 +607,20 @@ pub const Server = struct {
     cursor_button: c.wl_listener,
     cursor_axis: c.wl_listener,
     cursor_frame: c.wl_listener,
+    cursor_touch_down: c.wl_listener,
+    cursor_touch_up: c.wl_listener,
+    cursor_touch_motion: c.wl_listener,
+    cursor_touch_cancel: c.wl_listener,
+    cursor_touch_frame: c.wl_listener,
+    gesture_swipe_begin: c.wl_listener,
+    gesture_swipe_update: c.wl_listener,
+    gesture_swipe_end: c.wl_listener,
+    gesture_pinch_begin: c.wl_listener,
+    gesture_pinch_update: c.wl_listener,
+    gesture_pinch_end: c.wl_listener,
+    gesture_hold_begin: c.wl_listener,
+    gesture_hold_end: c.wl_listener,
+    new_pointer_constraint: c.wl_listener,
 
     request_cursor: c.wl_listener,
     request_set_selection: c.wl_listener,

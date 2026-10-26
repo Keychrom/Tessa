@@ -32,6 +32,15 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.reduce_motion = false;
     cfg.animation_ms = 160;
     cfg.shadows = true;
+    cfg.gestures = true;
+    cfg.gesture_fingers = 3;
+    cfg.gesture_workspace_threshold = 400;
+    cfg.gesture_launcher_threshold = 300;
+    cfg.touch = true;
+    cfg.tablet = true;
+    cfg.pointer_constraints = true;
+    cfg.xim = true;
+    copyDefault(&cfg.xim_server, &cfg.xim_server_len, "fcitx");
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
         cfg.ws_gaps[wi] = cfg.gaps;
@@ -732,6 +741,26 @@ fn loadPath(
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_ms = v;
         } else if (std.mem.eql(u8, key, "shadows")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.shadows = v;
+        } else if (std.mem.eql(u8, key, "gestures")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.gestures = v;
+        } else if (std.mem.eql(u8, key, "gesture_fingers")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.gesture_fingers = v;
+        } else if (std.mem.eql(u8, key, "gesture_workspace_threshold")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.gesture_workspace_threshold = v;
+        } else if (std.mem.eql(u8, key, "gesture_launcher_threshold")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.gesture_launcher_threshold = v;
+        } else if (std.mem.eql(u8, key, "touch")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.touch = v;
+        } else if (std.mem.eql(u8, key, "tablet")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.tablet = v;
+        } else if (std.mem.eql(u8, key, "pointer_constraints")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.pointer_constraints = v;
+        } else if (std.mem.eql(u8, key, "xim")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.xim = v;
+        } else if (std.mem.eql(u8, key, "xim_server")) {
+            core.copyString(&server.config.xim_server, &server.config.xim_server_len, value);
+        } else if (std.mem.eql(u8, key, "xim_start")) {
+            core.copyString(&server.config.xim_start, &server.config.xim_start_len, value);
         } else if (std.mem.eql(u8, key, "xwayland")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.xwayland = v;
         } else if (std.mem.eql(u8, key, "xwayland_display")) {
@@ -880,6 +909,12 @@ pub fn load(server: *Server) void {
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
     if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
+    if (server.config.gesture_fingers < 2) server.config.gesture_fingers = 2;
+    if (server.config.gesture_fingers > 5) server.config.gesture_fingers = 5;
+    if (server.config.gesture_workspace_threshold < 20) server.config.gesture_workspace_threshold = 20;
+    if (server.config.gesture_workspace_threshold > 1000) server.config.gesture_workspace_threshold = 1000;
+    if (server.config.gesture_launcher_threshold < 20) server.config.gesture_launcher_threshold = 20;
+    if (server.config.gesture_launcher_threshold > 1000) server.config.gesture_launcher_threshold = 1000;
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;

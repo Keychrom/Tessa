@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const ime = @import("ime.zig");
+const constraints = @import("constraints.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
@@ -46,6 +47,7 @@ fn keyboardEnter(server: *Server, surface: *c.wlr_surface) void {
 
 fn keyboardClear(server: *Server) void {
     if (server.focused_layer == null) c.wlr_seat_keyboard_clear_focus(server.seat);
+    constraints.deactivate(server);
 }
 
 fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
@@ -150,6 +152,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         keyboardEnter(server, tSurface(cl.xdg));
         const origin = clientSurfaceOrigin(cl);
         ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
+        constraints.focusSurface(server, tSurface(cl.xdg));
         updateBorders(server);
         events.emit(server, .{
             .name = event_names.window_focus,
@@ -225,6 +228,7 @@ pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
         layer.output.full.x + layer_tree.node.x,
         layer.output.full.y + layer_tree.node.y,
     );
+    constraints.focusSurface(server, @ptrCast(@alignCast(layer.wlr.surface)));
     updateBorders(server);
     core.markDirty(server);
 }
@@ -243,6 +247,7 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
             keyboardEnter(server, tSurface(cl.xdg));
             const origin = clientSurfaceOrigin(cl);
             ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
+            constraints.focusSurface(server, tSurface(cl.xdg));
             updateBorders(server);
             core.markDirty(server);
             return;

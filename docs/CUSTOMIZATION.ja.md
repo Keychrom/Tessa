@@ -214,6 +214,59 @@ tessa-ctl config --json
 別レイアウト/調整値、ルール、フック、診断を含みます。ワイヤ形式の詳細は
 [EXTENDING.ja.md](EXTENDING.ja.md) にあります。
 
+## 入力、ジェスチャ、XIM
+
+| キー | 意味 |
+| --- | --- |
+| `gestures` | コンポジタのスワイプジェスチャを有効化（既定 `true`） |
+| `gesture_fingers` | シェルスワイプの指の本数、2〜5（既定 3） |
+| `gesture_workspace_threshold` | ワークスペース切り替えに必要な横移動量（既定 400） |
+| `gesture_launcher_threshold` | ランチャーを開く上方向の移動量（既定 300） |
+| `touch` | タッチ入力デバイスを受け付ける（既定 `true`） |
+| `tablet` | tablet-v2 のツール/パッドを有効化（既定 `true`） |
+| `pointer_constraints` | `pointer-constraints-v1` を有効化（既定 `true`） |
+| `xim` | X11 クライアント向けに `XMODIFIERS` を設定（既定 `true`） |
+| `xim_server` | XIM サーバ名。空なら変数を設定しない（既定 `fcitx`） |
+| `xim_start` | X ディスプレイ出現後に起動する任意の XIM サーバコマンド |
+
+キーボードフォーカスを持つ layer サーフェスが開いていないとき、
+`gesture_fingers` 本ちょうどのスワイプをシェルが処理します。左スワイプで
+次のワークスペース、右スワイプで前のワークスペース、上スワイプで
+ランチャーを開きます。`gestures = false` にすると全ジェスチャを
+クライアントへ転送します。指の本数が異なるスワイプ、ピンチ、ホールドは
+常に `pointer-gestures-v1` でフォーカス中のクライアントへ送られます。
+しきい値は 20〜1000 の範囲で調整でき、小さいほど早く反応します。
+
+タッチデバイスは共有カーソルに接続され、シーンのヒットテスト経由で
+配送されます。クライアントをタップするとフォーカスし、パネルはタッチを
+直接受け付けます。tablet-v2 のツールには proximity、tip、筆圧、距離、
+傾き、回転、スライダー、ホイール、ボタンを配送し、tablet-v2 非対応の
+サーフェスではポインタクリックとしてフォールバックします。タブレット
+パッドのボタン、リング、ストリップ、モード変更はキーボードフォーカス中の
+サーフェスへ送られます。
+
+pointer constraints はサーフェスがキーボードフォーカスを得たときに
+有効化され、フォーカス変更で無効化されます。locked pointer はカーソル
+移動を止めつつ、相対移動をクライアントへ届けます。confined pointer は
+制約リージョン内に移動を制限します。制約を無視するには
+`pointer_constraints = false` を設定します。
+
+X11 の入力メソッド向けに、Tessa は XWayland の起動後に
+`XMODIFIERS=@im=<xim_server>` をエクスポートします。`xim_start` は任意で、
+X ソケットができてから起動するため、Fcitx がディスプレイ準備前に立ち上がる
+問題を避けられます:
+
+```ini
+xim = true
+xim_server = fcitx
+xim_start = fcitx5 -d
+```
+
+Fcitx や IBus を `startup` から起動している場合は `xim_start` を空にして
+ください。XIM 設定はコンポジタ起動時に適用されるため、変更後は Tessa を
+再起動します。別の入力メソッド基盤が `XMODIFIERS` を管理する場合は
+`xim = false` にします。
+
 ## 外観
 
 | キー | 意味 |

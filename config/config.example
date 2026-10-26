@@ -96,6 +96,24 @@ screenshot_dir = ~/Pictures/Screenshots
 xwayland = true
 xwayland_display = auto
 
+# X11 input methods. Tessa exports XMODIFIERS for X11 clients and can start an
+# XIM server once the XWayland display exists. xim_start is optional; leave it
+# empty if fcitx5/ibus is already started from startup or the session.
+xim = true
+xim_server = fcitx
+# xim_start = fcitx5 -d
+
+# Touchpad gestures. A horizontal swipe switches workspace; an upward swipe
+# opens the launcher. Other finger counts and pinch/hold gestures are forwarded
+# to the focused client. Thresholds are in gesture delta units.
+gestures = true
+gesture_fingers = 3
+gesture_workspace_threshold = 400
+gesture_launcher_threshold = 300
+touch = true
+tablet = true
+pointer_constraints = true
+
 # Where wlr-randr changes are persisted. The default is
 # $XDG_CONFIG_HOME/tessa/outputs.conf (or ~/.config/tessa/outputs.conf).
 # TESSA_OUTPUT_CONFIG overrides this. Use an absolute path.

@@ -17,6 +17,12 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_keyboard.h");
     @cInclude("wlr/interfaces/wlr_keyboard.h");
     @cInclude("wlr/types/wlr_pointer.h");
+    @cInclude("wlr/types/wlr_pointer_gestures_v1.h");
+    @cInclude("wlr/types/wlr_pointer_constraints_v1.h");
+    @cInclude("wlr/types/wlr_touch.h");
+    @cInclude("wlr/types/wlr_tablet_tool.h");
+    @cInclude("wlr/types/wlr_tablet_pad.h");
+    @cInclude("wlr/types/wlr_tablet_v2.h");
     @cInclude("wlr/types/wlr_output.h");
     @cInclude("wlr/types/wlr_output_layout.h");
     @cInclude("wlr/types/wlr_scene.h");
@@ -49,6 +55,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_output_management_v1.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/util/edges.h");
+    @cInclude("wlr/util/region.h");
 
     @cInclude("xkbcommon/xkbcommon.h");
     @cInclude("fcntl.h");

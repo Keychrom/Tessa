@@ -28,12 +28,17 @@ a daily Japanese desktop, then by polish.
       startup.
 - [x] Layer-shell popup rendering (menus from third-party layer clients).
 - [x] Keyboard layout, variant, model, options, and repeat settings in config.
-- [ ] Touchpad gesture support (workspace swipe, launcher gesture).
-- [ ] Touch and tablet support.
+- [x] Touchpad gestures: workspace swipe and launcher swipe, with adjustable
+      finger count and thresholds; other gestures are forwarded to clients.
+- [x] Touch input (seat touch capability, scene hit-testing, panel touch UI) and
+      tablet-v2 tools/pads (pen pressure, tilt, rotation, buttons, pad rings and
+      strips). Physical touch/tablet hardware validation is still needed.
 - [x] Relative pointer (`relative-pointer-v1`).
-- [ ] Pointer constraints (`pointer-constraints-v1`).
+- [x] Pointer constraints (`pointer-constraints-v1`), including activation on
+      focus, locked and confined pointer motion, and cursor hints.
 - [x] Primary selection (`wlr_primary_selection_v1`).
-- [ ] XIM integration for X11 applications.
+- [x] XIM integration for X11 applications: exports `XMODIFIERS`, waits for the
+      X display, and can start a configured XIM server.
 
 ## 0.3 — shell and desktop integration
 

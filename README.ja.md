@@ -49,6 +49,13 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
   ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
 - ゲームやポインタルック向けの `relative-pointer-v1`
+- `pointer-constraints-v1` の locked/confined ポインタ。ウィンドウの
+  フォーカスに合わせて有効化
+- タッチパッドジェスチャ: 3 本指（設定可能）の横スワイプでワークスペース、
+  上スワイプでランチャー。それ以外の指の本数とピンチ/ホールドは
+  フォーカス中のクライアントへ転送
+- タッチ入力（パネル UI を含む）と tablet-v2 のペン/パッド対応
+  （筆圧、傾き、回転、ツールボタン、リング、ストリップ）
 - サードパーティクライアントの layer-shell ポップアップ（パネルのメニューや
   ドロップダウン）
 - `ext-session-lock-v1` によるセッションロック。`ext-idle-notify-v1`、
@@ -60,6 +67,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   headless 環境で確認済み
 - `xwayland-satellite` による XWayland。ルートレス X11 アプリを通常の Tessa
   トップレベルとして管理し、起動したアプリへ `DISPLAY` を継承
+- XIM 統合: X11 クライアント向けに `XMODIFIERS` をエクスポートし、
+  必要なら `xim_start` で X ディスプレイ出現後に入力メソッドを起動
 - Zig + Cairo/Pango による統合パネル
   - 墨と朱の壁紙
   - ワークスペースピル、ウィンドウチップ、時計、CPU/RAM を表示する
@@ -102,6 +111,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
+`tests/input.sh`、`tests/pointer-constraints.sh`、`tests/xim.sh`、
 `tests/portal.sh` で
 検証しています。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
@@ -294,9 +304,11 @@ sudo apt install fcitx5 fcitx5-mozc
 Tessa セッション内で Fcitx5 を起動してください（`TESSA_STARTUP` や
 コンポジタの spawn コマンドなど）。Wayland ネイティブのクライアントでは
 `GTK_IM_MODULE` / `QT_IM_MODULE` を設定する必要はありません。これらは
-Wayland の text-input プロトコルを使うためです。X11 クライアントで IME を
-使う場合は、Fcitx の XIM モジュールを別途インストール・設定してください。
-XIM は Wayland の text-input 経路の外側です。
+Wayland の text-input プロトコルを使うためです。X11 クライアント向けには
+Tessa が `XMODIFIERS=@im=fcitx`（`xim_server` で変更可能）をエクスポートし、
+`xim_start = fcitx5 -d` を設定すると X ディスプレイの準備後に XIM サーバを
+自動起動します。Fcitx5 での登録は確認済みですが、実際の確定処理は各 X11
+ツールキットの XIM クライアントに依存します。
 
 `Super+D` でランチャーを開いて入力すると、プリエディットが検索欄に描画され、
 その下に Fcitx の候補ポップアップが表示されます。`Enter` で選択を確定し、
@@ -516,6 +528,16 @@ cp config/config.example ~/.config/tessa/config
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
+| `xim` | `XMODIFIERS` を設定し XIM サーバを任意で起動 |
+| `xim_server` | `XMODIFIERS` に使う XIM サーバ名（既定 `fcitx`） |
+| `xim_start` | X ディスプレイ出現後に起動する任意コマンド |
+| `gestures` | コンポジタのタッチパッドスワイプを有効化 |
+| `gesture_fingers` | ワークスペース/ランチャースワイプの指の本数（2–5） |
+| `gesture_workspace_threshold` | ワークスペース切り替えの横スワイプ量 |
+| `gesture_launcher_threshold` | ランチャーを開く上スワイプ量 |
+| `touch` | タッチ入力デバイスを受け付ける |
+| `tablet` | tablet-v2 のツールとパッドを有効化 |
+| `pointer_constraints` | `pointer-constraints-v1` を有効化 |
 | `kb_layout` | XKB レイアウト（例: `us`、`us,de`） |
 | `kb_variant` | XKB バリアント（任意） |
 | `kb_options` | XKB オプション（例: `grp:alt_shift_toggle`） |
@@ -736,9 +758,17 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   テストで端から端まで確認しています。ウィンドウ単位のキャプチャは
   ポータルバックエンドのプロトコル対応に依存します。
 - **ガンマ補正と出力設定 UI はありません。**
+- **タッチ/タブレットは実機での追加検証が必要です。** touch capability、
+  シーンのヒットテスト、tablet-v2 のツール/パッド、パネルのタッチ処理は
+  実装済みですが、自動テストはタッチ/タブレットのない headless 出力で
+  動作します。ジェスチャのしきい値はタッチパッドごとに調整が必要な場合が
+  あります。
+- **XIM は登録までを検証しています。** `XMODIFIERS` の継承、X ディスプレイ
+  待機、`xim_start` による Fcitx5 起動、XIM サーバ登録は確認済みです。実際の
+  確定テキストは各 X11 ツールキットの XIM クライアントに依存します。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
-  Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
-  デッドキー、スクロール中の入力ポップアップ再配置は未確認です。
+  Fcitx5 + Mozc で確認済みです。特殊なレイアウトのデッドキー、
+  スクロール中の入力ポップアップ再配置は未確認です。
 - **XWayland には `xwayland-satellite` が必要。** Tessa には同梱されません。
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
 - **拡張は信頼されたローカルプロセス。** セッションユーザーの全権限で動き、

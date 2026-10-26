@@ -164,9 +164,14 @@ layer surfaces without an explicit output, and keyboard workspace bindings.
 - implements click-to-focus, floating move/resize, and pointer forwarding,
 - handles `request_set_cursor`, cursor-shape-v1, selection requests, and
   relative-pointer motion for games,
+- advertises `pointer-gestures-v1`, consumes configured shell swipes, and
+  forwards other swipes/pinch/hold gestures to the focused client,
+- attaches touch and tablet devices to the cursor, routes touch points through
+  scene hit-testing, and forwards tablet-v2 tool/pad events,
+- enforces active pointer constraints before cursor motion,
 - advertises `wlr-data-control-v1` so the panel can observe selection changes
   without keyboard focus and become a clipboard manager,
-- reports user activity to the idle notifier on key/pointer input.
+- reports user activity to the idle notifier on key/pointer/touch input.
 
 When an input method has grabbed the keyboard, raw key events and modifier
 changes are forwarded to `wlr_input_method_keyboard_grab_v2_set_keyboard` before
@@ -176,6 +181,47 @@ copy of the keymap and decides what to commit back through text-input-v3.
 `xdg-activation-v1` requests switch to the client's workspace and focus it.
 `xdg-decoration` is advertised in server-side mode so GTK/XWayland clients do
 not draw client-side titlebars on top of Tessa's borders.
+
+## Touch, tablet, gestures, and pointer constraints
+
+`gestures.zig` listens to the libinput swipe/pinch/hold signals on `wlr_cursor`
+and creates the `pointer-gestures-v1` global. Swipes whose finger count matches
+`gesture_fingers` are consumed by the shell while no layer has keyboard focus:
+horizontal distance beyond `gesture_workspace_threshold` switches workspace via
+`layout.switchWorkspaceOnOutput()`, and upward distance beyond
+`gesture_launcher_threshold` emits the launcher event. All other gestures, and
+every gesture when `gestures = false`, are forwarded to clients with the
+`wlr_pointer_gestures_v1_send_*` helpers.
+
+`touch.zig` handles `wlr_cursor` touch down/motion/up/cancel/frame. Normalized
+device coordinates are converted to layout coordinates with
+`wlr_cursor_absolute_to_layout_coords()`, the scene is hit-tested, and the
+point is sent with `wlr_seat_touch_notify_*`. A tapped client is focused;
+keyboard-interactive layer surfaces are focused as layers. Motion for an
+existing touch point uses `scene_util.surfaceOrigin()` so coordinates remain
+surface-local even if the point leaves the surface bounds. Input devices are
+tracked so the seat advertises `WL_SEAT_CAPABILITY_TOUCH` only when a touch
+device exists. The panel exposes the same bar/overlay hit rectangles to touch.
+
+`tablet.zig` creates `wlr_tablet_manager_v2`, one `wlr_tablet_v2_tablet` per
+device, and lazily creates `wlr_tablet_v2_tablet_tool` state per tool. Tablet
+axis events move the cursor, establish tablet-v2 proximity, and forward motion,
+pressure, distance, tilt, rotation, slider, and wheel state. Tips and tool
+buttons use tablet-v2 when the surface accepts it and otherwise fall back to
+left/right pointer buttons. Pads forward button, ring, strip, and mode events to
+the focused surface. `scene_util.zig` provides the shared surface/client/
+layer lookup and surface-origin scan used by touch, tablet, and constraints.
+
+`constraints.zig` owns `wlr_pointer_constraints_v1`. A new constraint is tracked
+with set-region/destroy listeners; `layout.focusClient()` and
+`layout.focusLayer()` call `constraints.focusSurface()` so the constraint for
+the newly focused surface activates and any previous constraint deactivates.
+Locked pointers zero relative-motion deltas after relative-pointer events have
+been emitted; confined pointers run `wlr_region_confine()` against the
+surface-local region. Activation and region changes warp the cursor into the
+region when needed, and locked-pointer cursor hints are applied when the
+constraint deactivates. A config reload deactivates constraints when
+`pointer_constraints = false` or re-evaluates the focused surface.
 
 ## Input methods
 
@@ -217,6 +263,11 @@ Important details:
 - `DISPLAY` is chosen automatically by scanning `/tmp/.X11-unix/X<n>` and
   `/tmp/.X<n>-lock` for the first free display, then exported to Tessa's
   environment so all spawned clients inherit it.
+- `xim.zig` exports `XMODIFIERS=@im=<xim_server>` before clients start. When
+  `xim_start` is set, a timer polls for the selected X socket and only then
+  spawns the XIM server, avoiding a server that starts before its display
+  exists. XIM itself remains an X11 client/server protocol; Tessa provides the
+  environment and startup ordering rather than proxying it.
 - `xdg-decoration` is handled server-side. Without it satellite falls back to
   client-side decorations and draws its own titlebars.
 
@@ -669,6 +720,9 @@ The generated headers/C under `protocol/` are committed:
 - `ext-image-copy-capture-v1-protocol.h` — wlroots capture headers
 - `ext-image-capture-source-v1-protocol.h` — wlroots capture headers
 - `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
+- `pointer-constraints-unstable-v1-protocol.h` — required by
+  `wlr_pointer_constraints_v1.h`
+- `tablet-v2-protocol.h` — required by `wlr_tablet_v2.h`
 
 ## Failure behavior
 

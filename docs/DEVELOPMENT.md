@@ -295,6 +295,35 @@ finishes with `tessa-ctl config-check` to confirm the visual keys are accepted.
 sh tests/animations.sh
 ```
 
+### Input, gesture, and pointer-constraint tests
+
+`tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config
+keys, the JSON snapshot, startup logs, and the advertised
+`zwp_pointer_gestures_v1`, `zwp_tablet_manager_v2`, and
+`zwp_pointer_constraints_v1` globals. The headless backend has no touch or
+tablet hardware, so device events themselves need a physical test pass.
+
+`tests/pointer-constraints.sh` compiles a small xdg-shell client, creates a
+persistent locked pointer, and checks `locked`, `unlocked`, and re-`locked`
+events as the window loses and regains focus across workspace switches.
+
+```sh
+sh tests/input.sh
+sh tests/pointer-constraints.sh
+```
+
+### XIM test
+
+`tests/xim.sh` re-executes itself under a private `dbus-run-session`, starts
+Tessa with XWayland and `xim_start = fcitx5 -d`, and checks that the startup
+command inherited `XMODIFIERS`, that Fcitx5 was launched after the X display
+appeared, and that Fcitx5 owns the XIM server selection (`XIM_SERVERS`). It
+skips when `xwayland-satellite`, `fcitx5`, or `xprop` is unavailable.
+
+```sh
+sh tests/xim.sh
+```
+
 ### Panel popover test
 
 `tests/panel-popovers.sh` starts the compositor and panel, opens the calendar

@@ -216,6 +216,56 @@ window geometry. Config JSON contains scalar settings, per-workspace layouts and
 tuning, rules, hooks, and diagnostics. The full wire format is in
 [EXTENDING.md](EXTENDING.md).
 
+## Input, gestures, and XIM
+
+| Key | Meaning |
+| --- | --- |
+| `gestures` | enable compositor swipe gestures (default `true`) |
+| `gesture_fingers` | finger count for shell swipes, 2–5 (default 3) |
+| `gesture_workspace_threshold` | horizontal distance needed for a workspace switch (default 400) |
+| `gesture_launcher_threshold` | upward distance needed for the launcher (default 300) |
+| `touch` | accept touch input devices (default `true`) |
+| `tablet` | enable tablet-v2 tools and pads (default `true`) |
+| `pointer_constraints` | enable `pointer-constraints-v1` (default `true`) |
+| `xim` | export `XMODIFIERS` for X11 clients (default `true`) |
+| `xim_server` | XIM server name; empty disables the variable (default `fcitx`) |
+| `xim_start` | optional XIM server command started after the X display appears |
+
+A swipe with exactly `gesture_fingers` fingers is handled by the shell when no
+keyboard-focused layer surface is open. Swiping left goes to the next
+workspace, swiping right to the previous one, and swiping up opens the launcher.
+Set `gestures = false` to forward every gesture to clients. Gestures with other
+finger counts, plus pinch and hold, are always sent to the focused client through
+`pointer-gestures-v1`. Tune the thresholds in 20–1000; smaller values react
+sooner.
+
+Touch devices are attached to the shared cursor and routed through scene
+hit-testing. Tapping a client focuses it; the panel accepts touch directly.
+Tablet-v2 tools receive proximity, tip, pressure, distance, tilt, rotation,
+slider, wheel, and button events, and fall back to pointer clicks on surfaces
+that do not support tablet-v2. Tablet pads forward buttons, rings, strips, and
+mode changes to the keyboard-focused surface.
+
+Pointer constraints are activated when their surface receives keyboard focus
+and deactivated on a focus change. Locked pointers stop cursor movement while
+relative motion continues to reach the client; confined pointers are clipped to
+the constraint region. Set `pointer_constraints = false` to ignore constraint
+requests.
+
+For X11 input methods, Tessa exports `XMODIFIERS=@im=<xim_server>` once XWayland
+is running. `xim_start` is optional and is started only after the X socket
+exists, which avoids starting Fcitx before its display is ready:
+
+```ini
+xim = true
+xim_server = fcitx
+xim_start = fcitx5 -d
+```
+
+If Fcitx or IBus already starts from `startup`, leave `xim_start` empty. XIM
+settings are applied at compositor startup; restart Tessa after changing them.
+Use `xim = false` when another input method stack manages `XMODIFIERS`.
+
 ## Appearance
 
 | Key | Meaning |

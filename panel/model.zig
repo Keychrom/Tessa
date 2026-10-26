@@ -227,6 +227,8 @@ pub const Panel = struct {
     seat: ?*c.wl_seat = null,
     pointer: ?*c.wl_pointer = null,
     keyboard: ?*c.wl_keyboard = null,
+    touch: ?*c.wl_touch = null,
+    touch_id: i32 = -1,
 
     xkb_ctx: ?*c.xkb_context = null,
     xkb_keymap: ?*c.xkb_keymap = null,

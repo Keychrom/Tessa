@@ -24,6 +24,7 @@ var registry_listener: c.wl_registry_listener = undefined;
 var seat_listener: c.wl_seat_listener = undefined;
 var keyboard_listener: c.wl_keyboard_listener = undefined;
 var pointer_listener: c.wl_pointer_listener = undefined;
+var touch_listener: c.wl_touch_listener = undefined;
 var shm_listener: c.wl_shm_listener = undefined;
 var output_listener: c.wl_output_listener = undefined;
 
@@ -2569,6 +2570,11 @@ fn onSeatCapabilities(data: ?*anyopaque, seat: ?*c.wl_seat, caps: u32) callconv(
         g.pointer = pointer;
         _ = c.wl_pointer_add_listener(pointer, &pointer_listener, null);
     }
+    if ((caps & c.WL_SEAT_CAPABILITY_TOUCH) != 0 and g.touch == null) {
+        const touch = c.wl_seat_get_touch(seat) orelse return;
+        g.touch = touch;
+        _ = c.wl_touch_add_listener(touch, &touch_listener, null);
+    }
 }
 
 fn onSeatName(data: ?*anyopaque, seat: ?*c.wl_seat, name: [*c]const u8) callconv(.c) void {
@@ -2870,11 +2876,7 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
     updateHover();
 }
 
-fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time: u32, button: u32, state: u32) callconv(.c) void {
-    _ = data;
-    _ = pointer;
-    _ = serial;
-    _ = time;
+fn handleInputButton(button: u32, state: u32) void {
     const pointer_surface = g.pointer_surface orelse return;
     if (g.overlay_mode == .screenshot and g.overlay == pointer_surface) {
         if (button == 0x110) {
@@ -2976,6 +2978,69 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
     }
 }
 
+fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time: u32, button: u32, state: u32) callconv(.c) void {
+    _ = data;
+    _ = pointer;
+    _ = serial;
+    _ = time;
+    handleInputButton(button, state);
+}
+
+fn touchCoords(s: *m.Surface, fixed_x: c.wl_fixed_t, fixed_y: c.wl_fixed_t) void {
+    g.pointer_surface = s;
+    g.pointer_x = c.wl_fixed_to_double(fixed_x);
+    g.pointer_y = c.wl_fixed_to_double(fixed_y);
+}
+
+fn onTouchDown(data: ?*anyopaque, touch: ?*c.wl_touch, serial: u32, time: u32, surface: ?*c.wl_surface, id: i32, x: c.wl_fixed_t, y: c.wl_fixed_t) callconv(.c) void {
+    _ = data;
+    _ = touch;
+    _ = serial;
+    _ = time;
+    const s = surfaceFor(surface) orelse return;
+    g.touch_id = id;
+    touchCoords(s, x, y);
+    handleInputButton(0x110, 1);
+    updateHover();
+}
+
+fn onTouchUp(data: ?*anyopaque, touch: ?*c.wl_touch, serial: u32, time: u32, id: i32) callconv(.c) void {
+    _ = data;
+    _ = touch;
+    _ = serial;
+    _ = time;
+    if (id != g.touch_id) return;
+    handleInputButton(0x110, 0);
+    g.touch_id = -1;
+}
+
+fn onTouchMotion(data: ?*anyopaque, touch: ?*c.wl_touch, time: u32, id: i32, x: c.wl_fixed_t, y: c.wl_fixed_t) callconv(.c) void {
+    _ = data;
+    _ = touch;
+    _ = time;
+    if (id != g.touch_id) return;
+    g.pointer_x = c.wl_fixed_to_double(x);
+    g.pointer_y = c.wl_fixed_to_double(y);
+    if (g.overlay_mode == .screenshot and g.screenshot_dragging) {
+        g.screenshot_end_x = g.pointer_x;
+        g.screenshot_end_y = g.pointer_y;
+        refreshOverlay();
+    }
+}
+
+fn onTouchFrame(data: ?*anyopaque, touch: ?*c.wl_touch) callconv(.c) void {
+    _ = data;
+    _ = touch;
+}
+
+fn onTouchCancel(data: ?*anyopaque, touch: ?*c.wl_touch) callconv(.c) void {
+    _ = data;
+    _ = touch;
+    if (g.touch_id < 0) return;
+    handleInputButton(0x110, 0);
+    g.touch_id = -1;
+}
+
 fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u32, value: c.wl_fixed_t) callconv(.c) void {
     _ = data;
     _ = pointer;
@@ -3037,6 +3102,13 @@ fn initListeners() void {
     pointer_listener.motion = onPointerMotion;
     pointer_listener.button = onPointerButton;
     pointer_listener.axis = onPointerAxis;
+
+    touch_listener = std.mem.zeroes(c.wl_touch_listener);
+    touch_listener.down = onTouchDown;
+    touch_listener.up = onTouchUp;
+    touch_listener.motion = onTouchMotion;
+    touch_listener.frame = onTouchFrame;
+    touch_listener.cancel = onTouchCancel;
 
     shm_listener = std.mem.zeroes(c.wl_shm_listener);
     shm_listener.format = onShmFormat;

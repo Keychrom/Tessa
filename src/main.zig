@@ -10,6 +10,7 @@ const input = @import("input.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
+const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const shutdown = @import("shutdown.zig");
@@ -73,6 +74,7 @@ fn startXwayland(server: *Server) void {
     var display_z: [34:0]u8 = undefined;
     core.copyZ(&display_z, display);
     _ = c.setenv("DISPLAY", &display_z, 1);
+    xim.init(server, display);
 
     const bin: [*:0]const u8 = if (c.getenv("TESSA_XWAYLAND_BIN")) |p| p else "xwayland-satellite";
     core.logInfo("starting XWayland on {s}", .{display});

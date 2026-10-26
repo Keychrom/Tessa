@@ -168,9 +168,14 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
   実装する
 - `request_set_cursor`、cursor-shape-v1、選択リクエストを処理する
 - ゲーム向けに相対ポインタ（`relative-pointer-v1`）の移動量を送信する
+- `pointer-gestures-v1` を公開し、設定済みのシェルスワイプを消費し、
+  それ以外のスワイプ/ピンチ/ホールドをフォーカス中のクライアントへ転送する
+- タッチ/タブレットデバイスをカーソルに接続し、タッチ点をシーンの
+  ヒットテスト経由で配送し、tablet-v2 のツール/パッドイベントを転送する
+- カーソル移動前に有効な pointer constraint を適用する
 - パネルがキーボードフォーカスなしでセレクション変更を監視し、クリップボード
   マネージャーになれるよう `wlr-data-control-v1` を公開する
-- キー/ポインタ入力時に idle notifier へアクティビティを通知する
+- キー/ポインタ/タッチ入力時に idle notifier へアクティビティを通知する
 
 入力メソッドがキーボードを grab している間、生のキーイベントと modifier の
 変更は、WM のバインドやフォーカス中のクライアントに届く前に
@@ -191,6 +196,52 @@ GTK や XWayland のクライアントが Tessa のボーダーの上にクラ�
 layer がキーボードフォーカスを持つ間は WM ショートカットをバイパスし、
 すべてのキーを layer へ転送します。これによりランチャーで文字入力が
 できます。
+
+## タッチ、タブレット、ジェスチャ、pointer constraints
+
+`gestures.zig` は `wlr_cursor` の libinput スワイプ/ピンチ/ホールド信号を
+監視し、`pointer-gestures-v1` グローバルを作成します。layer がキーボード
+フォーカスを持たず、指の本数が `gesture_fingers` と一致するスワイプは
+シェルが消費します。横移動が `gesture_workspace_threshold` を超えると
+`layout.switchWorkspaceOnOutput()` でワークスペースを切り替え、上方向が
+`gesture_launcher_threshold` を超えるとランチャーイベントを発行します。
+それ以外のジェスチャ、および `gestures = false` の場合は
+`wlr_pointer_gestures_v1_send_*` でクライアントへ転送します。
+
+`touch.zig` は `wlr_cursor` の touch down/motion/up/cancel/frame を処理
+します。デバイスの正規化座標を
+`wlr_cursor_absolute_to_layout_coords()` でレイアウト座標へ変換し、
+シーンをヒットテストして `wlr_seat_touch_notify_*` で送ります。
+タップされたクライアントはフォーカスし、キーボード操作可能な layer は
+layer としてフォーカスします。既存タッチ点の移動は
+`scene_util.surfaceOrigin()` を使ってサーフェスローカル座標に変換するため、
+点がサーフェス外へ出ても座標が壊れません。タッチデバイスを追跡し、
+存在するときだけ seat が `WL_SEAT_CAPABILITY_TOUCH` を広告します。
+パネルも同じバー/オーバーレイのヒット矩形でタッチを受け付けます。
+
+`tablet.zig` は `wlr_tablet_manager_v2`、デバイスごとの
+`wlr_tablet_v2_tablet`、ツールごとの遅延生成される
+`wlr_tablet_v2_tablet_tool` 状態を作成します。axis イベントでカーソルを
+移動し、tablet-v2 の proximity を確立して、motion、pressure、distance、
+tilt、rotation、slider、wheel を転送します。tip とツールボタンは
+tablet-v2 対応サーフェスでは tablet イベントを送り、非対応なら左右の
+ポインタボタンとしてフォールバックします。パッドのボタン、リング、
+ストリップ、モード変更はフォーカス中のサーフェスへ送ります。
+`scene_util.zig` はタッチ/タブレット/constraints が共有する
+サーフェス/クライアント/layer 検索とサーフェス原点計算を提供します。
+
+`constraints.zig` は `wlr_pointer_constraints_v1` を所有します。新しい
+constraint は set_region/destroy リスナー付きで追跡し、
+`layout.focusClient()` と `layout.focusLayer()` が
+`constraints.focusSurface()` を呼ぶことで、新しくフォーカスされた
+サーフェスの constraint を有効化し、以前のものを無効化します。
+locked pointer は relative-pointer イベントを送った後に相対移動量を
+ゼロにし、confined pointer はサーフェスローカルのリージョンに対して
+`wlr_region_confine()` を実行します。有効化時とリージョン変更時には
+必要ならカーソルをリージョン内へワープし、locked pointer のカーソル
+ヒントは無効化時に適用します。設定リロード時は
+`pointer_constraints = false` なら無効化し、そうでなければフォーカス中の
+サーフェスを再評価します。
 
 ## 入力メソッド
 
@@ -234,6 +285,12 @@ X11 アプリを扱えます。
 - `DISPLAY` は `/tmp/.X11-unix/X<n>` と `/tmp/.X<n>-lock` を走査して最初の
   空きディスプレイを選び、Tessa の環境へエクスポートします。spawn した
   クライアントはすべてこれを継承します。
+- `xim.zig` はクライアント起動前に `XMODIFIERS=@im=<xim_server>` を設定
+  します。`xim_start` が設定されている場合はタイマーで選択した X ソケット
+  の出現を監視し、出現後にだけ XIM サーバを起動します。これにより
+  ディスプレイ準備前の起動を避けます。XIM 自体は X11 のクライアント/
+  サーバプロトコルであり、Tessa はプロキシせず、環境と起動順だけを
+  提供します。
 - `xdg-decoration` はサーバーサイドで処理します。これがないと satellite は
   クライアントサイドの装飾にフォールバックし、独自のタイトルバーを
   描画します。
@@ -690,6 +747,9 @@ libc とソケットヘッダーだけをリンクします。
 - `ext-image-copy-capture-v1-protocol.h` — wlroots キャプチャヘッダー用
 - `ext-image-capture-source-v1-protocol.h` — wlroots キャプチャヘッダー用
 - `cursor-shape-v1-protocol.h` — `wlr_cursor_shape_v1.h` が必要とする
+- `pointer-constraints-unstable-v1-protocol.h` —
+  `wlr_pointer_constraints_v1.h` が必要とする
+- `tablet-v2-protocol.h` — `wlr_tablet_v2.h` が必要とする
 
 ## 障害時の動作
 

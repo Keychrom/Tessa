@@ -47,6 +47,12 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - external extension API: event subscriptions, config hooks, custom bar status
   entries, custom launcher entries, and the `tessa-ctl` automation client
 - `relative-pointer-v1` for games and pointer-look applications
+- `pointer-constraints-v1` locked/confined pointers, activated with window focus
+- touchpad gestures: three-finger (configurable) horizontal workspace swipes and
+  upward launcher swipes; other finger counts and pinch/hold gestures are
+  forwarded to the focused client
+- touch input, including the panel UI, and tablet-v2 pen/pad support (pressure,
+  tilt, rotation, tool buttons, rings, and strips)
 - layer-shell popups from third-party clients (panel menus, dropdowns)
 - `ext-session-lock-v1` session locking, plus `ext-idle-notify-v1`,
   `idle-inhibit-v1`, and output-power management for tools such as swayidle and
@@ -57,6 +63,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   verified end to end with Fcitx5 + Mozc in the launcher and Wayland clients
 - XWayland through `xwayland-satellite`: rootless X11 apps are managed as normal
   Tessa toplevels, and `DISPLAY` is exported to spawned applications
+- XIM integration: `XMODIFIERS` is exported for X11 clients and an optional
+  `xim_start` command launches the input method after the X display appears
 - integrated panel in Zig + Cairo/Pango:
   - ink/sun wallpaper
   - floating taskbar with workspace pills, window chips, clock, CPU/RAM
@@ -94,7 +102,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
-`tests/foreign-toplevels.sh`, `tests/animations.sh`, and `tests/portal.sh`.
+`tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/input.sh`,
+`tests/pointer-constraints.sh`, `tests/xim.sh`, and `tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
@@ -284,8 +293,11 @@ sudo apt install fcitx5 fcitx5-mozc
 Start Fcitx5 inside the Tessa session (for example through `TESSA_STARTUP` or
 your compositor's spawn command). You do not need to set `GTK_IM_MODULE` or
 `QT_IM_MODULE` for Wayland-native clients: they use the Wayland text-input
-protocol. For X11 clients, install and configure Fcitx's XIM module separately;
-XIM is outside the wayland text-input path.
+protocol. For X11 clients, Tessa exports `XMODIFIERS=@im=fcitx` (adjust
+`xim_server`) and can start the XIM server itself with
+`xim_start = fcitx5 -d`. The server is started only after the XWayland display
+exists. Registration is verified with Fcitx5; toolkit-specific XIM behavior
+still depends on the application.
 
 Open the launcher with `Super+D` and type; the preedit is drawn in the search
 field and the Fcitx candidate popup appears below it. `Enter` commits the
@@ -493,6 +505,16 @@ diagnostics. Selected keys:
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
+| `xim` | export `XMODIFIERS` and optionally start an XIM server |
+| `xim_server` | XIM server name used in `XMODIFIERS` (default `fcitx`) |
+| `xim_start` | optional command started after the X display appears |
+| `gestures` | enable compositor touchpad swipe gestures |
+| `gesture_fingers` | finger count for workspace/launcher swipes (2–5) |
+| `gesture_workspace_threshold` | horizontal swipe distance for a workspace switch |
+| `gesture_launcher_threshold` | upward swipe distance for the launcher |
+| `touch` | accept touch input devices |
+| `tablet` | enable tablet-v2 tools and pads |
+| `pointer_constraints` | enable pointer-constraints-v1 |
 | `kb_layout` | XKB layout, for example `us` or `us,de` |
 | `kb_variant` | XKB variant (optional) |
 | `kb_options` | XKB options, for example `grp:alt_shift_toggle` |
@@ -707,9 +729,18 @@ These are real and important:
   verifies monitor screencasting; window-source capture depends on the portal
   backend's protocol support.
 - **No gamma or output configuration UI.**
+- **Touch and tablet hardware still needs a physical test pass.** The touch
+  seat capability, scene hit-testing, tablet-v2 tools/pads, and the panel's
+  touch handlers are implemented, but the automated suite runs on headless
+  outputs without touch or tablet hardware. Gesture thresholds may need tuning
+  for a particular touchpad.
+- **XIM registration is verified, not every toolkit.** Tessa exports
+  `XMODIFIERS`, waits for the X display, and starts `xim_start` when configured.
+  The test confirms that Fcitx5 owns the XIM server selection. Committed text in
+  a specific X11 toolkit still depends on that toolkit's XIM client.
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
-  with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
-  and input-method popup repositioning during scroll are not covered.
+  with Fcitx5 + Mozc. Dead keys through unusual layouts and input-method popup
+  repositioning during scroll are not covered.
 - **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
   missing, X11 applications simply do not start; Wayland clients are unaffected.
 - **Extensions are trusted local processes.** They run with the session user's

@@ -1,6 +1,11 @@
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const layout_helper = @import("layout_helper.zig");
+const gestures = @import("gestures.zig");
+const touch = @import("touch.zig");
+const tablet = @import("tablet.zig");
+const constraints = @import("constraints.zig");
+const xim = @import("xim.zig");
 
 const Server = types.Server;
 
@@ -90,6 +95,20 @@ pub fn cleanupGlobals(server: *Server) void {
     if (server.output_power_manager != null) {
         c.wl_list_remove(&server.output_power_set_mode.link);
     }
+
+    gestures.cleanup(server);
+    touch.cleanup(server);
+    var ti: usize = 0;
+    while (ti < server.touch_device_count) : (ti += 1) {
+        const td = server.touch_devices[ti] orelse continue;
+        c.wl_list_remove(&td.destroy.link);
+        c.free(td);
+        server.touch_devices[ti] = null;
+    }
+    server.touch_device_count = 0;
+    tablet.cleanup(server);
+    constraints.cleanup(server);
+    xim.cleanup(server);
 
     if (server.sigint) |src| {
         _ = c.wl_event_source_remove(src);
