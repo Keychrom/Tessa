@@ -126,6 +126,7 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+return", "terminal", "");
     _ = addBinding(cfg, "super+d", "launcher", "");
     _ = addBinding(cfg, "super+v", "clipboard", "");
+    _ = addBinding(cfg, "super+shift+s", "screenshot", "");
     _ = addBinding(cfg, "super+q", "close", "");
     _ = addBinding(cfg, "super+shift+e", "quit", "");
     _ = addBinding(cfg, "super+r", "reload", "");
@@ -565,6 +566,7 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "focus-prev")) return .focus_prev;
     if (std.ascii.eqlIgnoreCase(name, "launcher")) return .launcher;
     if (std.ascii.eqlIgnoreCase(name, "clipboard") or std.ascii.eqlIgnoreCase(name, "clipboard-history")) return .clipboard;
+    if (std.ascii.eqlIgnoreCase(name, "screenshot")) return .screenshot;
     if (std.ascii.eqlIgnoreCase(name, "reload")) return .reload;
     if (std.ascii.eqlIgnoreCase(name, "ratio")) return .ratio;
     if (std.ascii.eqlIgnoreCase(name, "toggle-layout")) return .toggle_layout;
@@ -808,7 +810,8 @@ fn loadPath(
             std.mem.eql(u8, key, "power_lock") or
             std.mem.eql(u8, key, "power_suspend") or
             std.mem.eql(u8, key, "power_reboot") or
-            std.mem.eql(u8, key, "power_off"))
+            std.mem.eql(u8, key, "power_off") or
+            std.mem.eql(u8, key, "screenshot_dir"))
         {
             // The panel parses these keys; the compositor only validates the file.
         } else {

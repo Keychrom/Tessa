@@ -1381,12 +1381,104 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = g.font[0..g.font_len];
+
+    fillRound(cr, 0, 0, W, H, 0, .{ 0.008, 0.012, 0.020, 0.38 * t });
+    g.overlay_hit_count = 0;
+    g.overlay_panel = .{ .x = 0, .y = 0, .w = W, .h = H };
+
+    const sx = std.math.clamp(@min(g.screenshot_start_x, g.screenshot_end_x), 0, W);
+    const sy = std.math.clamp(@min(g.screenshot_start_y, g.screenshot_end_y), 0, H);
+    const ex = std.math.clamp(@max(g.screenshot_start_x, g.screenshot_end_x), 0, W);
+    const ey = std.math.clamp(@max(g.screenshot_start_y, g.screenshot_end_y), 0, H);
+    const select_w = ex - sx;
+    const select_h = ey - sy;
+    const has_selection = select_w > 0.5 and select_h > 0.5;
+
+    if (has_selection) {
+        c.cairo_set_operator(cr, c.CAIRO_OPERATOR_CLEAR);
+        c.cairo_new_path(cr);
+        c.cairo_rectangle(cr, sx, sy, select_w, select_h);
+        c.cairo_fill(cr);
+        c.cairo_set_operator(cr, c.CAIRO_OPERATOR_OVER);
+
+        c.cairo_new_path(cr);
+        c.cairo_rectangle(cr, sx + 0.75, sy + 0.75, @max(0.0, select_w - 1.5), @max(0.0, select_h - 1.5));
+        setColor(cr, .{ accent[0], accent[1], accent[2], 0.95 * t });
+        c.cairo_set_line_width(cr, 1.5);
+        c.cairo_stroke(cr);
+
+        const handle = 7.0;
+        const corners = [_][2]f64{
+            .{ sx, sy }, .{ ex, sy }, .{ sx, ey }, .{ ex, ey },
+        };
+        for (corners) |corner| {
+            fillRound(cr, corner[0] - handle / 2.0, corner[1] - handle / 2.0, handle, handle, 2, .{
+                accent[0], accent[1], accent[2], 0.95 * t,
+            });
+        }
+
+        var size_buf: [48]u8 = undefined;
+        const size_text = std.fmt.bufPrint(&size_buf, "{d} \xc3\x97 {d}", .{
+            @as(i32, @intFromFloat(@round(select_w * @as(f64, @floatFromInt(@max(1, g.scale)))))),
+            @as(i32, @intFromFloat(@round(select_h * @as(f64, @floatFromInt(@max(1, g.scale)))))),
+        }) catch "";
+        const tw = textWidth(cr, size_text, MONO, "Medium", 8.0, 0);
+        var label_x = sx + 8;
+        var label_y = ey + 8;
+        if (label_y + 24 > H - 8) label_y = ey - 30;
+        if (label_x + tw + 16 > W - 8) label_x = W - 8 - tw - 16;
+        fillRound(cr, label_x, label_y, tw + 16, 22, 6, .{ 0.025, 0.035, 0.055, 0.82 * t });
+        _ = drawTextCentered(cr, size_text, label_x + 8, label_y + 11, MONO, "Medium", 8.0, .{
+            0.92, 0.95, 0.99, 0.9 * t,
+        }, 0, 0);
+    } else if (g.pointer_surface == g.overlay) {
+        const px = g.pointer_x;
+        const py = g.pointer_y;
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, 0, py + 0.5);
+        c.cairo_line_to(cr, px - 14, py + 0.5);
+        c.cairo_move_to(cr, px + 14, py + 0.5);
+        c.cairo_line_to(cr, W, py + 0.5);
+        c.cairo_move_to(cr, px + 0.5, 0);
+        c.cairo_line_to(cr, px + 0.5, py - 14);
+        c.cairo_move_to(cr, px + 0.5, py + 14);
+        c.cairo_line_to(cr, px + 0.5, H);
+        setColor(cr, .{ 1, 1, 1, 0.26 * t });
+        c.cairo_set_line_width(cr, 1);
+        c.cairo_stroke(cr);
+        strokeRound(cr, px - 9, py - 9, 18, 18, 9, .{ 1, 1, 1, 0.30 * t }, 1);
+    }
+
+    const hint_w = 500.0;
+    const hint_h = 34.0;
+    const hint_x = (W - hint_w) / 2.0;
+    const hint_y = H - hint_h - 28.0;
+    fillRound(cr, hint_x, hint_y, hint_w, hint_h, 11, .{ 0.025, 0.035, 0.055, 0.88 * t });
+    strokeRound(cr, hint_x + 0.5, hint_y + 0.5, hint_w - 1, hint_h - 1, 10.5, .{ 1, 1, 1, 0.10 * t }, 1);
+    _ = drawTextCentered(cr, "SCREENSHOT", hint_x + 18, hint_y + hint_h / 2.0, MONO, "Medium", 7.4, .{
+        accent[0], accent[1], accent[2], 0.95 * t,
+    }, 0, 0.8);
+    _ = drawTextCentered(cr, "drag to select      \xe2\x86\xb5  full screen      esc  cancel", hint_x + 104, hint_y + hint_h / 2.0, fam, "Medium", 8.0, .{
+        0.76, 0.82, 0.90, 0.90 * t,
+    }, hint_w - 120, 0.25);
+}
+
 pub fn drawOverlay(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
     const t = std.math.clamp(g.menu_anim, 0.0, 1.0);
+
+    if (g.overlay_mode == .screenshot) {
+        drawScreenshotOverlay(cr, W, H, t);
+        end(s, d);
+        return;
+    }
+
     const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
 
     fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });

@@ -61,6 +61,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   - clock popover with a month calendar and a power menu with configurable
     lock/suspend/reboot/shutdown commands
   - memory-only clipboard history with `Super+V` and click-to-copy
+  - region/full-output screenshot UI using `wlr-screencopy`, saved as PNG
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -75,7 +76,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
-`tests/panel-popovers.sh`, `tests/clipboard.sh`, and panel screenshots.
+`tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`, and
+panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -374,6 +376,7 @@ event schema, hook environment, and status API.
 | `Super+Return` | terminal (`terminal` config value) |
 | `Super+D` | launcher |
 | `Super+V` | clipboard history |
+| `Super+Shift+S` | screenshot region/full output |
 | `Super+T` | cycle master → mosaic → grid → columns |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
@@ -407,6 +410,9 @@ Mouse:
 - `Super+V` opens clipboard history. Select an entry with `Up`/`Down` and
   `Enter`, or click it, to put it back on the clipboard. History is limited to
   eight text entries of up to 16 KiB each and is kept in memory only.
+- `Super+Shift+S` starts the screenshot UI. Drag to select a region, click for
+  the full output, or press `Enter`; `Esc` cancels. PNGs are written to
+  `screenshot_dir` (default `~/Pictures/Screenshots`).
 
 ## Configuration
 
@@ -464,6 +470,7 @@ diagnostics. Selected keys:
 | `power_suspend` | command for Suspend (default `systemctl suspend`) |
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |
 | `power_off` | command for Power Off (default `systemctl poweroff`) |
+| `screenshot_dir` | PNG output directory (default `~/Pictures/Screenshots`) |
 | `border_active` | focused border color (defaults to `accent`) |
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |

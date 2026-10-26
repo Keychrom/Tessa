@@ -29,6 +29,7 @@ tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # query is optional
 tessa-ctl panel calendar                # toggle a panel popover
 tessa-ctl panel clipboard              # clipboard history
+tessa-ctl panel screenshot             # region/full screenshot UI
 tessa-ctl panel power HEADLESS-2        # target a specific output
 tessa-ctl layout grid                   # set/cycle current workspace layout
 tessa-ctl mode resize                   # switch input mode
@@ -125,6 +126,7 @@ EVENT	workspace-change	ws=4	previous-ws=3	output=HEADLESS-1
 EVENT	launcher	arg=fire	output=HEADLESS-1
 EVENT	panel	arg=calendar	output=HEADLESS-1
 EVENT	panel	arg=clipboard	output=HEADLESS-1
+EVENT	panel	arg=screenshot	output=HEADLESS-1
 ```
 
 Fields are omitted when they do not apply. `id` and `previous` are ids; `ws` and
@@ -145,7 +147,7 @@ names the window that lost focus.
 | `mode-change` | Active input mode changed | arg (mode name) |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
-| `panel` | A panel popover was requested | arg (`calendar`, `power`, or `clipboard`), output |
+| `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, or `screenshot`), output |
 | `output-added` | Output initialized | output, arg (geometry) |
 | `output-removed` | Output removed | output, arg (geometry) |
 

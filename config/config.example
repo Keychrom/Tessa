@@ -65,6 +65,10 @@ power_suspend = systemctl suspend
 power_reboot = systemctl reboot
 power_off = systemctl poweroff
 
+# Screenshot PNG output (default ~/Pictures/Screenshots). Super+Shift+S opens
+# the region/full-output capture UI.
+screenshot_dir = ~/Pictures/Screenshots
+
 # Start xwayland-satellite for X11 applications and export DISPLAY.
 # "auto" picks the first free display (:0, :1, ...).
 xwayland = true
@@ -110,6 +114,7 @@ font = Inter
 # bind = SUPER+Return terminal
 # bind = SUPER+d launcher
 # bind = SUPER+v clipboard
+# bind = SUPER+SHIFT+s screenshot
 # bind = SUPER+t toggle-layout
 # bind = SUPER+g set-layout grid
 # bind = SUPER+1 workspace 1

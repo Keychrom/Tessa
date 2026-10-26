@@ -235,6 +235,7 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 | `power_suspend` | command for Suspend (default `systemctl suspend`) |
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |
 | `power_off` | command for Power Off (default `systemctl poweroff`) |
+| `screenshot_dir` | screenshot PNG directory (default `~/Pictures/Screenshots`) |
 
 The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
@@ -278,6 +279,30 @@ bind = SUPER+v clipboard
 bind = SUPER+SHIFT+v clipboard
 ```
 
+## Screenshots
+
+`Super+Shift+S` (or `tessa-ctl panel screenshot`) captures the focused output
+with `wlr-screencopy`. Drag to select a region, click for the full output, or
+press `Enter` for the full output; `Esc` or right-click cancels. The panel draws
+the selection on an overlay, punches the selected area out of the dim layer, and
+shows the physical pixel size while dragging.
+
+PNGs are written to `screenshot_dir`:
+
+```ini
+screenshot_dir = ~/Pictures/Screenshots
+```
+
+That is the default. Subdirectories are created as needed. Files are named
+`tessa-YYYYMMDD-HHMMSS-mmm.png`. The capture is taken before the overlay is
+shown, so the selection UI and dim layer are not included. The bar is part of
+the output and is included unless you select a region below it. `screenshot` is
+also a key-binding action:
+
+```ini
+bind = SUPER+SHIFT+s screenshot
+```
+
 ## Keys and commands
 
 See [../README.md](../README.md#key-bindings) for the defaults. Additional
@@ -292,8 +317,8 @@ bind = SUPER+ALT+Right resize-width 30
 
 Available actions include `spawn`, `terminal`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`focus-next`, `focus-prev`, `launcher`, `clipboard`, `reload`, `ratio`,
-`toggle-layout`, `set-layout`, `resize-width`, and `resize-height`.
+`focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `reload`,
+`ratio`, `toggle-layout`, `set-layout`, `resize-width`, and `resize-height`.
 
 ## Live inspection and automation
 

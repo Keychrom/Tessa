@@ -66,6 +66,7 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
     コマンドを設定できる電源メニュー
   - `Super+V` で開き、クリックまたはキーボードで貼り付けられるメモリ上だけの
     クリップボード履歴
+  - `wlr-screencopy` を使った範囲/全画面スクリーンショット UI（PNG 保存）
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -81,7 +82,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
-`tests/panel-popovers.sh`、`tests/clipboard.sh` で検証しています。
+`tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh` で
+検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -392,6 +394,7 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+Return` | ターミナル（設定の `terminal`） |
 | `Super+D` | ランチャー |
 | `Super+V` | クリップボード履歴 |
+| `Super+Shift+S` | 範囲/全画面スクリーンショット |
 | `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
@@ -430,6 +433,9 @@ include = /home/you/.config/tessa/launcher-entries.conf
 - `Super+V` でクリップボード履歴が開きます。`Up`/`Down` と `Enter`、
   またはクリックで選んだ項目をクリップボードへ戻せます。履歴は最大 8 件、
   各 16 KiB までのテキストで、メモリ上にのみ保持します。
+- `Super+Shift+S` でスクリーンショット UI が開きます。ドラッグで範囲選択、
+  クリックで全画面、`Enter` でも全画面を保存し、`Esc` でキャンセルします。
+  PNG は `screenshot_dir`（既定 `~/Pictures/Screenshots`）へ保存されます。
 
 ## 設定
 
@@ -486,6 +492,7 @@ cp config/config.example ~/.config/tessa/config
 | `power_suspend` | サスペンドのコマンド（既定 `systemctl suspend`） |
 | `power_reboot` | 再起動のコマンド（既定 `systemctl reboot`） |
 | `power_off` | 電源オフのコマンド（既定 `systemctl poweroff`） |
+| `screenshot_dir` | スクリーンショット PNG の保存先（既定 `~/Pictures/Screenshots`） |
 | `border_active` | フォーカス中ボーダー色（既定は `accent`） |
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |

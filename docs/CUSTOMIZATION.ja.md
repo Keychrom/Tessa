@@ -233,6 +233,7 @@ tessa-ctl config --json
 | `power_suspend` | サスペンド用コマンド（既定 `systemctl suspend`） |
 | `power_reboot` | 再起動用コマンド（既定 `systemctl reboot`） |
 | `power_off` | 電源オフ用コマンド（既定 `systemctl poweroff`） |
+| `screenshot_dir` | スクリーンショット PNG の保存先（既定 `~/Pictures/Screenshots`） |
 
 パネルは `config-reload` を受け取ると配色、ランチャー項目、バーの
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
@@ -276,6 +277,30 @@ bind = SUPER+v clipboard
 bind = SUPER+SHIFT+v clipboard
 ```
 
+## スクリーンショット
+
+`Super+Shift+S`（または `tessa-ctl panel screenshot`）で、フォーカス中の出力を
+`wlr-screencopy` でキャプチャします。ドラッグで範囲選択、クリックで全画面、
+`Enter` でも全画面を保存し、`Esc` または右クリックでキャンセルします。
+パネルはオーバーレイ上に選択範囲を描画し、暗くした領域から選択部分を
+くり抜いて、ドラッグ中は物理ピクセルサイズを表示します。
+
+PNG は `screenshot_dir` に保存されます:
+
+```ini
+screenshot_dir = ~/Pictures/Screenshots
+```
+
+これが既定値で、必要ならサブディレクトリも作成します。ファイル名は
+`tessa-YYYYMMDD-HHMMSS-mmm.png` です。キャプチャはオーバーレイを表示する前に
+行うため、選択 UI や暗いレイヤーは写りません。バーは出力の一部なので、
+バーより下を範囲選択しない限り含まれます。`screenshot` はキーバインド
+アクションとしても使えます:
+
+```ini
+bind = SUPER+SHIFT+s screenshot
+```
+
 ## キーとコマンド
 
 既定のキーバインドは [../README.ja.md](../README.ja.md#キーバインド) を
@@ -290,8 +315,8 @@ bind = SUPER+ALT+Right resize-width 30
 
 利用可能なアクションは `spawn`、`terminal`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`focus-next`、`focus-prev`、`launcher`、`clipboard`、`reload`、`ratio`、
-`toggle-layout`、`set-layout`、`resize-width`、`resize-height` です。
+`focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`reload`、
+`ratio`、`toggle-layout`、`set-layout`、`resize-width`、`resize-height` です。
 
 ## ライブ確認と自動化
 

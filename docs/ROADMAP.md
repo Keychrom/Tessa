@@ -47,8 +47,9 @@ a daily Japanese desktop, then by polish.
 - [x] Power menu with configurable lock/suspend/reboot/shutdown commands.
 - [x] Session lock (`ext-session-lock-v1`).
 - [x] Idle inhibit, idle notifications, and output-power management (external swayidle/wlopm).
-- [ ] Screenshot UI and `xdg-desktop-portal` integration; PipeWire screen
-      sharing.
+- [x] Screenshot UI: region/full-output capture through `wlr-screencopy`, saved
+      as PNG.
+- [ ] `xdg-desktop-portal` integration and PipeWire screen sharing.
 - [ ] Notification daemon integration.
 - [x] Clipboard history for text, using `wlr-data-control-v1` (memory only).
 

@@ -45,6 +45,7 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
 
 fn destroyOverlay() void {
     const s = g.overlay orelse return;
+    if (g.overlay_mode == .screenshot) freeScreenshot();
     g.overlay = null;
     g.overlay_mode = .none;
     g.launcher_open = false;
@@ -486,6 +487,8 @@ fn openPanel(name: []const u8) void {
         openPower();
     } else if (std.mem.eql(u8, name, "clipboard")) {
         openClipboard();
+    } else if (std.mem.eql(u8, name, "screenshot")) {
+        openScreenshot();
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -885,6 +888,15 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         return;
     }
 
+    if (g.overlay_mode == .screenshot) {
+        if (sym == c.XKB_KEY_Escape) {
+            cancelScreenshot();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            saveFullScreenshot();
+        }
+        return;
+    }
+
     if (g.overlay_mode == .clipboard) {
         if (sym == c.XKB_KEY_Escape) {
             closeOverlay();
@@ -987,6 +999,342 @@ fn onDataControlFinished(data: ?*anyopaque, device: ?*c.zwlr_data_control_device
     _ = data;
     _ = device;
     logDebug("clipboard: data control finished", .{});
+}
+
+const ScreenshotSelection = struct {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+};
+
+fn freeScreenshot() void {
+    if (g.screenshot_frame) |frame| {
+        c.zwlr_screencopy_frame_v1_destroy(frame);
+        g.screenshot_frame = null;
+    }
+    if (g.screenshot_buffer) |buffer| {
+        c.wl_buffer_destroy(buffer);
+        g.screenshot_buffer = null;
+    }
+    if (g.screenshot_data) |data| {
+        if (g.screenshot_size > 0) _ = c.munmap(data, g.screenshot_size);
+        g.screenshot_data = null;
+    }
+    g.screenshot_size = 0;
+    g.screenshot_width = 0;
+    g.screenshot_height = 0;
+    g.screenshot_stride = 0;
+    g.screenshot_format = 0;
+    g.screenshot_pending = false;
+    g.screenshot_ready = false;
+    g.screenshot_dragging = false;
+    g.screenshot_start_x = 0;
+    g.screenshot_start_y = 0;
+    g.screenshot_end_x = 0;
+    g.screenshot_end_y = 0;
+}
+
+fn screenshotEnsureDir(path: []const u8) bool {
+    if (path.len == 0 or path.len >= 512) return false;
+    var buf: [512:0]u8 = undefined;
+    @memcpy(buf[0..path.len], path);
+    buf[path.len] = 0;
+    var i: usize = 1;
+    while (i < path.len) : (i += 1) {
+        if (buf[i] == '/') {
+            buf[i] = 0;
+            _ = c.mkdir(&buf, 0o755);
+            buf[i] = '/';
+        }
+    }
+    _ = c.mkdir(&buf, 0o755);
+    return true;
+}
+
+fn screenshotDirectory(dest: []u8) []const u8 {
+    const configured = g.screenshot_dir[0..g.screenshot_dir_len];
+    if (std.mem.startsWith(u8, configured, "~/")) {
+        if (c.getenv("HOME")) |home| {
+            return std.fmt.bufPrint(dest, "{s}/{s}", .{
+                std.mem.span(home),
+                configured[2..],
+            }) catch configured;
+        }
+    }
+    return configured;
+}
+
+fn screenshotPath(dest: *[1024]u8) ?[]const u8 {
+    var dir_buf: [512]u8 = undefined;
+    const dir = screenshotDirectory(&dir_buf);
+    if (dir.len == 0 or !screenshotEnsureDir(dir)) {
+        logMsg("screenshot: cannot create the screenshot directory", .{});
+        return null;
+    }
+
+    var t: c.time_t = c.time(null);
+    var tm: c.tm = undefined;
+    _ = c.localtime_r(&t, &tm);
+    var stamp: [32]u8 = [_]u8{0} ** 32;
+    _ = c.strftime(&stamp, stamp.len, "%Y%m%d-%H%M%S", &tm);
+    var ts: c.timespec = undefined;
+    _ = c.clock_gettime(c.CLOCK_REALTIME, &ts);
+    const ms = @divTrunc(@as(i64, ts.tv_nsec), 1_000_000);
+    return std.fmt.bufPrint(dest, "{s}/tessa-{s}-{d}.png", .{
+        dir,
+        std.mem.sliceTo(&stamp, 0),
+        ms,
+    }) catch null;
+}
+
+fn screenshotSelection() ScreenshotSelection {
+    const ov = g.overlay orelse return .{ .x = 0, .y = 0, .w = 1, .h = 1 };
+    const W: f64 = @floatFromInt(ov.width);
+    const H: f64 = @floatFromInt(ov.height);
+    const sx = std.math.clamp(@min(g.screenshot_start_x, g.screenshot_end_x), 0, W);
+    const sy = std.math.clamp(@min(g.screenshot_start_y, g.screenshot_end_y), 0, H);
+    const ex = std.math.clamp(@max(g.screenshot_start_x, g.screenshot_end_x), 0, W);
+    const ey = std.math.clamp(@max(g.screenshot_start_y, g.screenshot_end_y), 0, H);
+    return .{ .x = sx, .y = sy, .w = ex - sx, .h = ey - sy };
+}
+
+fn saveScreenshot(sel: ScreenshotSelection) void {
+    if (!g.screenshot_ready or g.screenshot_data == null) return;
+    const scale: f64 = @floatFromInt(@max(1, g.scale));
+    const origin_x: f64 = sel.x * scale;
+    const origin_y: f64 = sel.y * scale;
+    const pixel_w: i32 = @max(1, @as(i32, @intFromFloat(@round(sel.w * scale))));
+    const pixel_h: i32 = @max(1, @as(i32, @intFromFloat(@round(sel.h * scale))));
+    var crop_x: i32 = @intFromFloat(@round(origin_x));
+    var crop_y: i32 = @intFromFloat(@round(origin_y));
+    const image_w: i32 = @intCast(g.screenshot_width);
+    const image_h: i32 = @intCast(g.screenshot_height);
+    crop_x = std.math.clamp(crop_x, 0, @max(0, image_w - 1));
+    crop_y = std.math.clamp(crop_y, 0, @max(0, image_h - 1));
+    const crop_w = @min(pixel_w, image_w - crop_x);
+    const crop_h = @min(pixel_h, image_h - crop_y);
+    if (crop_w <= 0 or crop_h <= 0) return;
+
+    const cairo_format: c.cairo_format_t = if (g.screenshot_format == c.WL_SHM_FORMAT_XRGB8888)
+        c.CAIRO_FORMAT_RGB24
+    else
+        c.CAIRO_FORMAT_ARGB32;
+    const full = c.cairo_image_surface_create_for_data(
+        @ptrCast(g.screenshot_data.?),
+        cairo_format,
+        image_w,
+        image_h,
+        @intCast(g.screenshot_stride),
+    ) orelse {
+        logMsg("screenshot: cannot wrap the captured buffer", .{});
+        freeScreenshot();
+        closeOverlay();
+        return;
+    };
+    const cropped = c.cairo_image_surface_create(c.CAIRO_FORMAT_ARGB32, crop_w, crop_h) orelse {
+        c.cairo_surface_destroy(full);
+        logMsg("screenshot: cannot allocate the output image", .{});
+        freeScreenshot();
+        closeOverlay();
+        return;
+    };
+    const cr = c.cairo_create(cropped) orelse {
+        c.cairo_surface_destroy(cropped);
+        c.cairo_surface_destroy(full);
+        logMsg("screenshot: cannot create the output context", .{});
+        freeScreenshot();
+        closeOverlay();
+        return;
+    };
+    c.cairo_set_operator(cr, c.CAIRO_OPERATOR_SOURCE);
+    c.cairo_set_source_surface(cr, full, -@as(f64, @floatFromInt(crop_x)), -@as(f64, @floatFromInt(crop_y)));
+    c.cairo_paint(cr);
+    c.cairo_destroy(cr);
+
+    var path_buf: [1024]u8 = undefined;
+    const path = screenshotPath(&path_buf);
+    if (path) |p| {
+        var zpath: [1024:0]u8 = undefined;
+        if (p.len < zpath.len) {
+            @memcpy(zpath[0..p.len], p);
+            zpath[p.len] = 0;
+            const status = c.cairo_surface_write_to_png(cropped, &zpath);
+            if (status == c.CAIRO_STATUS_SUCCESS) {
+                logMsg("screenshot: saved {s} ({d}x{d})", .{ p, crop_w, crop_h });
+            } else {
+                logMsg("screenshot: PNG write failed ({d})", .{status});
+            }
+        } else {
+            logMsg("screenshot: output path is too long", .{});
+        }
+    }
+    c.cairo_surface_destroy(cropped);
+    c.cairo_surface_destroy(full);
+    freeScreenshot();
+    closeOverlay();
+}
+
+fn saveFullScreenshot() void {
+    const ov = g.overlay orelse return;
+    saveScreenshot(.{
+        .x = 0,
+        .y = 0,
+        .w = @floatFromInt(ov.width),
+        .h = @floatFromInt(ov.height),
+    });
+}
+
+fn saveSelectedScreenshot() void {
+    var sel = screenshotSelection();
+    if (sel.w < 8 or sel.h < 8) {
+        const ov = g.overlay orelse return;
+        sel = .{
+            .x = 0,
+            .y = 0,
+            .w = @floatFromInt(ov.width),
+            .h = @floatFromInt(ov.height),
+        };
+    }
+    saveScreenshot(sel);
+}
+
+fn cancelScreenshot() void {
+    logDebug("screenshot: cancelled", .{});
+    freeScreenshot();
+    closeOverlay();
+}
+
+fn beginScreenshotOverlay() void {
+    if (g.overlay != null) {
+        logDebug("screenshot: overlay is already open", .{});
+        freeScreenshot();
+        return;
+    }
+    if (!ensureOverlay()) {
+        freeScreenshot();
+        return;
+    }
+    g.screenshot_dragging = false;
+    g.screenshot_start_x = 0;
+    g.screenshot_start_y = 0;
+    g.screenshot_end_x = 0;
+    g.screenshot_end_y = 0;
+    beginOverlay(.screenshot);
+    logDebug("screenshot: capture ready {d}x{d}", .{ g.screenshot_width, g.screenshot_height });
+}
+
+fn onScreenshotBuffer(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, format: u32, width: u32, height: u32, stride: u32) callconv(.c) void {
+    _ = data;
+    if (frame == null or g.screenshot_buffer != null) return;
+    if (width == 0 or height == 0 or stride == 0) return;
+    const shm = g.shm orelse return;
+    const size: usize = @as(usize, stride) * @as(usize, height);
+    const fd = c.memfd_create("tessa-screenshot", c.MFD_CLOEXEC);
+    if (fd < 0) {
+        onScreenshotFailed(null, frame);
+        return;
+    }
+    if (c.ftruncate(fd, @intCast(size)) < 0) {
+        _ = c.close(fd);
+        onScreenshotFailed(null, frame);
+        return;
+    }
+    const map = c.mmap(null, size, c.PROT_READ | c.PROT_WRITE, c.MAP_SHARED, fd, 0);
+    if (map == null or @intFromPtr(map.?) == std.math.maxInt(usize)) {
+        _ = c.close(fd);
+        onScreenshotFailed(null, frame);
+        return;
+    }
+    const pool = c.wl_shm_create_pool(shm, fd, @intCast(size));
+    _ = c.close(fd);
+    if (pool == null) {
+        _ = c.munmap(map, size);
+        onScreenshotFailed(null, frame);
+        return;
+    }
+    const buffer = c.wl_shm_pool_create_buffer(
+        pool,
+        0,
+        @intCast(width),
+        @intCast(height),
+        @intCast(stride),
+        @intCast(format),
+    );
+    c.wl_shm_pool_destroy(pool);
+    if (buffer == null) {
+        _ = c.munmap(map, size);
+        onScreenshotFailed(null, frame);
+        return;
+    }
+
+    g.screenshot_buffer = buffer;
+    g.screenshot_data = map;
+    g.screenshot_size = size;
+    g.screenshot_width = width;
+    g.screenshot_height = height;
+    g.screenshot_stride = stride;
+    g.screenshot_format = format;
+    c.zwlr_screencopy_frame_v1_copy(frame.?, buffer.?);
+}
+
+fn onScreenshotFlags(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, flags: u32) callconv(.c) void {
+    _ = data;
+    _ = frame;
+    _ = flags;
+}
+
+fn onScreenshotReady(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, tv_sec_hi: u32, tv_sec_lo: u32, tv_nsec: u32) callconv(.c) void {
+    _ = data;
+    _ = tv_sec_hi;
+    _ = tv_sec_lo;
+    _ = tv_nsec;
+    if (frame) |value| c.zwlr_screencopy_frame_v1_destroy(value);
+    g.screenshot_frame = null;
+    g.screenshot_pending = false;
+    if (g.screenshot_data == null or g.screenshot_buffer == null) {
+        onScreenshotFailed(null, null);
+        return;
+    }
+    g.screenshot_ready = true;
+    beginScreenshotOverlay();
+}
+
+fn onScreenshotFailed(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1) callconv(.c) void {
+    _ = data;
+    if (frame) |value| c.zwlr_screencopy_frame_v1_destroy(value);
+    if (g.screenshot_frame == frame) g.screenshot_frame = null;
+    logMsg("screenshot: screen capture failed", .{});
+    freeScreenshot();
+}
+
+fn openScreenshot() void {
+    if (g.overlay != null) {
+        logMsg("screenshot: close the current overlay first", .{});
+        return;
+    }
+    if (g.screenshot_pending or g.screenshot_ready) freeScreenshot();
+    const manager = g.screenshot_manager orelse {
+        logMsg("screenshot: screencopy is unavailable", .{});
+        return;
+    };
+    const output = g.target_output orelse {
+        logMsg("screenshot: no target output", .{});
+        return;
+    };
+    const frame = c.zwlr_screencopy_manager_v1_capture_output(manager, 0, output) orelse {
+        logMsg("screenshot: cannot create a screencopy frame", .{});
+        return;
+    };
+    g.screenshot_frame = frame;
+    g.screenshot_pending = true;
+    g.screenshot_frame_listener = std.mem.zeroes(c.zwlr_screencopy_frame_v1_listener);
+    g.screenshot_frame_listener.buffer = onScreenshotBuffer;
+    g.screenshot_frame_listener.flags = onScreenshotFlags;
+    g.screenshot_frame_listener.ready = onScreenshotReady;
+    g.screenshot_frame_listener.failed = onScreenshotFailed;
+    _ = c.zwlr_screencopy_frame_v1_add_listener(frame, &g.screenshot_frame_listener, null);
+    logDebug("screenshot: capturing output", .{});
 }
 
 fn ensureDataControlDevice() void {
@@ -1278,6 +1626,11 @@ fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, int
             g.data_control_manager = @ptrCast(@alignCast(p));
             ensureDataControlDevice();
         }
+    } else if (std.mem.eql(u8, iface, "zwlr_screencopy_manager_v1") and g.screenshot_manager == null) {
+        const v = @min(version, 1);
+        if (c.wl_registry_bind(reg, name, &c.zwlr_screencopy_manager_v1_interface, v)) |p| {
+            g.screenshot_manager = @ptrCast(@alignCast(p));
+        }
     } else if (std.mem.eql(u8, iface, "wl_output")) {
         if (g.output_count < g.outputs.len) {
             const v = @min(version, 4);
@@ -1369,6 +1722,10 @@ fn onPointerEnter(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, surfa
     _ = serial;
     const s = surfaceFor(surface) orelse return;
     pointerCoords(s, sx, sy);
+    if (g.overlay_mode == .screenshot) {
+        refreshOverlay();
+        return;
+    }
     updateHover();
 }
 
@@ -1378,6 +1735,10 @@ fn onPointerLeave(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, surfa
     _ = serial;
     const s = surfaceFor(surface) orelse return;
     if (g.pointer_surface == s) g.pointer_surface = null;
+    if (g.overlay_mode == .screenshot) {
+        refreshOverlay();
+        return;
+    }
     updateHover();
 }
 
@@ -1388,6 +1749,14 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
     if (g.pointer_surface == null) return;
     g.pointer_x = c.wl_fixed_to_double(sx);
     g.pointer_y = c.wl_fixed_to_double(sy);
+    if (g.overlay_mode == .screenshot) {
+        if (g.screenshot_dragging) {
+            g.screenshot_end_x = g.pointer_x;
+            g.screenshot_end_y = g.pointer_y;
+        }
+        refreshOverlay();
+        return;
+    }
     updateHover();
 }
 
@@ -1396,8 +1765,30 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
     _ = pointer;
     _ = serial;
     _ = time;
+    const pointer_surface = g.pointer_surface orelse return;
+    if (g.overlay_mode == .screenshot and g.overlay == pointer_surface) {
+        if (button == 0x110) {
+            if (state == 1) {
+                if (!g.screenshot_ready) return;
+                g.screenshot_dragging = true;
+                g.screenshot_start_x = g.pointer_x;
+                g.screenshot_start_y = g.pointer_y;
+                g.screenshot_end_x = g.pointer_x;
+                g.screenshot_end_y = g.pointer_y;
+                refreshOverlay();
+            } else if (g.screenshot_dragging) {
+                g.screenshot_end_x = g.pointer_x;
+                g.screenshot_end_y = g.pointer_y;
+                g.screenshot_dragging = false;
+                saveSelectedScreenshot();
+            }
+        } else if (button == 0x111 and state == 1) {
+            cancelScreenshot();
+        }
+        return;
+    }
     if (state != 1) return;
-    const s = g.pointer_surface orelse return;
+    const s = pointer_surface;
 
     if (s == &g.bar) {
         const h = hitBar(g.pointer_x, g.pointer_y);
@@ -1908,6 +2299,7 @@ pub fn main() !void {
 
     eventLoop();
 
+    freeScreenshot();
     resetClipboardRead();
     if (g.data_offer) |offer| {
         c.zwlr_data_control_offer_v1_destroy(offer);

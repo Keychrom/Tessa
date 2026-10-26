@@ -54,8 +54,9 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [x] 電源メニュー（ロック/サスペンド/再起動/電源オフのコマンドを設定可能）。
 - [x] セッションロック（`ext-session-lock-v1`）。
 - [x] idle-inhibit、idle 通知、出力電源管理（外部の swayidle/wlopm）。
-- [ ] スクリーンショット UI と `xdg-desktop-portal` 連携、PipeWire による
-      画面共有。
+- [x] スクリーンショット UI（`wlr-screencopy` による範囲/全画面撮影と
+      PNG 保存）。
+- [ ] `xdg-desktop-portal` 連携と PipeWire による画面共有。
 - [ ] 通知デーモンの統合。
 - [x] テキストのクリップボード履歴（`wlr-data-control-v1`、メモリ上のみ）。
 

@@ -393,7 +393,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard> [output]
+CMD panel <calendar|power|clipboard|screenshot> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -416,8 +416,8 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
 発行し、一致するパネルだけがランチャーを開きます。`CMD panel
-calendar|power|clipboard` も同様に、要求したポップオーバーと対象出力を持つ
-`panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
+calendar|power|clipboard|screenshot` も同様に、要求したポップオーバーと
+対象出力を持つ `panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
 ## 拡張プレーン
@@ -463,8 +463,9 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
 - **overlay**: 必要時に作成、layer overlay、全端アンカー、排他ゾーン -1、
   キーボード EXCLUSIVE。全面透明/ARGB サーフェスです。モードに応じて中央の
   ランチャー、時計の下のカレンダー、`TESSA` マークの下の電源メニュー、
-  中央のクリップボード履歴を描画します。暗い背景とパネルを同じサーフェスに
-  描くため、パネルの外側をクリックすると閉じられます。ポップオーバーの
+  中央のクリップボード履歴、またはスクリーンショットの選択サーフェスを
+  描画します。暗い背景とパネルを同じサーフェスに描くため、パネルの外側を
+  クリックすると閉じられます。ポップオーバーの
   ヒット矩形はパネル原点を加えたローカル座標で、電源メニューと
   クリップボード履歴ではキーボードが `Up`/`Down`/`Enter` 操作に切り替わります。ポップオーバーを開くと `panel` イベントが発行され、
   パネルプロセスが `launcher` イベントと同様に処理します。
@@ -472,7 +473,7 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
 overlay は 150 ms でフェード/スケールします。フェードアウト後にだけ
 破棄され、layer サーフェスが破棄されるとコンポジタがトップレベルの
 フォーカスを復元します。ランチャーだけが text-input-v3 を有効にし、
-カレンダーと電源メニューでは無効にします。
+それ以外のオーバーレイでは無効にします。
 
 ### パネルの text-input
 
@@ -506,6 +507,22 @@ XKB_KEYMAP_COMPILE_NO_FLAGS)` で読み込みます。`xkb_keymap_new_from_strin
 設定します。この新しいセレクションもパネル自身にオファーとして戻ってきますが、
 昇格済みの項目との重複を除外してフィードバックループを防ぎます。内容は
 ディスクにもログにも書き出しません。
+
+### スクリーンショット
+
+パネルは `zwlr_screencopy_manager_v1` のバージョン 1 をバインドします。
+撮影要求は対象 `wl_output` のフレームを作成し、`buffer` イベントで通知される
+形式、物理サイズ、ストライドに合わせて `wl_shm` バッファを確保して `copy` を
+送り、`ready` を待ちます。オーバーレイを開くのは `ready` の後なので、選択 UI
+や暗いレイヤーが撮影画像に写ることはありません。
+
+オーバーレイは出力全体を暗くし、Cairo の `CLEAR` 演算子で選択矩形をくり抜き
+ます。ポインタの押下/移動/解放で範囲を追跡し、ドラッグなしのクリックまたは
+`Enter` で全画面、`Esc` と右クリックでキャンセルします。取得済みバッファは
+物理座標（論理選択範囲 × 出力スケール）でクロップされ、Cairo のイメージ
+サーフェスから PNG として保存されます。既定の保存先は
+`~/Pictures/Screenshots` で、`screenshot_dir` により変更でき、不足している
+親ディレクトリも作成します。
 
 ### バッファと描画
 
@@ -550,6 +567,8 @@ libc とソケットヘッダーだけをリンクします。
 - `text-input-client-protocol.h/.c` — パネルの text-input-v3 クライアント用
 - `wlr-data-control-unstable-v1-client-protocol.h/.c` — パネルの
   クリップボード履歴用
+- `wlr-screencopy-unstable-v1-client-protocol.h/.c` — パネルの
+  スクリーンショット用
 - `cursor-shape-v1-protocol.h` — `wlr_cursor_shape_v1.h` が必要とする
 
 ## 障害時の動作

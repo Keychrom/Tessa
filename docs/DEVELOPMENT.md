@@ -308,6 +308,20 @@ The panel monitors selections through `wlr-data-control-v1`. Ordinary
 `wl_data_device` selection events go only to the focused client, so a bar-side
 ordinary data device cannot collect clipboard history.
 
+### Screenshot test
+
+`tests/screenshot.sh` sets a temporary `screenshot_dir`, opens the screenshot
+overlay through IPC, presses `Enter` for the full output, and checks that the
+saved file is a 1920×1080 PNG. It also verifies that `Esc` cancels without
+creating a file and that the default `Super+Shift+S` binding opens the UI.
+
+```sh
+sh tests/screenshot.sh
+```
+
+The automated test covers full-output capture. Region dragging uses the normal
+pointer path and still needs a physical pointer or a virtual-pointer test.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

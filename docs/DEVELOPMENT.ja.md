@@ -288,6 +288,22 @@ sh tests/clipboard.sh
 `wl_data_device` のセレクションイベントはフォーカス中のクライアントにしか
 届かないため、バー側の通常 data device では履歴を集められません。
 
+### スクリーンショットのテスト
+
+`tests/screenshot.sh` は一時的な `screenshot_dir` を設定し、IPC 経由で
+スクリーンショット UI を開きます。`Enter` で全画面を保存し、生成された
+ファイルが 1920×1080 の PNG であることを確認します。`Esc` でキャンセルした
+場合にファイルが増えないこと、既定の `Super+Shift+S` で UI が開くことも
+検証します。
+
+```sh
+sh tests/screenshot.sh
+```
+
+自動テストは全画面撮影を対象にしています。範囲ドラッグは通常のポインタ
+経路を使うため、実機のポインタか virtual-pointer を使ったテストが別途
+必要です。
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

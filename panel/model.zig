@@ -11,7 +11,7 @@ pub const POWER_ACTION_COUNT = 5;
 pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot };
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -234,6 +234,26 @@ pub const Panel = struct {
     clipboard_source: ?*c.zwlr_data_control_source_v1 = null,
     clipboard_source_listener: c.zwlr_data_control_source_v1_listener = undefined,
 
+    screenshot_manager: ?*c.zwlr_screencopy_manager_v1 = null,
+    screenshot_frame: ?*c.zwlr_screencopy_frame_v1 = null,
+    screenshot_frame_listener: c.zwlr_screencopy_frame_v1_listener = undefined,
+    screenshot_buffer: ?*c.wl_buffer = null,
+    screenshot_data: ?*anyopaque = null,
+    screenshot_size: usize = 0,
+    screenshot_width: u32 = 0,
+    screenshot_height: u32 = 0,
+    screenshot_stride: u32 = 0,
+    screenshot_format: u32 = 0,
+    screenshot_pending: bool = false,
+    screenshot_ready: bool = false,
+    screenshot_dragging: bool = false,
+    screenshot_start_x: f64 = 0,
+    screenshot_start_y: f64 = 0,
+    screenshot_end_x: f64 = 0,
+    screenshot_end_y: f64 = 0,
+    screenshot_dir: [512]u8 = [_]u8{0} ** 512,
+    screenshot_dir_len: usize = 0,
+
     launcher_open: bool = false,
     query: [128]u8 = [_]u8{0} ** 128,
     query_len: usize = 0,
@@ -404,6 +424,8 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             copyTrunc(&g.power_reboot, &g.power_reboot_len, val);
         } else if (std.mem.eql(u8, key, "power_off")) {
             copyTrunc(&g.power_off, &g.power_off_len, val);
+        } else if (std.mem.eql(u8, key, "screenshot_dir")) {
+            copyTrunc(&g.screenshot_dir, &g.screenshot_dir_len, val);
         } else if (std.mem.eql(u8, key, "launcher_entry")) {
             addCustomApp(val);
         }
@@ -424,6 +446,7 @@ pub fn loadConfig() void {
     copyTrunc(&g.power_suspend, &g.power_suspend_len, "systemctl suspend");
     copyTrunc(&g.power_reboot, &g.power_reboot_len, "systemctl reboot");
     copyTrunc(&g.power_off, &g.power_off_len, "systemctl poweroff");
+    copyTrunc(&g.screenshot_dir, &g.screenshot_dir_len, "~/Pictures/Screenshots");
     g.custom_count = 0;
 
     var path_buf: [512]u8 = undefined;

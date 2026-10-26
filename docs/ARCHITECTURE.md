@@ -379,7 +379,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard> [output]
+CMD panel <calendar|power|clipboard|screenshot> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -400,8 +400,8 @@ snapshots for tools.
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
 focused output; only the matching panel opens. `CMD panel
-calendar|power|clipboard` likewise emits a `panel` event with the requested
-popover and target output.
+calendar|power|clipboard|screenshot` likewise emits a `panel` event with the
+requested popover and target output.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
@@ -449,8 +449,8 @@ output.
 - **overlay**: created on demand, layer overlay, anchors all edges, exclusive
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface.
   Its mode selects the centered launcher or one of the anchored popovers
-  (calendar below the clock, power menu below the Tessa mark, and centered
-  clipboard history). The dim backdrop and panel are drawn into the same
+  (calendar below the clock, power menu below the Tessa mark, centered
+  clipboard history, or the screenshot selection surface). The dim backdrop and panel are drawn into the same
   surface, so clicks outside the active panel close it. Popover hit rectangles
   are in popover-local coordinates plus the panel origin, and keyboard input
   switches to `Up`/`Down`/`Enter` navigation for the power menu and clipboard. Opening a popover emits a `panel` event, which the panel
@@ -458,8 +458,7 @@ output.
 
 The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
 destroying the layer surface lets the compositor restore toplevel focus. The
-launcher also enables text-input-v3 while the calendar and power modes disable
-it.
+launcher also enables text-input-v3 while every other overlay mode disables it.
 
 ### Text input in the panel
 
@@ -493,6 +492,22 @@ it as the seat selection. The new selection also comes back to the panel as an
 offer; deduplicating against the promoted entry prevents a feedback loop. No
 clipboard content is written to disk or logged.
 
+### Screenshots
+
+The panel binds `zwlr_screencopy_manager_v1` version 1. A screenshot request
+creates a frame for the target `wl_output`; the frame's `buffer` event supplies
+the exact format, physical size, and stride, and the panel allocates a matching
+`wl_shm` buffer, calls `copy`, and waits for `ready`. Only then does it open the
+`SCREENSHOT` overlay, so the selection UI and dim layer cannot appear in the
+captured image.
+
+The overlay darkens the live output and uses Cairo's `CLEAR` operator to punch
+the selected rectangle out of that dim layer. Pointer press/motion/release tracks
+the region; `Enter` or a click without a drag selects the full output; `Esc` and
+right-click cancel. The captured buffer is cropped in physical coordinates
+(`logical selection * output scale`) into a Cairo image surface and written as
+PNG. The default directory is `~/Pictures/Screenshots`, configurable with
+`screenshot_dir`; missing parent directories are created.
 
 ### Buffers and rendering
 
@@ -534,6 +549,7 @@ The generated headers/C under `protocol/` are committed:
 - `xdg-shell-client-protocol.h/.c` — panel/runtime symbol
 - `text-input-client-protocol.h/.c` — panel text-input-v3 client
 - `wlr-data-control-unstable-v1-client-protocol.h/.c` — panel clipboard history
+- `wlr-screencopy-unstable-v1-client-protocol.h/.c` — panel screenshots
 - `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
 
 ## Failure behavior
