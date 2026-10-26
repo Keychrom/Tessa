@@ -20,10 +20,12 @@ Package: tessa
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: xwayland-satellite
-Suggests: foot | kitty, swaylock, swayidle, wlopm, dbus
+Suggests: foot | kitty, swaylock, swayidle, wlopm, dbus,
+          xdg-desktop-portal, xdg-desktop-portal-wlr, pipewire
 Description: quiet tiled Wayland compositor and desktop shell
  Tessa is a wlroots-based tiled Wayland compositor written in Zig. It includes
  its own taskbar, launcher, wallpaper, per-output workspaces, compositor-level
  IME relay, XWayland integration, session locking, idle/output-power support,
  declarative window and workspace rules, a process-based extension API, clipboard
- history, a screenshot UI, and a desktop notification service.
+ history, a screenshot UI, StatusNotifier tray, volume controls, and a desktop
+ notification service.

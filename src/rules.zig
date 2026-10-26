@@ -65,6 +65,9 @@ fn apply(rule: *const WindowRule, client: *Client) void {
         const on = rule.fullscreen == .on;
         client.fullscreen = on;
         _ = c.wlr_xdg_toplevel_set_fullscreen(client.xdg, on);
+        if (client.foreign_toplevel) |handle| {
+            c.wlr_foreign_toplevel_handle_v1_set_fullscreen(handle, on);
+        }
     }
 
     if (rule.workspace >= 1 and rule.workspace <= types.WS_COUNT and

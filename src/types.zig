@@ -69,6 +69,8 @@ pub const Action = enum {
     clipboard,
     screenshot,
     media,
+    tray,
+    audio,
     reload,
     ratio,
     toggle_layout,
@@ -287,6 +289,12 @@ pub const Client = struct {
     request_fullscreen: c.wl_listener,
     set_title: c.wl_listener,
     set_app_id: c.wl_listener,
+    foreign_toplevel: ?*c.wlr_foreign_toplevel_handle_v1,
+    foreign_activate: c.wl_listener,
+    foreign_close: c.wl_listener,
+    foreign_fullscreen: c.wl_listener,
+    foreign_destroy: c.wl_listener,
+    ext_foreign_toplevel: ?*c.wlr_ext_foreign_toplevel_handle_v1,
 };
 
 pub const LayerSurface = struct {
@@ -408,6 +416,8 @@ pub const Server = struct {
     im_popup_count: usize,
     xdg_decoration_manager: ?*c.wlr_xdg_decoration_manager_v1,
     xdg_activation: ?*c.wlr_xdg_activation_v1,
+    foreign_toplevel_manager: ?*c.wlr_foreign_toplevel_manager_v1,
+    ext_foreign_toplevel_list: ?*c.wlr_ext_foreign_toplevel_list_v1,
     cursor_shape_manager: ?*c.wlr_cursor_shape_manager_v1,
     text_input_manager: ?*c.wlr_text_input_manager_v3,
     input_method_manager: ?*c.wlr_input_method_manager_v2,

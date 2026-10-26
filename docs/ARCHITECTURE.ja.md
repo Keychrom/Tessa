@@ -31,6 +31,11 @@ Tessa は 3 つのプログラムで構成されます。
                          │  xdg-activation / cursor-shape│
                          │  text-input-v3 / input-method-v2│
                          │  wlr-screencopy-v1           │
+                         │  linux-dmabuf-v1             │
+                         │  ext-image-copy-capture-v1   │
+                         │  ext-output-image-capture... │
+                         │  ext-foreign-toplevel-list   │
+                         │  wlr-foreign-toplevel-mgmt   │
                          │  wl_data_device + primary    │
                          │  wlr-data-control-v1         │
                          │  virtual-keyboard-v1         │
@@ -393,7 +398,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -560,6 +565,49 @@ Wayland の入力リージョンはカード部分だけで透明な隙間を含
 ポップオーバーを開きます。アルバムアートやプレイヤー固有のメニューは
 取得しません。
 
+### StatusNotifier トレイ
+
+`panel/tray.c` は専用の GIO スレッドでセッション bus 上の
+`org.kde.StatusNotifierWatcher` を所有します。`RegisterStatusNotifierItem`、
+`RegisterStatusNotifierHost`、watcher プロパティ、登録シグナルを実装します。
+登録された項目は 1 秒ごとに `Properties.GetAll` で取得し、`Title`、`Status`、
+`IconName`、`IconPixmap` を通知/メディアと同じフレーム化ソケットでパネルへ
+送ります。
+
+`IconPixmap` はネットワークバイトオーダーの ARGB32 を並べた `a(iiay)` です。
+パネルは Cairo ネイティブの ARGB32 に変換するか、`IconName` を一般的な
+PNG アイコンテーマのパスから読み込みます。アクティベートとセカンダリ
+アクティベートは GDBus スレッドへ戻します。バーに各項目を描画し、左クリックで
+アクティベート、右クリックまたは `Super+Shift+T` でキーボード操作できる
+トレイポップオーバーを開きます。DBusMenu は未実装のため、コンテキスト
+メニューは提供しません。
+
+### 音量
+
+`panel/audio.c` はワーカースレッドで `wpctl`（PipeWire）、`pactl`
+（PulseAudio）、`amixer`（ALSA）を検出するか、パネル設定のコマンドを使います。
+1 秒ごとにミキサーを取得してパーセントとミュート状態を解析し、コンパクトな
+状態レコードをパネルへ送ります。音量上げ/下げ/ミュートは GIO スレッドへ
+渡して非同期に実行し、その後再取得します。パネルはバー表示と
+`Super+Shift+A` のポップオーバーを描画します。
+
+### ポータルと画面共有
+
+コンポジタは `zwlr_screencopy_manager_v1`、DRM fd があるレンダラーでは
+linux-dmabuf、`ext-output-image-capture-source-manager-v1`、
+`ext-image-copy-capture-v1`、`ext-foreign-toplevel-list-v1`、
+`zwlr_foreign_toplevel_manager_v1` を公開します。これらは
+`xdg-desktop-portal-wlr`（xdpw）がソースを列挙し、フレームを PipeWire
+ストリームへコピーするためのコンポジタ側プロトコルです。
+
+`packaging/portal/tessa.portal` は `XDG_CURRENT_DESKTOP=Tessa` のときに
+wlr バックエンドを選びます。セッション環境変数は `main.zig` と
+`scripts/tessa-session` が設定します。xdpw は screencopy + dmabuf 経路か、
+新しい image-copy-capture + 共有メモリ経路を使えます。テストハーネスは
+プライベートな PipeWire デーモン、xdg-desktop-portal、xdpw を起動し、
+CreateSession/SelectSources/Start/OpenPipeWireRemote を実行して、有効な
+ストリームノードとリモート fd を確認します。
+
 ### バッファと描画
 
 各サーフェスは 3 枚の `wl_shm` ARGB8888 バッファを保持します。
@@ -580,11 +628,13 @@ Cairo が角丸矩形、グラデーション、墨だまり、太陽、粒子�
 
 ### イベントループ
 
-シングルスレッドで、Wayland display の fd と IPC fd を `poll()` します。
-タイマー（1 秒の時計、2 秒の CPU/RAM、500 ms のカーソル点滅、16 ms の
+シングルスレッドで、Wayland display の fd、IPC fd、クリップボードパイプ、
+通知/メディア/トレイ/音量サービスの socketpair を `poll()` します。タイマー
+（1 秒の時計、2 秒の CPU/RAM、500 ms のカーソル点滅、16 ms の
 アニメーション）は poll タイムアウトで実装しています。
 `wl_display_prepare_read`/`read_events` を使って libwayland 内でブロック
-しないようにしています。
+しないようにしています。D-Bus とコマンド実行はワーカースレッドで行い、
+コンポジタと向き合うパネルループを止めません。
 
 ## ビルドと生成プロトコル
 
@@ -605,6 +655,8 @@ libc とソケットヘッダーだけをリンクします。
   クリップボード履歴用
 - `wlr-screencopy-unstable-v1-client-protocol.h/.c` — パネルの
   スクリーンショット用
+- `ext-image-copy-capture-v1-protocol.h` — wlroots キャプチャヘッダー用
+- `ext-image-capture-source-v1-protocol.h` — wlroots キャプチャヘッダー用
 - `cursor-shape-v1-protocol.h` — `wlr_cursor_shape_v1.h` が必要とする
 
 ## 障害時の動作

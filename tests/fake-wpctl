@@ -1,0 +1,51 @@
+#!/bin/sh
+# Fake wpctl used by tests/audio.sh. State file: "<percent> <muted>".
+set -eu
+state=${TESSA_FAKE_VOLUME_STATE:?}
+log=${TESSA_FAKE_AUDIO_LOG:?}
+command=${1:-}
+arg3=${3:-}
+read -r percent muted <"$state"
+
+emit() {
+    value=$(awk "BEGIN { printf \"%.2f\", $percent / 100 }")
+    if [ "$muted" = "1" ]; then
+        printf 'Volume: %s [MUTED]\n' "$value"
+    else
+        printf 'Volume: %s\n' "$value"
+    fi
+}
+
+case "$command" in
+get-volume)
+    echo "get-volume" >>"$log"
+    emit
+    ;;
+set-volume)
+    echo "set-volume $arg3" >>"$log"
+    case "$arg3" in
+    *%+)
+        step=${arg3%\%+}
+        percent=$((percent + step))
+        ;;
+    *%-)
+        step=${arg3%\%-}
+        percent=$((percent - step))
+        ;;
+    esac
+    if [ "$percent" -lt 0 ]; then percent=0; fi
+    if [ "$percent" -gt 150 ]; then percent=150; fi
+    printf '%s %s\n' "$percent" "$muted" >"$state"
+    emit
+    ;;
+set-mute)
+    echo "set-mute $arg3" >>"$log"
+    if [ "$muted" = "1" ]; then muted=0; else muted=1; fi
+    printf '%s %s\n' "$percent" "$muted" >"$state"
+    emit
+    ;;
+*)
+    echo "unexpected wpctl invocation: $*" >&2
+    exit 2
+    ;;
+esac

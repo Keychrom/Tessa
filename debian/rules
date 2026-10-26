@@ -18,5 +18,7 @@ override_dh_auto_install:
 		debian/tessa/usr/share/wayland-sessions/tessa.desktop
 	install -Dm644 config/config.example \
 		debian/tessa/usr/share/tessa/config.example
+	install -Dm644 packaging/portal/tessa.portal \
+		debian/tessa/usr/share/xdg-desktop-portal/portals/tessa.portal
 
 .PHONY: override_dh_auto_build override_dh_auto_clean override_dh_auto_install

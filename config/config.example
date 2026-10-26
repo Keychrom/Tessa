@@ -69,6 +69,15 @@ power_off = systemctl poweroff
 # the region/full-output capture UI.
 screenshot_dir = ~/Pictures/Screenshots
 
+# Volume control. Empty commands auto-detect wpctl, pactl, then amixer.
+# Super+Shift+A opens the volume popover. Override individual commands here;
+# custom commands run through /bin/sh and the status command should print a
+# percentage such as "42%".
+# volume_status = wpctl get-volume @DEFAULT_AUDIO_SINK@
+# volume_up = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
+# volume_down = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
+# volume_mute = wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+
 # Start xwayland-satellite for X11 applications and export DISPLAY.
 # "auto" picks the first free display (:0, :1, ...).
 xwayland = true
@@ -116,6 +125,8 @@ font = Inter
 # bind = SUPER+v clipboard
 # bind = SUPER+SHIFT+s screenshot
 # bind = SUPER+m media
+# bind = SUPER+SHIFT+t tray
+# bind = SUPER+SHIFT+a audio
 # bind = SUPER+t toggle-layout
 # bind = SUPER+g set-layout grid
 # bind = SUPER+1 workspace 1

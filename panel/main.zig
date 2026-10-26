@@ -12,6 +12,12 @@ extern fn tessa_notifications_close(id: c_uint, reason: c_uint) void;
 extern fn tessa_media_start() c_int;
 extern fn tessa_media_stop() void;
 extern fn tessa_media_command(code: c_uint) void;
+extern fn tessa_tray_start() c_int;
+extern fn tessa_tray_stop() void;
+extern fn tessa_tray_activate(index: c_uint, code: c_uint) void;
+extern fn tessa_audio_start(status_cmd: [*:0]const u8, up_cmd: [*:0]const u8, down_cmd: [*:0]const u8, mute_cmd: [*:0]const u8) c_int;
+extern fn tessa_audio_stop() void;
+extern fn tessa_audio_command(code: c_uint) void;
 
 var registry_listener: c.wl_registry_listener = undefined;
 var seat_listener: c.wl_seat_listener = undefined;
@@ -515,6 +521,10 @@ fn openPanel(name: []const u8) void {
         openScreenshot();
     } else if (std.mem.eql(u8, name, "media")) {
         openMedia();
+    } else if (std.mem.eql(u8, name, "tray")) {
+        openTray();
+    } else if (std.mem.eql(u8, name, "audio")) {
+        openAudio();
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -627,6 +637,10 @@ fn activateOverlayHit(h: m.Hit) void {
         .media_prev => mediaCommand(3),
         .media_toggle => mediaCommand(1),
         .media_next => mediaCommand(2),
+        .tray_entry => trayActivate(h.value, 1),
+        .audio_down => audioCommand(2),
+        .audio_mute => audioCommand(3),
+        .audio_up => audioCommand(1),
         else => {},
     }
 }
@@ -753,14 +767,51 @@ fn addCustomApps() void {
     }
 }
 
+fn restartAudioService() void {
+    tessa_audio_stop();
+    g.audio_fd = -1;
+    g.audio_ready = false;
+    g.audio_len = 0;
+    g.volume_percent = -1;
+    g.volume_muted = false;
+    g.volume_source_len = 0;
+    g.volume_source[0] = 0;
+    startAudioService();
+    g.bar.dirty = true;
+    if (g.overlay_mode == .audio) refreshOverlay();
+}
+
 fn reloadPanelConfig() void {
     const old_height = g.bar_height;
     const old_top = g.bar_top_margin;
     const old_side = g.bar_side_margin;
+    var old_volume_status: [512]u8 = undefined;
+    var old_volume_up: [512]u8 = undefined;
+    var old_volume_down: [512]u8 = undefined;
+    var old_volume_mute: [512]u8 = undefined;
+    const old_status_len = g.volume_status_len;
+    const old_up_len = g.volume_up_len;
+    const old_down_len = g.volume_down_len;
+    const old_mute_len = g.volume_mute_len;
+    @memcpy(old_volume_status[0..old_status_len], g.volume_status[0..old_status_len]);
+    @memcpy(old_volume_up[0..old_up_len], g.volume_up[0..old_up_len]);
+    @memcpy(old_volume_down[0..old_down_len], g.volume_down[0..old_down_len]);
+    @memcpy(old_volume_mute[0..old_mute_len], g.volume_mute[0..old_mute_len]);
+
     m.loadConfig();
+    const volume_changed =
+        old_status_len != g.volume_status_len or
+        !std.mem.eql(u8, old_volume_status[0..old_status_len], g.volume_status[0..g.volume_status_len]) or
+        old_up_len != g.volume_up_len or
+        !std.mem.eql(u8, old_volume_up[0..old_up_len], g.volume_up[0..g.volume_up_len]) or
+        old_down_len != g.volume_down_len or
+        !std.mem.eql(u8, old_volume_down[0..old_down_len], g.volume_down[0..g.volume_down_len]) or
+        old_mute_len != g.volume_mute_len or
+        !std.mem.eql(u8, old_volume_mute[0..old_mute_len], g.volume_mute[0..g.volume_mute_len]);
     apps.scan(&g.app_list);
     addCustomApps();
     m.recomputeResults();
+    if (volume_changed) restartAudioService();
     if (g.bar_height != old_height or g.bar_top_margin != old_top or
         g.bar_side_margin != old_side)
     {
@@ -965,6 +1016,38 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             refreshOverlay();
         } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
             clipboardSelect(g.clipboard_selected);
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .tray) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up) {
+            moveTraySelection(-1);
+        } else if (sym == c.XKB_KEY_Down) {
+            moveTraySelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.tray_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.tray_count > 0) g.tray_selected = g.tray_count - 1;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            activateTraySelection();
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .audio) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up or sym == c.XKB_KEY_Right or sym == c.XKB_KEY_Page_Up) {
+            audioCommand(1);
+        } else if (sym == c.XKB_KEY_Down or sym == c.XKB_KEY_Left or sym == c.XKB_KEY_Page_Down) {
+            audioCommand(2);
+        } else if (sym == c.XKB_KEY_m) {
+            audioCommand(3);
         }
         return;
     }
@@ -1709,6 +1792,411 @@ fn startMediaService() void {
     logDebug("media: starting service", .{});
 }
 
+fn tryTrayPng(path: []const u8) ?*c.cairo_surface_t {
+    if (path.len == 0 or path.len + 1 >= 1024) return null;
+    var zbuf: [1024]u8 = undefined;
+    @memcpy(zbuf[0..path.len], path);
+    zbuf[path.len] = 0;
+    if (c.access(zbuf[0..path.len :0].ptr, c.F_OK) != 0) return null;
+    const surf = c.cairo_image_surface_create_from_png(zbuf[0..path.len :0].ptr);
+    if (c.cairo_surface_status(surf) != c.CAIRO_STATUS_SUCCESS) {
+        c.cairo_surface_destroy(surf);
+        return null;
+    }
+    if (c.cairo_image_surface_get_width(surf) <= 0 or
+        c.cairo_image_surface_get_height(surf) <= 0)
+    {
+        c.cairo_surface_destroy(surf);
+        return null;
+    }
+    return surf;
+}
+
+/// Look up an IconName through the common PNG locations. StatusNotifier
+/// clients frequently provide only a themed name; without this fallback most
+/// real-world items would render as a monogram.
+fn loadTrayIcon(name: []const u8) ?*c.cairo_surface_t {
+    if (name.len == 0 or name.len > 120) return null;
+    if (std.mem.indexOfAny(u8, name, "/\\") != null) return null;
+    if (std.mem.indexOf(u8, name, "..") != null) return null;
+
+    const themes = [_][]const u8{ "hicolor", "Adwaita", "breeze", "Papirus", "Yaru" };
+    const sizes = [_][]const u8{ "scalable", "64x64", "48x48", "32x32", "24x24" };
+    const categories = [_][]const u8{ "apps", "status", "panel", "devices", "places" };
+    const bases = [_][]const u8{
+        "/usr/share/icons",
+        "/usr/local/share/icons",
+    };
+    var home_buf: [512]u8 = undefined;
+    var home_dot_buf: [512]u8 = undefined;
+    var home_icons: []const u8 = "";
+    var local_icons: []const u8 = "";
+    if (c.getenv("HOME")) |home_z| {
+        const home = std.mem.span(home_z);
+        home_icons = std.fmt.bufPrint(&home_buf, "{s}/.local/share/icons", .{home}) catch "";
+        local_icons = std.fmt.bufPrint(&home_dot_buf, "{s}/.icons", .{home}) catch "";
+    }
+    var path_buf: [1024]u8 = undefined;
+
+    if (tryTrayPng(std.fmt.bufPrint(&path_buf, "/usr/share/pixmaps/{s}.png", .{name}) catch "")) |s| return s;
+
+    var base_i: usize = 0;
+    while (base_i < bases.len + 2) : (base_i += 1) {
+        const base: []const u8 = switch (base_i) {
+            0, 1 => bases[base_i],
+            2 => home_icons,
+            else => local_icons,
+        };
+        if (base.len == 0) continue;
+        if (tryTrayPng(std.fmt.bufPrint(&path_buf, "{s}/{s}.png", .{ base, name }) catch "")) |s| return s;
+        for (themes) |theme| {
+            for (sizes) |size| {
+                if (tryTrayPng(std.fmt.bufPrint(&path_buf, "{s}/{s}/{s}/{s}.png", .{
+                    base, theme, size, name,
+                }) catch "")) |s| return s;
+                for (categories) |cat| {
+                    if (tryTrayPng(std.fmt.bufPrint(&path_buf, "{s}/{s}/{s}/{s}/{s}.png", .{
+                        base, theme, size, cat, name,
+                    }) catch "")) |s| return s;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+fn decodeTrayPixmap(raw: []const u8, w: u32, h: u32, out: []u8) bool {
+    if (w == 0 or h == 0 or w > m.MAX_TRAY_ICON or h > m.MAX_TRAY_ICON) return false;
+    const need: usize = @intCast(w * h * 4);
+    if (raw.len < need or out.len < need) return false;
+    const little = @import("builtin").cpu.arch.endian() == .little;
+    var i: usize = 0;
+    while (i < need) : (i += 4) {
+        if (little) {
+            out[i] = raw[i + 3];
+            out[i + 1] = raw[i + 2];
+            out[i + 2] = raw[i + 1];
+            out[i + 3] = raw[i];
+        } else {
+            @memcpy(out[i .. i + 4], raw[i .. i + 4]);
+        }
+    }
+    return true;
+}
+
+fn freeTrayItemSurface(item: *m.TrayItem) void {
+    if (item.icon_surface) |surf| {
+        c.cairo_surface_destroy(surf);
+        item.icon_surface = null;
+    }
+}
+
+fn freeTraySurfaces() void {
+    var i: usize = 0;
+    while (i < g.tray_count) : (i += 1) freeTrayItemSurface(&g.tray_items[i]);
+}
+
+fn clearTrayState() void {
+    freeTraySurfaces();
+    g.tray_count = 0;
+    g.tray_selected = 0;
+    g.bar.dirty = true;
+    if (g.overlay_mode == .tray) refreshOverlay();
+}
+
+fn trayUpdate(count: usize, payload: []const u8) void {
+    if (count > m.MAX_TRAY_ITEMS) return;
+    var new_items: [m.MAX_TRAY_ITEMS]m.TrayItem = undefined;
+    var parsed: usize = 0;
+    var off: usize = 0;
+    while (parsed < count) : (parsed += 1) {
+        if (off + 24 > payload.len) break;
+        const item = &new_items[parsed];
+        item.* = std.mem.zeroes(m.TrayItem);
+        item.status = payload[off];
+        const title_len: usize = @intCast(readU32(payload, off + 4));
+        const icon_name_len: usize = @intCast(readU32(payload, off + 8));
+        const icon_w = readU32(payload, off + 12);
+        const icon_h = readU32(payload, off + 16);
+        const icon_len: usize = @intCast(readU32(payload, off + 20));
+        const total = 24 + title_len + icon_name_len + icon_len;
+        if (off + total > payload.len or title_len >= item.title.len or
+            icon_name_len >= item.icon_name.len or icon_len > m.MAX_TRAY_ICON_BYTES or
+            (icon_len != 0 and icon_len != @as(usize, @intCast(icon_w * icon_h * 4))))
+        {
+            break;
+        }
+        const start = off + 24;
+        @memcpy(item.title[0..title_len], payload[start .. start + title_len]);
+        item.title[title_len] = 0;
+        item.title_len = title_len;
+        @memcpy(item.icon_name[0..icon_name_len], payload[start + title_len .. start + title_len + icon_name_len]);
+        item.icon_name[icon_name_len] = 0;
+        item.icon_name_len = icon_name_len;
+        const icon_start = start + title_len + icon_name_len;
+        if (icon_len > 0 and decodeTrayPixmap(payload[icon_start .. icon_start + icon_len], icon_w, icon_h, &item.icon_data)) {
+            item.icon_w = icon_w;
+            item.icon_h = icon_h;
+            item.icon_len = icon_len;
+        } else if (icon_name_len > 0) {
+            item.icon_surface = loadTrayIcon(item.icon_name[0..icon_name_len]);
+        }
+        off += total;
+    }
+    if (parsed != count) {
+        var j: usize = 0;
+        while (j < parsed) : (j += 1) freeTrayItemSurface(&new_items[j]);
+        logMsg("tray: malformed state message", .{});
+        return;
+    }
+
+    freeTraySurfaces();
+    g.tray_count = count;
+    var i: usize = 0;
+    while (i < count) : (i += 1) g.tray_items[i] = new_items[i];
+    if (g.tray_selected >= g.tray_count) g.tray_selected = if (g.tray_count == 0) 0 else g.tray_count - 1;
+    g.bar.dirty = true;
+    if (g.overlay_mode == .tray) refreshOverlay();
+    if (g.tray_count == 0) {
+        logDebug("tray: no items", .{});
+    } else {
+        logDebug("tray: {d} item(s) first={s}", .{
+            g.tray_count,
+            g.tray_items[0].title[0..g.tray_items[0].title_len],
+        });
+    }
+    if (g.tray_count > 0 and g.tray_items[0].icon_len > 0) {
+        logDebug("tray: icon {d}x{d}", .{
+            g.tray_items[0].icon_w,
+            g.tray_items[0].icon_h,
+        });
+    }
+}
+
+fn trayShift(count: usize) void {
+    if (count >= g.tray_len) {
+        g.tray_len = 0;
+        return;
+    }
+    const remain = g.tray_len - count;
+    std.mem.copyForwards(u8, g.tray_buf[0..remain], g.tray_buf[count..g.tray_len]);
+    g.tray_len = remain;
+}
+
+fn processTrayMessages() void {
+    while (g.tray_len > 0) {
+        const kind = g.tray_buf[0];
+        if (kind == 1) {
+            if (g.tray_len < 5) return;
+            const count: usize = @intCast(readU32(&g.tray_buf, 1));
+            var total: usize = 5;
+            var i: usize = 0;
+            while (i < count) : (i += 1) {
+                if (total + 24 > g.tray_len) return;
+                const title_len: usize = @intCast(readU32(&g.tray_buf, total + 4));
+                const icon_name_len: usize = @intCast(readU32(&g.tray_buf, total + 8));
+                const icon_len: usize = @intCast(readU32(&g.tray_buf, total + 20));
+                const item_total = 24 + title_len + icon_name_len + icon_len;
+                if (item_total > g.tray_buf.len or total + item_total > g.tray_buf.len) {
+                    logMsg("tray: oversized state message", .{});
+                    g.tray_len = 0;
+                    return;
+                }
+                total += item_total;
+            }
+            if (total > g.tray_buf.len) {
+                g.tray_len = 0;
+                return;
+            }
+            if (g.tray_len < total) return;
+            trayUpdate(count, g.tray_buf[5..total]);
+            trayShift(total);
+        } else if (kind == 2) {
+            g.tray_ready = true;
+            logMsg("tray: service ready", .{});
+            trayShift(1);
+        } else if (kind == 3) {
+            if (g.tray_len < 5) return;
+            const len: usize = @intCast(readU32(&g.tray_buf, 1));
+            if (g.tray_len < 5 + len) return;
+            logMsg("tray: {s}", .{g.tray_buf[5 .. 5 + len]});
+            trayShift(5 + len);
+        } else {
+            g.tray_len = 0;
+            return;
+        }
+    }
+}
+
+fn readTray() void {
+    if (g.tray_fd < 0) return;
+    if (g.tray_len >= g.tray_buf.len) g.tray_len = 0;
+    const n = c.read(g.tray_fd, g.tray_buf[g.tray_len..].ptr, g.tray_buf.len - g.tray_len);
+    if (n <= 0) {
+        logMsg("tray: service disconnected", .{});
+        _ = c.close(g.tray_fd);
+        g.tray_fd = -1;
+        clearTrayState();
+        return;
+    }
+    g.tray_len += @intCast(n);
+    processTrayMessages();
+}
+
+fn startTrayService() void {
+    g.tray_fd = tessa_tray_start();
+    if (g.tray_fd < 0) {
+        logMsg("tray: cannot start the StatusNotifier watcher", .{});
+        return;
+    }
+    const flags = c.fcntl(g.tray_fd, c.F_GETFL, @as(c_int, 0));
+    _ = c.fcntl(g.tray_fd, c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    logDebug("tray: starting service", .{});
+}
+
+fn trayActivate(index: usize, code: u32) void {
+    if (index >= g.tray_count) return;
+    tessa_tray_activate(@intCast(index), @intCast(code));
+    logDebug("tray: activate {d} code {d} ({s})", .{
+        index,
+        code,
+        g.tray_items[index].title[0..g.tray_items[index].title_len],
+    });
+}
+
+fn moveTraySelection(delta: isize) void {
+    if (g.tray_count == 0) return;
+    const count: isize = @intCast(g.tray_count);
+    var next = @as(isize, @intCast(g.tray_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.tray_selected = @intCast(next);
+    refreshOverlay();
+}
+
+fn activateTraySelection() void {
+    if (g.tray_selected < g.tray_count) trayActivate(g.tray_selected, 1);
+}
+
+fn openTray() void {
+    if (g.overlay != null and g.overlay_mode == .tray and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    if (g.tray_selected >= g.tray_count) g.tray_selected = 0;
+    beginOverlay(.tray);
+    logDebug("tray: popover open ({d} items)", .{g.tray_count});
+}
+
+fn audioUpdate(percent: i32, muted: bool, source: []const u8) void {
+    g.volume_percent = percent;
+    g.volume_muted = muted;
+    m.copyTrunc(&g.volume_source, &g.volume_source_len, source);
+    g.bar.dirty = true;
+    if (g.overlay_mode == .audio) refreshOverlay();
+    if (percent < 0) {
+        logDebug("audio: unavailable ({s})", .{g.volume_source[0..g.volume_source_len]});
+    } else {
+        logDebug("audio: source={s} volume={d} muted={d}", .{
+            g.volume_source[0..g.volume_source_len],
+            percent,
+            @intFromBool(muted),
+        });
+    }
+}
+
+fn audioShift(count: usize) void {
+    if (count >= g.audio_len) {
+        g.audio_len = 0;
+        return;
+    }
+    const remain = g.audio_len - count;
+    std.mem.copyForwards(u8, g.audio_buf[0..remain], g.audio_buf[count..g.audio_len]);
+    g.audio_len = remain;
+}
+
+fn processAudioMessages() void {
+    while (g.audio_len > 0) {
+        const kind = g.audio_buf[0];
+        if (kind == 1) {
+            if (g.audio_len < 12) return;
+            const muted = g.audio_buf[1] != 0;
+            const raw_percent = readU32(&g.audio_buf, 4);
+            const percent: i32 = if (raw_percent > 150) -1 else @intCast(raw_percent);
+            const source_len: usize = @intCast(readU32(&g.audio_buf, 8));
+            const total = 12 + source_len;
+            if (total > g.audio_buf.len) {
+                g.audio_len = 0;
+                return;
+            }
+            if (g.audio_len < total) return;
+            audioUpdate(percent, muted, g.audio_buf[12..total]);
+            audioShift(total);
+        } else if (kind == 2) {
+            g.audio_ready = true;
+            logMsg("audio: service ready", .{});
+            audioShift(1);
+        } else if (kind == 3) {
+            if (g.audio_len < 5) return;
+            const len: usize = @intCast(readU32(&g.audio_buf, 1));
+            if (g.audio_len < 5 + len) return;
+            logMsg("audio: {s}", .{g.audio_buf[5 .. 5 + len]});
+            audioShift(5 + len);
+        } else {
+            g.audio_len = 0;
+            return;
+        }
+    }
+}
+
+fn readAudio() void {
+    if (g.audio_fd < 0) return;
+    if (g.audio_len >= g.audio_buf.len) g.audio_len = 0;
+    const n = c.read(g.audio_fd, g.audio_buf[g.audio_len..].ptr, g.audio_buf.len - g.audio_len);
+    if (n <= 0) {
+        logMsg("audio: service disconnected", .{});
+        _ = c.close(g.audio_fd);
+        g.audio_fd = -1;
+        audioUpdate(-1, false, "");
+        return;
+    }
+    g.audio_len += @intCast(n);
+    processAudioMessages();
+}
+
+fn startAudioService() void {
+    const status = g.volume_status[0..g.volume_status_len :0];
+    const up = g.volume_up[0..g.volume_up_len :0];
+    const down = g.volume_down[0..g.volume_down_len :0];
+    const mute = g.volume_mute[0..g.volume_mute_len :0];
+    g.audio_fd = tessa_audio_start(status.ptr, up.ptr, down.ptr, mute.ptr);
+    if (g.audio_fd < 0) {
+        logMsg("audio: cannot start the volume service", .{});
+        return;
+    }
+    const flags = c.fcntl(g.audio_fd, c.F_GETFL, @as(c_int, 0));
+    _ = c.fcntl(g.audio_fd, c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    logDebug("audio: starting service", .{});
+}
+
+fn audioCommand(code: u32) void {
+    tessa_audio_command(@intCast(code));
+    logDebug("audio: command {d}", .{code});
+}
+
+fn openAudio() void {
+    if (g.overlay != null and g.overlay_mode == .audio and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    beginOverlay(.audio);
+    logDebug("audio: controls open", .{});
+}
+
 fn ensureDataControlDevice() void {
     if (g.data_control_device != null) return;
     const manager = g.data_control_manager orelse return;
@@ -2192,6 +2680,16 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
             .media => {
                 if (button == 0x110) openMedia();
             },
+            .tray => {
+                if (button == 0x110) {
+                    trayActivate(h.value, 1);
+                } else if (button == 0x111) {
+                    openTray();
+                }
+            },
+            .volume => {
+                if (button == 0x110) openAudio();
+            },
             .workspace => {
                 if (button == 0x110) sendWorkspace(h.value);
             },
@@ -2248,6 +2746,10 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
         movePowerSelection(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .clipboard) {
         moveClipboardSelection(if (v > 0) 1 else -1);
+    } else if (g.overlay_mode == .tray) {
+        moveTraySelection(if (v > 0) 1 else -1);
+    } else if (g.overlay_mode == .audio) {
+        audioCommand(if (v > 0) 2 else 1);
     } else if (g.overlay != null and g.launcher_open) {
         if (g.result_count > 0) {
             if (v > 0) {
@@ -2616,8 +3118,14 @@ fn eventLoop() void {
             .{ .fd = g.clipboard_fd, .events = c.POLLIN, .revents = 0 },
             .{ .fd = g.notification_fd, .events = c.POLLIN, .revents = 0 },
             .{ .fd = g.media_fd, .events = c.POLLIN, .revents = 0 },
+            .{ .fd = g.tray_fd, .events = c.POLLIN, .revents = 0 },
+            .{ .fd = g.audio_fd, .events = c.POLLIN, .revents = 0 },
         };
-        const nfds: c.nfds_t = if (g.media_fd >= 0)
+        const nfds: c.nfds_t = if (g.audio_fd >= 0)
+            7
+        else if (g.tray_fd >= 0)
+            6
+        else if (g.media_fd >= 0)
             5
         else if (g.notification_fd >= 0)
             4
@@ -2665,6 +3173,16 @@ fn eventLoop() void {
         {
             readMedia();
         }
+        if (g.tray_fd >= 0 and pr > 0 and
+            (fds[5].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
+        {
+            readTray();
+        }
+        if (g.audio_fd >= 0 and pr > 0 and
+            (fds[6].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
+        {
+            readAudio();
+        }
 
         const now2 = m.nowMs();
         updateTimers(now2);
@@ -2691,6 +3209,8 @@ pub fn main() !void {
     g.clipboard_fd = -1;
     g.notification_fd = -1;
     g.media_fd = -1;
+    g.tray_fd = -1;
+    g.audio_fd = -1;
     _ = c.signal(c.SIGPIPE, c.SIG_IGN);
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
@@ -2740,6 +3260,8 @@ pub fn main() !void {
     createChrome();
     startNotificationService();
     startMediaService();
+    startTrayService();
+    startAudioService();
 
     const now = m.nowMs();
     g.next_clock_ms = now + 1000;
@@ -2753,6 +3275,11 @@ pub fn main() !void {
     g.notification_fd = -1;
     tessa_media_stop();
     g.media_fd = -1;
+    tessa_tray_stop();
+    g.tray_fd = -1;
+    freeTraySurfaces();
+    tessa_audio_stop();
+    g.audio_fd = -1;
     freeScreenshot();
     resetClipboardRead();
     destroyToasts();

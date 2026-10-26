@@ -128,6 +128,8 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+v", "clipboard", "");
     _ = addBinding(cfg, "super+shift+s", "screenshot", "");
     _ = addBinding(cfg, "super+m", "media", "");
+    _ = addBinding(cfg, "super+shift+t", "tray", "");
+    _ = addBinding(cfg, "super+shift+a", "audio", "");
     _ = addBinding(cfg, "super+q", "close", "");
     _ = addBinding(cfg, "super+shift+e", "quit", "");
     _ = addBinding(cfg, "super+r", "reload", "");
@@ -569,6 +571,8 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "clipboard") or std.ascii.eqlIgnoreCase(name, "clipboard-history")) return .clipboard;
     if (std.ascii.eqlIgnoreCase(name, "screenshot")) return .screenshot;
     if (std.ascii.eqlIgnoreCase(name, "media")) return .media;
+    if (std.ascii.eqlIgnoreCase(name, "tray")) return .tray;
+    if (std.ascii.eqlIgnoreCase(name, "audio") or std.ascii.eqlIgnoreCase(name, "volume")) return .audio;
     if (std.ascii.eqlIgnoreCase(name, "reload")) return .reload;
     if (std.ascii.eqlIgnoreCase(name, "ratio")) return .ratio;
     if (std.ascii.eqlIgnoreCase(name, "toggle-layout")) return .toggle_layout;

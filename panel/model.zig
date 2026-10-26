@@ -11,8 +11,11 @@ pub const POWER_ACTION_COUNT = 5;
 pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
 pub const MAX_NOTIFICATIONS = 4;
+pub const MAX_TRAY_ITEMS = 8;
+pub const MAX_TRAY_ICON = 32;
+pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio };
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -51,6 +54,12 @@ pub const HitKind = enum {
     media_prev,
     media_toggle,
     media_next,
+    tray,
+    tray_entry,
+    volume,
+    audio_down,
+    audio_mute,
+    audio_up,
 };
 
 pub const Hit = struct {
@@ -150,6 +159,19 @@ pub const NotificationEntry = struct {
     expire_ms: i64 = 0,
 };
 
+pub const TrayItem = struct {
+    title: [160]u8 = [_]u8{0} ** 160,
+    title_len: usize = 0,
+    icon_name: [128]u8 = [_]u8{0} ** 128,
+    icon_name_len: usize = 0,
+    status: u8 = 0,
+    icon_w: u32 = 0,
+    icon_h: u32 = 0,
+    icon_len: usize = 0,
+    icon_data: [MAX_TRAY_ICON_BYTES]u8 = [_]u8{0} ** MAX_TRAY_ICON_BYTES,
+    icon_surface: ?*c.cairo_surface_t = null,
+};
+
 pub const Panel = struct {
     display: ?*c.wl_display = null,
     registry: ?*c.wl_registry = null,
@@ -227,6 +249,29 @@ pub const Panel = struct {
     media_fd: c_int = -1,
     media_buf: [16384]u8 = undefined,
     media_len: usize = 0,
+    tray_items: [MAX_TRAY_ITEMS]TrayItem = undefined,
+    tray_count: usize = 0,
+    tray_fd: c_int = -1,
+    tray_buf: [131072]u8 = undefined,
+    tray_len: usize = 0,
+    tray_ready: bool = false,
+    tray_selected: usize = 0,
+    volume_percent: i32 = -1,
+    volume_muted: bool = false,
+    volume_source: [16]u8 = [_]u8{0} ** 16,
+    volume_source_len: usize = 0,
+    audio_fd: c_int = -1,
+    audio_buf: [4096]u8 = undefined,
+    audio_len: usize = 0,
+    audio_ready: bool = false,
+    volume_status: [512]u8 = [_]u8{0} ** 512,
+    volume_status_len: usize = 0,
+    volume_up: [512]u8 = [_]u8{0} ** 512,
+    volume_up_len: usize = 0,
+    volume_down: [512]u8 = [_]u8{0} ** 512,
+    volume_down_len: usize = 0,
+    volume_mute: [512]u8 = [_]u8{0} ** 512,
+    volume_mute_len: usize = 0,
 
     pointer_surface: ?*Surface = null,
     pointer_x: f64 = 0,
@@ -469,6 +514,14 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             copyTrunc(&g.power_off, &g.power_off_len, val);
         } else if (std.mem.eql(u8, key, "screenshot_dir")) {
             copyTrunc(&g.screenshot_dir, &g.screenshot_dir_len, val);
+        } else if (std.mem.eql(u8, key, "volume_status")) {
+            copyTrunc(&g.volume_status, &g.volume_status_len, val);
+        } else if (std.mem.eql(u8, key, "volume_up")) {
+            copyTrunc(&g.volume_up, &g.volume_up_len, val);
+        } else if (std.mem.eql(u8, key, "volume_down")) {
+            copyTrunc(&g.volume_down, &g.volume_down_len, val);
+        } else if (std.mem.eql(u8, key, "volume_mute")) {
+            copyTrunc(&g.volume_mute, &g.volume_mute_len, val);
         } else if (std.mem.eql(u8, key, "launcher_entry")) {
             addCustomApp(val);
         }

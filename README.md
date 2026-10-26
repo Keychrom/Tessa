@@ -66,6 +66,13 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
     replacement, close, and expiry
   - battery and default-route network indicators
   - MPRIS media chip and controls (`Super+M`)
+  - StatusNotifier tray watcher/host with icon rendering and activation
+    (`Super+Shift+T`)
+  - volume indicator and popover through `wpctl`, `pactl`, or `amixer`
+    (`Super+Shift+A`), with configurable command overrides
+  - compositor-side xdg-desktop-portal support: screencopy, dmabuf, output
+    capture sources, image-copy capture, and foreign-toplevel lists for
+    `xdg-desktop-portal-wlr` + PipeWire screen sharing
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -81,8 +88,10 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
-`tests/notifications.sh`, `tests/system-status.sh`, `tests/media.sh`, and panel
-screenshots.
+`tests/notifications.sh`, `tests/system-status.sh`, `tests/media.sh`,
+`tests/tray.sh`, `tests/audio.sh`, `tests/foreign-toplevels.sh`, and
+`tests/portal.sh`. The portal test performs an end-to-end ScreenCast when the
+portal and PipeWire services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -99,8 +108,8 @@ desktop:
 - **Sumi-e visual language.** Indigo paper, ink washes, a vermilion sun, grain,
   and a floating glass-like bar. The panel is not a generic status bar with a
   theme on top.
-- **Small, direct implementation.** Zig + wlroots, a C shim only for Pango
-  text, a simple line config, and a line IPC protocol.
+- **Small, direct implementation.** Zig + wlroots, a line config, a line IPC
+  protocol, and small C shims for Pango, GDBus, and mixer commands.
 - **No JavaScript/TypeScript runtime.** Unlike ShojiWM, the shell and config are
   fixed and small. If you want to program every pixel in TSX, ShojiWM is the
   better tool. If you want animations, blur, and a huge plugin ecosystem,
@@ -125,12 +134,26 @@ Requirements:
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
-- optional: a D-Bus session bus for desktop notifications
+- optional: a D-Bus session bus for desktop notifications, tray, and portals
+- optional: `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for
+  volume control
+- optional: `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and PipeWire for
+  screen sharing (install `packaging/portal/tessa.portal` as described below)
 
 Distribution packaging definitions live in `packaging/` and `debian/`:
 `packaging/arch/PKGBUILD` and the debhelper `debian/` tree both install the
-compositor, panel, CLI, session file, and example config. See
+compositor, panel, CLI, session file, example config, and the
+`xdg-desktop-portal` backend selector. See
 [packaging/README.md](packaging/README.md).
+
+For screen sharing, install `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and
+PipeWire. The packaged selector is
+`packaging/portal/tessa.portal`; a system install places it at
+`/usr/share/xdg-desktop-portal/portals/tessa.portal`. It routes the Screenshot
+and ScreenCast portals to the wlr backend for `XDG_CURRENT_DESKTOP=Tessa`.
+xdpw needs a source chooser; for a single monitor set
+`chooser_type=none` and `output_name=<output>` in
+`~/.config/xdg-desktop-portal-wlr/config`.
 
 On Ubuntu 26.04:
 
@@ -384,6 +407,8 @@ event schema, hook environment, and status API.
 | `Super+V` | clipboard history |
 | `Super+Shift+S` | screenshot region/full output |
 | `Super+M` | MPRIS media controls |
+| `Super+Shift+T` | StatusNotifier tray |
+| `Super+Shift+A` | volume controls |
 | `Super+T` | cycle master → mosaic → grid → columns |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
@@ -423,6 +448,13 @@ Mouse:
 - When an MPRIS player is active, a media chip appears in the bar. Click it or
   press `Super+M` for previous/play-pause/next; `Space`, `Left`, and `Right`
   work from the keyboard as well.
+- StatusNotifier items appear as icons in the bar. Left-click activates an item;
+  right-click or `Super+Shift+T` opens the tray popover. `Up`/`Down` selects and
+  `Enter` activates. DBusMenu context menus are not implemented.
+- The bar shows output volume when `wpctl`, `pactl`, or `amixer` is available.
+  Click it or press `Super+Shift+A`. `Up`/`Down` changes volume, `m` toggles
+  mute, and `Esc` closes. Use `volume_status`, `volume_up`, `volume_down`, and
+  `volume_mute` to override the detected commands.
 
 ## Configuration
 
@@ -646,16 +678,29 @@ These are real and important:
   close, and expiry. Actions, markup, and icon lookup are not implemented, and
   only the panel that owns the D-Bus name shows toasts (cross-output routing is
   still pending).
-- **System and media indicators are basic.** Battery uses `/sys/class/power_supply`
-  and network uses the default route plus `operstate`; there is no tray or audio
-  volume integration yet. MPRIS controls the first discovered player and does not
-  display album art.
+- **System indicators are intentionally basic.** Battery uses
+  `/sys/class/power_supply` and network uses the default route plus `operstate`.
+  MPRIS controls the first discovered player and does not display album art.
+- **The tray has no menus.** StatusNotifier registration, pixmap/icon-name
+  rendering, activation, status, and removal are implemented. DBusMenu context
+  menus and secondary activation hover are not yet wired up.
+- **Volume is a command bridge.** Tessa detects `wpctl` (PipeWire), `pactl`
+  (PulseAudio), or `amixer` (ALSA) and executes it on a worker thread. Systems
+  without one of these tools show no volume indicator; custom commands can be
+  supplied in the panel config.
+- **Screen sharing needs the portal packages.** Tessa exposes the compositor
+  side (`wlr-screencopy`, linux-dmabuf where available, output image-capture
+  sources, image-copy capture, and foreign-toplevel lists). Install
+  `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and a running PipeWire server,
+  and install the packaged `tessa.portal` file. The included end-to-end test
+  verifies monitor screencasting; window-source capture depends on the portal
+  backend's protocol support.
+- **No gamma or output configuration UI.**
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
   with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
   and input-method popup repositioning during scroll are not covered.
 - **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
   missing, X11 applications simply do not start; Wayland clients are unaffected.
-- **No portals, screen sharing, gamma, or output configuration UI.**
 - **Extensions are trusted local processes.** They run with the session user's
   full privileges; there is no sandbox. State/config snapshots are versioned JSON,
   but the command/event plane is still line-oriented and has no JSON-RPC

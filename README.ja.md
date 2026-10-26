@@ -71,6 +71,13 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
     対応したプレーンテキストのトースト通知
   - バッテリーとデフォルトルートのネットワーク表示
   - MPRIS メディアチップと操作（`Super+M`）
+  - StatusNotifier トレイの watcher/host、アイコン描画、アクティベート
+    （`Super+Shift+T`）
+  - `wpctl` / `pactl` / `amixer` を使った音量表示とポップオーバー
+    （`Super+Shift+A`）、コマンド上書き設定つき
+  - `xdg-desktop-portal` 連携: `xdg-desktop-portal-wlr` と PipeWire による
+    画面共有のための screencopy、dmabuf、出力キャプチャソース、
+    image-copy capture、foreign-toplevel リスト
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -87,8 +94,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
-`tests/notifications.sh`、`tests/system-status.sh`、`tests/media.sh` で
-検証しています。
+`tests/notifications.sh`、`tests/system-status.sh`、`tests/media.sh`、
+`tests/tray.sh`、`tests/audio.sh`、`tests/foreign-toplevels.sh`、
+`tests/portal.sh` で検証しています。ポータルのテストはポータルと PipeWire
+がインストールされている場合に ScreenCast を端から端まで実行し、なければ
+スキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -106,8 +116,8 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 - **墨絵の視覚言語。** 藍色の紙、墨だまり、朱色の太陽、粒子、ガラスのような
   フローティングバー。一般的なステータスバーにテーマを載せただけのものでは
   ありません。
-- **小さく直接的な実装。** Zig + wlroots、Pango 用の小さな C シム、行ベースの
-  設定、行ベースの IPC。余計なレイヤーをできるだけ挟みません。
+- **小さく直接的な実装。** Zig + wlroots、Pango/GDBus/ミキサーコマンド用の
+  小さな C シム、行ベースの設定と IPC。余計なレイヤーをできるだけ挟みません。
 - **JavaScript / TypeScript ランタイムなし。** ShojiWM のようにシェルを TSX
   で自由に書くのではなく、固定された小さなシェルと設定を持ちます。ピクセル
   単位で UI をプログラムしたいなら ShojiWM、アニメーション・ブラー・巨大な
@@ -132,12 +142,24 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
 - 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
-- 任意: デスクトップ通知用の D-Bus セッション bus
+- 任意: デスクトップ通知、トレイ、ポータル用の D-Bus セッション bus
+- 任意: 音量操作用の `wpctl`（PipeWire）、`pactl`（PulseAudio）、
+  `amixer`（ALSA）
+- 任意: 画面共有用の `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、
+  PipeWire（下記の `tessa.portal` を配置）
 
 配布用パッケージ定義は `packaging/` と `debian/` にあります。
 `packaging/arch/PKGBUILD` と debhelper 用 `debian/` が、コンポジタ、パネル、
-CLI、セッションファイル、設定例をインストールします。詳細は
+CLI、セッションファイル、設定例、ポータル設定をインストールします。詳細は
 [packaging/README.md](packaging/README.md) を参照してください。
+
+画面共有には `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire が
+必要です。同梱の `packaging/portal/tessa.portal` をシステムへ入れると
+`/usr/share/xdg-desktop-portal/portals/tessa.portal` になり、
+`XDG_CURRENT_DESKTOP=Tessa` で Screenshot / ScreenCast を wlr バックエンドへ
+振り分けます。xdpw にはソース選択が必要です。モニターが 1 台なら
+`~/.config/xdg-desktop-portal-wlr/config` に `chooser_type=none` と
+`output_name=<出力名>` を設定してください。
 
 Ubuntu 26.04 の場合:
 
@@ -402,6 +424,8 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+V` | クリップボード履歴 |
 | `Super+Shift+S` | 範囲/全画面スクリーンショット |
 | `Super+M` | MPRIS メディア操作 |
+| `Super+Shift+T` | StatusNotifier トレイ |
+| `Super+Shift+A` | 音量操作 |
 | `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
@@ -446,6 +470,14 @@ include = /home/you/.config/tessa/launcher-entries.conf
 - MPRIS プレイヤーが動いているとバーにメディアチップが表示されます。
   クリックまたは `Super+M` で前へ/再生・一時停止/次へを操作できます。
   キーボードでは `Space`、`Left`、`Right` も使えます。
+- StatusNotifier の項目はバーにアイコンとして並びます。左クリックで
+  アクティベート、右クリックまたは `Super+Shift+T` でトレイポップオーバーを
+  開きます。`Up`/`Down` で選択し `Enter` でアクティベートします。DBusMenu
+  によるコンテキストメニューは未対応です。
+- `wpctl`、`pactl`、`amixer` のいずれかがあるとバーに音量が表示されます。
+  クリックまたは `Super+Shift+A` で開き、`Up`/`Down` で音量、`m` でミュート、
+  `Esc` で閉じます。`volume_status`、`volume_up`、`volume_down`、
+  `volume_mute` でコマンドを上書きできます。
 
 ## 設定
 
@@ -673,16 +705,30 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   プレーンテキストのトースト表示、置換、閉じる、期限切れに対応します。
   アクション、マークアップ、アイコン検索は未対応です。また D-Bus 名を所有
   したパネルの出力にだけ表示され、出力間ルーティングは今後の課題です。
-- **システム/メディア表示は基本機能のみ。** バッテリーは
+- **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
-  使います。トレイと音量操作はまだ未対応です。MPRIS は最初に見つかった
-  プレイヤーを操作し、アルバムアートは表示しません。
+  使います。MPRIS は最初に見つかったプレイヤーを操作し、アルバムアートは
+  表示しません。
+- **トレイにはメニューがありません。** StatusNotifier の登録、pixmap/
+  IconName の描画、アクティベート、ステータス、削除に対応していますが、
+  DBusMenu のコンテキストメニューとセカンダリアクティベートは未対応です。
+- **音量はコマンドブリッジです。** `wpctl`（PipeWire）、`pactl`
+  （PulseAudio）、`amixer`（ALSA）を検出してワーカースレッドで実行します。
+  どれもない環境では音量表示が出ません。パネル設定で独自コマンドも指定
+  できます。
+- **画面共有にはポータルパッケージが必要です。** Tessa はコンポジタ側
+  （`wlr-screencopy`、利用可能なら linux-dmabuf、出力キャプチャソース、
+  image-copy capture、foreign-toplevel リスト）を提供します。
+  `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire をインストールし、
+  同梱の `tessa.portal` を配置してください。モニターの ScreenCast は
+  テストで端から端まで確認しています。ウィンドウ単位のキャプチャは
+  ポータルバックエンドのプロトコル対応に依存します。
+- **ガンマ補正と出力設定 UI はありません。**
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
   Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。
 - **XWayland には `xwayland-satellite` が必要。** Tessa には同梱されません。
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
-- **ポータル、画面共有、ガンマ、出力設定 UI は未実装。**
 - **拡張は信頼されたローカルプロセス。** セッションユーザーの全権限で動き、
   サンドボックスはありません。状態/設定スナップショットはバージョン付き JSON
   ですが、コマンド/イベントは引き続き行ベースで、JSON-RPC のリクエスト/

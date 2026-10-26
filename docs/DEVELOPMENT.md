@@ -361,6 +361,55 @@ available.
 sh tests/media.sh
 ```
 
+### Tray test
+
+`tests/tray.sh` runs a fake StatusNotifier item on a private session bus. It
+checks the watcher properties, item registration, the 22×22 ARGB32 pixmap path,
+the tray popover, activation, and the `Super+Shift+T` binding. wtype and
+PyGObject are required; the test skips otherwise.
+
+```sh
+sh tests/tray.sh
+```
+
+### Audio test
+
+`tests/audio.sh` puts a fake `wpctl` in `PATH` and drives the volume popover with
+`Up`, `m`, and `Down`. It checks the initial 42% state, mute/unmute, volume
+changes, and `Super+Shift+A`.
+
+```sh
+sh tests/audio.sh
+```
+
+### Foreign-toplevel test
+
+`tests/foreign-toplevels.sh` compiles a small Wayland client against the
+`wlr-foreign-toplevel-management` and `ext-foreign-toplevel-list` protocols,
+spawns `foot`, and checks the title, app-id, and activated state. It needs
+`foot`, `cc`, and `wayland-scanner`, and skips if they are missing. These are the
+compositor-side prerequisites for window selection in
+`xdg-desktop-portal-wlr`.
+
+```sh
+sh tests/foreign-toplevels.sh
+```
+
+### Portal and PipeWire screen sharing test
+
+`tests/portal.sh` starts a private headless Tessa session, PipeWire,
+`xdg-desktop-portal`, and `xdg-desktop-portal-wlr`, then calls the ScreenCast
+portal (CreateSession, SelectSources, Start, OpenPipeWireRemote). It verifies a
+stream node and a valid remote fd. The test uses a temporary `tessa.portal`
+selector and an xdpw config with `chooser_type=none`; it skips if the portal or
+PipeWire binaries are not installed. Point `TESSA_PORTAL_ROOT` at an extracted
+package root to test unpackaged builds.
+
+```sh
+sh tests/portal.sh
+TESSA_PORTAL_ROOT=/tmp/portal-root sh tests/portal.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

@@ -137,6 +137,15 @@ pub fn main() !void {
         core.logInfo("wlr-data-control-v1 enabled", .{});
     }
     _ = c.wlr_screencopy_manager_v1_create(server.display);
+    if (c.wlr_linux_dmabuf_v1_create_with_renderer(server.display, 5, server.renderer) != null) {
+        core.logInfo("linux-dmabuf-v1 enabled", .{});
+    }
+    if (c.wlr_ext_output_image_capture_source_manager_v1_create(server.display, 1) != null) {
+        core.logInfo("ext-output-image-capture-source enabled", .{});
+    }
+    if (c.wlr_ext_image_copy_capture_manager_v1_create(server.display, 1) != null) {
+        core.logInfo("ext-image-copy-capture enabled", .{});
+    }
     if (c.wlr_viewporter_create(server.display) == null) {
         core.logInfo("failed to create viewporter", .{});
     }

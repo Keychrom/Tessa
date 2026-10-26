@@ -123,11 +123,19 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         if (server.focused == cl) {
             server.focused_output = cl.output;
             server.active_ws = cl.output.active_ws;
+            if (cl.foreign_toplevel) |handle| {
+                c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
+            }
             raiseClient(cl);
             return;
         }
         if (server.focused) |prev| {
-            if (prev != cl) _ = c.wlr_xdg_toplevel_set_activated(prev.xdg, false);
+            if (prev != cl) {
+                _ = c.wlr_xdg_toplevel_set_activated(prev.xdg, false);
+                if (prev.foreign_toplevel) |handle| {
+                    c.wlr_foreign_toplevel_handle_v1_set_activated(handle, false);
+                }
+            }
         }
         const previous_id: u64 = if (server.focused) |prev| prev.id else 0;
         server.focused = cl;
@@ -135,6 +143,9 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         server.active_ws = cl.output.active_ws;
         cl.output.last_focused[cl.ws] = cl;
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
+        if (cl.foreign_toplevel) |handle| {
+            c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
+        }
         raiseClient(cl);
         keyboardEnter(server, tSurface(cl.xdg));
         const origin = clientSurfaceOrigin(cl);
@@ -155,6 +166,9 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
 
     if (server.focused) |prev| {
         _ = c.wlr_xdg_toplevel_set_activated(prev.xdg, false);
+        if (prev.foreign_toplevel) |handle| {
+            c.wlr_foreign_toplevel_handle_v1_set_activated(handle, false);
+        }
     }
     const cleared_id: u64 = if (server.focused) |prev| prev.id else 0;
     const cleared_ws: usize = if (server.focused) |prev| prev.ws else server.active_ws;
@@ -197,6 +211,9 @@ pub fn ensureVisibleFocus(server: *Server) void {
 pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
     if (server.focused) |cl| {
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, false);
+        if (cl.foreign_toplevel) |handle| {
+            c.wlr_foreign_toplevel_handle_v1_set_activated(handle, false);
+        }
     }
     server.focused_layer = layer;
     server.focused_output = layer.output;
@@ -220,6 +237,9 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
             server.focused_output = cl.output;
             server.active_ws = cl.output.active_ws;
             _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
+            if (cl.foreign_toplevel) |handle| {
+                c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
+            }
             keyboardEnter(server, tSurface(cl.xdg));
             const origin = clientSurfaceOrigin(cl);
             ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
@@ -973,6 +993,9 @@ pub fn toggleFullscreen(server: *Server) void {
     const cl = server.focused orelse return;
     cl.fullscreen = !cl.fullscreen;
     _ = c.wlr_xdg_toplevel_set_fullscreen(cl.xdg, cl.fullscreen);
+    if (cl.foreign_toplevel) |handle| {
+        c.wlr_foreign_toplevel_handle_v1_set_fullscreen(handle, cl.fullscreen);
+    }
     arrangeOutput(server, cl.output);
     focusClient(server, cl);
     core.markDirty(server);

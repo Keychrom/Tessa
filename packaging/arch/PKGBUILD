@@ -14,6 +14,9 @@ optdepends=(
     'kitty: terminal'
     'swaylock: session lock binding'
     'dbus: desktop notifications'
+    'xdg-desktop-portal: desktop portals'
+    'xdg-desktop-portal-wlr: screen sharing'
+    'pipewire: screen sharing streams'
 )
 provides=('tessa')
 conflicts=('tessa')
@@ -39,6 +42,8 @@ package() {
     install -Dm644 session/tessa.desktop \
         "$pkgdir/usr/share/wayland-sessions/tessa.desktop"
     install -Dm644 config/config.example "$pkgdir/usr/share/tessa/config.example"
+    install -Dm644 packaging/portal/tessa.portal \
+        "$pkgdir/usr/share/xdg-desktop-portal/portals/tessa.portal"
     install -Dm644 README.md "$pkgdir/usr/share/doc/tessa/README.md"
     install -Dm644 README.ja.md "$pkgdir/usr/share/doc/tessa/README.ja.md"
     install -Dm644 docs/ARCHITECTURE.md "$pkgdir/usr/share/doc/tessa/ARCHITECTURE.md"

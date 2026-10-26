@@ -236,6 +236,10 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |
 | `power_off` | command for Power Off (default `systemctl poweroff`) |
 | `screenshot_dir` | screenshot PNG directory (default `~/Pictures/Screenshots`) |
+| `volume_status` | optional status command (prints a percentage); empty auto-detects `wpctl`/`pactl`/`amixer` |
+| `volume_up` | optional volume-up command override |
+| `volume_down` | optional volume-down command override |
+| `volume_mute` | optional mute-toggle command override |
 
 The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
@@ -323,6 +327,84 @@ bind = SUPER+M media
 bind = SUPER+SHIFT+m media
 ```
 
+## StatusNotifier tray
+
+The panel owns `org.kde.StatusNotifierWatcher` and hosts registered tray items.
+Icons from `IconPixmap` or `IconName` appear in the bar. Left-click activates an
+item; right-click or `Super+Shift+T` opens a popover with the item titles and
+statuses. `Up`/`Down` selects, `Enter` activates, and `Esc` closes. Items can
+also be opened with:
+
+```sh
+tessa-ctl panel tray
+```
+
+`tray` is available as a key-binding action:
+
+```ini
+bind = SUPER+SHIFT+t tray
+```
+
+DBusMenu context menus and secondary activation are not implemented yet. If a
+different watcher already owns the D-Bus name, the tray service logs the failure
+and the rest of the panel keeps running.
+
+## Volume
+
+When `wpctl`, `pactl`, or `amixer` is available, the panel shows the default
+output volume in the bar. Click it or press `Super+Shift+A` to open the volume
+popover. `Up`/`Down` changes the volume, `m` toggles mute, and `Esc` closes.
+`tessa-ctl panel audio` opens the same popover, and `audio` is a key-binding
+action:
+
+```ini
+bind = SUPER+SHIFT+a audio
+```
+
+The default commands are:
+
+- `wpctl get-volume @DEFAULT_AUDIO_SINK@`, `wpctl set-volume ... 5%+/-`, and
+  `wpctl set-mute ... toggle` for PipeWire
+- `pactl get-sink-volume`, `pactl set-sink-volume`, and `pactl set-sink-mute`
+  for PulseAudio
+- `amixer get Master` and `amixer sset Master ...` for ALSA
+
+Override any part with panel settings. A custom status command should print a
+percentage and may contain `MUTED`/`[off]`; custom commands run through
+`/bin/sh -c`:
+
+```ini
+volume_status = ~/.local/bin/my-volume-status
+volume_up = ~/.local/bin/my-volume up
+volume_down = ~/.local/bin/my-volume down
+volume_mute = ~/.local/bin/my-volume mute
+```
+
+## Screen sharing and portals
+
+The compositor exposes the protocols `xdg-desktop-portal-wlr` needs:
+`zwlr_screencopy_manager_v1`, linux-dmabuf when the renderer supports it,
+`ext-output-image-capture-source-manager-v1`, `ext-image-copy-capture-v1`, and
+both foreign-toplevel list protocols. The repository ships
+`packaging/portal/tessa.portal`; system packages install it under
+`/usr/share/xdg-desktop-portal/portals/`. It selects the wlr backend for
+`XDG_CURRENT_DESKTOP=Tessa`.
+
+Install `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and a running PipeWire
+server. If xdpw's automatic chooser is inconvenient, select an output directly:
+
+```ini
+# ~/.config/xdg-desktop-portal-wlr/config
+[screencast]
+chooser_type = none
+output_name = HDMI-A-1
+max_fps = 30
+```
+
+Monitor screencasting is covered end to end by `tests/portal.sh`. Window
+sources depend on the portal backend's support for the image-capture-source
+protocols; Tessa currently advertises output capture sources.
+
 ## Notifications
 
 The panel implements the `org.freedesktop.Notifications` D-Bus service on the
@@ -363,8 +445,8 @@ bind = SUPER+ALT+Right resize-width 30
 Available actions include `spawn`, `terminal`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
-`reload`, `ratio`, `toggle-layout`, `set-layout`, `resize-width`, and
-`resize-height`.
+`tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
+`resize-width`, and `resize-height`.
 
 ## Live inspection and automation
 

@@ -234,6 +234,10 @@ tessa-ctl config --json
 | `power_reboot` | 再起動用コマンド（既定 `systemctl reboot`） |
 | `power_off` | 電源オフ用コマンド（既定 `systemctl poweroff`） |
 | `screenshot_dir` | スクリーンショット PNG の保存先（既定 `~/Pictures/Screenshots`） |
+| `volume_status` | 任意の状態コマンド（パーセントを出力）。空なら `wpctl`/`pactl`/`amixer` を自動検出 |
+| `volume_up` | 任意の音量上げコマンド上書き |
+| `volume_down` | 任意の音量下げコマンド上書き |
+| `volume_mute` | 任意のミュート切り替えコマンド上書き |
 
 パネルは `config-reload` を受け取ると配色、ランチャー項目、バーの
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
@@ -321,6 +325,82 @@ bind = SUPER+M media
 bind = SUPER+SHIFT+m media
 ```
 
+## StatusNotifier トレイ
+
+パネルは `org.kde.StatusNotifierWatcher` を所有し、登録されたトレイ項目を
+ホストします。`IconPixmap` または `IconName` のアイコンがバーに表示されます。
+左クリックでアクティベート、右クリックまたは `Super+Shift+T` で項目名と
+ステータスのポップオーバーを開きます。`Up`/`Down` で選択、`Enter` で
+アクティベート、`Esc` で閉じます。次のコマンドでも開けます:
+
+```sh
+tessa-ctl panel tray
+```
+
+`tray` はキーバインドアクションとしても使えます:
+
+```ini
+bind = SUPER+SHIFT+t tray
+```
+
+DBusMenu のコンテキストメニューとセカンダリアクティベートは未実装です。
+別の watcher が D-Bus 名を所有している場合、トレイサービスは失敗をログに
+残し、パネルの他の機能は動作を続けます。
+
+## 音量
+
+`wpctl`、`pactl`、`amixer` のいずれかが利用できる場合、パネルは既定の出力
+音量をバーに表示します。クリックまたは `Super+Shift+A` で音量ポップオーバーを
+開きます。`Up`/`Down` で音量、`m` でミュート、`Esc` で閉じます。
+`tessa-ctl panel audio` でも開け、`audio` はキーバインドアクションです:
+
+```ini
+bind = SUPER+SHIFT+a audio
+```
+
+既定のコマンド:
+
+- PipeWire: `wpctl get-volume @DEFAULT_AUDIO_SINK@`、
+  `wpctl set-volume ... 5%+/-`、`wpctl set-mute ... toggle`
+- PulseAudio: `pactl get-sink-volume`、`pactl set-sink-volume`、
+  `pactl set-sink-mute`
+- ALSA: `amixer get Master`、`amixer sset Master ...`
+
+パネル設定で個別に上書きできます。カスタム状態コマンドはパーセントを出力し、
+`MUTED`/`[off]` を含められます。カスタムコマンドは `/bin/sh -c` で実行します:
+
+```ini
+volume_status = ~/.local/bin/my-volume-status
+volume_up = ~/.local/bin/my-volume up
+volume_down = ~/.local/bin/my-volume down
+volume_mute = ~/.local/bin/my-volume mute
+```
+
+## 画面共有とポータル
+
+コンポジタは `xdg-desktop-portal-wlr` が必要とする
+`zwlr_screencopy_manager_v1`、レンダラーが対応していれば linux-dmabuf、
+`ext-output-image-capture-source-manager-v1`、`ext-image-copy-capture-v1`、
+2 種類の foreign-toplevel リストを公開します。リポジトリには
+`packaging/portal/tessa.portal` があり、システムパッケージでは
+`/usr/share/xdg-desktop-portal/portals/` にインストールされます。
+`XDG_CURRENT_DESKTOP=Tessa` のときに wlr バックエンドを選びます。
+
+`xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire サーバーを
+インストールしてください。xdpw の自動選択を使わない場合は出力を指定します:
+
+```ini
+# ~/.config/xdg-desktop-portal-wlr/config
+[screencast]
+chooser_type = none
+output_name = HDMI-A-1
+max_fps = 30
+```
+
+モニターの画面共有は `tests/portal.sh` で端から端まで確認しています。
+ウィンドウ単位のソースはポータルバックエンドの image-capture-source
+プロトコル対応に依存し、Tessa は現在出力キャプチャソースを公開しています。
+
 ## 通知
 
 パネルはセッション bus 上で `org.freedesktop.Notifications` D-Bus サービスを
@@ -359,8 +439,8 @@ bind = SUPER+ALT+Right resize-width 30
 利用可能なアクションは `spawn`、`terminal`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
 `focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、
-`reload`、`ratio`、`toggle-layout`、`set-layout`、`resize-width`、
-`resize-height` です。
+`tray`、`audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
+`resize-width`、`resize-height` です。
 
 ## ライブ確認と自動化
 

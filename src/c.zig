@@ -29,6 +29,11 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_xdg_decoration_v1.h");
     @cInclude("wlr/types/wlr_layer_shell_v1.h");
     @cInclude("wlr/types/wlr_screencopy_v1.h");
+    @cInclude("wlr/types/wlr_linux_dmabuf_v1.h");
+    @cInclude("wlr/types/wlr_foreign_toplevel_management_v1.h");
+    @cInclude("wlr/types/wlr_ext_foreign_toplevel_list_v1.h");
+    @cInclude("wlr/types/wlr_ext_image_capture_source_v1.h");
+    @cInclude("wlr/types/wlr_ext_image_copy_capture_v1.h");
     @cInclude("wlr/types/wlr_xdg_output_v1.h");
     @cInclude("wlr/types/wlr_viewporter.h");
     @cInclude("wlr/types/wlr_xdg_activation_v1.h");

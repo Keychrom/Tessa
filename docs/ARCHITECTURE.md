@@ -31,6 +31,11 @@ its configuration reference are in [CUSTOMIZATION.md](CUSTOMIZATION.md).
                          │  xdg-activation / cursor-shape│
                          │  text-input-v3 / input-method-v2│
                          │  wlr-screencopy-v1           │
+                         │  linux-dmabuf-v1             │
+                         │  ext-image-copy-capture-v1   │
+                         │  ext-output-image-capture... │
+                         │  ext-foreign-toplevel-list   │
+                         │  wlr-foreign-toplevel-mgmt   │
                          │  wl_data_device + primary    │
                          │  wlr-data-control-v1         │
                          │  virtual-keyboard-v1         │
@@ -379,7 +384,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -544,6 +549,48 @@ commands are marshalled back with `g_main_context_invoke` and issued as MPRIS
 method calls. `Super+M` or the bar chip opens a centered control popover; the
 panel does not fetch album art or expose the MPRIS player's own menus.
 
+### StatusNotifier tray
+
+`panel/tray.c` owns `org.kde.StatusNotifierWatcher` on the session bus in a
+dedicated GIO thread. It implements `RegisterStatusNotifierItem`,
+`RegisterStatusNotifierHost`, the watcher properties, and the registration
+signals. Registered items are polled every second with `Properties.GetAll`;
+their `Title`, `Status`, `IconName`, and `IconPixmap` are sent to the panel over
+the same framed socketpair pattern used by notifications and media.
+
+`IconPixmap` is an `a(iiay)` of raw ARGB32 in network byte order. The panel
+converts it to Cairo's native ARGB32 byte order, or resolves `IconName` through
+common PNG icon-theme paths. Item activation and secondary activation are
+marshalled back to the GDBus thread. The bar renders each item; left-click
+activates, right-click or `Super+Shift+T` opens a keyboard-navigable tray
+popover. DBusMenu is not implemented, so context menus are not exposed.
+
+### Volume
+
+`panel/audio.c` runs a worker thread that detects `wpctl` (PipeWire), `pactl`
+(PulseAudio), or `amixer` (ALSA), or uses commands from the panel config. It
+polls the mixer once per second, parses the percentage and mute state, and sends
+a compact state record to the panel. Up/down/mute commands are marshalled to the
+GIO thread and executed asynchronously, then re-polled. The panel draws the bar
+indicator and the `Super+Shift+A` popover.
+
+### Portals and screen sharing
+
+The compositor exposes `zwlr_screencopy_manager_v1`, linux-dmabuf where the
+renderer has a DRM fd, `ext-output-image-capture-source-manager-v1`,
+`ext-image-copy-capture-v1`, `ext-foreign-toplevel-list-v1`, and
+`zwlr_foreign_toplevel_manager_v1`. These are the compositor-side protocols used
+by `xdg-desktop-portal-wlr` (xdpw) to enumerate sources and copy frames into a
+PipeWire stream.
+
+`packaging/portal/tessa.portal` selects the wlr backend for
+`XDG_CURRENT_DESKTOP=Tessa`; the session environment is set by `main.zig` and
+`scripts/tessa-session`. xdpw can use the screencopy + dmabuf path or the newer
+image-copy-capture + shared-memory path. The test harness runs a private
+PipeWire daemon, xdg-desktop-portal, and xdpw, then performs
+CreateSession/SelectSources/Start/OpenPipeWireRemote and verifies a valid stream
+node and remote fd.
+
 ### Buffers and rendering
 
 Each surface keeps three `wl_shm` ARGB8888 buffers. A `wl_buffer.release` listener
@@ -563,10 +610,12 @@ tiles rather than loading icon themes.
 
 ### Event loop
 
-Single-threaded, `poll()` on the Wayland display fd and IPC fd. Timers (1 s
-clock, 2 s CPU/RAM, 500 ms caret, 16 ms animation) are implemented with poll
-timeouts; `wl_display_prepare_read`/`read_events` are used to avoid blocking
-inside libwayland.
+Single-threaded, `poll()` on the Wayland display fd, IPC fd, clipboard pipe, and
+the notification/media/tray/audio service socketpairs. Timers (1 s clock, 2 s
+CPU/RAM, 500 ms caret, 16 ms animation) are implemented with poll timeouts;
+`wl_display_prepare_read`/`read_events` are used to avoid blocking inside
+libwayland. D-Bus and command execution happen on worker threads so the
+compositor-facing panel loop never blocks.
 
 ## Build and generated protocols
 
@@ -585,6 +634,8 @@ The generated headers/C under `protocol/` are committed:
 - `text-input-client-protocol.h/.c` — panel text-input-v3 client
 - `wlr-data-control-unstable-v1-client-protocol.h/.c` — panel clipboard history
 - `wlr-screencopy-unstable-v1-client-protocol.h/.c` — panel screenshots
+- `ext-image-copy-capture-v1-protocol.h` — wlroots capture headers
+- `ext-image-capture-source-v1-protocol.h` — wlroots capture headers
 - `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
 
 ## Failure behavior

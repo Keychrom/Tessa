@@ -342,6 +342,54 @@ sh tests/system-status.sh
 sh tests/media.sh
 ```
 
+### トレイのテスト
+
+`tests/tray.sh` はプライベートなセッション bus 上で偽の StatusNotifier
+項目を動かします。watcher プロパティ、項目登録、22×22 ARGB32 pixmap 経路、
+トレイポップオーバー、アクティベート、`Super+Shift+T` を確認します。
+wtype と PyGObject がない環境ではスキップします。
+
+```sh
+sh tests/tray.sh
+```
+
+### 音量のテスト
+
+`tests/audio.sh` は `PATH` に偽の `wpctl` を置き、`Up`、`m`、`Down` で音量
+ポップオーバーを操作します。初期値 42%、ミュート/解除、音量変更、
+`Super+Shift+A` を確認します。
+
+```sh
+sh tests/audio.sh
+```
+
+### foreign-toplevel のテスト
+
+`tests/foreign-toplevels.sh` は `wlr-foreign-toplevel-management` と
+`ext-foreign-toplevel-list` の小さな Wayland クライアントをコンパイルし、
+`foot` を起動してタイトル、app-id、アクティベート状態を確認します。
+`foot`、`cc`、`wayland-scanner` がない環境ではスキップします。これらは
+`xdg-desktop-portal-wlr` のウィンドウ選択に必要なコンポジタ側の前提です。
+
+```sh
+sh tests/foreign-toplevels.sh
+```
+
+### ポータルと PipeWire 画面共有のテスト
+
+`tests/portal.sh` はプライベートな headless Tessa セッション、PipeWire、
+`xdg-desktop-portal`、`xdg-desktop-portal-wlr` を起動し、ScreenCast ポータル
+（CreateSession、SelectSources、Start、OpenPipeWireRemote）を呼びます。
+ストリームノードと有効なリモート fd を確認します。テストは一時的な
+`tessa.portal` セレクタと `chooser_type=none` の xdpw 設定を使い、ポータル
+または PipeWire のバイナリがない環境ではスキップします。展開済みパッケージ
+ルートを試す場合は `TESSA_PORTAL_ROOT` を指定してください。
+
+```sh
+sh tests/portal.sh
+TESSA_PORTAL_ROOT=/tmp/portal-root sh tests/portal.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

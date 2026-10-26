@@ -44,15 +44,21 @@ a daily Japanese desktop, then by polish.
 - [x] Config includes and custom launcher entries.
 - [x] Battery and network indicators.
 - [x] MPRIS media chip and controls.
-- [ ] Tray / StatusNotifier integration.
-- [ ] Audio volume controls.
+- [x] Tray / StatusNotifier integration: watcher/host, item icons, status,
+      activation, and a keyboard tray popover. DBusMenu menus are still pending.
+- [x] Audio volume controls through `wpctl`, `pactl`, or `amixer`, with a bar
+      indicator, popover, and configurable command overrides.
 - [x] Calendar/clock popup.
 - [x] Power menu with configurable lock/suspend/reboot/shutdown commands.
 - [x] Session lock (`ext-session-lock-v1`).
 - [x] Idle inhibit, idle notifications, and output-power management (external swayidle/wlopm).
 - [x] Screenshot UI: region/full-output capture through `wlr-screencopy`, saved
       as PNG.
-- [ ] `xdg-desktop-portal` integration and PipeWire screen sharing.
+- [x] `xdg-desktop-portal` integration and PipeWire screen sharing: screencopy,
+      linux-dmabuf, output capture sources, image-copy capture, foreign-toplevel
+      lists, and a packaged `tessa.portal` selector for
+      `xdg-desktop-portal-wlr`. End-to-end monitor ScreenCast is tested; window
+      capture depends on the portal backend's protocol support.
 - [x] Notification daemon: `org.freedesktop.Notifications` plain-text toasts
       with replacement, close, and expiry.
 - [ ] Notification actions/icons, markup, and cross-output routing.

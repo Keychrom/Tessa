@@ -50,15 +50,21 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [x] 設定 include とカスタムランチャー項目。
 - [x] バッテリーとネットワーク表示。
 - [x] MPRIS メディアチップと操作。
-- [ ] トレイ / StatusNotifier 連携。
-- [ ] オーディオ音量操作。
+- [x] トレイ / StatusNotifier 連携: watcher/host、項目アイコン、ステータス、
+      アクティベート、キーボード操作のトレイポップオーバー。DBusMenu は未対応。
+- [x] `wpctl` / `pactl` / `amixer` による音量操作。バー表示、ポップオーバー、
+      コマンド上書き設定に対応。
 - [x] カレンダー/時計ポップアップ。
 - [x] 電源メニュー（ロック/サスペンド/再起動/電源オフのコマンドを設定可能）。
 - [x] セッションロック（`ext-session-lock-v1`）。
 - [x] idle-inhibit、idle 通知、出力電源管理（外部の swayidle/wlopm）。
 - [x] スクリーンショット UI（`wlr-screencopy` による範囲/全画面撮影と
       PNG 保存）。
-- [ ] `xdg-desktop-portal` 連携と PipeWire による画面共有。
+- [x] `xdg-desktop-portal` 連携と PipeWire による画面共有: screencopy、
+      linux-dmabuf、出力キャプチャソース、image-copy capture、
+      foreign-toplevel リスト、`xdg-desktop-portal-wlr` 用の
+      `tessa.portal` セレクタ。モニターの ScreenCast は端から端までテスト済み。
+      ウィンドウ単位のキャプチャはポータルバックエンドのプロトコル対応に依存。
 - [x] 通知デーモン（`org.freedesktop.Notifications`、プレーンテキストの
       トースト、置換/閉じる/期限切れ対応）。
 - [ ] 通知のアクション/アイコン/マークアップと出力間ルーティング。

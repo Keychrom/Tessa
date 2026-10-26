@@ -46,6 +46,18 @@ pub fn init(server: *Server) void {
         server.request_activate.notify = onActivationRequest;
         c.wl_signal_add(&activation.events.request_activate, &server.request_activate);
     }
+
+    const foreign_raw = c.wlr_foreign_toplevel_manager_v1_create(server.display);
+    if (foreign_raw != null) {
+        server.foreign_toplevel_manager = @ptrCast(@alignCast(foreign_raw));
+        core.logInfo("foreign-toplevel-management enabled", .{});
+    }
+
+    const ext_foreign_raw = c.wlr_ext_foreign_toplevel_list_v1_create(server.display, 1);
+    if (ext_foreign_raw != null) {
+        server.ext_foreign_toplevel_list = @ptrCast(@alignCast(ext_foreign_raw));
+        core.logInfo("ext-foreign-toplevel-list enabled", .{});
+    }
 }
 
 fn onActivationRequest(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -127,6 +139,88 @@ fn copyMeta(client: *Client) void {
         client.app_id_len = 0;
         client.app_id[0] = 0;
     }
+    if (client.foreign_toplevel) |handle| {
+        c.wlr_foreign_toplevel_handle_v1_set_title(handle, @ptrCast(&client.title));
+        c.wlr_foreign_toplevel_handle_v1_set_app_id(handle, @ptrCast(&client.app_id));
+    }
+    if (client.ext_foreign_toplevel) |handle| {
+        var state = c.struct_wlr_ext_foreign_toplevel_handle_v1_state{
+            .title = @ptrCast(&client.title),
+            .app_id = @ptrCast(&client.app_id),
+        };
+        c.wlr_ext_foreign_toplevel_handle_v1_update_state(handle, &state);
+    }
+}
+
+fn onForeignActivate(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    const event: *c.wlr_foreign_toplevel_handle_v1_activated_event = @ptrCast(@alignCast(data.?));
+    const handle: *c.wlr_foreign_toplevel_handle_v1 = @ptrCast(@alignCast(event.toplevel));
+    const client: *Client = @ptrCast(@alignCast(handle.data.?));
+    if (!client.mapped) return;
+    if (client.ws != client.output.active_ws) {
+        layout.switchWorkspaceOnOutput(client.server, client.output, client.ws);
+    }
+    layout.focusClient(client.server, client);
+}
+
+fn onForeignClose(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const client: *Client = @fieldParentPtr("foreign_close", listener.?);
+    c.wlr_xdg_toplevel_send_close(client.xdg);
+}
+
+fn onForeignFullscreen(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const client: *Client = @fieldParentPtr("foreign_fullscreen", listener.?);
+    const event: *c.wlr_foreign_toplevel_handle_v1_fullscreen_event = @ptrCast(@alignCast(data.?));
+    client.fullscreen = event.fullscreen;
+    _ = c.wlr_xdg_toplevel_set_fullscreen(client.xdg, client.fullscreen);
+    if (client.foreign_toplevel) |handle| {
+        c.wlr_foreign_toplevel_handle_v1_set_fullscreen(handle, client.fullscreen);
+    }
+    layout.arrangeOutput(client.server, client.output);
+    core.markDirty(client.server);
+}
+
+fn onForeignDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const client: *Client = @fieldParentPtr("foreign_destroy", listener.?);
+    c.wl_list_remove(&client.foreign_activate.link);
+    c.wl_list_remove(&client.foreign_close.link);
+    c.wl_list_remove(&client.foreign_fullscreen.link);
+    c.wl_list_remove(&client.foreign_destroy.link);
+    client.foreign_toplevel = null;
+}
+
+fn createForeignToplevel(client: *Client) void {
+    const manager = client.server.foreign_toplevel_manager orelse return;
+    const handle_raw = c.wlr_foreign_toplevel_handle_v1_create(manager);
+    if (handle_raw == null) return;
+    const handle: *c.wlr_foreign_toplevel_handle_v1 = @ptrCast(@alignCast(handle_raw));
+    client.foreign_toplevel = handle;
+    handle.data = @ptrCast(client);
+    client.foreign_activate.notify = onForeignActivate;
+    c.wl_signal_add(&handle.events.request_activate, &client.foreign_activate);
+    client.foreign_close.notify = onForeignClose;
+    c.wl_signal_add(&handle.events.request_close, &client.foreign_close);
+    client.foreign_fullscreen.notify = onForeignFullscreen;
+    c.wl_signal_add(&handle.events.request_fullscreen, &client.foreign_fullscreen);
+    client.foreign_destroy.notify = onForeignDestroy;
+    c.wl_signal_add(&handle.events.destroy, &client.foreign_destroy);
+    c.wlr_foreign_toplevel_handle_v1_set_title(handle, @ptrCast(&client.title));
+    c.wlr_foreign_toplevel_handle_v1_set_app_id(handle, @ptrCast(&client.app_id));
+    c.wlr_foreign_toplevel_handle_v1_output_enter(handle, client.output.wlr);
+}
+
+fn createExtForeignToplevel(client: *Client) void {
+    const list = client.server.ext_foreign_toplevel_list orelse return;
+    var state = c.struct_wlr_ext_foreign_toplevel_handle_v1_state{
+        .title = @ptrCast(&client.title),
+        .app_id = @ptrCast(&client.app_id),
+    };
+    const handle_raw = c.wlr_ext_foreign_toplevel_handle_v1_create(list, &state);
+    if (handle_raw == null) return;
+    client.ext_foreign_toplevel = @ptrCast(@alignCast(handle_raw));
 }
 
 fn nextClientOnWorkspace(server: *Server, exclude: *Client) ?*Client {
@@ -247,6 +341,19 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         core.removeAt(types.Client, server.clients[0..], &server.client_count, idx);
     }
 
+    if (client.foreign_toplevel) |handle| {
+        c.wl_list_remove(&client.foreign_activate.link);
+        c.wl_list_remove(&client.foreign_close.link);
+        c.wl_list_remove(&client.foreign_fullscreen.link);
+        c.wl_list_remove(&client.foreign_destroy.link);
+        client.foreign_toplevel = null;
+        c.wlr_foreign_toplevel_handle_v1_destroy(handle);
+    }
+    if (client.ext_foreign_toplevel) |handle| {
+        client.ext_foreign_toplevel = null;
+        c.wlr_ext_foreign_toplevel_handle_v1_destroy(handle);
+    }
+
     c.wlr_scene_node_destroy(&client.frame.node);
 
     if (was_focused and server.focused_layer == null) {
@@ -292,6 +399,9 @@ fn onRequestFullscreen(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c
     const client: *Client = @fieldParentPtr("request_fullscreen", listener.?);
     client.fullscreen = client.xdg.requested.fullscreen;
     _ = c.wlr_xdg_toplevel_set_fullscreen(client.xdg, client.fullscreen);
+    if (client.foreign_toplevel) |handle| {
+        c.wlr_foreign_toplevel_handle_v1_set_fullscreen(handle, client.fullscreen);
+    }
     layout.arrangeOutput(client.server, client.output);
     core.markDirty(client.server);
 }
@@ -367,6 +477,8 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     c.wl_signal_add(&xdg.events.set_app_id, &client.set_app_id);
 
     copyMeta(client);
+    createForeignToplevel(client);
+    createExtForeignToplevel(client);
 
     if (server.client_count < server.clients.len) {
         server.clients[server.client_count] = client;

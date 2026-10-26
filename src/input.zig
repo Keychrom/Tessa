@@ -346,6 +346,8 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .clipboard => ipc.emitPanel(server, "clipboard", ""),
         .screenshot => ipc.emitPanel(server, "screenshot", ""),
         .media => ipc.emitPanel(server, "media", ""),
+        .tray => ipc.emitPanel(server, "tray", ""),
+        .audio => ipc.emitPanel(server, "audio", ""),
         .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),
         .toggle_layout => layout.toggleLayout(server),
