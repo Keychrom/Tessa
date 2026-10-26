@@ -166,6 +166,9 @@ layer surfaces without an explicit output, and keyboard workspace bindings.
   relative-pointer motion for games,
 - advertises `pointer-gestures-v1`, consumes configured shell swipes, and
   forwards other swipes/pinch/hold gestures to the focused client,
+- advertises `wlr-virtual-pointer-v1`; virtual pointers are attached to the
+  same cursor, which lets headless tests drive bar clicks, focus, and drags
+  without physical hardware,
 - attaches touch and tablet devices to the cursor, routes touch points through
   scene hit-testing, and forwards tablet-v2 tool/pad events,
 - enforces active pointer constraints before cursor motion,

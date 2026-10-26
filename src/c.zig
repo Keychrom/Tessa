@@ -46,6 +46,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_primary_selection_v1.h");
     @cInclude("wlr/types/wlr_primary_selection.h");
     @cInclude("wlr/types/wlr_virtual_keyboard_v1.h");
+    @cInclude("wlr/types/wlr_virtual_pointer_v1.h");
     @cInclude("wlr/types/wlr_text_input_v3.h");
     @cInclude("wlr/types/wlr_input_method_v2.h");
     @cInclude("wlr/types/wlr_session_lock_v1.h");

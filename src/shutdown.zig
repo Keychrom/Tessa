@@ -48,6 +48,9 @@ pub fn cleanupGlobals(server: *Server) void {
     if (server.virtual_keyboard_manager != null) {
         c.wl_list_remove(&server.new_virtual_keyboard.link);
     }
+    if (server.virtual_pointer_manager != null) {
+        c.wl_list_remove(&server.new_virtual_pointer.link);
+    }
     if (server.cursor_shape_manager != null) {
         c.wl_list_remove(&server.request_set_shape.link);
     }

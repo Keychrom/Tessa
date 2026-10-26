@@ -324,6 +324,31 @@ skips when `xwayland-satellite`, `fcitx5`, or `xprop` is unavailable.
 sh tests/xim.sh
 ```
 
+### Interaction automation test
+
+`tests/interaction.sh` compiles a `wlr-virtual-pointer-v1` client and drives the
+real panel and compositor without physical input. It clicks workspace pills,
+drags and resizes a floating `foot` window with Super held, toggles fullscreen,
+checks click-to-focus with two windows, closes a window through its bar chip
+with a right click, and types into the launcher until a custom entry runs. Bar
+coordinates are calculated from the panel's reported bar size, so the test is
+not tied to one output resolution.
+
+```sh
+sh tests/interaction.sh
+```
+
+### XDG popup test
+
+`tests/popups.sh` compiles a small xdg-shell client that creates a toplevel and
+an anchored red popup. It captures the headless output with `grim` and checks
+the popup pixel with ImageMagick, verifying that client popups are mapped and
+rendered above their parent. The test skips when `grim` or `convert` is absent.
+
+```sh
+sh tests/popups.sh
+```
+
 ### Panel popover test
 
 `tests/panel-popovers.sh` starts the compositor and panel, opens the calendar

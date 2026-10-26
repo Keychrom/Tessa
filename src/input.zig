@@ -70,6 +70,13 @@ pub fn init(server: *Server) void {
         c.wl_signal_add(&mgr.events.new_virtual_keyboard, &server.new_virtual_keyboard);
     }
 
+    server.virtual_pointer_manager = c.wlr_virtual_pointer_manager_v1_create(server.display);
+    if (server.virtual_pointer_manager) |mgr| {
+        server.new_virtual_pointer.notify = onNewVirtualPointer;
+        c.wl_signal_add(&mgr.events.new_virtual_pointer, &server.new_virtual_pointer);
+        core.logInfo("virtual-pointer-v1 enabled", .{});
+    }
+
     const rel_raw = c.wlr_relative_pointer_manager_v1_create(server.display);
     if (rel_raw != null) {
         server.relative_pointer_manager = @ptrCast(@alignCast(rel_raw));
@@ -265,6 +272,14 @@ fn onNewVirtualKeyboard(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.
     const vk: *c.wlr_virtual_keyboard_v1 = @ptrCast(@alignCast(data.?));
     attachKeyboard(server, &vk.keyboard, &vk.keyboard.base, vk);
     core.logInfo("virtual keyboard added", .{});
+}
+
+fn onNewVirtualPointer(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("new_virtual_pointer", listener.?);
+    const event: *c.wlr_virtual_pointer_v1_new_pointer_event = @ptrCast(@alignCast(data.?));
+    const pointer: *c.wlr_virtual_pointer_v1 = @ptrCast(@alignCast(event.new_pointer));
+    c.wlr_cursor_attach_input_device(server.cursor, &pointer.pointer.base);
+    core.logInfo("virtual pointer added", .{});
 }
 
 pub fn reloadKeymaps(server: *Server) void {
@@ -601,7 +616,7 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         if (!swallowed) {
             _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
         }
-        layout.resetInteractive(server);
+        layout.finishInteractive(server);
         server.grab_swallowed = false;
         return;
     }
@@ -618,7 +633,6 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         mods = c.wlr_keyboard_get_modifiers(kb);
     }
     const super = (mods & core.MOD_LOGO) != 0;
-
     if (super and client != null and client.?.floating) {
         if (event.button == 0x110) {
             layout.beginInteractive(client.?, .move, 0);

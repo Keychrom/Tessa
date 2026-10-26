@@ -47,6 +47,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - external extension API: event subscriptions, config hooks, custom bar status
   entries, custom launcher entries, and the `tessa-ctl` automation client
 - `relative-pointer-v1` for games and pointer-look applications
+- `wlr-virtual-pointer-v1` for scripted pointer automation and headless tests
 - `pointer-constraints-v1` locked/confined pointers, activated with window focus
 - touchpad gestures: three-finger (configurable) horizontal workspace swipes and
   upward launcher swipes; other finger counts and pinch/hold gestures are
@@ -103,7 +104,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/input.sh`,
-`tests/pointer-constraints.sh`, `tests/xim.sh`, and `tests/portal.sh`.
+`tests/pointer-constraints.sh`, `tests/xim.sh`, `tests/interaction.sh`,
+`tests/popups.sh`, and `tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target

@@ -8,10 +8,16 @@ a daily Japanese desktop, then by polish.
 ## 0.1.x — make the foundation trustworthy
 
 - [ ] Run on DRM + libinput on the target machine and fix layout/input issues.
-- [ ] Test keyboard navigation and mouse interactions end to end (bar clicks,
-      right-click close, floating drag/resize, launcher typing).
-- [ ] Validate fullscreen, client popups, clipboard, and multi-window focus.
-- [ ] Fix any transient client repaint gaps after float/resize.
+- [x] Automated headless coverage for bar workspace clicks, window-chip
+      right-click close, floating drag/resize, click-to-focus, and launcher
+      typing (`tests/interaction.sh`, using `wlr-virtual-pointer-v1`).
+- [x] Fullscreen, xdg client popups, clipboard, and multi-window focus are
+      covered by `tests/interaction.sh`, `tests/popups.sh`, and
+      `tests/clipboard.sh`. Physical mouse/keyboard validation remains part of
+      the DRM item above.
+- [ ] Fix transient client repaint gaps after float/resize. Interactive
+      grabs now re-arrange and publish final geometry on release; visual
+      validation during the drag still needs a real display.
 - [x] Add a small integration test that starts the headless compositor and
       asserts state/IPC and extension hooks (`tests/smoke.sh`).
 - [x] Decide the license (MIT).

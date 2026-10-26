@@ -49,6 +49,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
   ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
 - ゲームやポインタルック向けの `relative-pointer-v1`
+- スクリプトからのポインタ操作と headless テスト向けの
+  `wlr-virtual-pointer-v1`
 - `pointer-constraints-v1` の locked/confined ポインタ。ウィンドウの
   フォーカスに合わせて有効化
 - タッチパッドジェスチャ: 3 本指（設定可能）の横スワイプでワークスペース、
@@ -112,6 +114,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、`tests/xim.sh`、
+`tests/interaction.sh`、`tests/popups.sh`、
 `tests/portal.sh` で
 検証しています。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。

@@ -55,6 +55,9 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
     const s: *m.Surface = @ptrCast(@alignCast(data.?));
     if (s.layer) |ls| c.zwlr_layer_surface_v1_ack_configure(ls, serial);
     draw.configureSurface(s, width, height);
+    if (s.kind == .bar) {
+        logMsg("bar surface: {d}x{d}", .{ width, height });
+    }
     if (s.kind == .overlay and g.overlay_mode == .launcher) {
         computeSearchRect();
         if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);

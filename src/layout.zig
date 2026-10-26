@@ -1259,6 +1259,16 @@ pub fn beginInteractive(client: *Client, mode: types.CursorMode, edges: u32) voi
     }
 }
 
+pub fn finishInteractive(server: *Server) void {
+    const cl = server.grabbed;
+    server.grabbed = null;
+    server.cursor_mode = .passthrough;
+    if (cl) |client| {
+        arrangeOutput(server, client.output);
+        core.markDirty(server);
+    }
+}
+
 pub fn resetInteractive(server: *Server) void {
     server.grabbed = null;
     server.cursor_mode = .passthrough;
@@ -1277,7 +1287,6 @@ pub fn updateInteractiveResize(server: *Server) void {
     const cl = server.grabbed orelse return;
     const bx: i32 = @intFromFloat(@round(server.cursor.x - server.grab_x));
     const by: i32 = @intFromFloat(@round(server.cursor.y - server.grab_y));
-
     var left = server.grab_box.x;
     var right = server.grab_box.x + server.grab_box.width;
     var top = server.grab_box.y;
