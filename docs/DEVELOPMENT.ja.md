@@ -239,6 +239,17 @@ sh tests/config-validation.sh
 sh tests/json-ipc.sh
 ```
 
+### 入力モードのテスト
+
+`tests/modes.sh` は `resize` モードを定義し、`tessa-ctl mode` で入ってから
+修飾キーなしの `l`/`Escape` を `wtype` で送ります。モード固有バインドが
+消費され、default モードへ戻った後は通常キーがクライアントへ渡ることを
+確認します。
+
+```sh
+sh tests/modes.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

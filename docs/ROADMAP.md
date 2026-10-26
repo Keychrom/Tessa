@@ -88,7 +88,8 @@ a daily Japanese desktop, then by polish.
 ## 0.6 — customization depth
 
 - [ ] Regex/boolean window-rule expressions and per-rule decoration colors.
-- [ ] Keybinding sequences, leader keys, and named input modes.
+- [x] Named input modes with mode-specific bindings and `enter-mode`.
+- [ ] Leader-key/chord sequences and per-mode timeouts.
 - [ ] Per-output theme rules and named workspace/output profiles.
 - [ ] Layout-helper v2: per-output instances, asynchronous/incremental updates,
       focus/urgent metadata, and protocol version negotiation.

@@ -1,6 +1,7 @@
 const std = @import("std");
 const types = @import("types.zig");
 const core = @import("core.zig");
+const modes = @import("modes.zig");
 
 const Server = types.Server;
 
@@ -50,7 +51,9 @@ fn addBool(buf: []u8, off: *usize, value: bool) void {
 
 pub fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
-    add(buf, &off, "{{\"schema\":1,\"active_workspace\":{d},\"outputs\":[", .{server.active_ws});
+    add(buf, &off, "{{\"schema\":1,\"active_workspace\":{d},\"mode\":", .{server.active_ws});
+    addString(buf, &off, modes.currentName(server));
+    addRaw(buf, &off, ",\"outputs\":[");
     var first = true;
     var oi: usize = 0;
     while (oi < server.outputs.len) : (oi += 1) {
@@ -147,6 +150,12 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     while (wi < types.WS_COUNT) : (wi += 1) {
         if (wi > 0) addRaw(buf, &off, ",");
         addString(buf, &off, types.layoutName(cfg.layout_by_ws[wi]));
+    }
+    addRaw(buf, &off, "],\"modes\":[");
+    wi = 0;
+    while (wi < cfg.mode_count) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        addString(buf, &off, cfg.mode_names[wi][0..cfg.mode_name_lens[wi]]);
     }
     addRaw(buf, &off, "],\"workspace_tuning\":[");
     wi = 0;

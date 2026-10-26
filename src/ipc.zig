@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
 const json_snapshot = @import("json_snapshot.zig");
+const modes = @import("modes.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -405,6 +406,15 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             layout.keyboardResize(server, dx, dy);
             broadcastState(server);
         }
+    } else if (std.mem.eql(u8, cmd, "mode")) {
+        if (start + 1 < n) {
+            if (!modes.set(server, toks[start + 1])) {
+                core.logInfo("mode: unknown mode '{s}'", .{toks[start + 1]});
+            }
+        } else {
+            modes.setDefault(server);
+        }
+        broadcastState(server);
     } else if (std.mem.eql(u8, cmd, "config")) {
         sendConfig(server, cl);
     } else if (std.mem.eql(u8, cmd, "config-json")) {
@@ -473,6 +483,7 @@ fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     append(buf, &off, "STATE\n", .{});
     append(buf, &off, "ACTIVE {d}\n", .{server.active_ws});
+    append(buf, &off, "MODE {s}\n", .{modes.currentName(server)});
     var oi: usize = 0;
     while (oi < server.outputs.len) : (oi += 1) {
         const out = server.outputs[oi] orelse continue;
@@ -569,6 +580,11 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
             cfg.ws_outer_gaps[ws],
             cfg.ws_master_ratio[ws],
         });
+    }
+    append(&buf, &off, "active_mode {s}\n", .{modes.currentName(server)});
+    var mi: usize = 0;
+    while (mi < cfg.mode_count) : (mi += 1) {
+        append(&buf, &off, "mode {s}\n", .{cfg.mode_names[mi][0..cfg.mode_name_lens[mi]]});
     }
     append(&buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
     append(&buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});

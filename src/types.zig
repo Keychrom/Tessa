@@ -7,7 +7,9 @@ pub const MAX_OUTPUTS = 8;
 pub const MAX_LAYERS = 64;
 pub const MAX_KEYBOARDS = 16;
 pub const MAX_IPC = 8;
-pub const MAX_BINDINGS = 96;
+pub const MAX_BINDINGS = 192;
+pub const MAX_MODES = 8;
+pub const MAX_MODE_NAME = 32;
 pub const MAX_HOOKS = 32;
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
@@ -70,11 +72,13 @@ pub const Action = enum {
     set_layout,
     resize_width,
     resize_height,
+    enter_mode,
 };
 
 pub const Binding = struct {
     mods: u32,
     sym: u32,
+    mode: u8,
     action: Action,
     num: i32,
     ratio: f32,
@@ -206,6 +210,9 @@ pub const Config = struct {
     font_len: usize,
     output_config: [512]u8,
     output_config_len: usize,
+    mode_names: [MAX_MODES][MAX_MODE_NAME]u8,
+    mode_name_lens: [MAX_MODES]usize,
+    mode_count: usize,
     bindings: [MAX_BINDINGS]Binding,
     binding_count: usize,
     hooks: [MAX_HOOKS]Hook,
@@ -436,6 +443,9 @@ pub const Server = struct {
     output_test: c.wl_listener,
 
     config: Config,
+    active_mode: u8,
+    active_mode_name: [MAX_MODE_NAME]u8,
+    active_mode_name_len: usize,
     config_issues: [MAX_CONFIG_ISSUES]ConfigIssue,
     config_issue_count: usize,
     config_error_count: usize,

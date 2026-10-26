@@ -28,6 +28,7 @@ tessa-ctl workspace 3 HEADLESS-2        # 出力を指定
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # クエリは省略可能
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
+tessa-ctl mode resize                   # 入力モードを切り替え
 tessa-ctl resize 40 30                  # フォーカス中のフローティングウィンドウを拡大
 tessa-ctl dispatch reload               # 任意のコンポジタコマンド
 tessa-ctl quit
@@ -60,13 +61,15 @@ CMD state               # 購読せずスナップショットを要求
 含みます。主な状態行:
 
 ```text
+MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
 ```
 
-`OUT` は `名前 ワークスペース フォーカス レイアウト` です。`WIN` はタブ区切りで、
+`MODE` はアクティブな入力モードです。`OUT` は
+`名前 ワークスペース フォーカス レイアウト` です。`WIN` はタブ区切りで、
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
 された app_id、タイトル、出力名、x、y、幅、高さです。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
@@ -80,7 +83,7 @@ id、ワークスペース、フォーカス、フローティング、フルス
 ```text
 CMD state-json
 STATE_JSON
-{"schema":1,"active_workspace":1,"outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
+{"schema":1,"active_workspace":1,"mode":"default","outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
 END
 
 CMD config-json
@@ -91,7 +94,8 @@ END
 
 `tessa-ctl state --json` と `tessa-ctl config --json` は JSON 行だけを出力
 します。`STATE_JSON` と `CONFIG_JSON` はフレーミング用マーカーで、JSON 本体
-ではありません。`schema` は現在 `1` です。未知のバージョンは拒否して
+ではありません。状態 JSON はアクティブな `mode` を、設定 JSON は `modes`
+配列を含みます。`schema` は現在 `1` です。未知のバージョンは拒否して
 ください。
 
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
@@ -137,6 +141,7 @@ EVENT	launcher	arg=fire	output=HEADLESS-1
 | `workspace-change` | 出力のワークスペース変更 | ws, previous-ws, output |
 | `window-moved` | ウィンドウを別ワークスペースへ移動 | id, ws, previous-ws, app, title, output |
 | `layout-change` | ワークスペースのレイアウト変更 | ws, output, arg |
+| `mode-change` | アクティブ入力モードの変更 | arg（モード名） |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |

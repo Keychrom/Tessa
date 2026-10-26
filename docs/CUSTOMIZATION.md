@@ -164,6 +164,31 @@ command runs as your user through `/bin/sh`, like a hook. See
 [`examples/layout-cascade.py`](../examples/layout-cascade.py) for a minimal
 working helper.
 
+## Input modes
+
+Modes group bindings and are entered with the `enter-mode` action:
+
+```ini
+mode = resize
+bind = h resize-width -30
+bind = l resize-width 30
+bind = Escape enter-mode default
+
+mode = default
+bind = SUPER+SHIFT+r enter-mode resize
+```
+
+`mode = <name>` changes the parse context for following `bind` lines until the
+next `mode` line. Names may contain letters, digits, `_`, and `-`. Includes
+restore the caller's mode after returning.
+
+Mode bindings are matched even when no modifiers are held; global (`default`)
+bindings still work, and keys with no match reach the focused client. This makes
+modal resize, navigation, or launcher-like keymaps possible without a separate
+compositor. `tessa-ctl mode <name>` switches from a script, and the active mode
+is exposed as `MODE <name>` in `tessa-ctl state`, `"mode"` in state JSON,
+`"modes"` in config JSON, and the `mode-change` event.
+
 ## Validation and JSON
 
 Configuration is parsed with file and line tracking. Unknown keys, invalid

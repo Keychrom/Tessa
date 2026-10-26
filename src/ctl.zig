@@ -23,6 +23,7 @@ fn usage() void {
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
+        "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
         "  status <id> <text>            set a bar status entry\n" ++
         "  status <id> --clear           remove a bar status entry\n" ++
@@ -351,6 +352,15 @@ fn runConfig(args: []const []const u8) !void {
     }
 }
 
+fn runMode(args: []const []const u8) !void {
+    var line: [128]u8 = undefined;
+    const msg = if (args.len > 1)
+        std.fmt.bufPrint(&line, "CMD mode {s}\n", .{args[1]}) catch return error.LineTooLong
+    else
+        "CMD mode\n";
+    try sendCommand(msg);
+}
+
 fn runLayout(args: []const []const u8) !void {
     var line: [256]u8 = undefined;
     const msg = if (args.len > 2)
@@ -434,6 +444,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runLauncher(args)
     else if (std.mem.eql(u8, cmd, "layout"))
         runLayout(args)
+    else if (std.mem.eql(u8, cmd, "mode"))
+        runMode(args)
     else if (std.mem.eql(u8, cmd, "resize"))
         runResize(args)
     else if (std.mem.eql(u8, cmd, "status"))

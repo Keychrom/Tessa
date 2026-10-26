@@ -260,6 +260,17 @@ sh tests/config-validation.sh
 sh tests/json-ipc.sh
 ```
 
+### Input mode test
+
+`tests/modes.sh` defines a `resize` mode, enters it with `tessa-ctl mode`,
+sends unmodified `l`/`Escape` through `wtype`, and checks that the mode-specific
+binding is consumed and that normal keys pass through after returning to the
+default mode.
+
+```sh
+sh tests/modes.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

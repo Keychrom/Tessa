@@ -36,6 +36,8 @@ pub fn initDefaults(cfg: *Config) void {
     }
     cfg.layout_mode = .master;
     for (&cfg.layout_by_ws) |*mode| mode.* = .master;
+    copyDefault(&cfg.mode_names[0], &cfg.mode_name_lens[0], "default");
+    cfg.mode_count = 1;
     cfg.autostart_panel = true;
     cfg.xwayland = true;
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
@@ -158,6 +160,16 @@ fn addDefaults(cfg: *Config) void {
 }
 
 pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg: []const u8) bool {
+    return addBindingInMode(cfg, 0, chord, action_name, arg);
+}
+
+pub fn addBindingInMode(
+    cfg: *Config,
+    mode: u8,
+    chord: []const u8,
+    action_name: []const u8,
+    arg: []const u8,
+) bool {
     var mods: u32 = 0;
     var key: []const u8 = "";
 
@@ -205,6 +217,7 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
     var binding: Binding = .{
         .mods = mods,
         .sym = @intCast(sym),
+        .mode = mode,
         .action = action,
         .num = 0,
         .ratio = 0,
@@ -250,12 +263,20 @@ pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg:
                 return false;
             }
         },
+        .enter_mode => {
+            if (arg.len == 0 or arg.len >= types.MAX_MODE_NAME) {
+                core.logInfo("config: invalid mode name for bind '{s}'", .{arg});
+                return false;
+            }
+        },
         else => {},
     }
 
     var i: usize = 0;
     while (i < cfg.binding_count) : (i += 1) {
-        if (cfg.bindings[i].mods == mods and cfg.bindings[i].sym == binding.sym) {
+        if (cfg.bindings[i].mode == mode and cfg.bindings[i].mods == mods and
+            cfg.bindings[i].sym == binding.sym)
+        {
             cfg.bindings[i] = binding;
             return true;
         }
@@ -548,7 +569,36 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "set-layout")) return .set_layout;
     if (std.ascii.eqlIgnoreCase(name, "resize-width")) return .resize_width;
     if (std.ascii.eqlIgnoreCase(name, "resize-height")) return .resize_height;
+    if (std.ascii.eqlIgnoreCase(name, "enter-mode") or std.ascii.eqlIgnoreCase(name, "mode")) return .enter_mode;
     return .none;
+}
+
+pub fn findMode(cfg: *const Config, name: []const u8) ?u8 {
+    var i: usize = 0;
+    while (i < cfg.mode_count) : (i += 1) {
+        if (std.mem.eql(u8, cfg.mode_names[i][0..cfg.mode_name_lens[i]], name)) {
+            return @intCast(i);
+        }
+    }
+    return null;
+}
+
+fn validModeName(name: []const u8) bool {
+    if (name.len == 0 or name.len >= types.MAX_MODE_NAME) return false;
+    for (name) |ch| {
+        if (!std.ascii.isAlphanumeric(ch) and ch != '_' and ch != '-') return false;
+    }
+    return true;
+}
+
+fn ensureMode(cfg: *Config, name: []const u8) ?u8 {
+    if (findMode(cfg, name)) |existing| return existing;
+    if (!validModeName(name)) return null;
+    if (cfg.mode_count >= cfg.mode_names.len) return null;
+    const index = cfg.mode_count;
+    cfg.mode_count += 1;
+    core.copyString(&cfg.mode_names[index], &cfg.mode_name_lens[index], name);
+    return @intCast(index);
 }
 
 fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
@@ -563,6 +613,7 @@ fn loadPath(
     server: *Server,
     path: []const u8,
     depth: usize,
+    current_mode: *usize,
     origin_path: []const u8,
     origin_line: u32,
 ) void {
@@ -615,7 +666,9 @@ fn loadPath(
             if (include_path.len == 0) {
                 addIssue(server, path, line_no, "invalid include '{s}'", .{value});
             } else {
-                loadPath(server, include_path, depth + 1, path, line_no);
+                const parent_mode = current_mode.*;
+                loadPath(server, include_path, depth + 1, current_mode, path, line_no);
+                current_mode.* = parent_mode;
             }
         } else if (std.mem.eql(u8, key, "terminal")) {
             core.copyString(&server.config.terminal, &server.config.terminal_len, value);
@@ -699,6 +752,12 @@ fn loadPath(
             } else {
                 addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
             }
+        } else if (std.mem.eql(u8, key, "mode")) {
+            if (ensureMode(&server.config, value)) |mode_index| {
+                current_mode.* = mode_index;
+            } else {
+                addIssue(server, path, line_no, "invalid mode name '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "window-rule") or std.mem.eql(u8, key, "window_rule")) {
             if (!addRule(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid window-rule: '{s}'", .{value});
@@ -718,7 +777,7 @@ fn loadPath(
                 const rest_sp = std.mem.indexOfAny(u8, rest, " \t");
                 const action_name = if (rest_sp) |p| rest[0..p] else rest;
                 const arg = if (rest_sp) |p| std.mem.trimStart(u8, rest[p..], " \t") else "";
-                if (!addBinding(&server.config, chord, action_name, arg)) {
+                if (!addBindingInMode(&server.config, @intCast(current_mode.*), chord, action_name, arg)) {
                     addIssue(server, path, line_no, "invalid bind: '{s}'", .{value});
                 }
             } else {
@@ -761,7 +820,8 @@ pub fn load(server: *Server) void {
         path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
     }
 
-    if (path.len > 0) loadPath(server, path, 0, "", 0);
+    var parse_mode: usize = 0;
+    if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;

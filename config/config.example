@@ -104,3 +104,12 @@ font = Inter
 # bind = SUPER+SHIFT+h move left
 # bind = SUPER+ctrl+h ratio -0.03
 # bind = SUPER+shift+e quit
+
+# Named input modes. In a mode, bindings match without Super. Add
+# `mode = default` before returning to the global keymap.
+# mode = resize
+# bind = h resize-width -30
+# bind = l resize-width 30
+# bind = Escape enter-mode default
+# mode = default
+# bind = SUPER+SHIFT+r enter-mode resize

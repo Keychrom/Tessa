@@ -36,6 +36,7 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
 - 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
   リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット
+- 名前付き入力モードと、モード固有のキーバインド（`enter-mode`）
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -74,7 +75,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
-`tests/json-ipc.sh` で検証しています。
+`tests/json-ipc.sh`、`tests/modes.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -459,6 +460,7 @@ cp config/config.example ~/.config/tessa/config
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |
 | `workspace-rule` | ワークスペース別のレイアウト、隙間、マスター比率 |
+| `mode` | 後続の `bind` が属する名前付き入力モードを開始 |
 
 追加のバインドには XKB keysym 名を使います:
 
@@ -474,7 +476,7 @@ bind = SUPER+ctrl+h ratio -0.03
 利用可能なアクション: `terminal`、`spawn`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
 `focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
-`set-layout`、`resize-width`、`resize-height`。
+`set-layout`、`resize-width`、`resize-height`、`enter-mode`。
 
 `Super+T` はフォーカス中のワークスペースのレイアウトを 4 種類巡回します。
 実行中に選んだレイアウトは出力・ワークスペースごとに保持され、
@@ -497,6 +499,23 @@ window-rule = title=GIMP*; float=false
 ルールはウィンドウのマップ時と設定再読み込み時に評価されます。
 `tessa-ctl config` で実効設定と解析済みルールを確認できます。完全な
 リファレンスは [docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) にあります。
+
+入力モードはバインドをまとめ、`enter-mode` で有効化します。
+
+```ini
+mode = resize
+bind = h resize-width -30
+bind = l resize-width 30
+bind = Escape enter-mode default
+
+mode = default
+bind = SUPER+SHIFT+r enter-mode resize
+```
+
+モード中は Super なしでもそのモードのバインドがマッチします。グローバル
+バインドは引き続き有効で、未割り当てのキーはフォーカス中のクライアントへ
+渡ります。スクリプトからは `tessa-ctl mode resize` で切り替えられます。
+アクティブモードは `tessa-ctl state` の `MODE <name>` に出ます。
 
 ワークスペース別の調整も同じ `key=value; ...` 形式です。
 

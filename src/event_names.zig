@@ -8,6 +8,7 @@ pub const window_focus = "window-focus";
 pub const workspace_change = "workspace-change";
 pub const window_moved = "window-moved";
 pub const layout_change = "layout-change";
+pub const mode_change = "mode-change";
 pub const config_reload = "config-reload";
 pub const launcher = "launcher";
 pub const output_added = "output-added";
@@ -22,6 +23,7 @@ pub const known = [_][]const u8{
     workspace_change,
     window_moved,
     layout_change,
+    mode_change,
     config_reload,
     launcher,
     output_added,

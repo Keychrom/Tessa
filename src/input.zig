@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const layout = @import("layout.zig");
 const rules = @import("rules.zig");
 const layout_helper = @import("layout_helper.zig");
+const modes = @import("modes.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
@@ -306,6 +307,7 @@ pub fn reloadRuntime(server: *Server) void {
         core.markDirty(server);
         return;
     }
+    modes.sync(server);
     reloadKeymaps(server);
     layout_helper.reload(server);
     rules.applyAll(server);
@@ -351,15 +353,26 @@ fn executeBinding(server: *Server, b: *Binding) void {
         },
         .resize_width => layout.keyboardResize(server, b.num, 0),
         .resize_height => layout.keyboardResize(server, 0, b.num),
+        .enter_mode => {
+            if (!modes.set(server, b.arg[0..b.arg_len])) {
+                core.logInfo("mode: unknown mode '{s}'", .{b.arg[0..b.arg_len]});
+            }
+        },
     }
 }
 
-fn tryBindings(server: *Server, syms: [*c]const c.xkb_keysym_t, count: c_int, mods: u32) bool {
+fn tryBindings(
+    server: *Server,
+    syms: [*c]const c.xkb_keysym_t,
+    count: c_int,
+    mods: u32,
+    mode: u8,
+) bool {
     if (count <= 0) return false;
     var bi: usize = 0;
     while (bi < server.config.binding_count) : (bi += 1) {
         const b = &server.config.bindings[bi];
-        if (b.mods != mods) continue;
+        if (b.mode != mode or b.mods != mods) continue;
         var i: c_int = 0;
         while (i < count) : (i += 1) {
             if (@as(u32, @intCast(syms[@intCast(i)])) == b.sym) {
@@ -400,15 +413,26 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const mods = c.wlr_keyboard_get_modifiers(kb.wlr);
     const bind_mods = mods & (core.MOD_SHIFT | core.MOD_CTRL | core.MOD_ALT | core.MOD_LOGO);
 
-    if (pressed and server.focused_layer == null and (bind_mods & core.MOD_LOGO) != 0) {
+    if (pressed and server.focused_layer == null) {
         var syms: [*c]const c.xkb_keysym_t = null;
         const n = c.xkb_state_key_get_syms(@ptrCast(@alignCast(kb.wlr.xkb_state)), keycode, &syms);
-        if (tryBindings(server, syms, n, bind_mods)) return;
 
-        if (kb.wlr.keymap != null) {
-            var base: [*c]const c.xkb_keysym_t = null;
-            const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
-            if (bn > 0 and tryBindings(server, base, bn, bind_mods)) return;
+        if (server.active_mode != 0) {
+            if (tryBindings(server, syms, n, bind_mods, server.active_mode)) return;
+            if (kb.wlr.keymap != null) {
+                var base: [*c]const c.xkb_keysym_t = null;
+                const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
+                if (bn > 0 and tryBindings(server, base, bn, bind_mods, server.active_mode)) return;
+            }
+        }
+
+        if ((bind_mods & core.MOD_LOGO) != 0) {
+            if (tryBindings(server, syms, n, bind_mods, 0)) return;
+            if (kb.wlr.keymap != null) {
+                var base: [*c]const c.xkb_keysym_t = null;
+                const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
+                if (bn > 0 and tryBindings(server, base, bn, bind_mods, 0)) return;
+            }
         }
     }
 

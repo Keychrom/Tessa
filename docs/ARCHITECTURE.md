@@ -129,6 +129,9 @@ layer surfaces without an explicit output, and keyboard workspace bindings.
 - attaches every physical/virtual keyboard and re-sends focus when a keyboard
   appears or its keymap changes,
 - routes keyboard events to the focused surface or to key bindings,
+- supports named input modes: mode-specific bindings take priority, match
+  without modifiers, and fall back to global bindings; unbound keys reach the
+  focused client. The active mode is exposed as `MODE` in state and in JSON.
 - implements click-to-focus, floating move/resize, and pointer forwarding,
 - handles `request_set_cursor`, cursor-shape-v1, selection requests, and
   relative-pointer motion for games,

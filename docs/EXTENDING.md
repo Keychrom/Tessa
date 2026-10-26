@@ -28,6 +28,7 @@ tessa-ctl workspace 3 HEADLESS-2        # a specific output
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire                 # query is optional
 tessa-ctl layout grid                   # set/cycle current workspace layout
+tessa-ctl mode resize                   # switch input mode
 tessa-ctl resize 40 30                  # grow the focused floating window
 tessa-ctl dispatch reload               # any compositor command
 tessa-ctl quit
@@ -60,13 +61,15 @@ settings, `layout_ws`/`workspace_tuning` lines for each workspace, and
 `rule <raw>` lines. The most useful state lines are:
 
 ```text
+MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
 ```
 
-`OUT` is `name workspace focused layout`. `WIN` fields are tab-separated: id,
+`MODE` is the active input mode. `OUT` is `name workspace focused layout`.
+`WIN` fields are tab-separated: id,
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height. Geometry is in logical compositor coordinates and is
 included for tooling that tracks windows. `STATUS` is covered below.
@@ -79,7 +82,7 @@ The text commands still work:
 ```text
 CMD state-json
 STATE_JSON
-{"schema":1,"active_workspace":1,"outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
+{"schema":1,"active_workspace":1,"mode":"default","outputs":[...],"occupancy":[...],"focused":7,"statuses":[...],"windows":[...]}
 END
 
 CMD config-json
@@ -90,6 +93,7 @@ END
 
 `tessa-ctl state --json` and `tessa-ctl config --json` print only the JSON line.
 `STATE_JSON` and `CONFIG_JSON` are framing markers, not part of the JSON.
+State JSON includes the active `mode`; config JSON includes a `modes` array.
 `schema` is currently `1`; consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
@@ -133,6 +137,7 @@ names the window that lost focus.
 | `workspace-change` | An output changes workspace | ws, previous-ws, output |
 | `window-moved` | Window sent to another workspace | id, ws, previous-ws, app, title, output |
 | `layout-change` | Workspace layout changed | ws, output, arg |
+| `mode-change` | Active input mode changed | arg (mode name) |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
 | `output-added` | Output initialized | output, arg (geometry) |

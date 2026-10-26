@@ -161,6 +161,32 @@ END
 フックと同様、`/bin/sh` 経由でユーザー権限で実行されます。最小の実例は
 [`examples/layout-cascade.py`](../examples/layout-cascade.py) にあります。
 
+## 入力モード
+
+モードはバインドをまとめ、`enter-mode` アクションで入ります。
+
+```ini
+mode = resize
+bind = h resize-width -30
+bind = l resize-width 30
+bind = Escape enter-mode default
+
+mode = default
+bind = SUPER+SHIFT+r enter-mode resize
+```
+
+`mode = <名前>` は次の `mode` 行まで、後続の `bind` の解析コンテキストを
+切り替えます。名前には英数字、`_`、`-` を使えます。include から戻ると
+呼び出し元のモードに復元されます。
+
+モード内のバインドは修飾キーなしでもマッチします。グローバル（default）
+バインドは引き続き有効で、どのバインドにも一致しないキーはフォーカス中の
+クライアントへ渡ります。これにより、別のコンポジタを用意せずにモーダルな
+リサイズ、ナビゲーション、ランチャー風キーマップを作れます。
+`tessa-ctl mode <名前>` でスクリプトから切り替えられ、アクティブモードは
+`tessa-ctl state` の `MODE <名前>`、状態 JSON の `"mode"`、設定 JSON の
+`"modes"`、`mode-change` イベントで公開されます。
+
 ## 検証と JSON
 
 設定はファイル名と行番号を追跡して解析します。未知のキー、不正な数値/

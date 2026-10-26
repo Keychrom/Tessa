@@ -35,6 +35,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   process restart, and built-in fallback
 - file/line config diagnostics, transactional reload, and versioned JSON
   state/config snapshots for external tools
+- named input modes with mode-specific key bindings and `enter-mode`
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -69,7 +70,7 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
 mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
-`tests/json-ipc.sh`, and panel screenshots.
+`tests/json-ipc.sh`, `tests/modes.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -439,6 +440,7 @@ diagnostics. Selected keys:
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |
 | `workspace-rule` | per-workspace layout, gaps, and master ratio |
+| `mode` | start a named input-mode section for following `bind` lines |
 
 Additional bindings use XKB keysym names:
 
@@ -454,7 +456,7 @@ bind = SUPER+ctrl+h ratio -0.03
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
 `focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
-`set-layout`, `resize-width`, `resize-height`.
+`set-layout`, `resize-width`, `resize-height`, `enter-mode`.
 
 `Super+T` cycles the focused workspace through all four layouts. Runtime layout
 choices are kept per output and workspace and saved to `outputs.conf`. `layout_N`
@@ -476,6 +478,23 @@ window-rule = title=GIMP*; float=false
 Rules are applied when a window maps and re-evaluated on config reload. Run
 `tessa-ctl config` to inspect the effective values and parsed rules. See
 [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) for the complete reference.
+
+Input modes group bindings and activate them with `enter-mode`:
+
+```ini
+mode = resize
+bind = h resize-width -30
+bind = l resize-width 30
+bind = Escape enter-mode default
+
+mode = default
+bind = SUPER+SHIFT+r enter-mode resize
+```
+
+While a mode is active, its bindings match even without Super. Global bindings
+still work, and unbound keys reach the focused client. `tessa-ctl mode resize`
+switches modes from a script. The active mode is shown as `MODE <name>` in
+`tessa-ctl state`.
 
 Per-workspace tuning uses the same `key=value; ...` style:
 
