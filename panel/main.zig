@@ -101,7 +101,8 @@ fn createLayerSurface(
 
     const wl = c.wl_compositor_create_surface(compositor) orelse return false;
     s.wl = wl;
-    c.wl_surface_set_buffer_scale(wl, 1);
+    s.scale = g.scale;
+    c.wl_surface_set_buffer_scale(wl, g.scale);
 
     const ls = c.zwlr_layer_shell_v1_get_layer_surface(shell, wl, output, layer, namespace) orelse {
         c.wl_surface_destroy(wl);
@@ -127,6 +128,23 @@ fn createLayerSurface(
 
     c.wl_surface_commit(wl);
     return true;
+}
+
+fn applyPanelScale(scale: i32) void {
+    const scl = @max(1, scale);
+    if (g.scale == scl) return;
+    g.scale = scl;
+    draw.setSurfaceScale(&g.bg, scl);
+    draw.setSurfaceScale(&g.bar, scl);
+    if (g.overlay) |ov| draw.setSurfaceScale(ov, scl);
+    g.bg.dirty = true;
+    g.bar.dirty = true;
+    if (g.overlay) |ov| {
+        ov.dirty = true;
+        computeSearchRect();
+        if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+    }
+    logMsg("output scale: {d}", .{scl});
 }
 
 fn createChrome() void {
@@ -170,13 +188,12 @@ fn computeSearchRect() void {
     if (s.width == 0 or s.height == 0) return;
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
-    const pw = @min(760.0, W - 80.0);
-    const ph = @min(620.0, H - 80.0);
-    const px = (W - pw) / 2.0;
-    const py = (H - ph) / 2.0 - 14.0;
-    const x: i32 = @intFromFloat(px + 78.0);
-    const y: i32 = @intFromFloat(py + 106.0);
-    g.search_rect = .{ x, y, 1, 20 };
+    const l = m.launcherLayout(W, H);
+    const x: i32 = @intFromFloat(@round(l.x + 78.0 * l.scale));
+    const y: i32 = @intFromFloat(@round(l.y + 106.0 * l.scale));
+    const w: i32 = @max(1, @as(i32, @intFromFloat(@round(l.scale))));
+    const h: i32 = @max(8, @as(i32, @intFromFloat(@round(20.0 * l.scale))));
+    g.search_rect = .{ x, y, w, h };
 }
 
 fn syncTextInput(cause: u32) void {
@@ -715,9 +732,9 @@ fn onOutputDone(data: ?*anyopaque, output: ?*c.wl_output) callconv(.c) void {
 }
 
 fn onOutputScale(data: ?*anyopaque, output: ?*c.wl_output, factor: c_int) callconv(.c) void {
-    _ = output;
-    _ = factor;
-    _ = outputInfo(data);
+    const info = outputInfo(data);
+    info.scale = @max(1, factor);
+    if (output != null and output == g.target_output) applyPanelScale(info.scale);
 }
 
 fn onOutputName(data: ?*anyopaque, output: ?*c.wl_output, name: [*c]const u8) callconv(.c) void {
@@ -727,6 +744,7 @@ fn onOutputName(data: ?*anyopaque, output: ?*c.wl_output, name: [*c]const u8) ca
     m.copyTrunc(&info.name, &info.name_len, std.mem.span(name));
     if (g.target_name_len > 0 and std.mem.eql(u8, info.name[0..info.name_len], g.target_name[0..g.target_name_len])) {
         g.target_output = info.wl;
+        applyPanelScale(info.scale);
     }
 }
 
@@ -744,6 +762,7 @@ fn selectTargetOutput() void {
         if (info.wl == null) continue;
         if (g.target_name_len > 0 and std.mem.eql(u8, info.name[0..info.name_len], g.target_name[0..g.target_name_len])) {
             g.target_output = info.wl;
+            applyPanelScale(info.scale);
             return;
         }
     }
@@ -754,6 +773,7 @@ fn selectTargetOutput() void {
     while (i < g.output_count) : (i += 1) {
         if (g.outputs[i].wl) |wl| {
             g.target_output = wl;
+            applyPanelScale(g.outputs[i].scale);
             if (g.target_name_len == 0 and g.outputs[i].name_len > 0) {
                 m.copyTrunc(&g.target_name, &g.target_name_len, g.outputs[i].name[0..g.outputs[i].name_len]);
             }
@@ -1333,6 +1353,7 @@ pub fn main() !void {
     g.* = std.mem.zeroes(m.Panel);
     g.running = true;
     g.active_ws = 1;
+    g.scale = 1;
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
     }

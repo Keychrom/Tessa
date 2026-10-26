@@ -28,7 +28,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
-  `wlr-randr`
+  `wlr-randr`, persisted across restarts; integer HiDPI panel buffer scaling
 - external extension API: event subscriptions, config hooks, custom bar status
   entries, custom launcher entries, and the `tessa-ctl` automation client
 - `relative-pointer-v1` for games and pointer-look applications
@@ -54,8 +54,9 @@ It has been built and tested on Ubuntu 26.04 with Zig 0.16.0 and wlroots
 Mozc, and X11 clients through `xwayland-satellite`. Dual-headless-output
 workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
-status entries, custom launcher entries, and config reload were exercised by
-`tests/smoke.sh` and a panel screenshot test.
+status entries, custom launcher entries, config reload, 2x HiDPI panel scaling,
+and output mode/position/scale persistence across restarts were exercised by
+`tests/smoke.sh`, `tests/output-persistence.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -297,10 +298,14 @@ Tessa auto-starts one `tessa-panel` process per output with
 TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 ```
 
-Output modes, positions, and scales can be changed with `wlr-randr`; Tessa
-implements `wlr-output-management-unstable-v1`. Settings are not persisted
-across restarts yet, and the panel's own buffer scale is still 1, so HiDPI
-outputs may show a scaled/blurred bar.
+Output modes, positions, scales, and transforms can be changed with `wlr-randr`;
+Tessa implements `wlr-output-management-unstable-v1`. Applied settings are
+saved to `$XDG_CONFIG_HOME/tessa/outputs.conf` (or
+`~/.config/tessa/outputs.conf`) and restored when the outputs appear again.
+Override the path with `output_config` in the main config or
+`TESSA_OUTPUT_CONFIG`. Panels follow `wl_output` scale, so integer HiDPI scales
+render the bar and launcher crisply. Fractional scales use the ceiling of the output scale as
+the integer buffer scale, and X11 clients still render at scale 1.
 
 ## Extensions
 
@@ -397,6 +402,7 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `startup` | command run once at startup |
 | `hook` | run a command for a compositor event |
 | `launcher_entry` | extra launcher item (`Name \| command`) |
+| `output_config` | path for persisted output mode/position/scale/transform |
 
 Additional bindings use XKB keysym names:
 
@@ -468,10 +474,11 @@ These are real and important:
 - **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
   the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
   pointer behavior and DRM mode setting still need a physical test pass.
-- **Output configuration is not persisted.** Use `wlr-randr` at runtime; modes,
-  positions, and scales are not saved to the config yet.
-- **HiDPI is partial.** Output scale works for clients, but the panel buffer is
-  still scale 1, so bars can be blurry on scaled outputs.
+- **Fractional scaling is partial.** The panel uses an integer Wayland buffer
+  scale and X11 clients render at scale 1. Integer HiDPI scales work, but
+  fractional desktop scaling needs a dedicated fractional-scale implementation.
+- **Disabled outputs are not persisted.** `wlr-randr --off` is runtime-only;
+  the saved output entry re-enables that output on the next start.
 - **One panel process per output.** This keeps each bar independent but uses
   more memory than a single multi-surface panel; a panel crash only affects its
   monitor.

@@ -12,6 +12,7 @@ const ime = @import("ime.zig");
 const lock = @import("lock.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
 
@@ -200,4 +201,5 @@ pub fn main() !void {
     events.emit(server, .{ .name = event_names.shutdown });
     ipc.deinit(server);
     c.wl_display_destroy_clients(server.display);
+    shutdown.cleanupGlobals(server);
 }

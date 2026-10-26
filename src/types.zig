@@ -58,6 +58,19 @@ pub const Binding = struct {
     arg_len: usize,
 };
 
+pub const SavedOutput = struct {
+    name: [64]u8 = undefined,
+    name_len: usize = 0,
+    width: i32 = 0,
+    height: i32 = 0,
+    refresh: i32 = 0,
+    x: i32 = 0,
+    y: i32 = 0,
+    scale: f32 = 1,
+    transform: u32 = 0,
+    present: bool = false,
+};
+
 pub const Hook = struct {
     event: [32]u8,
     event_len: usize,
@@ -105,6 +118,8 @@ pub const Config = struct {
     bg_len: usize,
     font: [64]u8,
     font_len: usize,
+    output_config: [512]u8,
+    output_config_len: usize,
     bindings: [MAX_BINDINGS]Binding,
     binding_count: usize,
     hooks: [MAX_HOOKS]Hook,
@@ -271,6 +286,10 @@ pub const Server = struct {
 
     outputs: [MAX_OUTPUTS]?*Output,
     output_count: usize,
+    saved_outputs: [MAX_OUTPUTS]SavedOutput,
+    saved_output_count: usize,
+    output_config_path: [512]u8,
+    output_config_len: usize,
     clients: [MAX_CLIENTS]?*Client,
     client_count: usize,
     layers: [MAX_LAYERS]?*LayerSurface,
@@ -285,6 +304,9 @@ pub const Server = struct {
     text_input_count: usize,
     im_popups: [8]?*ImPopup,
     im_popup_count: usize,
+    xdg_decoration_manager: ?*c.wlr_xdg_decoration_manager_v1,
+    xdg_activation: ?*c.wlr_xdg_activation_v1,
+    cursor_shape_manager: ?*c.wlr_cursor_shape_manager_v1,
     text_input_manager: ?*c.wlr_text_input_manager_v3,
     input_method_manager: ?*c.wlr_input_method_manager_v2,
     input_method: ?*c.wlr_input_method_v2,

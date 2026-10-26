@@ -209,18 +209,30 @@ fn createBuffer(s: *m.Surface, b: *m.Buffer, width: u32, height: u32) bool {
 
 fn ensureBuffers(s: *m.Surface) bool {
     if (s.width == 0 or s.height == 0) return false;
-    const expected: usize = @as(usize, s.width) * 4 * @as(usize, s.height);
+    const scale: usize = @intCast(@max(1, s.scale));
+    const buf_w: u32 = s.width * @as(u32, @intCast(scale));
+    const buf_h: u32 = s.height * @as(u32, @intCast(scale));
+    const expected: usize = @as(usize, buf_w) * 4 * @as(usize, buf_h);
     if (s.buffers[0].wl != null and s.buffers[0].size == expected) return true;
 
     destroyBuffers(s);
     var i: usize = 0;
     while (i < s.buffers.len) : (i += 1) {
-        if (!createBuffer(s, &s.buffers[i], s.width, s.height)) {
+        if (!createBuffer(s, &s.buffers[i], buf_w, buf_h)) {
             destroyBuffers(s);
             return false;
         }
     }
     return true;
+}
+
+pub fn setSurfaceScale(s: *m.Surface, scale: i32) void {
+    const scl = @max(1, scale);
+    if (s.scale == scl) return;
+    s.scale = scl;
+    if (s.wl) |wl| c.wl_surface_set_buffer_scale(wl, scl);
+    destroyBuffers(s);
+    s.dirty = true;
 }
 
 pub fn configureSurface(s: *m.Surface, width: u32, height: u32) void {
@@ -249,17 +261,21 @@ fn begin(s: *m.Surface) ?Draw {
     if (!ensureBuffers(s)) return null;
     const b = acquire(s) orelse return null;
 
+    const scale: f64 = @floatFromInt(@max(1, s.scale));
+    const buf_w: u32 = s.width * @as(u32, @intCast(@max(1, s.scale)));
+    const buf_h: u32 = s.height * @as(u32, @intCast(@max(1, s.scale)));
     const img = c.cairo_image_surface_create_for_data(
         @ptrCast(b.data.?),
         c.CAIRO_FORMAT_ARGB32,
-        @intCast(s.width),
-        @intCast(s.height),
-        @intCast(@as(usize, s.width) * 4),
+        @intCast(buf_w),
+        @intCast(buf_h),
+        @intCast(@as(usize, buf_w) * 4),
     ) orelse return null;
     const cr = c.cairo_create(img) orelse {
         c.cairo_surface_destroy(img);
         return null;
     };
+    c.cairo_scale(cr, scale, scale);
 
     const opts = c.cairo_font_options_create();
     c.cairo_font_options_set_antialias(opts, c.CAIRO_ANTIALIAS_GRAY);
@@ -282,7 +298,10 @@ fn end(s: *m.Surface, d: Draw) void {
     c.cairo_surface_destroy(d.img);
 
     c.wl_surface_attach(s.wl.?, d.b.wl.?, 0, 0);
-    c.wl_surface_damage_buffer(s.wl.?, 0, 0, @intCast(s.width), @intCast(s.height));
+    const scale: u32 = @intCast(@max(1, s.scale));
+    const damage_w: i32 = @intCast(s.width * scale);
+    const damage_h: i32 = @intCast(s.height * scale);
+    c.wl_surface_damage_buffer(s.wl.?, 0, 0, damage_w, damage_h);
     c.wl_surface_commit(s.wl.?);
     d.b.busy = true;
     s.dirty = false;
@@ -717,7 +736,13 @@ pub fn drawBar(s: *m.Surface) void {
 
 fn addOverlayHit(x: f64, y: f64, w: f64, h: f64, hit: m.Hit) void {
     if (g.overlay_hit_count >= g.overlay_hits.len) return;
-    g.overlay_hits[g.overlay_hit_count] = .{ .x = x, .y = y, .w = w, .h = h, .hit = hit };
+    g.overlay_hits[g.overlay_hit_count] = .{
+        .x = g.overlay_hit_x + x * g.overlay_hit_scale,
+        .y = g.overlay_hit_y + y * g.overlay_hit_scale,
+        .w = w * g.overlay_hit_scale,
+        .h = h * g.overlay_hit_scale,
+        .hit = hit,
+    };
     g.overlay_hit_count += 1;
 }
 
@@ -911,18 +936,27 @@ pub fn drawOverlay(s: *m.Surface) void {
     c.cairo_paint(cr);
     c.cairo_pattern_destroy(vp);
 
-    const pw = @min(760.0, W - 80.0);
-    const ph = @min(620.0, H - 80.0);
-    const px = (W - pw) / 2.0;
-    const py = (H - ph) / 2.0 - 14.0;
+    const l = m.launcherLayout(W, H);
+    g.overlay_hit_scale = l.scale;
+    g.overlay_hit_x = l.x;
+    g.overlay_hit_y = l.y;
 
-    const sc = 0.984 + 0.016 * t;
+    const anim = 0.984 + 0.016 * t;
     c.cairo_save(cr);
-    c.cairo_translate(cr, px + pw / 2.0, py + ph / 2.0);
-    c.cairo_scale(cr, sc, sc);
-    c.cairo_translate(cr, -(px + pw / 2.0), -(py + ph / 2.0));
-    drawLauncherPanel(cr, px, py, pw, ph, t);
+    c.cairo_translate(cr, l.x, l.y);
+    c.cairo_scale(cr, l.scale, l.scale);
+    c.cairo_translate(cr, 380.0, 310.0);
+    c.cairo_scale(cr, anim, anim);
+    c.cairo_translate(cr, -380.0, -310.0);
+    drawLauncherPanel(cr, 0, 0, 760, 620, t);
     c.cairo_restore(cr);
+
+    g.overlay_panel = .{
+        .x = l.x,
+        .y = l.y,
+        .w = 760.0 * l.scale,
+        .h = 620.0 * l.scale,
+    };
 
     end(s, d);
 }

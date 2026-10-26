@@ -172,6 +172,29 @@ printf 'STATE
 Output position/mode/scale can be exercised with `wlr-randr` if it is
 installed. The settings are runtime-only.
 
+### HiDPI and output persistence test
+
+Set a 2x scale and capture the panel. The bar should be 88 physical pixels high
+on a 1920x1080 mode and text should stay crisp:
+
+```sh
+wlr-randr --output HEADLESS-1 --scale 2
+grim -o HEADLESS-1 /tmp/hidpi.png
+```
+
+`wlr-randr` apply also writes `~/.config/tessa/outputs.conf` (or
+`$XDG_CONFIG_HOME/tessa/outputs.conf`). Set `TESSA_OUTPUT_CONFIG` or the
+`output_config` config key to redirect it. The headless test is self-contained:
+
+```sh
+WLR_RANDR=/path/to/wlr-randr sh tests/output-persistence.sh
+```
+
+It applies a 1280x720 custom mode, scale 2, and position 40,30, verifies the
+file, restarts, and checks the restored mode/scale/position. The launcher at 2x
+uses the same fitted 760x620 design, so its hit rectangles and IME cursor follow
+the visual scaling.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
@@ -225,6 +248,7 @@ Environment overrides:
 - `TESSA_NO_PANEL=1`
 - `TESSA_PANEL_BIN=/path/to/tessa-panel`
 - `TESSA_PANEL_OUTPUT=<output name>` (set automatically for per-output panels)
+- `TESSA_OUTPUT_CONFIG=/path/to/outputs.conf`
 - `TESSA_NO_XWAYLAND=1`
 - `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`
 - `TESSA_DEBUG=1`

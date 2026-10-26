@@ -60,7 +60,9 @@ a daily Japanese desktop, then by polish.
 - [ ] More tiling layouts and per-workspace layout profiles.
 - [ ] Mosaic layout minimum-size handling and keyboard resize.
 - [x] Output mode/position/scale management via `wlr-output-management-v1` (`wlr-randr`).
-- [ ] HiDPI-aware panel buffer scaling; persist output configuration.
+- [x] HiDPI-aware panel buffer scaling for integer output scales.
+- [x] Persist output mode, position, scale, and transform across restarts.
+- [ ] Fractional desktop scaling and XWayland scaling.
 - [ ] Multi-monitor workspace pinning.
 
 ## 1.0 — stability

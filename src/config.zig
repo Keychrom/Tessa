@@ -274,6 +274,8 @@ fn loadPath(server: *Server, path: []const u8, depth: usize) void {
             core.copyString(&server.config.bg, &server.config.bg_len, value);
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
+        } else if (std.mem.eql(u8, key, "output_config")) {
+            core.copyString(&server.config.output_config, &server.config.output_config_len, value);
         } else if (std.mem.eql(u8, key, "bind")) {
             if (std.mem.indexOfAny(u8, value, " \t")) |sp| {
                 const chord = value[0..sp];

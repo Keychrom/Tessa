@@ -60,6 +60,7 @@ pub const OutputInfo = struct {
     wl: ?*c.wl_output = null,
     name: [64]u8 = [_]u8{0} ** 64,
     name_len: usize = 0,
+    scale: i32 = 1,
     x: i32 = 0,
     y: i32 = 0,
     width: i32 = 0,
@@ -82,6 +83,7 @@ pub const Surface = struct {
     kind: SurfaceKind = .bar,
     wl: ?*c.wl_surface = null,
     layer: ?*c.zwlr_layer_surface_v1 = null,
+    scale: i32 = 1,
     width: u32 = 0,
     height: u32 = 0,
     configured: bool = false,
@@ -114,6 +116,7 @@ pub const Panel = struct {
     target_name: [64]u8 = [_]u8{0} ** 64,
     target_name_len: usize = 0,
     is_focused_output: bool = false,
+    scale: i32 = 1,
 
     active_ws: usize = 1,
     occ: [10]u32 = [_]u32{0} ** 10,
@@ -153,6 +156,9 @@ pub const Panel = struct {
     overlay_hit_count: usize = 0,
     overlay_panel: HitRect = .{},
     overlay_row_hover: usize = 999,
+    overlay_hit_scale: f64 = 1,
+    overlay_hit_x: f64 = 0,
+    overlay_hit_y: f64 = 0,
 
     launcher_open: bool = false,
     query: [128]u8 = [_]u8{0} ** 128,
@@ -192,6 +198,26 @@ pub const Panel = struct {
 };
 
 pub var g: Panel = undefined;
+
+pub const LauncherLayout = struct {
+    x: f64,
+    y: f64,
+    scale: f64,
+};
+
+/// Scale the 760x620 launcher design uniformly into the available logical
+/// surface. Keeping one transform for drawing, hit tests, and IME placement
+/// avoids separate small-screen layout rules.
+pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
+    const fit_x = @max(0.25, (w - 80.0) / 760.0);
+    const fit_y = @max(0.25, (h - 80.0) / 620.0);
+    const scale = @min(1.0, @min(fit_x, fit_y));
+    return .{
+        .x = (w - 760.0 * scale) / 2.0,
+        .y = (h - 620.0 * scale) / 2.0 - 8.0 * scale,
+        .scale = scale,
+    };
+}
 
 pub fn nowMs() i64 {
     var ts: c.timespec = undefined;

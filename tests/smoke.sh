@@ -183,6 +183,13 @@ epid=
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true
 tpid=
+if grep -qE 'Assertion|panic|thread .* panic' "$runtime/tessa.log"; then
+    echo "compositor did not shut down cleanly" >&2
+    grep -E 'Assertion|panic|thread .* panic' "$runtime/tessa.log" >&2
+    exit 1
+fi
+echo "clean shutdown: ok"
+
 trap - EXIT INT TERM
 rm -rf "$runtime"
 echo "smoke test passed"

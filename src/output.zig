@@ -18,6 +18,8 @@ fn lTree(sl: *c.wlr_scene_layer_surface_v1) *c.wlr_scene_tree {
 }
 
 pub fn init(server: *Server) void {
+    initOutputConfig(server);
+
     server.new_output.notify = onNewOutput;
     c.wl_signal_add(&server.backend.events.new_output, &server.new_output);
 
@@ -172,7 +174,196 @@ fn onOutputApply(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     layout.arrangeAll(server);
     c.wlr_output_configuration_v1_send_succeeded(config);
     updateOutputConfiguration(server);
+    saveOutputConfig(server);
     core.markDirty(server);
+}
+
+fn findSavedOutput(server: *Server, name: []const u8) ?*types.SavedOutput {
+    var i: usize = 0;
+    while (i < server.saved_output_count) : (i += 1) {
+        const saved = &server.saved_outputs[i];
+        if (saved.present and std.mem.eql(u8, saved.name[0..saved.name_len], name)) return saved;
+    }
+    return null;
+}
+
+fn loadOutputConfig(server: *Server) void {
+    if (server.output_config_len == 0) return;
+    var zpath: [512:0]u8 = undefined;
+    core.copyZ(&zpath, server.output_config_path[0..server.output_config_len]);
+    const file = c.fopen(&zpath, "r") orelse {
+        core.logDebug("output config: {s} not found", .{server.output_config_path[0..server.output_config_len]});
+        return;
+    };
+    defer _ = c.fclose(file);
+
+    var line: [512]u8 = undefined;
+    while (c.fgets(&line, @intCast(line.len), file)) |_| {
+        const raw = std.mem.span(@as([*:0]const u8, @ptrCast(&line)));
+        const trimmed = std.mem.trim(u8, raw, " \t\r\n");
+        if (trimmed.len == 0 or trimmed[0] == '#') continue;
+
+        var it = std.mem.tokenizeAny(u8, trimmed, " \t");
+        const tag = it.next() orelse continue;
+        if (!std.mem.eql(u8, tag, "output")) continue;
+        const name = it.next() orelse continue;
+        const width_s = it.next() orelse continue;
+        const height_s = it.next() orelse continue;
+        const refresh_s = it.next() orelse continue;
+        const x_s = it.next() orelse continue;
+        const y_s = it.next() orelse continue;
+        const scale_s = it.next() orelse continue;
+        const transform_s = it.next() orelse continue;
+
+        var saved = findSavedOutput(server, name);
+        if (saved == null) {
+            if (server.saved_output_count >= server.saved_outputs.len) continue;
+            saved = &server.saved_outputs[server.saved_output_count];
+            server.saved_output_count += 1;
+            saved.?.* = std.mem.zeroes(types.SavedOutput);
+        }
+        const entry = saved.?;
+        core.copyString(&entry.name, &entry.name_len, name);
+        entry.width = std.fmt.parseInt(i32, width_s, 10) catch 0;
+        entry.height = std.fmt.parseInt(i32, height_s, 10) catch 0;
+        entry.refresh = std.fmt.parseInt(i32, refresh_s, 10) catch 0;
+        entry.x = std.fmt.parseInt(i32, x_s, 10) catch 0;
+        entry.y = std.fmt.parseInt(i32, y_s, 10) catch 0;
+        entry.scale = std.fmt.parseFloat(f32, scale_s) catch 1.0;
+        entry.transform = std.fmt.parseInt(u32, transform_s, 10) catch 0;
+        entry.present = true;
+    }
+    if (server.saved_output_count > 0) {
+        core.logInfo("output config: loaded {d} entries from {s}", .{
+            server.saved_output_count,
+            server.output_config_path[0..server.output_config_len],
+        });
+    }
+}
+
+fn initOutputConfig(server: *Server) void {
+    var path_buf: [512]u8 = undefined;
+    var path: []const u8 = "";
+    if (c.getenv("TESSA_OUTPUT_CONFIG")) |p| {
+        path = core.cstr(p);
+    } else if (server.config.output_config_len > 0) {
+        path = server.config.output_config[0..server.config.output_config_len];
+    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/outputs.conf", .{core.cstr(p)}) catch "";
+    } else if (c.getenv("HOME")) |p| {
+        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/outputs.conf", .{core.cstr(p)}) catch "";
+    }
+    if (path.len == 0) return;
+    if (path.len >= server.output_config_path.len) {
+        core.logInfo("output config: path too long", .{});
+        return;
+    }
+    core.copyString(&server.output_config_path, &server.output_config_len, path);
+    loadOutputConfig(server);
+}
+
+fn ensureParentDirs(path: []const u8) void {
+    var buf: [512:0]u8 = undefined;
+    if (path.len >= buf.len) return;
+    core.copyZ(&buf, path);
+    var i: usize = 1;
+    while (i < path.len) : (i += 1) {
+        if (path[i] == '/') {
+            buf[i] = 0;
+            _ = c.mkdir(&buf, 0o755);
+            buf[i] = '/';
+        }
+    }
+}
+
+fn saveOutputConfig(server: *Server) void {
+    if (server.output_config_len == 0) return;
+    const path = server.output_config_path[0..server.output_config_len];
+    ensureParentDirs(path);
+
+    var path_z: [512:0]u8 = undefined;
+    var tmp_z: [520:0]u8 = undefined;
+    core.copyZ(&path_z, path);
+    const tmp = std.fmt.bufPrintZ(&tmp_z, "{s}.tmp", .{path}) catch return;
+
+    const file = c.fopen(tmp.ptr, "w") orelse {
+        core.logInfo("output config: cannot write {s}", .{path});
+        return;
+    };
+
+    const header = "# Tessa output configuration. Written by the compositor.\n" ++
+        "# output NAME WIDTH HEIGHT REFRESH_MHZ X Y SCALE TRANSFORM\n";
+    _ = c.fwrite(header.ptr, 1, header.len, file);
+
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        var box = c.wlr_box{ .x = 0, .y = 0, .width = 0, .height = 0 };
+        core.outputBox(server, out, &box);
+
+        var width = out.wlr.width;
+        var height = out.wlr.height;
+        var refresh = out.wlr.refresh;
+        if (out.wlr.current_mode != null) {
+            const mode: *c.wlr_output_mode = @ptrCast(@alignCast(out.wlr.current_mode));
+            width = mode.width;
+            height = mode.height;
+            refresh = mode.refresh;
+        }
+        var line_buf: [512]u8 = undefined;
+        const line = std.fmt.bufPrint(&line_buf, "output {s} {d} {d} {d} {d} {d} {d:.3} {d}\n", .{
+            core.outputName(out),
+            width,
+            height,
+            refresh,
+            box.x,
+            box.y,
+            out.wlr.scale,
+            out.wlr.transform,
+        }) catch continue;
+        _ = c.fwrite(line.ptr, 1, line.len, file);
+    }
+    _ = c.fclose(file);
+
+    if (c.rename(tmp.ptr, &path_z) != 0) {
+        _ = c.unlink(tmp.ptr);
+        core.logInfo("output config: rename failed for {s}", .{path});
+        return;
+    }
+    _ = c.chmod(&path_z, 0o600);
+    core.logInfo("output config: saved {d} output(s) to {s}", .{ server.output_count, path });
+}
+
+fn outputMode(out: *c.wlr_output, width: i32, height: i32, refresh: i32) ?*c.wlr_output_mode {
+    var link: ?*c.wl_list = out.modes.next;
+    while (link) |node| {
+        if (@intFromPtr(node) == @intFromPtr(&out.modes)) break;
+        const mode: *c.wlr_output_mode = @fieldParentPtr("link", node);
+        if (mode.width == width and mode.height == height and
+            (refresh == 0 or mode.refresh == refresh)) return mode;
+        link = node.next;
+    }
+    return null;
+}
+
+fn setDefaultMode(out: *c.wlr_output, state: *c.wlr_output_state) void {
+    if (c.wlr_output_is_headless(out)) {
+        c.wlr_output_state_set_custom_mode(state, 1920, 1080, 60000);
+    } else if (c.wlr_output_preferred_mode(out)) |mode| {
+        c.wlr_output_state_set_mode(state, mode);
+    }
+}
+
+fn setSavedMode(out: *c.wlr_output, state: *c.wlr_output_state, saved: *types.SavedOutput) void {
+    if (saved.width <= 0 or saved.height <= 0) {
+        setDefaultMode(out, state);
+        return;
+    }
+    if (outputMode(out, saved.width, saved.height, saved.refresh)) |mode| {
+        c.wlr_output_state_set_mode(state, mode);
+    } else {
+        c.wlr_output_state_set_custom_mode(state, saved.width, saved.height, saved.refresh);
+    }
 }
 
 pub fn initOutputManagement(server: *Server) void {
@@ -265,16 +456,35 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         return;
     }
 
+    const saved = findSavedOutput(server, core.cstr(wlr_out.name));
     var state: c.wlr_output_state = undefined;
     c.wlr_output_state_init(&state);
     c.wlr_output_state_set_enabled(&state, true);
-    c.wlr_output_state_set_scale(&state, 1.0);
-    if (c.wlr_output_is_headless(wlr_out)) {
-        c.wlr_output_state_set_custom_mode(&state, 1920, 1080, 60000);
-    } else if (c.wlr_output_preferred_mode(wlr_out)) |mode| {
-        c.wlr_output_state_set_mode(&state, mode);
+    var scale: f32 = 1.0;
+    if (saved) |entry| {
+        if (entry.scale >= 0.1 and entry.scale <= 10.0) scale = entry.scale;
     }
-    if (!c.wlr_output_commit_state(wlr_out, &state)) {
+    c.wlr_output_state_set_scale(&state, scale);
+    if (saved) |entry| {
+        if (entry.transform <= 7) c.wlr_output_state_set_transform(&state, entry.transform);
+        setSavedMode(wlr_out, &state, entry);
+    } else {
+        setDefaultMode(wlr_out, &state);
+    }
+    var committed = c.wlr_output_commit_state(wlr_out, &state);
+    if (!committed and saved != null) {
+        core.logInfo("saved output state for {s} failed; using defaults", .{core.cstr(wlr_out.name)});
+        c.wlr_output_state_finish(&state);
+        c.wlr_output_state_init(&state);
+        c.wlr_output_state_set_enabled(&state, true);
+        c.wlr_output_state_set_scale(&state, scale);
+        if (saved) |entry| {
+            if (entry.transform <= 7) c.wlr_output_state_set_transform(&state, entry.transform);
+        }
+        setDefaultMode(wlr_out, &state);
+        committed = c.wlr_output_commit_state(wlr_out, &state);
+    }
+    if (!committed) {
         core.logInfo("failed to commit initial state for output {s}", .{core.cstr(wlr_out.name)});
     }
     c.wlr_output_state_finish(&state);
@@ -291,7 +501,11 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.destroy.notify = onOutputDestroy;
     c.wl_signal_add(&wlr_out.events.destroy, &out.destroy);
 
-    out.layout_output = c.wlr_output_layout_add_auto(server.output_layout, wlr_out);
+    if (saved) |entry| {
+        out.layout_output = c.wlr_output_layout_add(server.output_layout, wlr_out, entry.x, entry.y);
+    } else {
+        out.layout_output = c.wlr_output_layout_add_auto(server.output_layout, wlr_out);
+    }
     out.scene_output = c.wlr_scene_output_create(server.scene, wlr_out);
     c.wlr_scene_output_layout_add_output(server.scene_layout, out.layout_output, out.scene_output);
 

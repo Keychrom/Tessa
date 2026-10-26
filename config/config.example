@@ -22,6 +22,11 @@ panel = true
 xwayland = true
 xwayland_display = auto
 
+# Where wlr-randr changes are persisted. The default is
+# $XDG_CONFIG_HOME/tessa/outputs.conf (or ~/.config/tessa/outputs.conf).
+# TESSA_OUTPUT_CONFIG overrides this. Use an absolute path.
+# output_config = /home/you/.config/tessa/outputs.conf
+
 # XKB keyboard layout. Empty values use the environment defaults.
 # Example: kb_layout = us,de
 #          kb_options = grp:alt_shift_toggle

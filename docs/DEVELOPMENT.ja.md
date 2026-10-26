@@ -148,6 +148,30 @@ printf 'STATE\n' \
 wtype は独自の小さなキーマップをインストールするため、実際の文字入力の
 テストには物理キーボードの方が適しています。
 
+### HiDPI と出力設定の永続化テスト
+
+2 倍スケールを設定してパネルを撮影します。1920x1080 モードではバーが物理
+88 px になり、文字が鮮明なままであることを確認できます。
+
+```sh
+wlr-randr --output HEADLESS-1 --scale 2
+grim -o HEADLESS-1 /tmp/hidpi.png
+```
+
+`wlr-randr` の apply は `~/.config/tessa/outputs.conf`（または
+`$XDG_CONFIG_HOME/tessa/outputs.conf`）も更新します。保存先は
+`TESSA_OUTPUT_CONFIG` または設定キー `output_config` で変更できます。
+自己完結の headless テストもあります。
+
+```sh
+WLR_RANDR=/path/to/wlr-randr sh tests/output-persistence.sh
+```
+
+このテストは 1280x720 のカスタムモード、スケール 2、位置 40,30 を適用し、
+設定ファイルを確認してから再起動し、モード/スケール/位置の復元を検証します。
+2 倍時のランチャーは同じ 760x620 デザインをフィットさせるため、ヒット矩形と
+IME カーソルも見た目のスケーリングに追従します。
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、
@@ -202,6 +226,8 @@ WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/tmp/tessa-headless \
 - `TESSA_CONFIG=/path/to/config`
 - `TESSA_NO_PANEL=1`
 - `TESSA_PANEL_BIN=/path/to/tessa-panel`
+- `TESSA_PANEL_OUTPUT=<出力名>`（出力ごとのパネルで自動設定）
+- `TESSA_OUTPUT_CONFIG=/path/to/outputs.conf`
 - `TESSA_NO_XWAYLAND=1`
 - `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`
 - `TESSA_DEBUG=1`

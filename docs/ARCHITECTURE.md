@@ -197,12 +197,21 @@ forwarded to the layer. This is what lets the launcher receive typing.
 ## Output management
 
 `output.zig` creates `wlr-output-manager-v1` and keeps its head list current
-with the actual layout positions. `wlr-randr --output ... --mode/--pos/--scale`
-is supported. Apply requests are tested atomically with
+with the actual layout positions. `wlr-randr --output ... --mode/--pos/--scale/
+--transform` is supported. Apply requests are tested atomically with
 `wlr_backend_test`, committed, then the output layout is updated from the
 configuration head states; the layer layout is reconfigured and positions are
-republished to clients. Output configuration is not persisted across restarts.
-The output power-management protocol is separate and handled in `idle.zig`.
+republished to clients.
+
+A successful apply atomically writes the current output set to
+`outputs.conf` (`$XDG_CONFIG_HOME/tessa/outputs.conf` by default). Each line
+stores name, pixel mode, refresh, layout position, scale, and transform. On
+`new_output`, a matching entry is applied before the scene output is added; the
+layout position comes from the saved box, and a failed saved mode falls back to
+the preferred/headless default. Invalid or missing entries are ignored. The
+file is mode 0600 and is never rewritten at startup, only on apply. Output
+`enabled` state is not persisted yet. The output power-management protocol is
+separate and handled in `idle.zig`.
 
 ## Session lock
 
@@ -345,10 +354,15 @@ output.
 
 - **background**: layer background, anchors all edges, exclusive zone -1, empty
   input region. Draws the wallpaper once per configure.
-- **bar**: layer top, top/left/right anchors, 44 px high, 12/16 px margins,
-  exclusive zone 44. Hit rectangles for the menu, workspace pills, window
-  chips, and extension status pills are recomputed on each draw. The panel
-  reloads its own config and rescan when it receives `config-reload`.
+- **bar**: layer top, top/left/right anchors, 44 logical px high, 12/16 px
+  margins, exclusive zone 44. Hit rectangles for the menu, workspace pills,
+  window chips, and extension status pills are recomputed on each draw. The
+  panel reloads its own config and rescan when it receives `config-reload`.
+- All panel surfaces use the target `wl_output` scale. Buffers are allocated at
+  `logical_size * scale`, drawing applies a Cairo scale, and hit/IME rectangles
+  stay in logical coordinates. The 760x620 launcher design is uniformly fitted
+  to the logical surface; the same transform maps its visual hit rects and IME
+  cursor rectangle.
 - **launcher**: created on demand, layer overlay, anchors all edges, exclusive
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface:
   the dim backdrop and the centered panel are drawn into it, so clicks outside
@@ -435,3 +449,7 @@ The generated headers/C under `protocol/` are committed:
   layer is ignored until that association happens.
 - Each panel process exits when its output disappears (its bar layer surface is
   closed); the other monitors keep their panels.
+- On compositor shutdown, `shutdown.zig` removes global/per-output/per-keyboard
+  listeners before `wl_display_destroy`. wlroots asserts that these signal
+  lists are empty; leaving the xdg-shell listener installed aborted the process
+  on exit.

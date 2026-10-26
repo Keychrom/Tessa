@@ -33,6 +33,7 @@ pub fn init(server: *Server) void {
     const deco_mgr_raw = c.wlr_xdg_decoration_manager_v1_create(server.display);
     if (deco_mgr_raw != null) {
         const mgr: *c.wlr_xdg_decoration_manager_v1 = @ptrCast(@alignCast(deco_mgr_raw));
+        server.xdg_decoration_manager = mgr;
         server.new_toplevel_decoration.notify = onNewToplevelDecoration;
         c.wl_signal_add(&mgr.events.new_toplevel_decoration, &server.new_toplevel_decoration);
     }
@@ -40,6 +41,7 @@ pub fn init(server: *Server) void {
     const activation_raw = c.wlr_xdg_activation_v1_create(server.display);
     if (activation_raw != null) {
         const activation: *c.wlr_xdg_activation_v1 = @ptrCast(@alignCast(activation_raw));
+        server.xdg_activation = activation;
         server.request_activate.notify = onActivationRequest;
         c.wl_signal_add(&activation.events.request_activate, &server.request_activate);
     }

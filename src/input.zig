@@ -70,6 +70,7 @@ pub fn init(server: *Server) void {
     const shape_mgr_raw = c.wlr_cursor_shape_manager_v1_create(server.display, 1);
     if (shape_mgr_raw != null) {
         const shape_mgr: *c.wlr_cursor_shape_manager_v1 = @ptrCast(@alignCast(shape_mgr_raw));
+        server.cursor_shape_manager = shape_mgr;
         server.request_set_shape.notify = onRequestSetShape;
         c.wl_signal_add(&shape_mgr.events.request_set_shape, &server.request_set_shape);
     }
