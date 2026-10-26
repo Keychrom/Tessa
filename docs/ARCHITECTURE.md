@@ -80,6 +80,8 @@ windows stay above the launcher and clients.
 
 A client frame is a `wlr_scene_tree` containing:
 
+- three translucent `wlr_scene_rect` shadow layers, growing outward from the
+  frame,
 - one `wlr_scene_rect` behind the surface, used as the border/accent,
 - the xdg surface tree returned by `wlr_scene_xdg_surface_create`.
 
@@ -93,6 +95,24 @@ popups have no xdg parent when their `xdg_popup` is created; the layer surface's
 parent. `output.zig` listens for that event and creates the popup scene tree
 under the layer surface's tree. This is what makes third-party panel menus and
 dropdowns visible.
+
+## Window motion and shadows
+
+Motion is a position offset on the client frame node; layout still records the
+logical `x`/`y` in the `Client`. `startOpenAnimation()` offsets a newly mapped
+window by 18 px vertically. `startWorkspaceAnimation()` offsets every mapped
+window on the incoming workspace by ±54 px horizontally, choosing the sign from
+the direction of travel. `tickAnimations()` evaluates a cubic ease-out against
+`animation_ms` and writes `x + off_x`, `y + off_y` to the scene node. `applyFrame`
+also adds the current offset, so a relayout during a transition does not snap the
+window. Output frame callbacks drive the clock: `onOutputFrame` ticks active
+animations before committing and schedules another frame while any remain.
+
+`animations = false`, `reduce_motion = true`, or `animation_ms = 0` skip the
+offset entirely. A config reload clears active animations before applying new
+geometry. Shadows are the three pre-created scene rectangles described above;
+`updateShadows()` scales them with the frame and `shadows = false` disables
+them.
 
 ## Layer-shell sizing
 
@@ -439,7 +459,9 @@ output.
 ### Surfaces
 
 - **background**: layer background, anchors all edges, exclusive zone -1, empty
-  input region. Draws the wallpaper once per configure.
+  input region. Draws the wallpaper once per configure: a vertical gradient
+  derived from `bg` or explicit `bg_top`/`bg_bottom`, plus optional accent art
+  (`wallpaper_art`).
 - **bar**: layer top, top/left/right anchors, configurable height
   (`bar_height`, default 44), top/side margins, exclusive zone equal to the
   height. A geometry change recreates this surface. Hit rectangles for the menu,

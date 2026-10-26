@@ -37,6 +37,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   state/config snapshots for external tools
 - named input modes with mode-specific key bindings and `enter-mode`
 - configurable bar height, top/side margins, and bar background/foreground colors
+- window open/workspace slide animations with `reduce_motion` and duration
+  settings; soft layered window shadows; configurable wallpaper gradient colors
+  and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
@@ -91,9 +94,9 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
-`tests/foreign-toplevels.sh`, and `tests/portal.sh`. The portal test performs an
-end-to-end ScreenCast when the portal and PipeWire services are installed;
-otherwise it skips.
+`tests/foreign-toplevels.sh`, `tests/animations.sh`, and `tests/portal.sh`.
+The portal test performs an end-to-end ScreenCast when the portal and PipeWire
+services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -681,6 +684,11 @@ These are real and important:
   replacement, close, and expiry. Cross-output routing sends toasts to the
   focused output. Rich HTML markup beyond Pango's subset, notification sounds,
   and per-notification output pinning are not implemented.
+- **Window effects are still simple.** Open and workspace transitions slide the
+  window frame with a cubic ease-out; shadows are fixed layered rectangles.
+  Close animations, scale/fade transitions, rounded corners, and blur are not
+  implemented yet. Set `animations = false` or `reduce_motion = true` to disable
+  motion.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
   MPRIS controls the first discovered player and does not display album art.

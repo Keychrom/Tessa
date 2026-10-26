@@ -426,6 +426,11 @@ pub const Panel = struct {
 
     accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
+    bg_top: [3]f64 = .{ 0, 0, 0 },
+    bg_top_set: bool = false,
+    bg_bottom: [3]f64 = .{ 0, 0, 0 },
+    bg_bottom_set: bool = false,
+    wallpaper_art: bool = true,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
     bar_height: i32 = 44,
@@ -485,6 +490,18 @@ fn hexColor(hex_in: []const u8, out: *[3]f64) void {
     out[0] = @as(f64, @floatFromInt(r)) / 255.0;
     out[1] = @as(f64, @floatFromInt(gg)) / 255.0;
     out[2] = @as(f64, @floatFromInt(b)) / 255.0;
+}
+
+fn parsePanelBool(value: []const u8) ?bool {
+    if (std.ascii.eqlIgnoreCase(value, "true") or
+        std.ascii.eqlIgnoreCase(value, "on") or
+        std.ascii.eqlIgnoreCase(value, "yes") or
+        std.mem.eql(u8, value, "1")) return true;
+    if (std.ascii.eqlIgnoreCase(value, "false") or
+        std.ascii.eqlIgnoreCase(value, "off") or
+        std.ascii.eqlIgnoreCase(value, "no") or
+        std.mem.eql(u8, value, "0")) return false;
+    return null;
 }
 
 fn trim(s: []const u8) []const u8 {
@@ -547,6 +564,14 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             hexColor(val, &g.accent);
         } else if (std.mem.eql(u8, key, "bg")) {
             hexColor(val, &g.bg_rgb);
+        } else if (std.mem.eql(u8, key, "bg_top")) {
+            hexColor(val, &g.bg_top);
+            g.bg_top_set = true;
+        } else if (std.mem.eql(u8, key, "bg_bottom")) {
+            hexColor(val, &g.bg_bottom);
+            g.bg_bottom_set = true;
+        } else if (std.mem.eql(u8, key, "wallpaper_art")) {
+            g.wallpaper_art = parsePanelBool(val) orelse g.wallpaper_art;
         } else if (std.mem.eql(u8, key, "panel_bg")) {
             hexColor(val, &g.panel_bg);
         } else if (std.mem.eql(u8, key, "panel_fg")) {
@@ -586,6 +611,11 @@ pub fn loadConfig() void {
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.accent = .{ 0.886, 0.408, 0.31 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
+    g.bg_top = .{ 0, 0, 0 };
+    g.bg_top_set = false;
+    g.bg_bottom = .{ 0, 0, 0 };
+    g.bg_bottom_set = false;
+    g.wallpaper_art = true;
     g.panel_bg = .{ 0.055, 0.075, 0.115 };
     g.panel_fg = .{ 0.93, 0.95, 0.98 };
     g.bar_height = 44;

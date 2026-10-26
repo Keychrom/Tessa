@@ -49,6 +49,14 @@ layout = master
 # layout_helper = python3 ~/.config/tessa/layout.py
 # layout_helper_timeout = 100
 
+# Window motion. Open and workspace switches slide into place; set
+# reduce_motion = true or animations = false for an immediate layout.
+animations = true
+reduce_motion = false
+animation_ms = 160
+# Soft stacked shadows behind tiled and floating windows.
+shadows = true
+
 # Start tessa-panel together with the compositor.
 panel = true
 # Panel geometry and bar palette. Changes apply on config reload by recreating
@@ -58,6 +66,11 @@ bar_top_margin = 12
 bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
+# Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
+# wallpaper_art = false for a clean gradient without ink/sun/water artwork.
+# bg_top = #162038
+# bg_bottom = #070a12
+# wallpaper_art = true
 
 # Commands for the power menu (right-click the TESSA mark).
 power_lock = loginctl lock-session

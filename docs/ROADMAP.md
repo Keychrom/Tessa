@@ -67,12 +67,14 @@ a daily Japanese desktop, then by polish.
 
 ## 0.4 — visual and layout depth
 
-- [ ] Window open/close/workspace transition animations (optional, with a
-      reduced-motion setting).
+- [x] Window open and workspace transition animations, with `animations`,
+      `animation_ms`, and `reduce_motion` settings.
+- [ ] Window close animations and scale/fade easing snapshots.
 - [ ] Rounded corners and blur via custom wlroots shaders.
-- [ ] Proper drop shadows.
+- [x] Window drop shadows using layered scene geometry (`shadows = true`).
 - [x] Theme/config for bar height, margins, fonts, and palette.
-- [ ] Configurable wallpaper art/gradients.
+- [x] Configurable wallpaper gradients (`bg_top`/`bg_bottom`) and an art toggle
+      (`wallpaper_art`).
 - [x] Grid and equal-column layouts, with per-workspace layout profiles and
       runtime layout cycling.
 - [x] Mosaic minimum-size fallback and keyboard floating resize.

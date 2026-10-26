@@ -282,6 +282,19 @@ panel.
 sh tests/panel-theme.sh
 ```
 
+### Animation and visual test
+
+`tests/animations.sh` starts a private headless compositor without the panel,
+enables 250 ms animations and shadows, and sets an explicit wallpaper gradient.
+It launches `foot` and checks the debug log for the open transition
+(`animation: start id=1 from=0,18` and a matching done line), switches to
+workspace 2 and back to verify the horizontal transition (`from=-54,0`), and
+finishes with `tessa-ctl config-check` to confirm the visual keys are accepted.
+
+```sh
+sh tests/animations.sh
+```
+
 ### Panel popover test
 
 `tests/panel-popovers.sh` starts the compositor and panel, opens the calendar

@@ -248,6 +248,7 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     client.announced = true;
     copyMeta(client);
     rules.applyToClient(client);
+    layout.startOpenAnimation(client);
     layout.arrangeAll(client.server);
     events.emit(client.server, .{
         .name = event_names.window_open,
@@ -443,6 +444,13 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
 
     client.frame = c.wlr_scene_tree_create(server.tree_windows);
     client.frame.node.data = @ptrCast(client);
+
+    const shadow_alphas = [3]f32{ 0.045, 0.055, 0.070 };
+    var si: usize = 0;
+    while (si < client.shadow_rects.len) : (si += 1) {
+        const col = [4]f32{ 0, 0, 0, shadow_alphas[si] };
+        client.shadow_rects[si] = c.wlr_scene_rect_create(client.frame, 1, 1, &col);
+    }
 
     const inactive_rgb = if (server.config.border_inactive_len > 0)
         server.config.border_inactive_rgb

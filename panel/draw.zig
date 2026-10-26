@@ -352,84 +352,91 @@ const Prng = struct {
 
 fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
     const bg = g.bg_rgb;
-    const top = [4]f64{ bg[0] * 1.9 + 0.012, bg[1] * 1.9 + 0.018, bg[2] * 1.9 + 0.030, 1.0 };
-    const bottom = [4]f64{ bg[0] * 0.55, bg[1] * 0.55, bg[2] * 0.6, 1.0 };
+    const top = if (g.bg_top_set)
+        [4]f64{ g.bg_top[0], g.bg_top[1], g.bg_top[2], 1.0 }
+    else
+        [4]f64{ bg[0] * 1.9 + 0.012, bg[1] * 1.9 + 0.018, bg[2] * 1.9 + 0.030, 1.0 };
+    const bottom = if (g.bg_bottom_set)
+        [4]f64{ g.bg_bottom[0], g.bg_bottom[1], g.bg_bottom[2], 1.0 }
+    else
+        [4]f64{ bg[0] * 0.55, bg[1] * 0.55, bg[2] * 0.6, 1.0 };
     paintGradientRect(cr, 0, 0, w, h, top, bottom);
 
     const accent = g.accent;
-
-    // broad wash
-    c.cairo_save(cr);
-    c.cairo_translate(cr, w * 0.78, h * 0.24);
-    c.cairo_scale(cr, 1.7, 1.0);
-    radialFill(cr, 0, 0, 0, h * 0.44, .{ accent[0], accent[1], accent[2], 0.12 }, .{ accent[0], accent[1], accent[2], 0.0 });
-    c.cairo_restore(cr);
-
-    // ink blots
-    const blots = [_][4]f64{
-        .{ 0.20, 0.72, 0.42, 0.030 },
-        .{ 0.64, 0.78, 0.54, 0.022 },
-        .{ 0.08, 0.30, 0.34, 0.020 },
-        .{ 0.44, 0.14, 0.26, 0.018 },
-        .{ 0.88, 0.62, 0.30, 0.026 },
-    };
-    for (blots) |b| {
+    if (g.wallpaper_art) {
+        // broad wash
         c.cairo_save(cr);
-        c.cairo_translate(cr, w * b[0], h * b[1]);
-        c.cairo_scale(cr, 1.5, 0.8);
-        radialFill(cr, 0, 0, 0, h * b[2], .{ 0.10, 0.25, 0.28, b[3] }, .{ 0.10, 0.25, 0.28, 0.0 });
+        c.cairo_translate(cr, w * 0.78, h * 0.24);
+        c.cairo_scale(cr, 1.7, 1.0);
+        radialFill(cr, 0, 0, 0, h * 0.44, .{ accent[0], accent[1], accent[2], 0.12 }, .{ accent[0], accent[1], accent[2], 0.0 });
         c.cairo_restore(cr);
-    }
 
-    // sun
-    const cx = w * 0.79;
-    const cy = h * 0.235;
-    const sr = h * 0.155;
-    radialFill(cr, cx, cy, sr * 0.65, sr * 2.8, .{ accent[0], accent[1], accent[2], 0.18 }, .{ accent[0], accent[1], accent[2], 0.0 });
+        // ink blots
+        const blots = [_][4]f64{
+            .{ 0.20, 0.72, 0.42, 0.030 },
+            .{ 0.64, 0.78, 0.54, 0.022 },
+            .{ 0.08, 0.30, 0.34, 0.020 },
+            .{ 0.44, 0.14, 0.26, 0.018 },
+            .{ 0.88, 0.62, 0.30, 0.026 },
+        };
+        for (blots) |b| {
+            c.cairo_save(cr);
+            c.cairo_translate(cr, w * b[0], h * b[1]);
+            c.cairo_scale(cr, 1.5, 0.8);
+            radialFill(cr, 0, 0, 0, h * b[2], .{ 0.10, 0.25, 0.28, b[3] }, .{ 0.10, 0.25, 0.28, 0.0 });
+            c.cairo_restore(cr);
+        }
 
-    c.cairo_save(cr);
-    c.cairo_new_sub_path(cr);
-    c.cairo_arc(cr, cx, cy, sr, 0, PI * 2.0);
-    c.cairo_clip(cr);
-    paintGradientRect(cr, cx - sr, cy - sr, sr * 2, sr * 2, .{ 0.93, 0.47, 0.35, 0.58 }, .{ 0.55, 0.15, 0.15, 0.26 });
-    c.cairo_restore(cr);
+        // sun
+        const cx = w * 0.79;
+        const cy = h * 0.235;
+        const sr = h * 0.155;
+        radialFill(cr, cx, cy, sr * 0.65, sr * 2.8, .{ accent[0], accent[1], accent[2], 0.18 }, .{ accent[0], accent[1], accent[2], 0.0 });
 
-    c.cairo_new_sub_path(cr);
-    c.cairo_arc(cr, cx, cy, sr * 1.26, 0, PI * 2.0);
-    setColor(cr, .{ accent[0], accent[1], accent[2], 0.18 });
-    c.cairo_set_line_width(cr, 1.0);
-    c.cairo_stroke(cr);
+        c.cairo_save(cr);
+        c.cairo_new_sub_path(cr);
+        c.cairo_arc(cr, cx, cy, sr, 0, PI * 2.0);
+        c.cairo_clip(cr);
+        paintGradientRect(cr, cx - sr, cy - sr, sr * 2, sr * 2, .{ 0.93, 0.47, 0.35, 0.58 }, .{ 0.55, 0.15, 0.15, 0.26 });
+        c.cairo_restore(cr);
 
-    // faint tessellation
-    c.cairo_save(cr);
-    var tri: usize = 0;
-    while (tri < 10) : (tri += 1) {
-        const bx = w * (0.06 + 0.085 * @as(f64, @floatFromInt(tri % 5)));
-        const by = h * (0.62 + 0.07 * @as(f64, @floatFromInt(tri / 5)));
-        const size = h * 0.16;
-        c.cairo_new_path(cr);
-        c.cairo_move_to(cr, bx, by);
-        c.cairo_line_to(cr, bx + size, by + size * 0.55);
-        c.cairo_line_to(cr, bx + size * 0.2, by + size);
-        c.cairo_close_path(cr);
-        setColor(cr, .{ 1.0, 1.0, 1.0, if (tri % 2 == 0) 0.010 else 0.004 });
-        c.cairo_fill(cr);
-        setColor(cr, .{ 1.0, 1.0, 1.0, 0.012 });
-        c.cairo_set_line_width(cr, 0.8);
+        c.cairo_new_sub_path(cr);
+        c.cairo_arc(cr, cx, cy, sr * 1.26, 0, PI * 2.0);
+        setColor(cr, .{ accent[0], accent[1], accent[2], 0.18 });
+        c.cairo_set_line_width(cr, 1.0);
         c.cairo_stroke(cr);
-    }
-    c.cairo_restore(cr);
 
-    // water lines
-    var k: usize = 0;
-    while (k < 6) : (k += 1) {
-        const y = h * (0.80 + 0.028 * @as(f64, @floatFromInt(k)));
-        c.cairo_new_path(cr);
-        c.cairo_move_to(cr, 0, y);
-        c.cairo_curve_to(cr, w * 0.32, y - 10.0, w * 0.62, y + 8.0, w, y - 4.0);
-        setColor(cr, .{ 1.0, 1.0, 1.0, 0.010 + 0.004 * @as(f64, @floatFromInt(k)) });
-        c.cairo_set_line_width(cr, 0.8);
-        c.cairo_stroke(cr);
+        // faint tessellation
+        c.cairo_save(cr);
+        var tri: usize = 0;
+        while (tri < 10) : (tri += 1) {
+            const bx = w * (0.06 + 0.085 * @as(f64, @floatFromInt(tri % 5)));
+            const by = h * (0.62 + 0.07 * @as(f64, @floatFromInt(tri / 5)));
+            const size = h * 0.16;
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, bx, by);
+            c.cairo_line_to(cr, bx + size, by + size * 0.55);
+            c.cairo_line_to(cr, bx + size * 0.2, by + size);
+            c.cairo_close_path(cr);
+            setColor(cr, .{ 1.0, 1.0, 1.0, if (tri % 2 == 0) 0.010 else 0.004 });
+            c.cairo_fill(cr);
+            setColor(cr, .{ 1.0, 1.0, 1.0, 0.012 });
+            c.cairo_set_line_width(cr, 0.8);
+            c.cairo_stroke(cr);
+        }
+        c.cairo_restore(cr);
+
+        // water lines
+        var k: usize = 0;
+        while (k < 6) : (k += 1) {
+            const y = h * (0.80 + 0.028 * @as(f64, @floatFromInt(k)));
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, 0, y);
+            c.cairo_curve_to(cr, w * 0.32, y - 10.0, w * 0.62, y + 8.0, w, y - 4.0);
+            setColor(cr, .{ 1.0, 1.0, 1.0, 0.010 + 0.004 * @as(f64, @floatFromInt(k)) });
+            c.cairo_set_line_width(cr, 0.8);
+            c.cairo_stroke(cr);
+        }
     }
 
     // film grain

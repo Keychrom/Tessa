@@ -261,6 +261,20 @@ sh tests/modes.sh
 sh tests/panel-theme.sh
 ```
 
+### アニメーション/視覚設定のテスト
+
+`tests/animations.sh` はパネルなしのプライベートな headless コンポジタを
+起動し、250 ms のアニメーション、シャドウ、明示的な壁紙グラデーションを
+有効にします。`foot` を起動して開く遷移のデバッグログ
+（`animation: start id=1 from=0,18` と対応する done 行）を確認し、
+ワークスペース 2 へ切り替えて戻ることで横方向の遷移（`from=-54,0`）も
+検証します。最後に `tessa-ctl config-check` で視覚設定キーが受け付けられる
+ことを確認します。
+
+```sh
+sh tests/animations.sh
+```
+
 ### パネルポップオーバーのテスト
 
 `tests/panel-popovers.sh` はコンポジタとパネルを起動し、`panel` IPC

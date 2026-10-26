@@ -311,6 +311,7 @@ pub fn reloadRuntime(server: *Server) void {
     reloadKeymaps(server);
     layout_helper.reload(server);
     rules.applyAll(server);
+    layout.clearAnimations(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);
     layout.ensureVisibleFocus(server);

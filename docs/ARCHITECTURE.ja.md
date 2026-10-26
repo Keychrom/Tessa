@@ -79,6 +79,7 @@ tree_popup       入力メソッドの候補ポップアップ（ime.zig が作�
 
 クライアントのフレームは `wlr_scene_tree` で、次を含みます:
 
+- フレームの外側へ広がる半透明の `wlr_scene_rect` シャドウ 3 枚
 - サーフェスの背面にある `wlr_scene_rect`（ボーダー/アクセント）
 - `wlr_scene_xdg_surface_create` が返す xdg サーフェスツリー
 
@@ -93,6 +94,25 @@ layer-shell のポップアップは、`xdg_popup` 作成時点では xdg の親
 `new_popup` イベントが発火します。`output.zig` がこのイベントを監視し、
 layer サーフェスのツリーの下にポップアップのシーンツリーを作成します。
 これによりサードパーティパネルのメニューやドロップダウンが表示されます。
+
+## ウィンドウの動きとシャドウ
+
+動きはクライアントフレームノードの位置オフセットで実現し、論理的な
+`x`/`y` は `Client` に保持したままです。`startOpenAnimation()` は map
+直後のウィンドウを縦 18 px ずらし、`startWorkspaceAnimation()` は新しい
+ワークスペース上の map 済みウィンドウを進行方向に応じて横 ±54 px
+ずらします。`tickAnimations()` が `animation_ms` に対する cubic ease-out
+を計算し、`x + off_x`、`y + off_y` をシーンノードへ書き込みます。
+`applyFrame` も現在のオフセットを加えるため、遷移中の再レイアウトで
+ウィンドウが飛びません。出力のフレームコールバックが時計を進め、
+`onOutputFrame` は commit 前にアクティブなアニメーションを更新し、
+残っていれば次のフレームを要求します。
+
+`animations = false`、`reduce_motion = true`、`animation_ms = 0` のいずれかで
+オフセットを付けません。設定リロード時は新しいジオメトリを適用する前に
+アクティブなアニメーションを消去します。シャドウは上記の事前作成した
+シーン矩形 3 枚で、`updateShadows()` がフレームに合わせてサイズを変え、
+`shadows = false` で無効になります。
 
 ## layer-shell のサイズ計算
 
@@ -454,7 +474,9 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
 ### サーフェス
 
 - **background**: layer background、全端アンカー、排他ゾーン -1、空の入力
-  領域。configure ごとに壁紙を 1 回描画します。
+  領域。configure ごとに壁紙を 1 回描画します。`bg` から導出した、または
+  明示した `bg_top`/`bg_bottom` による縦グラデーションに、任意のアクセント
+  アート（`wallpaper_art`）を加えます。
 - **bar**: layer top、上/左/右アンカー、設定可能な高さ（`bar_height`、
   既定 44）、上下左右マージン、高さと同じ排他ゾーン。ジオメトリ変更時は
   サーフェスを再作成。メニュー、時計、ワークスペースピル、ウィンドウチップ、

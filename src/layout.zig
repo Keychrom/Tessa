@@ -254,13 +254,123 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
     core.markDirty(server);
 }
 
+fn animationsEnabled(server: *Server) bool {
+    return server.config.animations and !server.config.reduce_motion and
+        server.config.animation_ms > 0;
+}
+
+fn scheduleAnimationFrames(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        c.wlr_output_schedule_frame(out.wlr);
+    }
+}
+
+fn beginAnimation(client: *Client, from_x: i32, from_y: i32) void {
+    const server = client.server;
+    if (!animationsEnabled(server)) return;
+    client.anim_from_x = from_x;
+    client.anim_from_y = from_y;
+    client.anim_off_x = from_x;
+    client.anim_off_y = from_y;
+    client.anim_start_ms = core.timeNowMs();
+    client.anim_ms = server.config.animation_ms;
+    client.animating = true;
+    scheduleAnimationFrames(server);
+    core.logDebug("animation: start id={d} from={d},{d}", .{ client.id, from_x, from_y });
+}
+
+pub fn startOpenAnimation(client: *Client) void {
+    if (!client.mapped or client.ws != client.output.active_ws) return;
+    beginAnimation(client, 0, 18);
+}
+
+pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize, ws: usize) void {
+    if (!animationsEnabled(server) or previous_ws == ws) return;
+    const dir: i32 = if (ws > previous_ws) 54 else -54;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.output == out and cl.ws == ws and cl.mapped) {
+            beginAnimation(cl, dir, 0);
+        }
+    }
+}
+
+pub fn tickAnimations(server: *Server, now: i64) bool {
+    var active = false;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (!cl.animating) continue;
+        active = true;
+        const elapsed = now - cl.anim_start_ms;
+        const progress = std.math.clamp(
+            @as(f64, @floatFromInt(elapsed)) / @as(f64, @floatFromInt(cl.anim_ms)),
+            0.0,
+            1.0,
+        );
+        const eased = 1.0 - std.math.pow(f64, 1.0 - progress, 3.0);
+        const remain = 1.0 - eased;
+        cl.anim_off_x = @intFromFloat(@as(f64, @floatFromInt(cl.anim_from_x)) * remain);
+        cl.anim_off_y = @intFromFloat(@as(f64, @floatFromInt(cl.anim_from_y)) * remain);
+        c.wlr_scene_node_set_position(
+            &cl.frame.node,
+            cl.x + cl.anim_off_x,
+            cl.y + cl.anim_off_y,
+        );
+        if (progress >= 1.0) {
+            cl.animating = false;
+            cl.anim_off_x = 0;
+            cl.anim_off_y = 0;
+            c.wlr_scene_node_set_position(&cl.frame.node, cl.x, cl.y);
+            core.logDebug("animation: done id={d}", .{cl.id});
+        }
+    }
+    return active;
+}
+
+pub fn clearAnimations(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (!cl.animating and cl.anim_off_x == 0 and cl.anim_off_y == 0) continue;
+        cl.animating = false;
+        cl.anim_off_x = 0;
+        cl.anim_off_y = 0;
+        c.wlr_scene_node_set_position(&cl.frame.node, cl.x, cl.y);
+    }
+}
+
+fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
+    const show = enabled and client.server.config.shadows;
+    const offsets = [3][4]i32{
+        .{ -12, -9, 24, 22 },
+        .{ -7, -5, 14, 14 },
+        .{ -3, -2, 6, 8 },
+    };
+    var i: usize = 0;
+    while (i < client.shadow_rects.len) : (i += 1) {
+        const rect = client.shadow_rects[i] orelse continue;
+        if (!show) {
+            c.wlr_scene_node_set_enabled(&rect.node, false);
+            continue;
+        }
+        c.wlr_scene_node_set_enabled(&rect.node, true);
+        c.wlr_scene_node_set_position(&rect.node, offsets[i][0], offsets[i][1]);
+        c.wlr_scene_rect_set_size(rect, @max(1, w + offsets[i][2]), @max(1, h + offsets[i][3]));
+    }
+}
+
 fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enabled_border: bool) void {
     client.x = x;
     client.y = y;
     client.w = @max(1, w);
     client.h = @max(1, h);
 
-    c.wlr_scene_node_set_position(&client.frame.node, x, y);
+    c.wlr_scene_node_set_position(&client.frame.node, x + client.anim_off_x, y + client.anim_off_y);
+    updateShadows(client, enabled_border, client.w, client.h);
 
     if (enabled_border and border > 0) {
         c.wlr_scene_node_set_enabled(&client.border_rect.node, true);
@@ -920,6 +1030,7 @@ pub fn switchWorkspaceOnOutput(server: *Server, out: *Output, ws: usize) void {
     out.active_ws = ws;
     server.focused_output = out;
     server.active_ws = ws;
+    startWorkspaceAnimation(server, out, previous_ws, ws);
     arrangeOutput(server, out);
     if (previous_ws != ws) {
         events.emit(server, .{

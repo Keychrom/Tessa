@@ -38,6 +38,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット
 - 名前付き入力モードと、モード固有のキーバインド（`enter-mode`）
 - バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
+- ウィンドウを開く/ワークスペース切り替え時のスライドアニメーション
+  （`reduce_motion` と再生時間を設定可能）、レイヤー化したソフトな
+  ウィンドウシャドウ、壁紙グラデーション色とアート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -98,7 +101,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
-`tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/portal.sh` で
+`tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
+`tests/portal.sh` で
 検証しています。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
@@ -708,6 +712,11 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   `image-path` / `icon-name`）、Pango マークアップ、置換、閉じる、
   期限切れに対応します。トーストはフォーカス中の出力へルーティングされます。
   Pango が扱えない HTML、通知音、通知ごとの出力固定は未対応です。
+- **ウィンドウ効果はまだシンプルです。** 開く/ワークスペース切り替えは
+  ウィンドウフレームを cubic ease-out でスライドさせ、シャドウは固定の
+  レイヤー矩形です。閉じるアニメーション、スケール/フェード、角丸、
+  ブラーは未実装です。動きを止めるには `animations = false` または
+  `reduce_motion = true` を設定します。
 - **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
   使います。MPRIS は最初に見つかったプレイヤーを操作し、アルバムアートは

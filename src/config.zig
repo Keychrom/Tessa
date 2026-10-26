@@ -28,6 +28,10 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.mosaic_min_size = 160;
     cfg.grid_columns = 0;
     cfg.layout_helper_timeout = 100;
+    cfg.animations = true;
+    cfg.reduce_motion = false;
+    cfg.animation_ms = 160;
+    cfg.shadows = true;
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
         cfg.ws_gaps[wi] = cfg.gaps;
@@ -720,6 +724,14 @@ fn loadPath(
             }
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
+        } else if (std.mem.eql(u8, key, "animations")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.animations = v;
+        } else if (std.mem.eql(u8, key, "reduce_motion")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.reduce_motion = v;
+        } else if (std.mem.eql(u8, key, "animation_ms")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_ms = v;
+        } else if (std.mem.eql(u8, key, "shadows")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.shadows = v;
         } else if (std.mem.eql(u8, key, "xwayland")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.xwayland = v;
         } else if (std.mem.eql(u8, key, "xwayland_display")) {
@@ -810,6 +822,9 @@ fn loadPath(
         } else if (std.mem.eql(u8, key, "launcher_entry") or
             std.mem.eql(u8, key, "panel_bg") or
             std.mem.eql(u8, key, "panel_fg") or
+            std.mem.eql(u8, key, "bg_top") or
+            std.mem.eql(u8, key, "bg_bottom") or
+            std.mem.eql(u8, key, "wallpaper_art") or
             std.mem.eql(u8, key, "bar_height") or
             std.mem.eql(u8, key, "bar_top_margin") or
             std.mem.eql(u8, key, "bar_side_margin") or
@@ -817,7 +832,11 @@ fn loadPath(
             std.mem.eql(u8, key, "power_suspend") or
             std.mem.eql(u8, key, "power_reboot") or
             std.mem.eql(u8, key, "power_off") or
-            std.mem.eql(u8, key, "screenshot_dir"))
+            std.mem.eql(u8, key, "screenshot_dir") or
+            std.mem.eql(u8, key, "volume_status") or
+            std.mem.eql(u8, key, "volume_up") or
+            std.mem.eql(u8, key, "volume_down") or
+            std.mem.eql(u8, key, "volume_mute"))
         {
             // The panel parses these keys; the compositor only validates the file.
         } else {
@@ -859,6 +878,8 @@ pub fn load(server: *Server) void {
     if (server.config.grid_columns > 8) server.config.grid_columns = 8;
     if (server.config.layout_helper_timeout < 10) server.config.layout_helper_timeout = 10;
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
+    if (server.config.animation_ms < 0) server.config.animation_ms = 0;
+    if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;

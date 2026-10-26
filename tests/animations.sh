@@ -1,0 +1,126 @@
+#!/bin/sh
+# Verify window open/workspace motion and visual config validation.
+# Requires foot. Run after building:
+#   sh tests/animations.sh
+set -eu
+
+cd "$(dirname "$0")/.."
+root=$PWD
+bin=$root/zig-out/bin
+
+if [ ! -x "$bin/tessa" ] || [ ! -x "$bin/tessa-ctl" ] || [ ! -x "$bin/tessa-panel" ]; then
+    echo "build first: ./scripts/build.sh" >&2
+    exit 1
+fi
+if ! command -v foot >/dev/null 2>&1; then
+    echo "foot not found; skipping animation test"
+    exit 0
+fi
+
+runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-animations.XXXXXX")
+tpid=
+cleanup() {
+    [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
+    wait "$tpid" 2>/dev/null || true
+    pkill -x tessa-panel 2>/dev/null || true
+    rm -rf "$runtime"
+}
+trap cleanup EXIT INT TERM
+
+mkdir -p "$runtime"
+chmod 700 "$runtime"
+cat > "$runtime/config" <<'EOF'
+panel = false
+xwayland = false
+animations = true
+reduce_motion = false
+animation_ms = 250
+shadows = true
+bg_top = #162038
+bg_bottom = #070a12
+wallpaper_art = true
+EOF
+
+export TESSA_CONFIG="$runtime/config"
+export TESSA_IPC="$runtime/tessa.sock"
+export TESSA_OUTPUT_CONFIG="$runtime/outputs.conf"
+export XDG_RUNTIME_DIR="$runtime"
+export WLR_BACKENDS=headless
+export WLR_RENDERER=pixman
+export WLR_HEADLESS_OUTPUTS=1
+export PATH="$bin:$PATH"
+export TESSA_DEBUG=1
+
+"$bin/tessa" >"$runtime/tessa.log" 2>&1 &
+tpid=$!
+i=0
+while [ ! -S "$runtime/tessa.sock" ]; do
+    i=$((i + 1))
+    if [ "$i" -ge 100 ]; then
+        echo "compositor did not create its socket" >&2
+        cat "$runtime/tessa.log" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+
+wait_log() {
+    pattern=$1
+    i=0
+    while [ "$i" -lt 120 ]; do
+        if grep -qF "$pattern" "$runtime/tessa.log" 2>/dev/null; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    echo "log did not contain: $pattern" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+}
+
+wait_log_count() {
+    pattern=$1
+    expected=$2
+    i=0
+    while [ "$i" -lt 120 ]; do
+        if [ "$(grep -cF "$pattern" "$runtime/tessa.log" 2>/dev/null || true)" -ge "$expected" ]; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    echo "log did not contain $expected occurrences of: $pattern" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+}
+
+tessa-ctl config-check >"$runtime/check.out"
+grep -q "config: ok" "$runtime/check.out"
+echo "animation/visual config: ok"
+
+tessa-ctl spawn foot -T AnimTest
+wait_log "animation: start id=1 from=0,18"
+wait_log_count "animation: done id=1" 1
+echo "window open animation: ok"
+
+tessa-ctl workspace 2
+sleep 0.4
+tessa-ctl workspace 1
+wait_log "animation: start id=1 from=-54,0"
+wait_log_count "animation: done id=1" 2
+echo "workspace animation: ok"
+
+tessa-ctl quit
+wait "$tpid" 2>/dev/null || true
+tpid=
+if grep -qE 'Assertion|panic|thread .* panic' "$runtime/tessa.log"; then
+    echo "compositor did not shut down cleanly" >&2
+    grep -E 'Assertion|panic|thread .* panic' "$runtime/tessa.log" >&2
+    exit 1
+fi
+pkill -x tessa-panel 2>/dev/null || true
+
+trap - EXIT INT TERM
+rm -rf "$runtime"
+echo "animation test passed"

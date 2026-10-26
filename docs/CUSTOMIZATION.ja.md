@@ -229,6 +229,13 @@ tessa-ctl config --json
 | `bar_side_margin` | 左右マージン（0〜128） |
 | `panel_bg` | バーの背景色 |
 | `panel_fg` | バーの主要テキスト色 |
+| `bg_top` | 壁紙グラデーションの上端色。未指定なら `bg` から導出 |
+| `bg_bottom` | 壁紙グラデーションの下端色。未指定なら `bg` から導出 |
+| `wallpaper_art` | 装飾用の壁紙アートを描画（既定 `true`） |
+| `animations` | ウィンドウを開く/ワークスペース切り替えをアニメーション（既定 `true`） |
+| `animation_ms` | 再生時間（ミリ秒、0〜1000、既定 160） |
+| `reduce_motion` | `animations` に関係なく動きを無効化（既定 `false`） |
+| `shadows` | レイヤー化したウィンドウシャドウを描画（既定 `true`） |
 | `power_lock` | 電源メニューのロック用コマンド（既定 `loginctl lock-session`） |
 | `power_suspend` | サスペンド用コマンド（既定 `systemctl suspend`） |
 | `power_reboot` | 再起動用コマンド（既定 `systemctl reboot`） |
@@ -242,7 +249,25 @@ tessa-ctl config --json
 パネルは `config-reload` を受け取ると配色、ランチャー項目、バーの
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
 バーの layer surface を再作成するため、予約領域も即座に更新されます。
-別ファイルのテーマと壁紙アートの制御は今後追加します。
+`bg_top`、`bg_bottom`、`wallpaper_art` は再起動なしで背景を描き直します。
+別ファイルのテーマは今後追加します。
+
+## モーション、シャドウ、壁紙
+
+ウィンドウは map 時に小さな縦オフセットからスライドインし、ワークスペース
+切り替えでは新しいワークスペースが横方向から入ります。どちらも
+`animation_ms` の cubic ease-out です。`reduce_motion = true` は他の設定を
+変えずに動きだけを無効化します。`animation_ms = 0` と
+`animations = false` も同じ効果です。ウィンドウを閉じる動きは即時で、
+ポップオーバーのアニメーションはパネル側で別に制御します。
+
+シャドウは各クライアントフレーム背後の半透明シーン矩形 3 枚です。
+ボーダーのジオメトリに追従し、`shadows = false` で無効になります。
+
+壁紙は縦グラデーションです。`bg_top` と `bg_bottom` で既定値を上書き
+でき、片方だけの指定も可能です。装飾（アクセントのウォッシュ、インクの
+しみ、太陽、テッセレーション）は `wallpaper_art = true` のときだけ
+描画されます。
 
 ## カレンダーと電源メニュー
 

@@ -231,6 +231,13 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 | `bar_side_margin` | left/right margin (0–128) |
 | `panel_bg` | bar background color |
 | `panel_fg` | bar primary text color |
+| `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
+| `bg_bottom` | bottom color of the wallpaper gradient; unset derives it from `bg` |
+| `wallpaper_art` | draw the decorative wallpaper art (default `true`) |
+| `animations` | animate window open and workspace transitions (default `true`) |
+| `animation_ms` | motion duration in milliseconds, 0–1000 (default 160) |
+| `reduce_motion` | disable motion regardless of `animations` (default `false`) |
+| `shadows` | draw layered window drop shadows (default `true`) |
 | `power_lock` | command for the power menu's Lock action (default `loginctl lock-session`) |
 | `power_suspend` | command for Suspend (default `systemctl suspend`) |
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |
@@ -243,8 +250,26 @@ tuning, rules, hooks, and diagnostics. The full wire format is in
 
 The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
-the bar layer surface, so the reserved area follows immediately. A separately
-installed theme file and wallpaper-art controls are still planned.
+the bar layer surface, so the reserved area follows immediately. `bg_top`,
+`bg_bottom`, and `wallpaper_art` repaint the panel background without a restart.
+A separately installed theme file is still planned.
+
+## Motion, shadows, and wallpaper
+
+Windows slide in from a small vertical offset when mapped, and workspace
+switches slide the incoming workspace horizontally. Both use a cubic ease-out
+over `animation_ms`. `reduce_motion = true` disables all such motion while
+leaving other settings intact; `animation_ms = 0` and `animations = false` do
+the same. Closing a window is immediate, and popover animation is controlled
+separately by the panel.
+
+Shadows are three translucent scene rectangles behind each client frame. They
+follow the border geometry and are disabled with `shadows = false`.
+
+The wallpaper is a vertical gradient. Set `bg_top` and `bg_bottom` to override
+the derived default; either key can be omitted independently. Decorative shapes
+(the accent wash, ink blots, sun, and tessellation) are drawn only when
+`wallpaper_art = true`.
 
 ## Calendar and power menu
 
