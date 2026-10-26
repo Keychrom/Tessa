@@ -734,15 +734,30 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     c.cairo_stroke(cr);
 
     const query = g.query[0..g.query_len];
+    const preedit = g.preedit[0..g.preedit_len];
     const text_x = sx + 46.0;
-    if (query.len == 0) {
+    if (query.len == 0 and preedit.len == 0) {
         _ = drawTextCentered(cr, "Search applications...", text_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ 0.56, 0.61, 0.70, 0.78 }, sw - 110, 0);
     } else {
-        const size = drawTextCentered(cr, query, text_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ 0.94, 0.96, 0.99, 0.98 }, sw - 110, 0);
+        var cursor_x = text_x;
+        if (query.len > 0) {
+            const size = drawTextCentered(cr, query, cursor_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ 0.94, 0.96, 0.99, 0.98 }, sw - 110, 0);
+            cursor_x += size.w;
+        }
+        if (preedit.len > 0) {
+            const psize = drawTextCentered(cr, preedit, cursor_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ accent[0], accent[1], accent[2], 0.98 }, sw - 110, 0);
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, cursor_x, sy + 37);
+            c.cairo_line_to(cr, cursor_x + psize.w, sy + 37);
+            setColor(cr, .{ accent[0], accent[1], accent[2], 0.55 });
+            c.cairo_set_line_width(cr, 1.0);
+            c.cairo_stroke(cr);
+            cursor_x += psize.w;
+        }
         if (@mod(m.nowMs(), 1000) < 520) {
             c.cairo_new_path(cr);
-            c.cairo_move_to(cr, text_x + size.w + 1.5, sy + 16);
-            c.cairo_line_to(cr, text_x + size.w + 1.5, sy + 34);
+            c.cairo_move_to(cr, cursor_x + 1.5, sy + 16);
+            c.cairo_line_to(cr, cursor_x + 1.5, sy + 34);
             setColor(cr, .{ accent[0], accent[1], accent[2], 0.9 });
             c.cairo_set_line_width(cr, 1.4);
             c.cairo_stroke(cr);

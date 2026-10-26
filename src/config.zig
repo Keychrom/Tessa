@@ -22,6 +22,8 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.master_ratio = 0.58;
     cfg.layout_mode = .master;
     cfg.autostart_panel = true;
+    cfg.xwayland = true;
+    copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
     core.parseHexColor(cfg.accent[0..cfg.accent_len], &cfg.accent_rgb);
 
     addDefaults(cfg);
@@ -213,6 +215,12 @@ pub fn load(server: *Server) void {
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             server.config.autostart_panel = std.mem.eql(u8, value, "true") or
                 std.mem.eql(u8, value, "1") or std.mem.eql(u8, value, "yes");
+        } else if (std.mem.eql(u8, key, "xwayland")) {
+            server.config.xwayland = std.mem.eql(u8, value, "true") or
+                std.mem.eql(u8, value, "1") or
+                std.mem.eql(u8, value, "yes");
+        } else if (std.mem.eql(u8, key, "xwayland_display")) {
+            core.copyString(&server.config.xwayland_display, &server.config.xwayland_display_len, value);
         } else if (std.mem.eql(u8, key, "accent")) {
             core.copyString(&server.config.accent, &server.config.accent_len, value);
         } else if (std.mem.eql(u8, key, "bg")) {

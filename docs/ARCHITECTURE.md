@@ -1,3 +1,5 @@
+**English** | [日本語](ARCHITECTURE.ja.md)
+
 # Architecture
 
 Tessa is two processes:
@@ -21,19 +23,21 @@ text/font/UI code out of the compositor's hot path.
                          │  wlr_scene (global)          │
                          │  xdg-shell                   │
                          │  wlr-layer-shell             │
+                         │  xdg-decoration             │
+                         │  xdg-activation / cursor-shape│
+                         │  text-input-v3 / input-method-v2│
                          │  wlr-screencopy-v1           │
-                         │  wl_data_device (clipboard)  │
+                         │  wl_data_device + primary    │
+                         │  virtual-keyboard-v1         │
                          │  seat / cursor / keyboard    │
-                         └──────────────┬──────────────┘
-                                        │ $XDG_RUNTIME_DIR/tessa.sock
-                                        │ line protocol, 0600
-                         ┌──────────────▼──────────────┐
-                         │ tessa-panel                  │
-                         │  wl_compositor + wl_shm      │
-                         │  wl_seat (keyboard/pointer)  │
-                         │  zwlr_layer_shell_v1         │
-                         │  Cairo + Pango               │
-                         └─────────────────────────────┘
+                         └──────┬───────────────┬───────┘
+                                │               │
+             Wayland clients    │               │ spawn + DISPLAY
+             + tessa-panel      │               ▼
+                ────────────────┘        xwayland-satellite
+                                                │
+                                                ▼
+                                            X11 apps
 ```
 
 Wayland is used for clients and the panel. The compositor↔panel control channel
@@ -52,11 +56,13 @@ tree_floating    floating client frames
 tree_top         taskbar (layer-shell top)
 tree_fullscreen  fullscreen client frames
 tree_overlay     launcher (layer-shell overlay)
+tree_popup       input-method candidate popups (created by ime.zig, topmost)
 ```
 
 The fullscreen tree is intentionally above the top layer, so a fullscreen client
 covers the bar. The launcher overlay is above fullscreen, so it is always
-reachable.
+reachable. The IME popup tree is created after all of these, so candidate
+windows stay above the launcher and clients.
 
 A client frame is a `wlr_scene_tree` containing:
 
@@ -83,7 +89,10 @@ called on layer commit/map/unmap and output creation.
 
 Keyboard focus for an interactive layer is taken on map (`keyboard_interactive
 != 0`, layer >= top). On unmap, focus is restored to the previously focused
-toplevel. The launcher requests `EXCLUSIVE`; the bar requests `NONE`.
+toplevel. The launcher requests `EXCLUSIVE`; the bar requests `NONE`. Text input
+focus follows the same transition: `layout.focusLayer()` and
+`layout.focusClient()` call `ime.focusSurface()` with the surface origin, so the
+client's active text input receives `enter`/`leave`.
 
 ## Input
 
@@ -92,9 +101,66 @@ toplevel. The launcher requests `EXCLUSIVE`; the bar requests `NONE`.
 - creates the seat, cursor, and xcursor manager,
 - attaches every pointer to `wlr_cursor`,
 - creates an XKB keymap from the user's environment,
+- creates a fallback `wlr_keyboard` when no physical keyboard is present, so
+  seat keymaps and XWayland work in headless sessions,
+- attaches every physical/virtual keyboard and re-sends focus when a keyboard
+  appears or its keymap changes,
 - routes keyboard events to the focused surface or to key bindings,
 - implements click-to-focus, floating move/resize, and pointer forwarding,
-- handles `request_set_cursor` and `request_set_selection`.
+- handles `request_set_cursor`, cursor-shape-v1, and selection requests.
+
+When an input method has grabbed the keyboard, raw key events and modifier
+changes are forwarded to `wlr_input_method_keyboard_grab_v2_set_keyboard` before
+WM bindings or the focused client see them. The input method receives a private
+copy of the keymap and decides what to commit back through text-input-v3.
+
+`xdg-activation-v1` requests switch to the client's workspace and focus it.
+`xdg-decoration` is advertised in server-side mode so GTK/XWayland clients do
+not draw client-side titlebars on top of Tessa's borders.
+
+## Input methods
+
+`ime.zig` implements the compositor side of `zwp_text_input_v3` and
+`zwp_input_method_v2`:
+
+- one `TextInput` wrapper per client text-input object, tracking enable/commit/
+  disable and the current surrounding text and cursor rectangle,
+- `focusSurface()` sends `enter`/`leave` and activates/deactivates the input
+  method with the focused client's state,
+- input-method `commit` converts preedit/commit/delete requests back into
+  text-input-v3 events and sends `done`,
+- `grab_keyboard` is forwarded from the focused seat keyboard, and the grab is
+  released when the input method disconnects,
+- input-method popup surfaces are scene nodes in `tree_popup` and are positioned
+  from the text-input cursor rectangle, with output-edge clamping.
+
+Input-method state is sent regardless of the text-input `active_features` mask.
+Fcitx5 sends its state in the enable commit before giving the compositor a
+cursor rectangle, so relying only on `active_features` froze the candidate popup
+at the origin. The compositor therefore uses the latest committed cursor
+rectangle when it is non-zero.
+
+## XWayland
+
+Tessa spawns `xwayland-satellite` after the backend starts, instead of using
+wlroots' in-process XWayland. Satellite owns the X server, runs an XWM, and
+presents X11 windows to Tessa as xdg-shell toplevels, so the existing tiling,
+workspaces, focus, and taskbar code handle X11 apps unchanged.
+
+Important details:
+
+- The fallback keyboard must exist before satellite starts. Xwayland 24.x
+  compiles its keymap from the parent seat keymap during startup; without a
+  keyboard it fails with `XKB: Failed to compile keymap`.
+- Spawned children reset `SIGCHLD` to `SIG_DFL`. Tessa ignores `SIGCHLD` for its
+  own children; inheriting that disposition made Xwayland's xkbcomp helper wait
+  fail and the keymap compile abort.
+- `DISPLAY` is chosen automatically by scanning `/tmp/.X11-unix/X<n>` and
+  `/tmp/.X<n>-lock` for the first free display, then exported to Tessa's
+  environment so all spawned clients inherit it.
+- `xdg-decoration` is handled server-side. Without it satellite falls back to
+  client-side decorations and draws its own titlebars.
+
 
 Key bindings compare the normalized modifier mask (Shift/Ctrl/Alt/Logo) and the
 keysym. For shifted digits and Tab, the level-0 keysym is also tried, so
@@ -188,6 +254,23 @@ Wayland client, IPC, input callbacks, animations, and the poll loop.
 The launcher fades/scales over 150 ms. It is destroyed only after the fade-out;
 destroying the layer surface lets the compositor restore toplevel focus.
 
+### Text input in the panel
+
+The launcher creates a `zwp_text_input_v3` object for the seat when it opens. On
+`enter` it sends content type, surrounding text, change cause, and the search
+cursor rectangle, then commits. Preedit strings are drawn in the accent color
+with an underline at the insertion point; committed strings are appended to the
+query, and delete-surrounding requests are applied. While Fcitx has grabbed the
+keyboard, the compositor forwards keys to the input method instead of the panel,
+so committed IME text is not duplicated by the panel's raw-key fallback.
+
+The panel's `wl_keyboard` keymap is loaded with
+`xkb_keymap_new_from_buffer(..., size, XKB_KEYMAP_FORMAT_TEXT_V1,
+XKB_KEYMAP_COMPILE_NO_FLAGS)`. Using `xkb_keymap_new_from_string` with the size
+as the flags argument caused xkbcommon to reject every keymap, which silently
+disabled raw typing even though key events arrived.
+
+
 ### Buffers and rendering
 
 Each surface keeps three `wl_shm` ARGB8888 buffers. A `wl_buffer.release` listener
@@ -225,6 +308,8 @@ The generated headers/C under `protocol/` are committed:
 - `wlr-layer-shell-unstable-v1-protocol.h` — for wlroots headers
 - `layer-shell-client-protocol.h/.c` — panel
 - `xdg-shell-client-protocol.h/.c` — panel/runtime symbol
+- `text-input-client-protocol.h/.c` — panel text-input-v3 client
+- `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
 
 ## Failure behavior
 
@@ -233,4 +318,9 @@ The generated headers/C under `protocol/` are committed:
 - Output removal moves clients to the first remaining output. Removing the last
   output terminates the compositor.
 - Invalid app/desktop entries are skipped; invalid settings are clamped.
+- If `xwayland-satellite` is missing, the child exec fails, Tessa continues, and
+  X11 clients cannot connect to the exported `DISPLAY`; Wayland clients and the
+  panel are unaffected.
+- If no input method is connected, text-input enters are still tracked, and
+  clients fall back to raw keyboard input. The panel does not require an IME.
 - Layer popups from third-party clients are not rendered yet (known limitation).

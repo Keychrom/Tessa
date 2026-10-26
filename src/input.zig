@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
 const ipc = @import("ipc.zig");
+const ime = @import("ime.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -46,6 +47,60 @@ pub fn init(server: *Server) void {
     c.wl_signal_add(&server.seat.events.request_set_cursor, &server.request_cursor);
     server.request_set_selection.notify = onRequestSetSelection;
     c.wl_signal_add(&server.seat.events.request_set_selection, &server.request_set_selection);
+
+    _ = c.wlr_primary_selection_v1_device_manager_create(server.display);
+    server.request_set_primary_selection.notify = onRequestSetPrimarySelection;
+    c.wl_signal_add(&server.seat.events.request_set_primary_selection, &server.request_set_primary_selection);
+
+    server.virtual_keyboard_manager = c.wlr_virtual_keyboard_manager_v1_create(server.display);
+    if (server.virtual_keyboard_manager) |mgr| {
+        server.new_virtual_keyboard.notify = onNewVirtualKeyboard;
+        c.wl_signal_add(&mgr.events.new_virtual_keyboard, &server.new_virtual_keyboard);
+    }
+
+    const shape_mgr_raw = c.wlr_cursor_shape_manager_v1_create(server.display, 1);
+    if (shape_mgr_raw != null) {
+        const shape_mgr: *c.wlr_cursor_shape_manager_v1 = @ptrCast(@alignCast(shape_mgr_raw));
+        server.request_set_shape.notify = onRequestSetShape;
+        c.wl_signal_add(&shape_mgr.events.request_set_shape, &server.request_set_shape);
+    }
+
+    addSyntheticKeyboard(server);
+}
+
+// Headless sessions and XWayland need a seat keymap before the first physical
+// keyboard appears. This fallback keyboard provides it without generating input.
+var synthetic_keyboard_impl = c.wlr_keyboard_impl{
+    .name = "tessa-fallback",
+    .led_update = null,
+};
+
+fn addSyntheticKeyboard(server: *Server) void {
+    const wlr_kb = @as(*c.wlr_keyboard, @ptrCast(@alignCast(c.calloc(1, @sizeOf(c.wlr_keyboard)).?)));
+    c.wlr_keyboard_init(wlr_kb, &synthetic_keyboard_impl, "tessa-fallback");
+    wlr_kb.data = null;
+
+    const ctx = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS) orelse {
+        c.free(wlr_kb);
+        return;
+    };
+    defer c.xkb_context_unref(ctx);
+    const keymap = c.xkb_keymap_new_from_names(ctx, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS) orelse {
+        core.logInfo("fallback keyboard: failed to compile keymap", .{});
+        c.wlr_keyboard_finish(wlr_kb);
+        c.free(wlr_kb);
+        return;
+    };
+    defer c.xkb_keymap_unref(keymap);
+    if (!c.wlr_keyboard_set_keymap(wlr_kb, keymap)) {
+        core.logInfo("fallback keyboard: failed to set keymap", .{});
+        c.wlr_keyboard_finish(wlr_kb);
+        c.free(wlr_kb);
+        return;
+    }
+
+    attachKeyboard(server, wlr_kb, &wlr_kb.base, null);
+    core.logInfo("fallback keyboard ready", .{});
 }
 
 fn updateCapabilities(server: *Server) void {
@@ -84,32 +139,63 @@ fn addKeyboard(server: *Server, device: *c.wlr_input_device) void {
     }
     c.wlr_keyboard_set_repeat_info(wlr_kb, 25, 600);
 
+    attachKeyboard(server, wlr_kb, device, null);
+    core.logInfo("keyboard added: {s}", .{core.cstr(device.name)});
+}
+
+fn attachKeyboard(server: *Server, wlr_kb: *c.wlr_keyboard, device: *c.wlr_input_device, virtual: ?*c.wlr_virtual_keyboard_v1) void {
     const kb = @as(*Keyboard, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Keyboard)).?)));
     kb.server = server;
     kb.wlr = wlr_kb;
     kb.device = device;
+    kb.virtual_keyboard = virtual;
 
     kb.modifiers.notify = onKeyboardModifiers;
     c.wl_signal_add(&wlr_kb.events.modifiers, &kb.modifiers);
     kb.key.notify = onKeyboardKey;
     c.wl_signal_add(&wlr_kb.events.key, &kb.key);
+    kb.keymap.notify = onKeyboardKeymap;
+    c.wl_signal_add(&wlr_kb.events.keymap, &kb.keymap);
     kb.destroy.notify = onKeyboardDestroy;
     c.wl_signal_add(&device.events.destroy, &kb.destroy);
 
     if (server.keyboard_count < server.keyboards.len) {
         server.keyboards[server.keyboard_count] = kb;
         server.keyboard_count += 1;
+    } else {
+        core.logInfo("too many keyboards", .{});
     }
 
     c.wlr_seat_set_keyboard(server.seat, wlr_kb);
-    core.logInfo("keyboard added: {s}", .{core.cstr(device.name)});
+    updateCapabilities(server);
+    layout.refreshKeyboardFocus(server);
+}
+
+fn onNewVirtualKeyboard(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("new_virtual_keyboard", listener.?);
+    const vk: *c.wlr_virtual_keyboard_v1 = @ptrCast(@alignCast(data.?));
+    attachKeyboard(server, &vk.keyboard, &vk.keyboard.base, vk);
+    core.logInfo("virtual keyboard added", .{});
 }
 
 fn onKeyboardModifiers(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const kb: *Keyboard = @fieldParentPtr("modifiers", listener.?);
+    if (ime.forwardModifiersToGrab(kb.server, kb)) return;
     c.wlr_seat_set_keyboard(kb.server.seat, kb.wlr);
     c.wlr_seat_keyboard_notify_modifiers(kb.server.seat, &kb.wlr.modifiers);
+}
+
+fn onKeyboardKeymap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const kb: *Keyboard = @fieldParentPtr("keymap", listener.?);
+    const server = kb.server;
+    c.wlr_seat_set_keyboard(server.seat, kb.wlr);
+    layout.refreshKeyboardFocus(server);
+    if (server.seat.keyboard_state.focused_surface != null) {
+        c.wlr_seat_keyboard_notify_modifiers(server.seat, &kb.wlr.modifiers);
+    }
+    core.logDebug("keyboard keymap updated{s}", .{if (kb.virtual_keyboard != null) " (virtual)" else ""});
 }
 
 fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -119,6 +205,7 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
 
     c.wl_list_remove(&kb.modifiers.link);
     c.wl_list_remove(&kb.key.link);
+    c.wl_list_remove(&kb.keymap.link);
     c.wl_list_remove(&kb.destroy.link);
 
     if (server.keyboard_count > 0) {
@@ -135,6 +222,22 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
 
     c.free(kb);
     updateCapabilities(server);
+
+    if (server.keyboard_count > 0) {
+        var i: usize = 0;
+        while (i < server.keyboards.len) : (i += 1) {
+            if (server.keyboards[i]) |next| {
+                c.wlr_seat_set_keyboard(server.seat, next.wlr);
+                if (server.seat.keyboard_state.focused_surface != null) {
+                    c.wlr_seat_keyboard_notify_modifiers(server.seat, &next.wlr.modifiers);
+                }
+                break;
+            }
+        }
+    } else {
+        c.wlr_seat_set_keyboard(server.seat, null);
+    }
+    layout.refreshKeyboardFocus(server);
 }
 
 fn executeBinding(server: *Server, b: *Binding) void {
@@ -195,6 +298,17 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const server = kb.server;
     const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data.?));
 
+    if (ime.forwardKeyToGrab(server, kb, event)) return;
+    if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED and server.focused_layer != null) {
+        const focused = server.seat.keyboard_state.focused_surface;
+        const layer_surface: *c.wlr_surface = @ptrCast(@alignCast(server.focused_layer.?.wlr.surface));
+        core.logDebug("key to layer: {d} focus_ok={} vk={}", .{
+            event.keycode,
+            focused == layer_surface,
+            kb.virtual_keyboard != null,
+        });
+    }
+
     const keycode: c.xkb_keycode_t = event.keycode + 8;
     const pressed = event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED;
     const mods = c.wlr_keyboard_get_modifiers(kb.wlr);
@@ -205,9 +319,11 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
         const n = c.xkb_state_key_get_syms(@ptrCast(@alignCast(kb.wlr.xkb_state)), keycode, &syms);
         if (tryBindings(server, syms, n, bind_mods)) return;
 
-        var base: [*c]const c.xkb_keysym_t = null;
-        const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
-        if (bn > 0 and tryBindings(server, base, bn, bind_mods)) return;
+        if (kb.wlr.keymap != null) {
+            var base: [*c]const c.xkb_keysym_t = null;
+            const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
+            if (bn > 0 and tryBindings(server, base, bn, bind_mods)) return;
+        }
     }
 
     c.wlr_seat_set_keyboard(server.seat, kb.wlr);
@@ -366,8 +482,22 @@ fn onRequestCursor(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     }
 }
 
+fn onRequestSetShape(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("request_set_shape", listener.?);
+    const event: *c.wlr_cursor_shape_manager_v1_request_set_shape_event = @ptrCast(@alignCast(data.?));
+    if (server.seat.pointer_state.focused_client != event.seat_client) return;
+    const name = c.wlr_cursor_shape_v1_name(event.shape);
+    c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, name);
+}
+
 fn onRequestSetSelection(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *Server = @fieldParentPtr("request_set_selection", listener.?);
     const event: *c.wlr_seat_request_set_selection_event = @ptrCast(@alignCast(data.?));
     c.wlr_seat_set_selection(server.seat, event.source, event.serial);
+}
+
+fn onRequestSetPrimarySelection(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("request_set_primary_selection", listener.?);
+    const event: *c.wlr_seat_request_set_primary_selection_event = @ptrCast(@alignCast(data.?));
+    c.wlr_seat_set_primary_selection(server.seat, event.source, event.serial);
 }

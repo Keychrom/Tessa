@@ -8,6 +8,7 @@ const output = @import("output.zig");
 const client = @import("client.zig");
 const input = @import("input.zig");
 const ipc = @import("ipc.zig");
+const ime = @import("ime.zig");
 
 const Server = types.Server;
 
@@ -28,6 +29,50 @@ fn addSocket(server: *Server) ?[*:0]const u8 {
         return null;
     }
     return c.wl_display_add_socket_auto(server.display);
+}
+
+fn displaySocketExists(n: u8) bool {
+    var path_buf: [64:0]u8 = undefined;
+    const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return true;
+    if (c.access(path, c.F_OK) == 0) return true;
+    var lock_buf: [64:0]u8 = undefined;
+    const lock = std.fmt.bufPrintZ(&lock_buf, "/tmp/.X{d}-lock", .{n}) catch return true;
+    return c.access(lock, c.F_OK) == 0;
+}
+
+fn startXwayland(server: *Server) void {
+    if (!server.config.xwayland) return;
+    if (c.getenv("TESSA_NO_XWAYLAND") != null) return;
+
+    var display_buf: [34:0]u8 = undefined;
+    var display = server.config.xwayland_display[0..server.config.xwayland_display_len];
+    if (display.len == 0 or std.mem.eql(u8, display, "auto")) {
+        var found = false;
+        var n: u8 = 0;
+        while (n < 64) : (n += 1) {
+            if (displaySocketExists(n)) continue;
+            const selected = std.fmt.bufPrint(&display_buf, ":{d}", .{n}) catch return;
+            display_buf[selected.len] = 0;
+            display = display_buf[0..selected.len];
+            found = true;
+            break;
+        }
+        if (!found) {
+            core.logInfo("xwayland: no free X display, disabled", .{});
+            return;
+        }
+    } else if (display.len < 2 or display[0] != ':') {
+        core.logInfo("xwayland: invalid display '{s}', disabled", .{display});
+        return;
+    }
+
+    var display_z: [34:0]u8 = undefined;
+    core.copyZ(&display_z, display);
+    _ = c.setenv("DISPLAY", &display_z, 1);
+
+    const bin: [*:0]const u8 = if (c.getenv("TESSA_XWAYLAND_BIN")) |p| p else "xwayland-satellite";
+    core.logInfo("starting XWayland on {s}", .{display});
+    core.spawnProgramArg(bin, &display_z);
 }
 
 pub fn main() !void {
@@ -84,6 +129,9 @@ pub fn main() !void {
     _ = c.wlr_subcompositor_create(server.display);
     _ = c.wlr_data_device_manager_create(server.display);
     _ = c.wlr_screencopy_manager_v1_create(server.display);
+    if (c.wlr_viewporter_create(server.display) == null) {
+        core.logInfo("failed to create viewporter", .{});
+    }
     if (c.wlr_xdg_output_manager_v1_create(server.display, server.output_layout) == null) {
         core.logInfo("failed to create xdg-output manager", .{});
     }
@@ -100,6 +148,7 @@ pub fn main() !void {
     input.init(server);
     output.init(server);
     client.init(server);
+    ime.init(server);
     ipc.init(server);
 
     const socket = addSocket(server) orelse {
@@ -134,6 +183,8 @@ pub fn main() !void {
         core.logInfo("starting panel", .{});
         core.spawnProgram(panel_bin);
     }
+
+    startXwayland(server);
 
     if (c.getenv("TESSA_STARTUP")) |cmd| {
         core.spawn(core.cstr(cmd));

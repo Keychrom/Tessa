@@ -14,17 +14,27 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_data_device.h");
     @cInclude("wlr/types/wlr_input_device.h");
     @cInclude("wlr/types/wlr_keyboard.h");
+    @cInclude("wlr/interfaces/wlr_keyboard.h");
     @cInclude("wlr/types/wlr_pointer.h");
     @cInclude("wlr/types/wlr_output.h");
     @cInclude("wlr/types/wlr_output_layout.h");
     @cInclude("wlr/types/wlr_scene.h");
     @cInclude("wlr/types/wlr_seat.h");
     @cInclude("wlr/types/wlr_cursor.h");
+    @cInclude("wlr/types/wlr_cursor_shape_v1.h");
     @cInclude("wlr/types/wlr_xcursor_manager.h");
     @cInclude("wlr/types/wlr_xdg_shell.h");
+    @cInclude("wlr/types/wlr_xdg_decoration_v1.h");
     @cInclude("wlr/types/wlr_layer_shell_v1.h");
     @cInclude("wlr/types/wlr_screencopy_v1.h");
     @cInclude("wlr/types/wlr_xdg_output_v1.h");
+    @cInclude("wlr/types/wlr_viewporter.h");
+    @cInclude("wlr/types/wlr_xdg_activation_v1.h");
+    @cInclude("wlr/types/wlr_primary_selection_v1.h");
+    @cInclude("wlr/types/wlr_primary_selection.h");
+    @cInclude("wlr/types/wlr_virtual_keyboard_v1.h");
+    @cInclude("wlr/types/wlr_text_input_v3.h");
+    @cInclude("wlr/types/wlr_input_method_v2.h");
     @cInclude("wlr/util/log.h");
     @cInclude("wlr/util/edges.h");
 

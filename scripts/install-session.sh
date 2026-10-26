@@ -14,3 +14,9 @@ sed -i "s|^Exec=.*|Exec=$prefix/bin/tessa-session|" "$desktop"
 
 echo "installed under $prefix"
 echo "log out and choose 'Tessa' in your display manager"
+
+if ! command -v xwayland-satellite >/dev/null 2>&1; then
+    echo
+    echo "note: xwayland-satellite was not found; X11 apps will not start."
+    echo "      Install it in PATH or set TESSA_XWAYLAND_BIN."
+fi

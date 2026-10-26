@@ -3,6 +3,9 @@
 set -eu
 dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 export PATH="$dir:$PATH"
+if [ -d "$HOME/.local/bin" ]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
 export XDG_CURRENT_DESKTOP=Tessa
 export XDG_SESSION_DESKTOP=tessa
 export XDG_SESSION_TYPE=wayland

@@ -62,6 +62,9 @@ pub const Config = struct {
     master_ratio: f32,
     layout_mode: LayoutMode,
     autostart_panel: bool,
+    xwayland: bool,
+    xwayland_display: [32]u8,
+    xwayland_display_len: usize,
     accent: [16]u8,
     accent_len: usize,
     accent_rgb: [3]f32,
@@ -150,8 +153,30 @@ pub const Keyboard = struct {
     server: *Server,
     wlr: *c.wlr_keyboard,
     device: *c.wlr_input_device,
+    virtual_keyboard: ?*c.wlr_virtual_keyboard_v1,
     modifiers: c.wl_listener,
     key: c.wl_listener,
+    keymap: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+pub const TextInput = struct {
+    server: *Server,
+    input: *c.wlr_text_input_v3,
+    enable: c.wl_listener,
+    commit: c.wl_listener,
+    disable: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+pub const ImPopup = struct {
+    server: *Server,
+    popup: *c.wlr_input_popup_surface_v2,
+    scene: *c.wlr_scene_tree,
+    mapped: bool,
+    commit: c.wl_listener,
+    map: c.wl_listener,
+    unmap: c.wl_listener,
     destroy: c.wl_listener,
 };
 
@@ -192,6 +217,7 @@ pub const Server = struct {
     tree_fullscreen: *c.wlr_scene_tree,
     tree_top: *c.wlr_scene_tree,
     tree_overlay: *c.wlr_scene_tree,
+    tree_popup: *c.wlr_scene_tree,
 
     outputs: [MAX_OUTPUTS]?*Output,
     output_count: usize,
@@ -203,6 +229,18 @@ pub const Server = struct {
     keyboard_count: usize,
     ipcs: [MAX_IPC]?*IpcClient,
     ipc_count: usize,
+    text_inputs: [16]?*TextInput,
+    text_input_count: usize,
+    im_popups: [8]?*ImPopup,
+    im_popup_count: usize,
+    text_input_manager: ?*c.wlr_text_input_manager_v3,
+    input_method_manager: ?*c.wlr_input_method_manager_v2,
+    input_method: ?*c.wlr_input_method_v2,
+    im_grab: ?*c.wlr_input_method_keyboard_grab_v2,
+    ime_focus_surface: ?*c.wlr_surface,
+    ime_focus_x: i32,
+    ime_focus_y: i32,
+    virtual_keyboard_manager: ?*c.wlr_virtual_keyboard_manager_v1,
 
     active_ws: usize,
     focused: ?*Client,
@@ -230,6 +268,9 @@ pub const Server = struct {
     new_input: c.wl_listener,
     new_xdg_toplevel: c.wl_listener,
     new_xdg_popup: c.wl_listener,
+    new_toplevel_decoration: c.wl_listener,
+    request_activate: c.wl_listener,
+    request_set_shape: c.wl_listener,
     new_layer_surface: c.wl_listener,
 
     cursor_motion: c.wl_listener,
@@ -240,6 +281,15 @@ pub const Server = struct {
 
     request_cursor: c.wl_listener,
     request_set_selection: c.wl_listener,
+    request_set_primary_selection: c.wl_listener,
+    new_virtual_keyboard: c.wl_listener,
+    new_text_input: c.wl_listener,
+    new_input_method: c.wl_listener,
+    im_commit: c.wl_listener,
+    im_grab_keyboard: c.wl_listener,
+    im_destroy: c.wl_listener,
+    im_grab_destroy: c.wl_listener,
+    im_new_popup: c.wl_listener,
 
     sigint: ?*c.wl_event_source,
     sigterm: ?*c.wl_event_source,

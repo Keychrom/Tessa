@@ -1,8 +1,11 @@
+**English** | [日本語](DEVELOPMENT.ja.md)
+
 # Development
 
 Tessa can be developed entirely on a headless Linux machine over SSH. The
 compositor and panel are ordinary Wayland programs, and `grim` can capture the
-headless output for quick visual checks.
+headless output for quick visual checks. A virtual keyboard (`wtype`) and Fcitx5
+make it possible to test keyboard and IME paths without a physical display.
 
 ## Build
 
@@ -19,7 +22,7 @@ For a debug build:
 
 Prerequisites are listed in the main README. In short: Zig 0.16, wlroots 0.19,
 Wayland, xkbcommon, pixman, DRM/input/seat development headers, Cairo, Pango,
-and fonts.
+and fonts. For X11 testing, also install `xwayland-satellite` in `PATH`.
 
 Check the libraries:
 
@@ -66,14 +69,68 @@ printf 'CMD workspace 2\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 ```
 
-The headless backend has no keyboard or pointer. The launcher can be opened and
-rendered, but it cannot be typed into in this mode. Use IPC for state changes, or
-run the compositor on a real TTY for interactive testing.
+Tessa creates a fallback keyboard when the headless backend has no physical
+input devices, so the panel, IME, and XWayland can start correctly. Inject
+keyboard input through the virtual-keyboard protocol:
+
+```sh
+export XDG_RUNTIME_DIR=/tmp/tessa-headless
+export WAYLAND_DISPLAY=wayland-0
+
+printf 'CMD launcher\n' | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+wtype "foot"
+wtype -k Return
+```
+
+`wtype` types into whichever surface currently has keyboard focus.
+
+### IME test
+
+Start Fcitx5 inside the session, select Mozc, and type into the launcher:
+
+```sh
+printf 'CMD spawn fcitx5\n' \
+  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+printf 'CMD launcher\n' \
+  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+
+wtype "nihongo"      # preedit
+wtype -k space       # conversion
+wtype -k Return      # commit
+grim -o HEADLESS-1 /tmp/ime.png
+```
+
+Point `XDG_CONFIG_HOME` at a temporary directory with an `fcitx5/profile` that
+selects `mozc` to avoid touching your real Fcitx configuration. The candidate
+popup is drawn through input-method popup surfaces below the search field.
+
+### XWayland test
+
+With `xwayland-satellite` in `PATH` (or `TESSA_XWAYLAND_BIN` set), Tessa chooses
+a free display automatically and exports `DISPLAY`. On a clean machine this is
+usually `:0`.
+
+```sh
+printf 'CMD spawn xeyes\n' \
+  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+printf 'CMD spawn xclock\n' \
+  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+sleep 2
+DISPLAY=:0 xdpyinfo | head
+grim -o HEADLESS-1 /tmp/xwayland.png
+printf 'STATE\n' \
+  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+```
+
+The `STATE` output should list `XEyes` and `XClock` as normal windows. Use
+`xev` and `wtype` to check that key events reach X11 clients; note that wtype
+installs its own small keymap, so a physical keyboard is better for realistic
+text-entry tests.
 
 ## Debug logging
 
 ```sh
-# wlroots debug logs and Tessa logs
+# wlroots debug logs, Tessa logs, and IME/popup diagnostics
 TESSA_DEBUG=1 ./scripts/run-headless.sh
 
 # panel state snapshots (active workspace, window count)
@@ -90,6 +147,8 @@ Environment overrides:
 - `TESSA_CONFIG=/path/to/config`
 - `TESSA_NO_PANEL=1`
 - `TESSA_PANEL_BIN=/path/to/tessa-panel`
+- `TESSA_NO_XWAYLAND=1`
+- `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`
 - `TESSA_DEBUG=1`
 - `TESSA_PANEL_DEBUG=1`
 
@@ -122,3 +181,12 @@ the front of `PATH`, so both binaries are found.
 - Layer-shell `EXCLUSIVE` is enum value `1`; `2` is `ON_DEMAND`.
 - `ReleaseSafe` needs `_FORTIFY_SOURCE=0` for the C imports; this is already set
   in the two `c.zig` files.
+- Xwayland 24.x needs a keyboard keymap in the parent seat at startup, or it
+  fails with `XKB: Failed to compile keymap`; the fallback keyboard in
+  `input.zig` provides one.
+- Reset `SIGCHLD` to `SIG_DFL` before exec'ing children. Tessa ignores `SIGCHLD`
+  for its own child reaping; inheriting that breaks helpers that spawn and wait,
+  including Xwayland's xkbcomp.
+- `wlr_xdg_toplevel_decoration_v1_set_mode()` must not schedule a configure
+  before the xdg surface's initial commit. If it is not initialized, set
+  `scheduled_mode` and apply it after initialization.

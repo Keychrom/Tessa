@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Tessa
 
 A quiet, tiled Wayland desktop written in Zig on top of wlroots.
@@ -19,19 +21,25 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 
 - wlroots 0.19 compositor in Zig (DRM, headless, and nested backends via
   wlroots' autodetection)
-- xdg-shell toplevels, layer-shell, data-device (clipboard), and
+- xdg-shell toplevels, layer-shell, data-device and primary-selection
+  (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
 - master/stack layout **and** the Tessa "mosaic" spiral layout (`Super+T`)
 - nine workspaces, floating windows, fullscreen, click-to-focus
+- text-input-v3 + input-method-v2 IME relay with input-popup placement;
+  verified end to end with Fcitx5 + Mozc in the launcher and Wayland clients
+- XWayland through `xwayland-satellite`: rootless X11 apps are managed as normal
+  Tessa toplevels, and `DISPLAY` is exported to spawned applications
 - integrated panel in Zig + Cairo/Pango:
   - ink/sun wallpaper
   - floating taskbar with workspace pills, window chips, clock, CPU/RAM
-  - searchable application launcher with keyboard navigation
+  - searchable application launcher with keyboard navigation and IME input
 - simple line-based IPC between compositor and panel
 - line-based configuration file
 
 It has been built and tested on Ubuntu 26.04 with Zig 0.16.0 and wlroots
-0.19.2, primarily in the headless pixman backend with `grim` screenshots.
+0.19.2, primarily in the headless pixman backend with `grim`, `wtype`, Fcitx5 +
+Mozc, and X11 clients through `xwayland-satellite`.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -68,6 +76,10 @@ Requirements:
 - Wayland, xkbcommon, pixman, libdrm, libinput, libseat, libudev, EGL/GLES
 - Cairo and Pango development files for the panel
 - fonts: Inter, JetBrains Mono, and a CJK font such as Noto Sans CJK JP
+- optional: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
+  for X11 applications (auto-started when `xwayland = true`)
+- optional: Fcitx5 + Mozc (or another input method that implements
+  `zwp_input_method_v2`) for Japanese input
 
 On Ubuntu 26.04:
 
@@ -77,8 +89,14 @@ sudo apt install build-essential pkg-config git \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libfontconfig1-dev \
-  fonts-inter fonts-jetbrains-mono fonts-noto-cjk
+  fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
+  xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
+
+`xwayland-satellite` is not packaged everywhere; install it into `PATH` (for
+example `~/.local/bin/xwayland-satellite`), or set `TESSA_XWAYLAND_BIN` to its
+absolute path. Tessa does not use wlroots' built-in XWayland; satellite gives
+rootless X11 windows to the compositor as ordinary xdg-shell toplevels.
 
 If wlroots 0.19 is installed under `/usr/local` (for example when built from source),
 make sure its `.pc` file and shared library are found:
@@ -148,16 +166,69 @@ In another shell, take a screenshot:
 ./scripts/screenshot.sh /tmp/tessa.png
 ```
 
-Because the headless backend has no keyboard or mouse, use IPC to drive a
-session:
+Because the headless backend starts without physical input devices, Tessa
+creates a fallback keyboard with a standard XKB keymap. This lets the panel,
+IME, and XWayland start correctly. Use IPC for mouse/state changes, or inject
+keyboard input with `wtype`:
 
 ```sh
-printf 'CMD spawn foot -T notes\n' | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
-printf 'CMD layout\n'              | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
-printf 'CMD launcher\n'            | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+XDG_RUNTIME_DIR=/tmp/tessa-headless WAYLAND_DISPLAY=wayland-0 \
+  wtype "foot"
+XDG_RUNTIME_DIR=/tmp/tessa-headless WAYLAND_DISPLAY=wayland-0 \
+  wtype -k Return
 ```
 
+`wtype` connects through the virtual-keyboard protocol; it types into whichever
+surface currently has keyboard focus. This is also how the IME and panel
+keyboard paths are tested without a TTY.
+
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the headless workflow.
+
+## Input methods
+
+![Japanese preedit and Fcitx5 candidates in the launcher](docs/images/ime.png)
+
+Tessa implements the `zwp_text_input_v3` (client) and
+`zwp_input_method_v2` (input method) protocols and relays focus, surrounding
+text, cursor rectangles, preedit, committed text, and deletion. Input-method
+popup surfaces (the candidate window) are positioned below the text cursor with
+output-edge clamping.
+
+Tested with **Fcitx5 + Mozc**:
+
+```sh
+sudo apt install fcitx5 fcitx5-mozc
+```
+
+Start Fcitx5 inside the Tessa session (for example through `TESSA_STARTUP` or
+your compositor's spawn command). You do not need to set `GTK_IM_MODULE` or
+`QT_IM_MODULE` for Wayland-native clients: they use the Wayland text-input
+protocol. For X11 clients, install and configure Fcitx's XIM module separately;
+XIM is outside the wayland text-input path.
+
+Open the launcher with `Super+D` and type; the preedit is drawn in the search
+field and the Fcitx candidate popup appears below it. `Enter` commits the
+selection, and the committed text becomes part of the launcher query.
+
+## X11 applications
+
+![xeyes and xclock running through xwayland-satellite](docs/images/xwayland.png)
+
+Tessa starts `xwayland-satellite` after the Wayland socket is ready and exports
+the chosen display as `DISPLAY`. X11 applications are rootless: each X11
+toplevel appears as a normal Tessa window and participates in tiling,
+workspaces, focus, and the taskbar. Tessa advertises `xdg-decoration` in
+server-side mode, so satellite does not draw its own titlebars; Tessa's accent
+border is used instead.
+
+The display is chosen automatically by default (`xwayland_display = auto`),
+starting at `:0` and skipping displays whose sockets already exist. Set it to an
+explicit value such as `:1` if needed. Disable XWayland with `xwayland = false`
+or `TESSA_NO_XWAYLAND=1`. If satellite is installed outside `PATH`, set
+`TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`.
+
+X11 applications render at scale 1. Fractional scaling and XWayland's XSETTINGS
+integration are not implemented yet.
 
 ## Key bindings
 
@@ -209,6 +280,8 @@ At runtime `Super+R` reloads the config. Selected keys:
 | `master_ratio` | master area ratio (0.15–0.9) |
 | `layout` | `master` or `mosaic` |
 | `panel` | auto-start `tessa-panel` |
+| `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
+| `xwayland_display` | `auto`, or an explicit display such as `:0` |
 | `accent` | accent color used by borders, bar, launcher |
 | `bg` | base background color for the wallpaper |
 | `font` | UI family for the panel |
@@ -280,20 +353,21 @@ The IPC socket is created as mode `0600` under `$XDG_RUNTIME_DIR`.
 
 These are real and important:
 
-- **No XWayland.** Only Wayland-native clients run. X11 apps need XWayland,
-  which is not implemented yet.
-- **No input-method (IME) / text-input-v3.** Fcitx5/Mozc in clients and Japanese
-  input in the launcher are not supported yet. This is a high-priority roadmap
-  item.
-- **DRM/keyboard/mouse not yet validated on real hardware.** The headless
-  session has no input devices, so interactive typing and pointer behavior were
-  implemented and visually verified where possible, but not exercised end to
-  end on a physical session.
+- **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
+  the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
+  pointer behavior and DRM mode setting still need a physical test pass.
 - **One panel.** The bar/background are created on the first output. Multiple
   outputs tile windows, but they share one active workspace and only one bar.
-- **No layer-shell popups from third-party clients.** Toplevel xdg popups work;
-  layer-surface popups are not wired into the scene yet.
-- **Scale is fixed to 1.** HiDPI output scale is not configurable.
+- **No layer-shell popups from third-party clients.** Toplevel xdg popups and
+  input-method popups work; popups attached to layer surfaces are not wired into
+  the scene yet.
+- **Scale is fixed to 1.** HiDPI output scale is not configurable, and X11
+  clients are not scaled.
+- **IME coverage.** Wayland text-input-v3 clients and the panel are verified
+  with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
+  and input-method popup repositioning during scroll are not covered.
+- **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
+  missing, X11 applications simply do not start; Wayland clients are unaffected.
 - **No portals, screen sharing, lock screen, idle-inhibit, gamma, or output
   configuration UI.**
 - **No session lock.** Do not treat this as a hardened/secure desktop yet.
@@ -301,7 +375,10 @@ These are real and important:
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the
   list will be short. It does not use icon themes yet (monogram tiles instead).
-- The license is not decided yet. Choose one before distributing.
+
+## License
+
+Tessa is released under the **MIT License**. See [LICENSE](LICENSE).
 
 ## Credits
 

@@ -15,6 +15,11 @@ layout = master
 # Start tessa-panel together with the compositor.
 panel = true
 
+# Start xwayland-satellite for X11 applications and export DISPLAY.
+# "auto" picks the first free display (:0, :1, ...).
+xwayland = true
+xwayland_display = auto
+
 # The shell palette. Both the compositor borders and the panel use these.
 accent = #e2684f
 bg = #0a0f1a

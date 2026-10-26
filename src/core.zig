@@ -19,6 +19,11 @@ pub fn logInfo(comptime fmt: []const u8, args: anytype) void {
     std.debug.print("tessa: " ++ fmt ++ "\n", args);
 }
 
+pub fn logDebug(comptime fmt: []const u8, args: anytype) void {
+    if (c.getenv("TESSA_DEBUG") == null) return;
+    std.debug.print("tessa: " ++ fmt ++ "\n", args);
+}
+
 pub fn cstr(ptr: anytype) []const u8 {
     const p: ?[*:0]const u8 = @ptrCast(ptr);
     if (p) |q| return std.mem.span(q);
@@ -80,6 +85,7 @@ pub fn spawn(cmd: []const u8) void {
     const pid = c.fork();
     if (pid == 0) {
         _ = c.setsid();
+        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
         _ = c.execl("/bin/sh", "/bin/sh", "-c", z.ptr, @as(?[*:0]const u8, null));
         c._exit(127);
     }
@@ -88,7 +94,17 @@ pub fn spawn(cmd: []const u8) void {
 pub fn spawnProgram(prog: [*:0]const u8) void {
     const pid = c.fork();
     if (pid == 0) {
+        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
         _ = c.execlp(prog, prog, @as(?[*:0]const u8, null));
+        c._exit(127);
+    }
+}
+
+pub fn spawnProgramArg(prog: [*:0]const u8, arg: [*:0]const u8) void {
+    const pid = c.fork();
+    if (pid == 0) {
+        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        _ = c.execlp(prog, prog, arg, @as(?[*:0]const u8, null));
         c._exit(127);
     }
 }
@@ -123,6 +139,16 @@ pub fn outputIndexOf(server: *Server, out: *Output) ?usize {
     while (i < server.outputs.len) : (i += 1) {
         if (server.outputs[i]) |o| {
             if (o == out) return i;
+        }
+    }
+    return null;
+}
+
+pub fn popupIndex(server: *Server, popup: *types.ImPopup) ?usize {
+    var i: usize = 0;
+    while (i < server.im_popups.len) : (i += 1) {
+        if (server.im_popups[i]) |p| {
+            if (p == popup) return i;
         }
     }
     return null;

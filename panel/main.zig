@@ -16,6 +16,11 @@ fn logMsg(comptime fmt: []const u8, args: anytype) void {
     std.debug.print("tessa-panel: " ++ fmt ++ "\n", args);
 }
 
+fn logDebug(comptime fmt: []const u8, args: anytype) void {
+    if (c.getenv("TESSA_DEBUG") == null) return;
+    logMsg(fmt, args);
+}
+
 fn surfaceFor(wl_surface: ?*c.wl_surface) ?*m.Surface {
     if (wl_surface == null) return null;
     if (g.bar.wl == wl_surface) return &g.bar;
@@ -31,6 +36,10 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
     const s: *m.Surface = @ptrCast(@alignCast(data.?));
     if (s.layer) |ls| c.zwlr_layer_surface_v1_ack_configure(ls, serial);
     draw.configureSurface(s, width, height);
+    if (s.kind == .overlay) {
+        computeSearchRect();
+        if (g.text_input_enabled) syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+    }
 }
 
 fn destroyOverlay() void {
@@ -39,6 +48,7 @@ fn destroyOverlay() void {
     g.launcher_open = false;
     g.menu_anim = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
+    destroyTextInput();
     draw.destroyBuffers(s);
     if (s.layer) |ls| c.zwlr_layer_surface_v1_destroy(ls);
     if (s.wl) |wl| c.wl_surface_destroy(wl);
@@ -151,7 +161,171 @@ fn createChrome() void {
     );
 }
 
+fn computeSearchRect() void {
+    const s = g.overlay orelse return;
+    if (s.width == 0 or s.height == 0) return;
+    const W: f64 = @floatFromInt(s.width);
+    const H: f64 = @floatFromInt(s.height);
+    const pw = @min(760.0, W - 80.0);
+    const ph = @min(620.0, H - 80.0);
+    const px = (W - pw) / 2.0;
+    const py = (H - ph) / 2.0 - 14.0;
+    const x: i32 = @intFromFloat(px + 78.0);
+    const y: i32 = @intFromFloat(py + 106.0);
+    g.search_rect = .{ x, y, 1, 20 };
+}
+
+fn syncTextInput(cause: u32) void {
+    const ti = g.text_input orelse return;
+    if (!g.text_input_enabled) return;
+    c.zwp_text_input_v3_set_content_type(
+        ti,
+        @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_HINT_COMPLETION),
+        @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_PURPOSE_NORMAL),
+    );
+    c.zwp_text_input_v3_set_surrounding_text(ti, @ptrCast(&g.query), @intCast(g.query_len), @intCast(g.query_len));
+    c.zwp_text_input_v3_set_text_change_cause(ti, cause);
+    c.zwp_text_input_v3_set_cursor_rectangle(ti, g.search_rect[0], g.search_rect[1], g.search_rect[2], g.search_rect[3]);
+    c.zwp_text_input_v3_commit(ti);
+}
+
+fn onTiEnter(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, surface: ?*c.wl_surface) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    _ = surface;
+    g.text_input_focused = true;
+    logDebug("text input enter rect={d},{d} {d}x{d}", .{ g.search_rect[0], g.search_rect[1], g.search_rect[2], g.search_rect[3] });
+    syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+}
+
+fn onTiLeave(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, surface: ?*c.wl_surface) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    _ = surface;
+    g.text_input_focused = false;
+}
+
+fn onTiPreedit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8, begin: i32, end: i32) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    if (text != null) {
+        m.copyTrunc(&g.preedit, &g.preedit_len, std.mem.span(text));
+    } else {
+        g.preedit_len = 0;
+        g.preedit[0] = 0;
+    }
+    g.preedit_begin = begin;
+    g.preedit_end = end;
+    logDebug("preedit len={d}", .{g.preedit_len});
+    if (g.overlay) |s| s.dirty = true;
+}
+
+fn onTiCommit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    logDebug("commit string", .{});
+    if (text != null) appendQueryUtf8(std.mem.span(text));
+    g.preedit_len = 0;
+    g.preedit[0] = 0;
+    if (g.overlay) |s| s.dirty = true;
+    syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_INPUT_METHOD);
+}
+
+fn onTiDelete(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, before: u32, after: u32) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    _ = after;
+    const n = @min(g.query_len, @as(usize, before));
+    g.query_len -= n;
+    g.query[g.query_len] = 0;
+    g.preedit_len = 0;
+    g.preedit[0] = 0;
+    g.selected = 0;
+    g.scroll = 0;
+    m.recomputeResults();
+    if (g.overlay) |s| s.dirty = true;
+    syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_INPUT_METHOD);
+}
+
+fn onTiDone(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, serial: u32) callconv(.c) void {
+    _ = data;
+    _ = ti;
+    _ = serial;
+    if (g.overlay) |s| s.dirty = true;
+}
+
+fn createTextInput() void {
+    if (g.text_input != null) return;
+    const mgr = g.text_input_manager orelse {
+        logMsg("text input manager is unavailable", .{});
+        return;
+    };
+    const seat = g.seat orelse {
+        logMsg("seat is unavailable for text input", .{});
+        return;
+    };
+    const ti = c.zwp_text_input_manager_v3_get_text_input(mgr, seat) orelse {
+        logMsg("get_text_input returned null", .{});
+        return;
+    };
+    logDebug("text input created", .{});
+    g.text_input = ti;
+    g.text_input_listener = std.mem.zeroes(c.zwp_text_input_v3_listener);
+    g.text_input_listener.enter = onTiEnter;
+    g.text_input_listener.leave = onTiLeave;
+    g.text_input_listener.preedit_string = onTiPreedit;
+    g.text_input_listener.commit_string = onTiCommit;
+    g.text_input_listener.delete_surrounding_text = onTiDelete;
+    g.text_input_listener.done = onTiDone;
+    _ = c.zwp_text_input_v3_add_listener(ti, &g.text_input_listener, null);
+}
+
+fn enableTextInput() void {
+    createTextInput();
+    const ti = g.text_input orelse return;
+    if (g.text_input_enabled) {
+        syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+        return;
+    }
+    computeSearchRect();
+    c.zwp_text_input_v3_set_content_type(
+        ti,
+        @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_HINT_COMPLETION),
+        @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_PURPOSE_NORMAL),
+    );
+    c.zwp_text_input_v3_set_surrounding_text(ti, @ptrCast(&g.query), @intCast(g.query_len), @intCast(g.query_len));
+    c.zwp_text_input_v3_set_text_change_cause(ti, c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
+    c.zwp_text_input_v3_set_cursor_rectangle(ti, g.search_rect[0], g.search_rect[1], g.search_rect[2], g.search_rect[3]);
+    c.zwp_text_input_v3_enable(ti);
+    c.zwp_text_input_v3_commit(ti);
+    g.text_input_enabled = true;
+    logDebug("text input enabled", .{});
+}
+
+fn disableTextInput() void {
+    const ti = g.text_input orelse return;
+    if (g.text_input_enabled) {
+        c.zwp_text_input_v3_disable(ti);
+        c.zwp_text_input_v3_commit(ti);
+        g.text_input_enabled = false;
+    }
+    g.text_input_focused = false;
+}
+
+fn destroyTextInput() void {
+    disableTextInput();
+    if (g.text_input) |ti| {
+        c.zwp_text_input_v3_destroy(ti);
+        g.text_input = null;
+    }
+    g.preedit_len = 0;
+    g.preedit[0] = 0;
+}
+
 fn openLauncher(query_arg: []const u8) void {
+    if (g.overlay != null and !g.launcher_open) {
+        destroyOverlay();
+    }
     if (g.overlay != null and g.launcher_open) {
         if (query_arg.len == 0) {
             closeLauncher();
@@ -189,18 +363,22 @@ fn openLauncher(query_arg: []const u8) void {
     g.launcher_open = true;
     g.hover = .{};
     g.overlay_row_hover = 999;
+    g.preedit_len = 0;
+    g.preedit[0] = 0;
     g.menu_from = g.menu_anim;
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
     g.next_blink_ms = m.nowMs() + 500;
 
     m.setQuery(query_arg);
+    enableTextInput();
     g.overlay.?.dirty = true;
     g.bar.dirty = true;
 }
 
 fn closeLauncher() void {
     if (g.overlay == null or !g.launcher_open) return;
+    disableTextInput();
     g.launcher_open = false;
     g.menu_from = g.menu_anim;
     g.menu_target = 0;
@@ -279,6 +457,7 @@ fn appendQueryUtf8(data: []const u8) void {
     g.scroll = 0;
     m.recomputeResults();
     if (g.overlay) |s| s.dirty = true;
+    syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
     g.next_blink_ms = m.nowMs() + 500;
 }
 
@@ -292,12 +471,14 @@ fn backspaceQuery() void {
     g.scroll = 0;
     m.recomputeResults();
     if (g.overlay) |s| s.dirty = true;
+    syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
     g.next_blink_ms = m.nowMs() + 500;
 }
 
 fn onKeyboardKeymap(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, format: u32, fd: c_int, size: u32) callconv(.c) void {
     _ = data;
     _ = keyboard;
+    logDebug("keymap format={d} size={d}", .{ format, size });
     defer _ = c.close(fd);
     if (format != 1 or size == 0) return;
     const map = c.mmap(null, size, c.PROT_READ, c.MAP_PRIVATE, fd, 0);
@@ -305,11 +486,12 @@ fn onKeyboardKeymap(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, format: u32, f
     defer _ = c.munmap(map, size);
 
     const ctx = g.xkb_ctx orelse return;
-    const keymap = c.xkb_keymap_new_from_string(
+    const keymap = c.xkb_keymap_new_from_buffer(
         ctx,
         @ptrCast(map.?),
+        size,
         c.XKB_KEYMAP_FORMAT_TEXT_V1,
-        @intCast(size),
+        c.XKB_KEYMAP_COMPILE_NO_FLAGS,
     ) orelse return;
     const state = c.xkb_state_new(keymap) orelse {
         c.xkb_keymap_unref(keymap);
@@ -352,10 +534,12 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
     _ = keyboard;
     _ = serial;
     _ = time;
+    if (state == 1 and g.launcher_open) logDebug("panel key {d} xkb={}", .{ key, g.xkb_state != null });
     if (state != 1 or !g.launcher_open) return;
     const xstate = g.xkb_state orelse return;
     const keycode: c.xkb_keycode_t = key + 8;
     const sym = c.xkb_state_key_get_one_sym(xstate, keycode);
+    logDebug("panel keysym {d}", .{sym});
 
     if (sym == c.XKB_KEY_Escape) {
         closeLauncher();
@@ -482,6 +666,10 @@ fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, int
         const v = @min(version, 4);
         if (c.wl_registry_bind(reg, name, &c.zwlr_layer_shell_v1_interface, v)) |p| {
             g.layer_shell = @ptrCast(@alignCast(p));
+        }
+    } else if (std.mem.eql(u8, iface, "zwp_text_input_manager_v3") and g.text_input_manager == null) {
+        if (c.wl_registry_bind(reg, name, &c.zwp_text_input_manager_v3_interface, 1)) |p| {
+            g.text_input_manager = @ptrCast(@alignCast(p));
         }
     } else if (std.mem.eql(u8, iface, "wl_seat") and g.seat == null) {
         if (c.wl_registry_bind(reg, name, &c.wl_seat_interface, 1)) |p| {

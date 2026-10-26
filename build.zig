@@ -41,6 +41,10 @@ pub fn build(b: *std.Build) void {
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
     panel_mod.addCSourceFile(.{
+        .file = b.path("protocol/text-input-client-protocol.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
         .file = b.path("panel/text.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });

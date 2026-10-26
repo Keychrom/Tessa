@@ -27,6 +27,86 @@ pub fn init(server: *Server) void {
 
     server.new_xdg_popup.notify = onNewPopup;
     c.wl_signal_add(&server.xdg_shell.events.new_popup, &server.new_xdg_popup);
+
+    const deco_mgr_raw = c.wlr_xdg_decoration_manager_v1_create(server.display);
+    if (deco_mgr_raw != null) {
+        const mgr: *c.wlr_xdg_decoration_manager_v1 = @ptrCast(@alignCast(deco_mgr_raw));
+        server.new_toplevel_decoration.notify = onNewToplevelDecoration;
+        c.wl_signal_add(&mgr.events.new_toplevel_decoration, &server.new_toplevel_decoration);
+    }
+
+    const activation_raw = c.wlr_xdg_activation_v1_create(server.display);
+    if (activation_raw != null) {
+        const activation: *c.wlr_xdg_activation_v1 = @ptrCast(@alignCast(activation_raw));
+        server.request_activate.notify = onActivationRequest;
+        c.wl_signal_add(&activation.events.request_activate, &server.request_activate);
+    }
+}
+
+fn onActivationRequest(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("request_activate", listener.?);
+    const event: *c.wlr_xdg_activation_v1_request_activate_event = @ptrCast(@alignCast(data.?));
+    if (event.surface == null) return;
+    const surface: *c.wlr_surface = @ptrCast(@alignCast(event.surface));
+
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (tSurface(cl.xdg) != surface) continue;
+        if (!cl.mapped) return;
+        if (cl.ws != server.active_ws) {
+            layout.switchWorkspace(server, cl.ws);
+        }
+        layout.focusClient(server, cl);
+        return;
+    }
+}
+
+fn onNewToplevelDecoration(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = listener;
+    const deco: *c.wlr_xdg_toplevel_decoration_v1 = @ptrCast(@alignCast(data.?));
+
+    const state = @as(*Decoration, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Decoration)).?)));
+    state.deco = deco;
+    state.request_mode.notify = onDecorationRequestMode;
+    c.wl_signal_add(&deco.events.request_mode, &state.request_mode);
+    state.destroy.notify = onDecorationDestroy;
+    c.wl_signal_add(&deco.events.destroy, &state.destroy);
+
+    applyDecorationMode(deco);
+}
+
+const Decoration = struct {
+    deco: *c.wlr_xdg_toplevel_decoration_v1,
+    request_mode: c.wl_listener,
+    destroy: c.wl_listener,
+};
+
+fn applyDecorationMode(deco: *c.wlr_xdg_toplevel_decoration_v1) void {
+    const toplevel: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(deco.toplevel));
+    const base: *c.wlr_xdg_surface = @ptrCast(@alignCast(toplevel.base));
+    if (base.initialized) {
+        _ = c.wlr_xdg_toplevel_decoration_v1_set_mode(
+            deco,
+            c.WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE,
+        );
+    } else {
+        deco.scheduled_mode = @intCast(c.WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+    }
+}
+
+fn onDecorationRequestMode(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const state: *Decoration = @fieldParentPtr("request_mode", listener.?);
+    applyDecorationMode(state.deco);
+}
+
+fn onDecorationDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const state: *Decoration = @fieldParentPtr("destroy", listener.?);
+    c.wl_list_remove(&state.request_mode.link);
+    c.wl_list_remove(&state.destroy.link);
+    c.free(state);
 }
 
 fn copyMeta(client: *Client) void {

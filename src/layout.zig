@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const ime = @import("ime.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -44,6 +45,15 @@ fn keyboardClear(server: *Server) void {
     if (server.focused_layer == null) c.wlr_seat_keyboard_clear_focus(server.seat);
 }
 
+fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
+    const geo = tBase(cl.xdg).geometry;
+    const border: i32 = if (cl.fullscreen) 0 else cl.server.config.border_width;
+    return .{
+        .x = cl.frame.node.x + border - geo.x,
+        .y = cl.frame.node.y + border - geo.y,
+    };
+}
+
 pub fn raiseClient(client: *Client) void {
     const s = client.server;
     const tree: *c.wlr_scene_tree = if (client.fullscreen)
@@ -79,6 +89,22 @@ pub fn updateBorders(server: *Server) void {
     }
 }
 
+pub fn refreshKeyboardFocus(server: *Server) void {
+    if (server.focused_layer) |layer| {
+        c.wlr_seat_keyboard_clear_focus(server.seat);
+        keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
+    } else if (server.focused) |cl| {
+        if (cl.mapped and cl.ws == server.active_ws) {
+            c.wlr_seat_keyboard_clear_focus(server.seat);
+            keyboardEnter(server, tSurface(cl.xdg));
+        } else {
+            keyboardClear(server);
+        }
+    } else {
+        keyboardClear(server);
+    }
+}
+
 pub fn focusClient(server: *Server, target: ?*Client) void {
     if (server.focused_layer != null) {
         server.focused_layer = null;
@@ -98,6 +124,8 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
         raiseClient(cl);
         keyboardEnter(server, tSurface(cl.xdg));
+        const origin = clientSurfaceOrigin(cl);
+        ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
         updateBorders(server);
         core.markDirty(server);
         return;
@@ -108,6 +136,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
     }
     server.focused = null;
     keyboardClear(server);
+    ime.focusSurface(server, null, 0, 0);
     updateBorders(server);
     core.markDirty(server);
 }
@@ -118,6 +147,13 @@ pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
     }
     server.focused_layer = layer;
     keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
+    const layer_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(layer.scene_layer.tree));
+    ime.focusSurface(
+        server,
+        @ptrCast(@alignCast(layer.wlr.surface)),
+        layer.output.full.x + layer_tree.node.x,
+        layer.output.full.y + layer_tree.node.y,
+    );
     updateBorders(server);
     core.markDirty(server);
 }
@@ -129,12 +165,15 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
         if (cl.mapped and cl.ws == server.active_ws) {
             _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
             keyboardEnter(server, tSurface(cl.xdg));
+            const origin = clientSurfaceOrigin(cl);
+            ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
             updateBorders(server);
             core.markDirty(server);
             return;
         }
     }
     keyboardClear(server);
+    ime.focusSurface(server, null, 0, 0);
     updateBorders(server);
     core.markDirty(server);
 }

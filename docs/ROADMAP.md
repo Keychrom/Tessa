@@ -1,3 +1,5 @@
+**English** | [日本語](ROADMAP.ja.md)
+
 # Roadmap
 
 Tessa is intentionally small. The roadmap is ordered by what makes it usable as
@@ -12,20 +14,23 @@ a daily Japanese desktop, then by polish.
 - [ ] Fix any transient client repaint gaps after float/resize.
 - [ ] Add a small integration test that starts the headless compositor and
       asserts the panel state/IPC.
-- [ ] Decide the license.
+- [x] Decide the license (MIT).
 - [ ] Package for Arch/Ubuntu and pin wlroots 0.19.
 
 ## 0.2 — input and apps
 
-- [ ] `zwp_text_input_v3` + `input-method-v2` support (Fcitx5/Mozc). **Critical
-      for Japanese input** in the launcher and clients.
-- [ ] XWayland, either via `xwayland-satellite` (recommended) or
-      `wlr_xwayland`.
+- [x] `zwp_text_input_v3` + `input-method-v2` support (Fcitx5/Mozc), including
+      input-popup placement and launcher IME input.
+- [x] XWayland through `xwayland-satellite`, with automatic display selection,
+      `DISPLAY` export, xdg-decoration, and a fallback keyboard for headless
+      startup.
 - [ ] Layer-shell popup rendering (menus from third-party layer clients).
 - [ ] Keyboard layout/options in config (`XKB_DEFAULT_*` is used today).
 - [ ] Touchpad gesture support (workspace swipe, launcher gesture).
 - [ ] Touch and tablet support.
 - [ ] Pointer constraints / relative pointer for games.
+- [x] Primary selection (`wlr_primary_selection_v1`).
+- [ ] XIM integration for X11 applications.
 
 ## 0.3 — shell and desktop integration
 
@@ -37,7 +42,7 @@ a daily Japanese desktop, then by polish.
 - [ ] Screenshot UI and `xdg-desktop-portal` integration; PipeWire screen
       sharing.
 - [ ] Notification daemon integration.
-- [ ] Clipboard history and primary selection.
+- [ ] Clipboard history.
 
 ## 0.4 — visual and layout depth
 
