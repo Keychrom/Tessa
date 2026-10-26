@@ -67,6 +67,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - `Super+V` で開き、クリックまたはキーボードで貼り付けられるメモリ上だけの
     クリップボード履歴
   - `wlr-screencopy` を使った範囲/全画面スクリーンショット UI（PNG 保存）
+  - `org.freedesktop.Notifications` サービスと、置換・閉じる・期限切れに
+    対応したプレーンテキストのトースト通知
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -82,8 +84,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
-`tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh` で
-検証しています。
+`tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
+`tests/notifications.sh` で検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -121,12 +123,13 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 - wlroots **0.19** の開発ファイル（`pkg-config --modversion wlroots-0.19`
   で見つかること）
 - Wayland、xkbcommon、pixman、libdrm、libinput、libseat、libudev、EGL/GLES
-- パネル用の Cairo / Pango 開発ファイル
+- パネルと通知用の Cairo / Pango / GLib (GIO) 開発ファイル
 - フォント: Inter、JetBrains Mono、Noto Sans CJK JP などの CJK フォント
 - 任意: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
 - 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
+- 任意: デスクトップ通知用の D-Bus セッション bus
 
 配布用パッケージ定義は `packaging/` と `debian/` にあります。
 `packaging/arch/PKGBUILD` と debhelper 用 `debian/` が、コンポジタ、パネル、
@@ -140,7 +143,7 @@ sudo apt install build-essential pkg-config git \
   libwayland-dev wayland-protocols libwlroots-0.19-dev \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
-  libcairo2-dev libpango1.0-dev libfontconfig1-dev \
+  libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
@@ -659,6 +662,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   内のクライアントへ公開されるため、信頼されたアプリはキーボードフォーカス
   なしでセレクションを読めます。セッション内アプリを信頼できる前提で使って
   ください。
+- **通知は意図的に最小限。** パネルが `org.freedesktop.Notifications` を所有し、
+  プレーンテキストのトースト表示、置換、閉じる、期限切れに対応します。
+  アクション、マークアップ、アイコン検索は未対応です。また D-Bus 名を所有
+  したパネルの出力にだけ表示され、出力間ルーティングは今後の課題です。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
   Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。

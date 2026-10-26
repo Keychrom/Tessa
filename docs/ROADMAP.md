@@ -50,7 +50,9 @@ a daily Japanese desktop, then by polish.
 - [x] Screenshot UI: region/full-output capture through `wlr-screencopy`, saved
       as PNG.
 - [ ] `xdg-desktop-portal` integration and PipeWire screen sharing.
-- [ ] Notification daemon integration.
+- [x] Notification daemon: `org.freedesktop.Notifications` plain-text toasts
+      with replacement, close, and expiry.
+- [ ] Notification actions/icons, markup, and cross-output routing.
 - [x] Clipboard history for text, using `wlr-data-control-v1` (memory only).
 
 ## 0.4 — visual and layout depth

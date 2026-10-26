@@ -56,9 +56,14 @@ pub fn build(b: *std.Build) void {
         .file = b.path("panel/text.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("panel/notifications.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+    });
     panel_mod.linkSystemLibrary("wayland-client", .{});
     panel_mod.linkSystemLibrary("cairo", .{});
     panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
+    panel_mod.linkSystemLibrary("gio-2.0", .{});
     panel_mod.linkSystemLibrary("xkbcommon", .{});
     panel_mod.linkSystemLibrary("m", .{ .use_pkg_config = .no });
     const panel = b.addExecutable(.{

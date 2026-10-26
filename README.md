@@ -62,6 +62,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
     lock/suspend/reboot/shutdown commands
   - memory-only clipboard history with `Super+V` and click-to-copy
   - region/full-output screenshot UI using `wlr-screencopy`, saved as PNG
+  - `org.freedesktop.Notifications` service with plain-text toast cards,
+    replacement, close, and expiry
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -76,8 +78,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
-`tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`, and
-panel screenshots.
+`tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
+`tests/notifications.sh`, and panel screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -113,13 +115,14 @@ Requirements:
 - wlroots **0.19** development files, discoverable with
   `pkg-config --modversion wlroots-0.19`
 - Wayland, xkbcommon, pixman, libdrm, libinput, libseat, libudev, EGL/GLES
-- Cairo and Pango development files for the panel
+- Cairo, Pango, and GLib/GIO development files for the panel and notifications
 - fonts: Inter, JetBrains Mono, and a CJK font such as Noto Sans CJK JP
 - optional: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
   for X11 applications (auto-started when `xwayland = true`)
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
+- optional: a D-Bus session bus for desktop notifications
 
 Distribution packaging definitions live in `packaging/` and `debian/`:
 `packaging/arch/PKGBUILD` and the debhelper `debian/` tree both install the
@@ -133,7 +136,7 @@ sudo apt install build-essential pkg-config git \
   libwayland-dev wayland-protocols libwlroots-0.19-dev \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
-  libcairo2-dev libpango1.0-dev libfontconfig1-dev \
+  libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
@@ -631,6 +634,11 @@ These are real and important:
   to 16 KiB and never writes them to disk. `wlr-data-control-v1` is exposed to
   session clients, so any trusted application can read the selection without
   keyboard focus; treat session applications as trusted.
+- **Notifications are intentionally basic.** The panel owns
+  `org.freedesktop.Notifications` and shows plain-text toasts with replacement,
+  close, and expiry. Actions, markup, and icon lookup are not implemented, and
+  only the panel that owns the D-Bus name shows toasts (cross-output routing is
+  still pending).
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
   with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
   and input-method popup repositioning during scroll are not covered.

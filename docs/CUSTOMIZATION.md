@@ -303,6 +303,31 @@ also a key-binding action:
 bind = SUPER+SHIFT+s screenshot
 ```
 
+## Notifications
+
+The panel implements the `org.freedesktop.Notifications` D-Bus service on the
+session bus, so applications can use it without a separate daemon. Up to four
+plain-text toasts stack below the bar. They support replacement by notification
+id, timeout (`0` keeps a notification until dismissed), `CloseNotification`, and
+click-to-dismiss; clicking sends `NotificationClosed` back to the application.
+Notifications marked with an expiry time remove themselves and emit the
+corresponding signal.
+
+The advertised capabilities are `body` and `persistence`: markup, actions, and
+icon lookup are not implemented. If another notification daemon is already
+running, Tessa cannot own the bus name and leaves notifications to that daemon.
+Only one panel owns the bus name, so on multi-output setups toasts currently
+appear on that panel's output.
+
+You can exercise the service with:
+
+```sh
+gdbus call --session --dest org.freedesktop.Notifications \
+  --object-path /org/freedesktop/Notifications \
+  --method org.freedesktop.Notifications.Notify \
+  test-app 0 "" "Build finished" "All targets are up to date" "[]" "{}" 5000
+```
+
 ## Keys and commands
 
 See [../README.md](../README.md#key-bindings) for the defaults. Additional

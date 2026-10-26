@@ -524,6 +524,24 @@ XKB_KEYMAP_COMPILE_NO_FLAGS)` で読み込みます。`xkb_keymap_new_from_strin
 `~/Pictures/Screenshots` で、`screenshot_dir` により変更でき、不足している
 親ディレクトリも作成します。
 
+### 通知
+
+パネルは GIO をリンクし、小さな C シム `panel/notifications.c` が専用の
+GLib スレッド上でセッション bus の `org.freedesktop.Notifications` を所有
+します。シムは `Notify`、`CloseNotification`、`GetCapabilities`、
+`GetServerInformation` を実装し、`NotificationClosed` を発行します。通知は
+socketpair 上の小さなフレーム化バイナリプロトコルで Zig のイベントループへ
+渡し、パネルからの閉じる/期限切れは GLib メインコンテキストへの呼び出しで
+戻すため、D-Bus アクセスはすべて GDBus スレッド上に留まります。
+
+Zig 側は最大 4 件を保持し、ID による置換、期限切れ、`tessa-notifications`
+という右上の layer サーフェスへの描画を行います。高さは通知スタックに追従し、
+Wayland の入力リージョンはカード部分だけで透明な隙間を含みません。カードの
+クリックで閉じ、`NotificationClosed` を発行します。広告する capability は
+`body` と `persistence` のみで、アクション、本文マークアップ、アイコン検索は
+未実装です。bus 名を所有するパネルだけがトーストを表示できるため、出力間
+ルーティングは今後の課題です。
+
 ### バッファと描画
 
 各サーフェスは 3 枚の `wl_shm` ARGB8888 バッファを保持します。

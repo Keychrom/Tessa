@@ -1235,6 +1235,114 @@ fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+fn toastLine(buf: []u8, text: []const u8) []const u8 {
+    const line_end = std.mem.indexOfAny(u8, text, "\r\n") orelse text.len;
+    var len: usize = 0;
+    m.copyTrunc(buf, &len, text[0..line_end]);
+    var i: usize = 0;
+    while (i < len) : (i += 1) {
+        if (buf[i] < 0x20) buf[i] = ' ';
+    }
+    return buf[0..len];
+}
+
+pub fn drawToasts(s: *m.Surface) void {
+    const d = begin(s) orelse return;
+    const cr = d.cr;
+    const W: f64 = @floatFromInt(s.width);
+    const H: f64 = @floatFromInt(s.height);
+    const accent = g.accent;
+    const bg = g.panel_bg;
+    const fg = g.panel_fg;
+    const fam = g.font[0..g.font_len];
+    g.toast_hit_count = 0;
+
+    var region: ?*c.wl_region = null;
+    if (g.compositor) |compositor| region = c.wl_compositor_create_region(compositor);
+
+    var i: usize = 0;
+    while (i < g.notification_count) : (i += 1) {
+        const n = &g.notifications[i];
+        const y = @as(f64, @floatFromInt(i)) * 90.0;
+        if (y >= H) break;
+        const hovered = g.pointer_surface == s and
+            g.pointer_x >= 0 and g.pointer_x < W and
+            g.pointer_y >= y and g.pointer_y < y + 82.0;
+
+        fillRound(cr, 0, y, W, 82, 14, .{ 0.016, 0.023, 0.038, 0.72 });
+        roundRect(cr, 0, y, W, 82, 14);
+        linearGradient(cr, 0, y, 0, y + 82, .{
+            bg[0] * 1.7 + 0.01,
+            bg[1] * 1.7 + 0.01,
+            bg[2] * 1.7 + 0.02,
+            if (hovered) 0.985 else 0.965,
+        }, .{ bg[0] * 1.05, bg[1] * 1.05, bg[2] * 1.08, 0.965 });
+        c.cairo_fill(cr);
+        strokeRound(cr, 0.5, y + 0.5, W - 1, 81, 13.5, .{ 1, 1, 1, if (hovered) 0.16 else 0.09 }, 1);
+
+        const top_pat = c.cairo_pattern_create_linear(16, 0, W - 16, 0);
+        c.cairo_pattern_add_color_stop_rgba(top_pat, 0, accent[0], accent[1], accent[2], 0.65);
+        c.cairo_pattern_add_color_stop_rgba(top_pat, 1, accent[0], accent[1], accent[2], 0.0);
+        c.cairo_set_source(cr, top_pat);
+        c.cairo_rectangle(cr, 16, y + 0.8, W - 32, 1.2);
+        c.cairo_fill(cr);
+        c.cairo_pattern_destroy(top_pat);
+
+        fillRound(cr, 16, y + 26, 28, 28, 9, .{ accent[0], accent[1], accent[2], 0.86 });
+        var glyph_buf: [8]u8 = undefined;
+        const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
+        const glyph = upperFirst(&glyph_buf, firstGlyph(app));
+        _ = drawTextCentered(cr, glyph, 25, y + 40, fam, "Semi-Bold", 10.5, .{
+            1, 1, 1, 0.96,
+        }, 0, 0);
+
+        var app_buf: [80]u8 = undefined;
+        const app_line = toastLine(&app_buf, app);
+        _ = drawText(cr, app_line, 54, y + 10, fam, "Medium", 7.2, .{
+            0.68, 0.74, 0.84, 0.55,
+        }, W - 96, 0.9);
+
+        var summary_buf: [180]u8 = undefined;
+        const summary_text = if (n.summary_len > 0) n.summary[0..n.summary_len] else "Notification";
+        const summary = toastLine(&summary_buf, summary_text);
+        _ = drawText(cr, summary, 54, y + 23, fam, "Semi-Bold", 10.4, .{
+            fg[0], fg[1], fg[2], 0.98,
+        }, W - 96, 0);
+
+        if (n.body_len > 0) {
+            var body_buf: [560]u8 = undefined;
+            const body = toastLine(&body_buf, n.body[0..n.body_len]);
+            _ = drawText(cr, body, 54, y + 44, fam, "Regular", 8.3, .{
+                0.68, 0.74, 0.83, 0.72,
+            }, W - 96, 0);
+        }
+
+        _ = drawTextCentered(cr, "\xc3\x97", W - 22, y + 20, fam, "Medium", 12.0, .{
+            0.76, 0.81, 0.88, if (hovered) 0.9 else 0.45,
+        }, 0, 0);
+
+        if (g.toast_hit_count < g.toast_hits.len) {
+            g.toast_hits[g.toast_hit_count] = .{
+                .x = 0,
+                .y = y,
+                .w = W,
+                .h = 82,
+                .hit = .{ .kind = .notification, .value = @intCast(n.id) },
+            };
+            g.toast_hit_count += 1;
+        }
+        if (region) |r| c.wl_region_add(r, 0, @intFromFloat(y), @intFromFloat(W), 82);
+    }
+
+    if (region) |r| {
+        c.wl_surface_set_input_region(s.wl.?, r);
+        c.wl_region_destroy(r);
+    }
+
+    // The input region contains only the cards, not the transparent gaps.
+    end(s, d);
+}
+
 fn clipboardPreview(buf: []u8, text: []const u8) []const u8 {
     const line_end = std.mem.indexOfAny(u8, text, "\r\n") orelse text.len;
     var len: usize = 0;

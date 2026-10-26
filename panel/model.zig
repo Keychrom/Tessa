@@ -10,6 +10,7 @@ pub const MAX_CUSTOM_APPS = 16;
 pub const POWER_ACTION_COUNT = 5;
 pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
+pub const MAX_NOTIFICATIONS = 4;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot };
 
@@ -45,6 +46,7 @@ pub const HitKind = enum {
     power,
     clipboard_entry,
     clipboard_clear,
+    notification,
 };
 
 pub const Hit = struct {
@@ -104,7 +106,7 @@ pub const OutputInfo = struct {
     done: bool = false,
 };
 
-pub const SurfaceKind = enum { background, bar, overlay };
+pub const SurfaceKind = enum { background, bar, overlay, toasts };
 
 pub const Buffer = struct {
     wl: ?*c.wl_buffer = null,
@@ -133,6 +135,17 @@ pub const ClipboardEntry = struct {
     len: usize = 0,
 };
 
+pub const NotificationEntry = struct {
+    id: u32 = 0,
+    app: [64]u8 = [_]u8{0} ** 64,
+    app_len: usize = 0,
+    summary: [160]u8 = [_]u8{0} ** 160,
+    summary_len: usize = 0,
+    body: [512]u8 = [_]u8{0} ** 512,
+    body_len: usize = 0,
+    expire_ms: i64 = 0,
+};
+
 pub const Panel = struct {
     display: ?*c.wl_display = null,
     registry: ?*c.wl_registry = null,
@@ -151,6 +164,7 @@ pub const Panel = struct {
     bg: Surface = undefined,
     overlay: ?*Surface = null,
     overlay_mode: OverlayMode = .none,
+    toasts: ?*Surface = null,
 
     outputs: [MAX_OUTPUTS]OutputInfo = [_]OutputInfo{.{}} ** MAX_OUTPUTS,
     output_count: usize = 0,
@@ -167,6 +181,14 @@ pub const Panel = struct {
     window_count: usize = 0,
     statuses: [MAX_STATUS]StatusInfo = undefined,
     status_count: usize = 0,
+    notifications: [MAX_NOTIFICATIONS]NotificationEntry = undefined,
+    notification_count: usize = 0,
+    notification_fd: c_int = -1,
+    notification_buf: [65536]u8 = undefined,
+    notification_len: usize = 0,
+    notification_service_ready: bool = false,
+    toast_hits: [MAX_NOTIFICATIONS]HitRect = undefined,
+    toast_hit_count: usize = 0,
 
     custom_apps: [MAX_CUSTOM_APPS]CustomApp = undefined,
     custom_count: usize = 0,

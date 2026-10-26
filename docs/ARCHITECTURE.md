@@ -509,6 +509,24 @@ right-click cancel. The captured buffer is cropped in physical coordinates
 PNG. The default directory is `~/Pictures/Screenshots`, configurable with
 `screenshot_dir`; missing parent directories are created.
 
+### Notifications
+
+The panel links GIO and loads a small C shim, `panel/notifications.c`, which owns
+`org.freedesktop.Notifications` on the session bus from a dedicated GLib thread.
+The shim implements `Notify`, `CloseNotification`, `GetCapabilities`, and
+`GetServerInformation`, and emits `NotificationClosed`. It sends notifications to
+the Zig event loop over a socketpair using a small framed binary protocol; the
+panel sends dismissal/expiry back through a GLib main-context invocation so all
+D-Bus access stays on the GDBus thread.
+
+The Zig side keeps four active notifications, applies replacement by id, expires
+timed notifications, and draws a top-right layer surface named
+`tessa-notifications`. Its height follows the stack, and its Wayland input region
+contains only the cards, not the transparent gaps. Clicking a card dismisses it
+and emits `NotificationClosed`. Only `body` and `persistence` are advertised:
+actions, body markup, and icon lookup are not implemented. Only the panel that
+owns the bus name can show toasts, so cross-output routing remains future work.
+
 ### Buffers and rendering
 
 Each surface keeps three `wl_shm` ARGB8888 buffers. A `wl_buffer.release` listener

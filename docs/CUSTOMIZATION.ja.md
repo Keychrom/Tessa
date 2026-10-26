@@ -301,6 +301,29 @@ screenshot_dir = ~/Pictures/Screenshots
 bind = SUPER+SHIFT+s screenshot
 ```
 
+## 通知
+
+パネルはセッション bus 上で `org.freedesktop.Notifications` D-Bus サービスを
+実装しているため、別の通知デーモンなしでアプリから利用できます。最大 4 件の
+プレーンテキストのトーストがバーの下に積み重なります。通知 ID による置換、
+タイムアウト（`0` は手動で閉じるまで保持）、`CloseNotification`、クリックで
+閉じる操作に対応します。閉じた場合はアプリへ `NotificationClosed` を送ります。
+期限付きの通知は自動で消え、対応するシグナルを発行します。
+
+広告する capability は `body` と `persistence` です。マークアップ、アクション、
+アイコン検索は未実装です。別の通知デーモンが既に動いている場合、Tessa は
+bus 名を取得できず、通知はそのデーモンに任せます。bus 名を所有できるパネルは
+1 つだけなので、マルチモニタではそのパネルの出力に通知が表示されます。
+
+動作確認:
+
+```sh
+gdbus call --session --dest org.freedesktop.Notifications \
+  --object-path /org/freedesktop/Notifications \
+  --method org.freedesktop.Notifications.Notify \
+  test-app 0 "" "ビルド完了" "すべてのターゲットが最新です" "[]" "{}" 5000
+```
+
 ## キーとコマンド
 
 既定のキーバインドは [../README.ja.md](../README.ja.md#キーバインド) を

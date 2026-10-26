@@ -322,6 +322,21 @@ sh tests/screenshot.sh
 The automated test covers full-output capture. Region dragging uses the normal
 pointer path and still needs a physical pointer or a virtual-pointer test.
 
+### Notification test
+
+`tests/notifications.sh` re-executes itself under `dbus-run-session`, starts the
+headless session, and calls `org.freedesktop.Notifications` through `gdbus`. It
+checks server information/capabilities, a toast, `CloseNotification`, expiry,
+replacement, and stacking.
+
+```sh
+sh tests/notifications.sh
+```
+
+The panel's notification service needs a session D-Bus. If no bus is available,
+the rest of the panel still runs and the service logs the failure. Auto-starting
+Tessa from a display manager normally provides a session bus.
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

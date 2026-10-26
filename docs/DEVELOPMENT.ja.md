@@ -304,6 +304,21 @@ sh tests/screenshot.sh
 経路を使うため、実機のポインタか virtual-pointer を使ったテストが別途
 必要です。
 
+### 通知のテスト
+
+`tests/notifications.sh` は自分自身を `dbus-run-session` の下で再実行し、
+headless セッションを起動して `gdbus` から
+`org.freedesktop.Notifications` を呼びます。サーバー情報と capability、
+トースト表示、`CloseNotification`、期限切れ、置換、積み重ねを確認します。
+
+```sh
+sh tests/notifications.sh
+```
+
+パネルの通知サービスにはセッション D-Bus が必要です。bus がない場合でも
+パネルの他の機能は動作し、サービスが失敗をログに残します。ディスプレイ
+マネージャーから Tessa を起動する通常の環境ではセッション bus が提供されます。
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、
