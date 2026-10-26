@@ -319,6 +319,29 @@ sh tests/notifications.sh
 パネルの他の機能は動作し、サービスが失敗をログに残します。ディスプレイ
 マネージャーから Tessa を起動する通常の環境ではセッション bus が提供されます。
 
+### システム表示のテスト
+
+`tests/system-status.sh` は `TESSA_POWER_SUPPLY_PATH`、`TESSA_NET_PATH`、
+`TESSA_ROUTE_PATH` で偽の sysfs/proc ツリーを渡し、起動時のバッテリー/
+ネットワーク表示と、5 秒ポーリングでバッテリー残量の変更が反映されることを
+確認します。
+
+```sh
+sh tests/system-status.sh
+```
+
+### メディアのテスト
+
+`tests/media.sh` はプライベートなセッション bus 上で
+`tests/fake-mpris.py` を起動し、MPRIS の検出とバーのチップ、メディア
+ポップオーバー、再生/一時停止、次へ、前へ、`Super+M` を検証します。
+偽プレイヤーは PyGObject を使うため、`python3` と GObject バインディングが
+ない環境ではテストをスキップします。
+
+```sh
+sh tests/media.sh
+```
+
 ### ロックと idle のテスト
 
 コンポジタは `ext-session-lock-v1`、`ext-idle-notify-v1`、

@@ -60,6 +60,10 @@ pub fn build(b: *std.Build) void {
         .file = b.path("panel/notifications.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
     });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("panel/media.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+    });
     panel_mod.linkSystemLibrary("wayland-client", .{});
     panel_mod.linkSystemLibrary("cairo", .{});
     panel_mod.linkSystemLibrary("pangocairo-1.0", .{});

@@ -337,6 +337,30 @@ The panel's notification service needs a session D-Bus. If no bus is available,
 the rest of the panel still runs and the service logs the failure. Auto-starting
 Tessa from a display manager normally provides a session bus.
 
+### System status test
+
+`tests/system-status.sh` supplies a fake `/sys/class/power_supply`, `/sys/class/net`,
+and `/proc/net/route` tree through the `TESSA_POWER_SUPPLY_PATH`,
+`TESSA_NET_PATH`, and `TESSA_ROUTE_PATH` environment overrides. It verifies the
+battery/network startup indicators and that changing battery capacity is picked
+up by the five-second poll.
+
+```sh
+sh tests/system-status.sh
+```
+
+### Media test
+
+`tests/media.sh` starts `tests/fake-mpris.py` on a private session bus, checks
+MPRIS discovery and the bar chip, opens the media popover, and verifies
+play/pause, next, previous, and the `Super+M` binding. The fake player uses
+PyGObject; the test skips when `python3`/GObject introspection bindings are not
+available.
+
+```sh
+sh tests/media.sh
+```
+
 ### Lock and idle test
 
 `ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and

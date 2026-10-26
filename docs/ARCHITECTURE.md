@@ -379,7 +379,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot> [output]
+CMD panel <calendar|power|clipboard|screenshot|media> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -400,7 +400,7 @@ snapshots for tools.
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
 focused output; only the matching panel opens. `CMD panel
-calendar|power|clipboard|screenshot` likewise emits a `panel` event with the
+calendar|power|clipboard|screenshot|media` likewise emits a `panel` event with the
 requested popover and target output.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
@@ -526,6 +526,23 @@ contains only the cards, not the transparent gaps. Clicking a card dismisses it
 and emits `NotificationClosed`. Only `body` and `persistence` are advertised:
 actions, body markup, and icon lookup are not implemented. Only the panel that
 owns the bus name can show toasts, so cross-output routing remains future work.
+
+### System indicators and media
+
+Battery and network status are sampled every five seconds in `panel/model.zig`.
+Battery data comes from `/sys/class/power_supply/*/type=Battery`, `capacity`, and
+`status`; the default route and interface state come from `/proc/net/route` and
+`/sys/class/net`. A `wireless` attribute selects the Wi-Fi label. These are
+read-only indicators and are shown in the right side of the bar when width
+allows.
+
+`panel/media.c` runs a second GIO thread. It polls the session bus for
+`org.mpris.MediaPlayer2.*`, calls `Properties.GetAll` on the first player's
+`org.mpris.MediaPlayer2.Player`, and sends playback status, title, artist, and
+player name to the panel over a framed socket. Play/pause, next, and previous
+commands are marshalled back with `g_main_context_invoke` and issued as MPRIS
+method calls. `Super+M` or the bar chip opens a centered control popover; the
+panel does not fetch album art or expose the MPRIS player's own menus.
 
 ### Buffers and rendering
 

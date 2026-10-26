@@ -64,6 +64,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   - region/full-output screenshot UI using `wlr-screencopy`, saved as PNG
   - `org.freedesktop.Notifications` service with plain-text toast cards,
     replacement, close, and expiry
+  - battery and default-route network indicators
+  - MPRIS media chip and controls (`Super+M`)
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
@@ -79,7 +81,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
-`tests/notifications.sh`, and panel screenshots.
+`tests/notifications.sh`, `tests/system-status.sh`, `tests/media.sh`, and panel
+screenshots.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -380,6 +383,7 @@ event schema, hook environment, and status API.
 | `Super+D` | launcher |
 | `Super+V` | clipboard history |
 | `Super+Shift+S` | screenshot region/full output |
+| `Super+M` | MPRIS media controls |
 | `Super+T` | cycle master → mosaic → grid → columns |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
@@ -416,6 +420,9 @@ Mouse:
 - `Super+Shift+S` starts the screenshot UI. Drag to select a region, click for
   the full output, or press `Enter`; `Esc` cancels. PNGs are written to
   `screenshot_dir` (default `~/Pictures/Screenshots`).
+- When an MPRIS player is active, a media chip appears in the bar. Click it or
+  press `Super+M` for previous/play-pause/next; `Space`, `Left`, and `Right`
+  work from the keyboard as well.
 
 ## Configuration
 
@@ -639,6 +646,10 @@ These are real and important:
   close, and expiry. Actions, markup, and icon lookup are not implemented, and
   only the panel that owns the D-Bus name shows toasts (cross-output routing is
   still pending).
+- **System and media indicators are basic.** Battery uses `/sys/class/power_supply`
+  and network uses the default route plus `operstate`; there is no tray or audio
+  volume integration yet. MPRIS controls the first discovered player and does not
+  display album art.
 - **IME coverage.** Wayland text-input-v3 clients and the panel are verified
   with Fcitx5 + Mozc. X11/XIM input methods, dead keys through unusual layouts,
   and input-method popup repositioning during scroll are not covered.

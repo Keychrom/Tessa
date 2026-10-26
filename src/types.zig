@@ -68,6 +68,7 @@ pub const Action = enum {
     launcher,
     clipboard,
     screenshot,
+    media,
     reload,
     ratio,
     toggle_layout,

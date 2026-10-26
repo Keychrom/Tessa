@@ -301,6 +301,26 @@ screenshot_dir = ~/Pictures/Screenshots
 bind = SUPER+SHIFT+s screenshot
 ```
 
+## システム表示とメディア
+
+`/sys/class/power_supply` にバッテリーがある場合、バーに残量を表示し、充電中は
+塗りつぶし色を変えます。ネットワーク表示は `/proc/net/route` のデフォルト
+ルートと `/sys/class/net` のインターフェース状態を読み、`wireless` 属性が
+あれば `Wi-Fi`、なければ `LAN` と表示します。どちらも 5 秒ごとに更新され、
+設定は不要です。
+
+Tessa はセッション bus 上の MPRIS を監視します。最初に見つかったプレイヤーの
+曲名と再生状態がバーのチップに表示されます。チップのクリック、`Super+M`、
+`tessa-ctl panel media` で前へ/再生・一時停止/次へのコントロールを開けます。
+ポップオーバー内では `Space` で再生/一時停止、`Left`/`Right` で曲を移動します。
+メタデータは読み取り専用で、アルバムアートは表示しません。`media` は
+キーバインドアクションとしても使えます:
+
+```ini
+bind = SUPER+M media
+bind = SUPER+SHIFT+m media
+```
+
 ## 通知
 
 パネルはセッション bus 上で `org.freedesktop.Notifications` D-Bus サービスを
@@ -338,8 +358,9 @@ bind = SUPER+ALT+Right resize-width 30
 
 利用可能なアクションは `spawn`、`terminal`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`reload`、
-`ratio`、`toggle-layout`、`set-layout`、`resize-width`、`resize-height` です。
+`focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、
+`reload`、`ratio`、`toggle-layout`、`set-layout`、`resize-width`、
+`resize-height` です。
 
 ## ライブ確認と自動化
 

@@ -506,6 +506,49 @@ fn drawSparkline(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
     c.cairo_stroke(cr);
 }
 
+fn drawBatteryIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
+    var buf: [16]u8 = undefined;
+    const text = std.fmt.bufPrint(&buf, "{d}%", .{g.battery_percent}) catch "";
+    const tw = textWidth(cr, text, MONO, "Medium", 8.2, 0);
+    const group_w = 20.0 + 6.0 + tw;
+    const x = right - group_w;
+    const col: [4]f64 = if (g.battery_charging)
+        .{ g.accent[0], g.accent[1], g.accent[2], 0.95 }
+    else
+        .{ fg[0], fg[1], fg[2], 0.62 };
+
+    strokeRound(cr, x + 0.5, cy - 5.5, 19, 11, 2.5, .{ 1, 1, 1, 0.28 }, 1);
+    fillRound(cr, x + 20, cy - 2, 2, 4, 1, .{ 1, 1, 1, 0.25 });
+    const pct = std.math.clamp(@as(f64, @floatFromInt(g.battery_percent)) / 100.0, 0.0, 1.0);
+    if (pct > 0.02) {
+        fillRound(cr, x + 2.5, cy - 3.5, 15.0 * pct, 7, 1.2, col);
+    }
+    _ = drawTextCentered(cr, text, x + 22, cy + 0.3, MONO, "Medium", 8.2, .{
+        col[0], col[1], col[2], 0.88,
+    }, 0, 0);
+    return x - 14;
+}
+
+fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
+    const label = g.network_label[0..g.network_label_len];
+    const tw = textWidth(cr, label, g.font[0..g.font_len], "Medium", 8.2, 0.4);
+    const group_w = 20.0 + tw;
+    const x = right - group_w;
+    const bars = [_]f64{ 4.0, 7.0, 10.0 };
+    var i: usize = 0;
+    while (i < bars.len) : (i += 1) {
+        const h = bars[i];
+        const bx = x + @as(f64, @floatFromInt(i)) * 4.0;
+        fillRound(cr, bx, cy + 6.0 - h, 2.5, h, 1, .{
+            g.accent[0], g.accent[1], g.accent[2], 0.78,
+        });
+    }
+    _ = drawTextCentered(cr, label, x + 20, cy + 0.3, g.font[0..g.font_len], "Medium", 8.2, .{
+        fg[0], fg[1], fg[2], 0.58,
+    }, 0, 0.4);
+    return x - 14;
+}
+
 pub fn drawBar(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
@@ -697,6 +740,13 @@ pub fn drawBar(s: *m.Surface) void {
     c.cairo_stroke(cr);
     right -= 12.0;
 
+    if (g.battery_percent >= 0 and W > 900) {
+        right = drawBatteryIndicator(cr, right, cy, fg);
+    }
+    if (g.network_present and W > 1000) {
+        right = drawNetworkIndicator(cr, right, cy, fg);
+    }
+
     if (W > 1180) {
         var mbuf: [32]u8 = undefined;
         const ms = std.fmt.bufPrint(&mbuf, "MEM {d:.0}%", .{g.mem_percent}) catch "MEM";
@@ -711,6 +761,47 @@ pub fn drawBar(s: *m.Surface) void {
         right -= cw + 10.0;
 
         drawSparkline(cr, right - 42, cy - 7, 42, 14);
+    }
+
+    if ((g.media_status == 1 or g.media_status == 2) and W > 1250) {
+        const title = if (g.media_title_len > 0)
+            g.media_title[0..g.media_title_len]
+        else if (g.media_artist_len > 0)
+            g.media_artist[0..g.media_artist_len]
+        else if (g.media_player_len > 0)
+            g.media_player[0..g.media_player_len]
+        else
+            "Media";
+        const media_tw = @min(textWidth(cr, title, g.font[0..g.font_len], "Medium", 8.6, 0), 150.0);
+        const chip_w = media_tw + 46.0;
+        const chip_h = 24.0;
+        const chip_x = right - chip_w;
+        if (chip_x > cx + 12.0) {
+            const hovered = g.hover.kind == .media;
+            fillRound(cr, chip_x, cy - chip_h / 2.0, chip_w, chip_h, 8, .{
+                accent[0], accent[1], accent[2], if (hovered) 0.16 else 0.10,
+            });
+            strokeRound(cr, chip_x + 0.5, cy - chip_h / 2.0 + 0.5, chip_w - 1, chip_h - 1, 7.5, .{
+                accent[0], accent[1], accent[2], 0.22,
+            }, 1);
+            if (g.media_status == 1) {
+                fillRound(cr, chip_x + 11, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
+                fillRound(cr, chip_x + 15, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
+            } else {
+                c.cairo_new_path(cr);
+                c.cairo_move_to(cr, chip_x + 11, cy - 5);
+                c.cairo_line_to(cr, chip_x + 18, cy);
+                c.cairo_line_to(cr, chip_x + 11, cy + 5);
+                c.cairo_close_path(cr);
+                setColor(cr, .{ accent[0], accent[1], accent[2], 0.95 });
+                c.cairo_fill(cr);
+            }
+            _ = drawTextCentered(cr, title, chip_x + 27, cy + 0.3, g.font[0..g.font_len], "Medium", 8.6, .{
+                fg[0], fg[1], fg[2], 0.84,
+            }, media_tw, 0);
+            addBarHit(chip_x, cy - chip_h / 2.0 - 1, chip_w, chip_h + 2, .{ .kind = .media });
+            right = chip_x - 14.0;
+        }
     }
 
     // Extension status entries. They are right-aligned next to the built-in
@@ -953,6 +1044,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
     const w: f64 = switch (mode) {
         .calendar => 376.0,
         .clipboard => 560.0,
+        .media => 380.0,
         else => 336.0,
     };
     const h: f64 = switch (mode) {
@@ -961,17 +1053,18 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
             300.0
         else
             130.0 + @as(f64, @floatFromInt(g.clipboard_count)) * 50.0,
+        .media => 260.0,
         else => 360.0,
     };
     const margin: f64 = @floatFromInt(g.bar_side_margin);
     const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
     var x = switch (mode) {
         .calendar => W - margin - w,
-        .clipboard => (W - w) / 2.0,
+        .clipboard, .media => (W - w) / 2.0,
         else => margin,
     };
     var y = switch (mode) {
-        .clipboard => (H - h) / 2.0,
+        .clipboard, .media => (H - h) / 2.0,
         else => bar_bottom + 8.0,
     };
     x = std.math.clamp(x, 8.0, @max(8.0, W - w - 8.0));
@@ -1574,6 +1667,120 @@ fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     }, hint_w - 120, 0.25);
 }
 
+fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = g.font[0..g.font_len];
+    const p = popoverLayout(.media, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+    const active = g.media_status == 1 or g.media_status == 2;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    drawPetal(cr, x + 30, y + 32, 7.0, .{ accent[0], accent[1], accent[2], 0.95 });
+    _ = drawText(cr, "MEDIA", x + 46, y + 18, fam, "Medium", 7.4, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.6);
+    var status_buf: [32]u8 = undefined;
+    const status_text = switch (g.media_status) {
+        1 => "PLAYING",
+        2 => "PAUSED",
+        3 => "STOPPED",
+        else => "IDLE",
+    };
+    const player = g.media_player[0..g.media_player_len];
+    const player_text = std.fmt.bufPrint(&status_buf, "{s}  /  {s}", .{
+        if (player.len > 0) player else "MPRIS",
+        status_text,
+    }) catch status_text;
+    const player_w = textWidth(cr, player_text, MONO, "Medium", 7.0, 0.6);
+    _ = drawText(cr, player_text, x + w - 24 - player_w, y + 18, MONO, "Medium", 7.0, .{
+        0.60, 0.66, 0.76, 0.42,
+    }, 0, 0.6);
+
+    const title = if (g.media_title_len > 0) g.media_title[0..g.media_title_len] else if (active) "Unknown title" else "No active player";
+    const artist = if (g.media_artist_len > 0) g.media_artist[0..g.media_artist_len] else if (active) "MPRIS media" else "Start a media player to control it here.";
+    const art_x = x + 24;
+    const art_y = y + 42;
+    const art_pat = c.cairo_pattern_create_linear(art_x, art_y, art_x + 60, art_y + 60);
+    c.cairo_pattern_add_color_stop_rgba(art_pat, 0, accent[0], accent[1], accent[2], 0.9);
+    c.cairo_pattern_add_color_stop_rgba(art_pat, 1, accent[0] * 0.35, accent[1] * 0.35, accent[2] * 0.5, 0.85);
+    roundRect(cr, art_x, art_y, 60, 60, 14);
+    c.cairo_set_source(cr, art_pat);
+    c.cairo_fill(cr);
+    c.cairo_pattern_destroy(art_pat);
+    var glyph_buf: [8]u8 = undefined;
+    const glyph = upperFirst(&glyph_buf, firstGlyph(if (title.len > 0) title else "M"));
+    _ = drawTextCentered(cr, glyph, art_x + 21, art_y + 30, fam, "Semi-Bold", 20.0, .{
+        1, 1, 1, 0.95,
+    }, 0, 0);
+
+    _ = drawText(cr, title, x + 100, y + 43, fam, "Semi-Bold", 16.0, if (active) .{
+        0.96, 0.98, 1, 0.98,
+    } else .{ 0.85, 0.89, 0.95, 0.8 }, w - 124, 0);
+    _ = drawText(cr, artist, x + 100, y + 66, fam, "Regular", 9.2, .{
+        0.66, 0.72, 0.81, 0.70,
+    }, w - 124, 0);
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 114);
+    c.cairo_line_to(cr, x + w - 24, y + 114);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const labels = [_][]const u8{ "Prev", if (g.media_status == 1) "Pause" else "Play", "Next" };
+    const hits = [_]m.HitKind{ .media_prev, .media_toggle, .media_next };
+    const button_w = 96.0;
+    const button_h = 40.0;
+    const gap = 8.0;
+    const total_w = button_w * 3.0 + gap * 2.0;
+    const start_x = x + (w - total_w) / 2.0;
+    const button_y = y + 130;
+    var i: usize = 0;
+    while (i < 3) : (i += 1) {
+        const bx = start_x + @as(f64, @floatFromInt(i)) * (button_w + gap);
+        const hovered = g.overlay_row_hover == i;
+        const primary = i == 1;
+        fillRound(cr, bx, button_y, button_w, button_h, 10, if (primary) .{
+            accent[0], accent[1], accent[2], if (active) 0.88 else 0.30,
+        } else .{
+            1, 1, 1, if (hovered and active) 0.09 else 0.045,
+        });
+        if (!primary) {
+            strokeRound(cr, bx + 0.5, button_y + 0.5, button_w - 1, button_h - 1, 9.5, .{
+                1, 1, 1, 0.07,
+            }, 1);
+        }
+        _ = drawTextCentered(cr, labels[i], bx + 20, button_y + button_h / 2.0, fam, "Semi-Bold", 9.4, if (primary) .{
+            0.055, 0.075, 0.105, if (active) 1.0 else 0.6,
+        } else .{ 0.82, 0.87, 0.94, if (active) 0.9 else 0.4 }, 0, 0);
+        addOverlayHit(bx - x, button_y - y, button_w, button_h, .{ .kind = hits[i] });
+    }
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + h - 46);
+    c.cairo_line_to(cr, x + w - 24, y + h - 46);
+    setColor(cr, .{ 1, 1, 1, 0.045 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+    _ = drawText(cr, "space  play/pause      \xe2\x86\x90/\xe2\x86\x92  previous/next      esc  close", x + 24, y + h - 34, fam, "Medium", 7.4, .{
+        0.60, 0.66, 0.75, 0.55,
+    }, w - 48, 0.3);
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 pub fn drawOverlay(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
@@ -1625,6 +1832,8 @@ pub fn drawOverlay(s: *m.Surface) void {
         drawPowerPopover(cr, W, H, t);
     } else if (g.overlay_mode == .clipboard) {
         drawClipboardPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .media) {
+        drawMediaPopover(cr, W, H, t);
     }
 
     end(s, d);

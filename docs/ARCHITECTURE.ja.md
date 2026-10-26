@@ -393,7 +393,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot> [output]
+CMD panel <calendar|power|clipboard|screenshot|media> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -416,7 +416,7 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
 発行し、一致するパネルだけがランチャーを開きます。`CMD panel
-calendar|power|clipboard|screenshot` も同様に、要求したポップオーバーと
+calendar|power|clipboard|screenshot|media` も同様に、要求したポップオーバーと
 対象出力を持つ `panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
@@ -541,6 +541,24 @@ Wayland の入力リージョンはカード部分だけで透明な隙間を含
 `body` と `persistence` のみで、アクション、本文マークアップ、アイコン検索は
 未実装です。bus 名を所有するパネルだけがトーストを表示できるため、出力間
 ルーティングは今後の課題です。
+
+### システム表示とメディア
+
+バッテリーとネットワークは `panel/model.zig` で 5 秒ごとに取得します。
+バッテリーは `/sys/class/power_supply/*/type=Battery`、`capacity`、`status`、
+ネットワークは `/proc/net/route` のデフォルトルートと `/sys/class/net` の
+インターフェース状態を使います。`wireless` 属性があれば Wi-Fi と表示します。
+どちらも読み取り専用のインジケーターで、幅に余裕があるときバーの右側に
+表示されます。
+
+`panel/media.c` は 2 つ目の GIO スレッドを動かします。セッション bus 上の
+`org.mpris.MediaPlayer2.*` を定期的に探し、最初のプレイヤーの
+`org.mpris.MediaPlayer2.Player` に `Properties.GetAll` を送り、再生状態、
+曲名、アーティスト、プレイヤー名をフレーム化ソケットでパネルへ渡します。
+再生/一時停止、次へ、前へは `g_main_context_invoke` 経由で MPRIS メソッド
+呼び出しとして送ります。`Super+M` またはバーのチップで中央のコントロール
+ポップオーバーを開きます。アルバムアートやプレイヤー固有のメニューは
+取得しません。
 
 ### バッファと描画
 

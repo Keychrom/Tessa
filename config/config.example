@@ -115,6 +115,7 @@ font = Inter
 # bind = SUPER+d launcher
 # bind = SUPER+v clipboard
 # bind = SUPER+SHIFT+s screenshot
+# bind = SUPER+m media
 # bind = SUPER+t toggle-layout
 # bind = SUPER+g set-layout grid
 # bind = SUPER+1 workspace 1

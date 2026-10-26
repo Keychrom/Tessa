@@ -12,7 +12,7 @@ pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
 pub const MAX_NOTIFICATIONS = 4;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media };
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -47,6 +47,10 @@ pub const HitKind = enum {
     clipboard_entry,
     clipboard_clear,
     notification,
+    media,
+    media_prev,
+    media_toggle,
+    media_next,
 };
 
 pub const Hit = struct {
@@ -207,6 +211,22 @@ pub const Panel = struct {
     prev_total: u64 = 0,
     prev_idle: u64 = 0,
     have_cpu_prev: bool = false,
+    battery_percent: i32 = -1,
+    battery_charging: bool = false,
+    network_present: bool = false,
+    network_wireless: bool = false,
+    network_label: [32]u8 = [_]u8{0} ** 32,
+    network_label_len: usize = 0,
+    media_status: u8 = 0,
+    media_title: [160]u8 = [_]u8{0} ** 160,
+    media_title_len: usize = 0,
+    media_artist: [160]u8 = [_]u8{0} ** 160,
+    media_artist_len: usize = 0,
+    media_player: [64]u8 = [_]u8{0} ** 64,
+    media_player_len: usize = 0,
+    media_fd: c_int = -1,
+    media_buf: [16384]u8 = undefined,
+    media_len: usize = 0,
 
     pointer_surface: ?*Surface = null,
     pointer_x: f64 = 0,
@@ -304,6 +324,7 @@ pub const Panel = struct {
     next_clock_ms: i64 = 0,
     next_cpu_ms: i64 = 0,
     next_blink_ms: i64 = 0,
+    next_system_ms: i64 = 0,
 
     accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
@@ -626,6 +647,135 @@ pub fn updateMem() void {
         g.mem_percent = @as(f32, @floatFromInt(total_kb - avail_kb)) * 100.0 /
             @as(f32, @floatFromInt(total_kb));
     }
+}
+
+fn readTextFile(path: []const u8, buf: []u8) []const u8 {
+    if (path.len == 0 or path.len >= 1024 or buf.len < 2) return "";
+    var zpath: [1024:0]u8 = undefined;
+    @memcpy(zpath[0..path.len], path);
+    zpath[path.len] = 0;
+    const file = c.fopen(&zpath, "r") orelse return "";
+    defer _ = c.fclose(file);
+    const n = c.fread(buf.ptr, 1, buf.len - 1, file);
+    buf[n] = 0;
+    return buf[0..n];
+}
+
+fn environmentPath(name: [*:0]const u8, fallback: []const u8) []const u8 {
+    if (c.getenv(name)) |value| return std.mem.span(value);
+    return fallback;
+}
+
+fn readBattery() bool {
+    const base = environmentPath("TESSA_POWER_SUPPLY_PATH", "/sys/class/power_supply");
+    if (base.len >= 496) return false;
+    var base_z: [512:0]u8 = undefined;
+    @memcpy(base_z[0..base.len], base);
+    base_z[base.len] = 0;
+    const dir = c.opendir(&base_z) orelse return false;
+    defer _ = c.closedir(dir);
+
+    while (c.readdir(dir)) |ent| {
+        const name = std.mem.span(@as([*:0]const u8, @ptrCast(&ent.*.d_name)));
+        if (std.mem.eql(u8, name, ".") or std.mem.eql(u8, name, "..")) continue;
+        var path_buf: [1024]u8 = undefined;
+        var type_buf: [32]u8 = undefined;
+        const type_path = std.fmt.bufPrint(&path_buf, "{s}/{s}/type", .{ base, name }) catch continue;
+        const kind = trim(readTextFile(type_path, &type_buf));
+        if (!std.ascii.eqlIgnoreCase(kind, "Battery")) continue;
+
+        var capacity_buf: [32]u8 = undefined;
+        const capacity_path = std.fmt.bufPrint(&path_buf, "{s}/{s}/capacity", .{ base, name }) catch continue;
+        const capacity = std.fmt.parseInt(i32, trim(readTextFile(capacity_path, &capacity_buf)), 10) catch continue;
+        if (capacity < 0 or capacity > 100) continue;
+
+        var status_buf: [64]u8 = undefined;
+        const status_path = std.fmt.bufPrint(&path_buf, "{s}/{s}/status", .{ base, name }) catch continue;
+        const status = trim(readTextFile(status_path, &status_buf));
+        g.battery_percent = capacity;
+        g.battery_charging = std.ascii.eqlIgnoreCase(status, "Charging") or
+            std.ascii.eqlIgnoreCase(status, "Full");
+        return true;
+    }
+    return false;
+}
+
+fn readNetwork() bool {
+    const route_path = environmentPath("TESSA_ROUTE_PATH", "/proc/net/route");
+    const net_base = environmentPath("TESSA_NET_PATH", "/sys/class/net");
+    var route_buf: [8192]u8 = undefined;
+    const routes = readTextFile(route_path, &route_buf);
+    if (routes.len == 0) return false;
+
+    var best_iface: [64]u8 = undefined;
+    var best_len: usize = 0;
+    var best_metric: u32 = std.math.maxInt(u32);
+    var lines = std.mem.splitScalar(u8, routes, '\n');
+    _ = lines.next();
+    while (lines.next()) |line| {
+        var fields = std.mem.tokenizeAny(u8, line, " \t");
+        const iface = fields.next() orelse continue;
+        const destination = fields.next() orelse continue;
+        _ = fields.next() orelse continue;
+        const flags_s = fields.next() orelse continue;
+        _ = fields.next() orelse continue;
+        _ = fields.next() orelse continue;
+        const metric_s = fields.next() orelse continue;
+        if (!std.mem.eql(u8, destination, "00000000")) continue;
+        const flags = std.fmt.parseInt(u32, flags_s, 16) catch continue;
+        if ((flags & 1) == 0) continue;
+        if (iface.len >= best_iface.len) continue;
+        const metric = std.fmt.parseInt(u32, metric_s, 10) catch 0;
+        if (metric >= best_metric) continue;
+        @memcpy(best_iface[0..iface.len], iface);
+        best_len = iface.len;
+        best_metric = metric;
+    }
+    if (best_len == 0) {
+        g.network_present = false;
+        return false;
+    }
+
+    var path_buf: [1024]u8 = undefined;
+    var state_buf: [32]u8 = undefined;
+    const iface = best_iface[0..best_len];
+    const state_path = std.fmt.bufPrint(&path_buf, "{s}/{s}/operstate", .{ net_base, iface }) catch return false;
+    const state = trim(readTextFile(state_path, &state_buf));
+    if (!std.mem.eql(u8, state, "up")) {
+        g.network_present = false;
+        return false;
+    }
+
+    const wireless_path = std.fmt.bufPrint(&path_buf, "{s}/{s}/wireless", .{ net_base, iface }) catch return false;
+    var zpath: [1024:0]u8 = undefined;
+    @memcpy(zpath[0..wireless_path.len], wireless_path);
+    zpath[wireless_path.len] = 0;
+    const wireless = c.access(&zpath, c.F_OK) == 0;
+    g.network_present = true;
+    g.network_wireless = wireless;
+    copyTrunc(&g.network_label, &g.network_label_len, if (wireless) "Wi-Fi" else "LAN");
+    return true;
+}
+
+pub fn updateSystemStatus() bool {
+    const old_battery = g.battery_percent;
+    const old_charging = g.battery_charging;
+    const old_network = g.network_present;
+    const old_wireless = g.network_wireless;
+    if (!readBattery()) {
+        g.battery_percent = -1;
+        g.battery_charging = false;
+    }
+    if (!readNetwork()) {
+        g.network_present = false;
+        g.network_wireless = false;
+        g.network_label_len = 0;
+        g.network_label[0] = 0;
+    }
+    return old_battery != g.battery_percent or
+        old_charging != g.battery_charging or
+        old_network != g.network_present or
+        old_wireless != g.network_wireless;
 }
 
 pub fn recomputeResults() void {

@@ -9,6 +9,9 @@ const g = &m.g;
 extern fn tessa_notifications_start() c_int;
 extern fn tessa_notifications_stop() void;
 extern fn tessa_notifications_close(id: c_uint, reason: c_uint) void;
+extern fn tessa_media_start() c_int;
+extern fn tessa_media_stop() void;
+extern fn tessa_media_command(code: c_uint) void;
 
 var registry_listener: c.wl_registry_listener = undefined;
 var seat_listener: c.wl_seat_listener = undefined;
@@ -478,6 +481,17 @@ fn openPower() void {
     logDebug("power menu open", .{});
 }
 
+fn openMedia() void {
+    if (g.overlay != null and g.overlay_mode == .media and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    beginOverlay(.media);
+    logDebug("media: controls open", .{});
+}
+
 fn openClipboard() void {
     if (g.overlay != null and g.overlay_mode == .clipboard and g.menu_target == 1) {
         closeOverlay();
@@ -499,6 +513,8 @@ fn openPanel(name: []const u8) void {
         openClipboard();
     } else if (std.mem.eql(u8, name, "screenshot")) {
         openScreenshot();
+    } else if (std.mem.eql(u8, name, "media")) {
+        openMedia();
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -608,8 +624,16 @@ fn activateOverlayHit(h: m.Hit) void {
         .power => runPowerAction(h.value),
         .clipboard_entry => clipboardSelect(h.value),
         .clipboard_clear => clipboardClear(),
+        .media_prev => mediaCommand(3),
+        .media_toggle => mediaCommand(1),
+        .media_next => mediaCommand(2),
         else => {},
     }
+}
+
+fn mediaCommand(code: u32) void {
+    tessa_media_command(code);
+    logDebug("media: command {d}", .{code});
 }
 
 fn clipboardPromote(index: usize) void {
@@ -909,6 +933,19 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             cancelScreenshot();
         } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
             saveFullScreenshot();
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .media) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_space) {
+            mediaCommand(1);
+        } else if (sym == c.XKB_KEY_Left) {
+            mediaCommand(3);
+        } else if (sym == c.XKB_KEY_Right) {
+            mediaCommand(2);
         }
         return;
     }
@@ -1582,6 +1619,96 @@ fn startNotificationService() void {
     logDebug("notifications: starting service", .{});
 }
 
+fn mediaUpdate(status: u8, title: []const u8, artist: []const u8, player: []const u8) void {
+    g.media_status = status;
+    m.copyTrunc(&g.media_title, &g.media_title_len, title);
+    m.copyTrunc(&g.media_artist, &g.media_artist_len, artist);
+    m.copyTrunc(&g.media_player, &g.media_player_len, player);
+    g.bar.dirty = true;
+    if (g.overlay_mode == .media) refreshOverlay();
+    if (status == 0) {
+        logDebug("media: no player", .{});
+    } else {
+        logDebug("media: state={d} title={s}", .{ status, g.media_title[0..g.media_title_len] });
+    }
+}
+
+fn mediaShift(count: usize) void {
+    if (count >= g.media_len) {
+        g.media_len = 0;
+        return;
+    }
+    const remain = g.media_len - count;
+    std.mem.copyForwards(u8, g.media_buf[0..remain], g.media_buf[count..g.media_len]);
+    g.media_len = remain;
+}
+
+fn processMediaMessages() void {
+    while (g.media_len > 0) {
+        const kind = g.media_buf[0];
+        if (kind == 1) {
+            if (g.media_len < 16) return;
+            const status = g.media_buf[1];
+            const title_len: usize = @intCast(readU32(&g.media_buf, 4));
+            const artist_len: usize = @intCast(readU32(&g.media_buf, 8));
+            const player_len: usize = @intCast(readU32(&g.media_buf, 12));
+            const total = 16 + title_len + artist_len + player_len;
+            if (total > g.media_buf.len) {
+                g.media_len = 0;
+                return;
+            }
+            if (g.media_len < total) return;
+            const title = g.media_buf[16 .. 16 + title_len];
+            const artist = g.media_buf[16 + title_len .. 16 + title_len + artist_len];
+            const player = g.media_buf[16 + title_len + artist_len .. total];
+            mediaUpdate(
+                @min(status, 3),
+                title,
+                artist,
+                player,
+            );
+            mediaShift(total);
+        } else if (kind == 2) {
+            logMsg("media: service ready", .{});
+            mediaShift(1);
+        } else if (kind == 3) {
+            if (g.media_len < 5) return;
+            const len: usize = @intCast(readU32(&g.media_buf, 1));
+            if (g.media_len < 5 + len) return;
+            logMsg("media: {s}", .{g.media_buf[5 .. 5 + len]});
+            mediaShift(5 + len);
+        } else {
+            g.media_len = 0;
+            return;
+        }
+    }
+}
+
+fn readMedia() void {
+    if (g.media_fd < 0) return;
+    if (g.media_len >= g.media_buf.len) g.media_len = 0;
+    const n = c.read(g.media_fd, g.media_buf[g.media_len..].ptr, g.media_buf.len - g.media_len);
+    if (n <= 0) {
+        logMsg("media: service disconnected", .{});
+        _ = c.close(g.media_fd);
+        g.media_fd = -1;
+        return;
+    }
+    g.media_len += @intCast(n);
+    processMediaMessages();
+}
+
+fn startMediaService() void {
+    g.media_fd = tessa_media_start();
+    if (g.media_fd < 0) {
+        logMsg("media: cannot start the MPRIS service", .{});
+        return;
+    }
+    const flags = c.fcntl(g.media_fd, c.F_GETFL, @as(c_int, 0));
+    _ = c.fcntl(g.media_fd, c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    logDebug("media: starting service", .{});
+}
+
 fn ensureDataControlDevice() void {
     if (g.data_control_device != null) return;
     const manager = g.data_control_manager orelse return;
@@ -2062,6 +2189,9 @@ fn onPointerButton(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, time
             .clock => {
                 if (button == 0x110) openCalendar();
             },
+            .media => {
+                if (button == 0x110) openMedia();
+            },
             .workspace => {
                 if (button == 0x110) sendWorkspace(h.value);
             },
@@ -2396,6 +2526,28 @@ fn connectIpc() bool {
     return true;
 }
 
+fn updateSystemAndLog() bool {
+    const old_battery = g.battery_percent;
+    const old_charging = g.battery_charging;
+    const old_network = g.network_present;
+    const old_wireless = g.network_wireless;
+    const changed = m.updateSystemStatus();
+    if (g.battery_percent >= 0 and
+        (old_battery != g.battery_percent or old_charging != g.battery_charging))
+    {
+        logMsg("system: battery {d}%{s}", .{
+            g.battery_percent,
+            if (g.battery_charging) " charging" else "",
+        });
+    }
+    if (g.network_present and
+        (!old_network or old_wireless != g.network_wireless))
+    {
+        logMsg("system: network {s}", .{g.network_label[0..g.network_label_len]});
+    }
+    return changed;
+}
+
 fn updateTimers(now: i64) void {
     expireNotifications(now);
     if (now >= g.next_clock_ms) {
@@ -2407,6 +2559,10 @@ fn updateTimers(now: i64) void {
         m.updateMem();
         g.bar.dirty = true;
         g.next_cpu_ms = now + 2000;
+    }
+    if (now >= g.next_system_ms) {
+        if (updateSystemAndLog()) g.bar.dirty = true;
+        g.next_system_ms = now + 5000;
     }
     if (g.launcher_open and now >= g.next_blink_ms) {
         if (g.overlay) |s| s.dirty = true;
@@ -2425,6 +2581,7 @@ fn pollTimeout(now: i64) c_int {
     }
     var next = g.next_clock_ms;
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;
+    if (g.next_system_ms < next) next = g.next_system_ms;
     if (g.launcher_open and g.next_blink_ms < next) next = g.next_blink_ms;
     var i: usize = 0;
     while (i < g.notification_count) : (i += 1) {
@@ -2458,8 +2615,11 @@ fn eventLoop() void {
             .{ .fd = g.ipc_fd, .events = c.POLLIN, .revents = 0 },
             .{ .fd = g.clipboard_fd, .events = c.POLLIN, .revents = 0 },
             .{ .fd = g.notification_fd, .events = c.POLLIN, .revents = 0 },
+            .{ .fd = g.media_fd, .events = c.POLLIN, .revents = 0 },
         };
-        const nfds: c.nfds_t = if (g.notification_fd >= 0)
+        const nfds: c.nfds_t = if (g.media_fd >= 0)
+            5
+        else if (g.notification_fd >= 0)
             4
         else if (g.clipboard_fd >= 0)
             3
@@ -2500,6 +2660,11 @@ fn eventLoop() void {
         {
             readNotifications();
         }
+        if (g.media_fd >= 0 and pr > 0 and
+            (fds[4].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
+        {
+            readMedia();
+        }
 
         const now2 = m.nowMs();
         updateTimers(now2);
@@ -2525,6 +2690,7 @@ pub fn main() !void {
     g.ipc_fd = -1;
     g.clipboard_fd = -1;
     g.notification_fd = -1;
+    g.media_fd = -1;
     _ = c.signal(c.SIGPIPE, c.SIG_IGN);
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
@@ -2538,6 +2704,7 @@ pub fn main() !void {
     _ = m.updateClock();
     m.updateCpu();
     m.updateMem();
+    _ = updateSystemAndLog();
 
     g.xkb_ctx = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS);
     if (g.xkb_ctx == null) logMsg("warning: no xkb context", .{});
@@ -2572,16 +2739,20 @@ pub fn main() !void {
 
     createChrome();
     startNotificationService();
+    startMediaService();
 
     const now = m.nowMs();
     g.next_clock_ms = now + 1000;
     g.next_cpu_ms = now + 2000;
+    g.next_system_ms = now + 5000;
     g.next_blink_ms = now + 500;
 
     eventLoop();
 
     tessa_notifications_stop();
     g.notification_fd = -1;
+    tessa_media_stop();
+    g.media_fd = -1;
     freeScreenshot();
     resetClipboardRead();
     destroyToasts();

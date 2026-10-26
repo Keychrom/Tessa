@@ -42,7 +42,10 @@ a daily Japanese desktop, then by polish.
       hooks, and startup commands.
 - [x] Custom bar status segments with optional click commands.
 - [x] Config includes and custom launcher entries.
-- [ ] Tray / StatusNotifier, media controls, battery, network, audio.
+- [x] Battery and network indicators.
+- [x] MPRIS media chip and controls.
+- [ ] Tray / StatusNotifier integration.
+- [ ] Audio volume controls.
 - [x] Calendar/clock popup.
 - [x] Power menu with configurable lock/suspend/reboot/shutdown commands.
 - [x] Session lock (`ext-session-lock-v1`).

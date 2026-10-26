@@ -303,6 +303,26 @@ also a key-binding action:
 bind = SUPER+SHIFT+s screenshot
 ```
 
+## System indicators and media
+
+When a battery is present under `/sys/class/power_supply`, the bar shows its
+charge and colors the fill while charging. The network indicator reads the
+default route from `/proc/net/route` and the interface state from
+`/sys/class/net`; it shows `Wi-Fi` when the interface has a `wireless` attribute
+and `LAN` otherwise. Both refresh every five seconds and need no configuration.
+
+Tessa watches MPRIS on the session bus. The first player discovered contributes
+a bar chip with the current title and play/pause state. Click the chip, press
+`Super+M`, or run `tessa-ctl panel media` to open the controls: previous,
+play/pause, and next. In the popover, `Space` toggles playback and `Left`/`Right`
+skip. The MPRIS client is read-only for metadata; album art is not displayed.
+Use `media` as a key-binding action, for example:
+
+```ini
+bind = SUPER+M media
+bind = SUPER+SHIFT+m media
+```
+
 ## Notifications
 
 The panel implements the `org.freedesktop.Notifications` D-Bus service on the
@@ -342,8 +362,9 @@ bind = SUPER+ALT+Right resize-width 30
 
 Available actions include `spawn`, `terminal`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `reload`,
-`ratio`, `toggle-layout`, `set-layout`, `resize-width`, and `resize-height`.
+`focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
+`reload`, `ratio`, `toggle-layout`, `set-layout`, `resize-width`, and
+`resize-height`.
 
 ## Live inspection and automation
 

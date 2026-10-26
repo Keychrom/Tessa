@@ -69,6 +69,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   - `wlr-screencopy` を使った範囲/全画面スクリーンショット UI（PNG 保存）
   - `org.freedesktop.Notifications` サービスと、置換・閉じる・期限切れに
     対応したプレーンテキストのトースト通知
+  - バッテリーとデフォルトルートのネットワーク表示
+  - MPRIS メディアチップと操作（`Super+M`）
 - 状態/イベントを明示的に購読する行ベース IPC と `tessa-ctl` CLI
 - include とイベントフックに対応した行ベース設定ファイル
 
@@ -85,7 +87,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
-`tests/notifications.sh` で検証しています。
+`tests/notifications.sh`、`tests/system-status.sh`、`tests/media.sh` で
+検証しています。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
 
@@ -398,6 +401,7 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+D` | ランチャー |
 | `Super+V` | クリップボード履歴 |
 | `Super+Shift+S` | 範囲/全画面スクリーンショット |
+| `Super+M` | MPRIS メディア操作 |
 | `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
@@ -439,6 +443,9 @@ include = /home/you/.config/tessa/launcher-entries.conf
 - `Super+Shift+S` でスクリーンショット UI が開きます。ドラッグで範囲選択、
   クリックで全画面、`Enter` でも全画面を保存し、`Esc` でキャンセルします。
   PNG は `screenshot_dir`（既定 `~/Pictures/Screenshots`）へ保存されます。
+- MPRIS プレイヤーが動いているとバーにメディアチップが表示されます。
+  クリックまたは `Super+M` で前へ/再生・一時停止/次へを操作できます。
+  キーボードでは `Space`、`Left`、`Right` も使えます。
 
 ## 設定
 
@@ -666,6 +673,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   プレーンテキストのトースト表示、置換、閉じる、期限切れに対応します。
   アクション、マークアップ、アイコン検索は未対応です。また D-Bus 名を所有
   したパネルの出力にだけ表示され、出力間ルーティングは今後の課題です。
+- **システム/メディア表示は基本機能のみ。** バッテリーは
+  `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
+  使います。トレイと音量操作はまだ未対応です。MPRIS は最初に見つかった
+  プレイヤーを操作し、アルバムアートは表示しません。
 - **IME のカバー範囲。** Wayland の text-input-v3 クライアントとパネルは
   Fcitx5 + Mozc で確認済みです。X11/XIM の入力メソッド、特殊なレイアウトの
   デッドキー、スクロール中の入力ポップアップ再配置は未確認です。
