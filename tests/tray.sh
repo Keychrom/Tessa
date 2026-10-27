@@ -170,9 +170,10 @@ if command -v grim >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
             rgb = $2
             gsub(/[()]/, "", rgb)
             split(rgb, c, ",")
-            if (c[2] + 0 > 180 && c[1] + 0 < 120 && c[3] + 0 < 120) {
-                if (green_min == "" || xy[1] + 0 < green_min) green_min = xy[1] + 0
-                if (xy[1] + 0 > green_max) green_max = xy[1] + 0
+            # The sparkline is antialiased and can be dimmer than solid accent
+            # icons, so require green dominance rather than a high channel value.
+            if (c[2] + 0 > 90 && c[2] + 0 > c[1] + 40 && c[2] + 0 > c[3] + 40) {
+                green[xy[1] + 0] = 1
             }
             if (c[3] + 0 > 150 && c[1] + 0 < 100 && c[2] + 0 < 160) {
                 if (blue_min == "" || xy[1] + 0 < blue_min) blue_min = xy[1] + 0
@@ -180,15 +181,39 @@ if command -v grim >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
             }
         }
         END {
-            if (green_min == "" || blue_min == "") {
-                print "CPU sparkline or tray icon missing from bar" > "/dev/stderr"
+            if (blue_min == "") {
+                print "tray icon missing from bar" > "/dev/stderr"
                 exit 2
             }
-            if (green_max - green_min > 70 || blue_max - blue_min > 30) {
-                print "unexpected bar cluster width" > "/dev/stderr"
+            run_start = -1
+            prev = -2
+            best_start = -1
+            best_len = 0
+            for (x = 0; x < 900; x++) {
+                if (x in green) {
+                    if (run_start < 0) run_start = x
+                    prev = x
+                } else if (run_start >= 0) {
+                    len = prev - run_start + 1
+                    if (len > best_len) {
+                        best_len = len
+                        best_start = run_start
+                    }
+                    run_start = -1
+                }
+            }
+            if (run_start >= 0) {
+                len = prev - run_start + 1
+                if (len > best_len) {
+                    best_len = len
+                    best_start = run_start
+                }
+            }
+            if (best_len < 30) {
+                print "CPU sparkline missing or obscured by tray" > "/dev/stderr"
                 exit 3
             }
-            if (!(blue_max + 4 < green_min)) {
+            if (!(blue_max + 4 < best_start)) {
                 print "tray icons overlap the CPU sparkline" > "/dev/stderr"
                 exit 4
             }
