@@ -300,6 +300,19 @@ visual keys are accepted.
 sh tests/animations.sh
 ```
 
+### Fractional-scale test
+
+`tests/fractional-scale.sh` compiles a small xdg-shell client that binds
+`wp_fractional_scale_manager_v1`, maps a surface, and prints the preferred scale
+in 1/120 units. It starts at 1.0 (`scale 120`), changes the output to 1.5 with
+`wlr-randr` and waits for `scale 180`, then switches to 2.0 and waits for
+`scale 240`. This covers both the protocol advertisement and the runtime output
+commit path that re-notifies existing surfaces.
+
+```sh
+sh tests/fractional-scale.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

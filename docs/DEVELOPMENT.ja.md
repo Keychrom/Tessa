@@ -279,6 +279,19 @@ ImageMagick がある環境では、閉じるスナップショット中央の�
 sh tests/animations.sh
 ```
 
+### フラクショナルスケールのテスト
+
+`tests/fractional-scale.sh` は `wp_fractional_scale_manager_v1` をバインドする
+小さな xdg-shell クライアントをコンパイルし、サーフェスを map して
+1/120 単位の preferred scale を出力します。1.0 で `scale 120`、`wlr-randr`
+で出力を 1.5 に変えて `scale 180`、続いて 2.0 にして `scale 240` を待ちます。
+これによりプロトコルの広告と、既存サーフェスへ再通知する実行時の出力
+commit 経路の両方を検証します。
+
+```sh
+sh tests/fractional-scale.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

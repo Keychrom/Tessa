@@ -152,6 +152,9 @@ pub fn main() !void {
     if (c.wlr_viewporter_create(server.display) == null) {
         core.logInfo("failed to create viewporter", .{});
     }
+    if (c.wlr_fractional_scale_manager_v1_create(server.display, 1) == null) {
+        core.logInfo("failed to create fractional-scale manager", .{});
+    }
     if (c.wlr_xdg_output_manager_v1_create(server.display, server.output_layout) == null) {
         core.logInfo("failed to create xdg-output manager", .{});
     }

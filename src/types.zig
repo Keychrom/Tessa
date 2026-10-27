@@ -261,8 +261,10 @@ pub const Output = struct {
     layout_overridden: [WS_COUNT]bool,
     last_focused: [WS_COUNT + 1]?*Client,
 
+    last_scale: f32,
     frame: c.wl_listener,
     request_state: c.wl_listener,
+    commit: c.wl_listener,
     destroy: c.wl_listener,
 };
 

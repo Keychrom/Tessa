@@ -95,7 +95,9 @@ a daily Japanese desktop, then by polish.
 - [x] Output mode/position/scale management via `wlr-output-management-v1` (`wlr-randr`).
 - [x] HiDPI-aware panel buffer scaling for integer output scales.
 - [x] Persist output mode, position, scale, and transform across restarts.
-- [ ] Fractional desktop scaling and XWayland scaling.
+- [x] Fractional desktop scaling through `wp_fractional_scale_v1`, including
+      runtime scale changes. XWayland scaling uses xwayland-satellite's
+      fractional-scale support.
 - [ ] Multi-monitor workspace pinning.
 
 ## 0.5 — deep customization

@@ -43,7 +43,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; output management via
-  `wlr-randr`, persisted across restarts; integer HiDPI panel buffer scaling
+  `wlr-randr`, persisted across restarts; fractional Wayland scaling through
+  `wp_fractional_scale_v1` and integer HiDPI panel buffer scaling
 - external extension API: event subscriptions, config hooks, custom bar status
   entries, custom launcher entries, and the `tessa-ctl` automation client
 - `relative-pointer-v1` for games and pointer-look applications
@@ -95,8 +96,9 @@ Mozc, and X11 clients through `xwayland-satellite`. Dual-headless-output
 workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
 status entries, custom launcher entries, config reload, per-workspace
-master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, and output
-mode/position/scale and layout persistence across restarts were exercised by
+master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, fractional output
+scale changes, and output mode/position/scale and layout persistence across
+restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
 `tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
@@ -104,8 +106,8 @@ mode/position/scale and layout persistence across restarts were exercised by
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/input.sh`,
-`tests/pointer-constraints.sh`, `tests/xim.sh`, `tests/interaction.sh`,
-`tests/popups.sh`, and `tests/portal.sh`.
+`tests/pointer-constraints.sh`, `tests/xim.sh`, `tests/fractional-scale.sh`,
+`tests/interaction.sh`, `tests/popups.sh`, and `tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
@@ -322,8 +324,11 @@ explicit value such as `:1` if needed. Disable XWayland with `xwayland = false`
 or `TESSA_NO_XWAYLAND=1`. If satellite is installed outside `PATH`, set
 `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`.
 
-X11 applications render at scale 1. Fractional scaling and XWayland's XSETTINGS
-integration are not implemented yet.
+XWayland scaling is delegated to `xwayland-satellite`. Tessa advertises
+`wp_fractional_scale_v1` and `wp_viewporter`, so satellite can scale X11 clients
+to fractional output scales; toolkits that ignore XSETTINGS may still render at
+1x. Fractional X11 behavior needs validation on a machine with satellite
+installed.
 
 ## Lock and idle
 
@@ -378,9 +383,12 @@ Tessa implements `wlr-output-management-unstable-v1`. Applied settings are
 saved to `$XDG_CONFIG_HOME/tessa/outputs.conf` (or
 `~/.config/tessa/outputs.conf`) and restored when the outputs appear again.
 Override the path with `output_config` in the main config or
-`TESSA_OUTPUT_CONFIG`. Panels follow `wl_output` scale, so integer HiDPI scales
-render the bar and launcher crisply. Fractional scales use the ceiling of the output scale as
-the integer buffer scale, and X11 clients still render at scale 1.
+`TESSA_OUTPUT_CONFIG`. Fractional-scale-aware Wayland clients receive the exact
+output scale from `wp_fractional_scale_v1`, including runtime changes. Clients
+without the protocol fall back to the ceiling of the output scale. Panels use
+the ceiling as their integer Cairo buffer scale, so integer scales are crisp
+and fractional scales are downsampled. XWayland scaling is handled by
+`xwayland-satellite`, which can use the same fractional scale.
 
 ## Extensions
 
@@ -683,9 +691,11 @@ These are real and important:
 - **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
   the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
   pointer behavior and DRM mode setting still need a physical test pass.
-- **Fractional scaling is partial.** The panel uses an integer Wayland buffer
-  scale and X11 clients render at scale 1. Integer HiDPI scales work, but
-  fractional desktop scaling needs a dedicated fractional-scale implementation.
+- **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
+  the exact output scale, including runtime changes. The panel still uses an
+  integer Cairo buffer scale, so fractional scales are downsampled there, and
+  legacy clients fall back to the ceiling. XWayland scaling depends on
+  `xwayland-satellite` and was not validated in the headless test environment.
 - **Disabled outputs are not persisted.** `wlr-randr --off` is runtime-only;
   the saved output entry re-enables that output on the next start.
 - **One panel process per output.** This keeps each bar independent but uses

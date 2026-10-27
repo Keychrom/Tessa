@@ -83,6 +83,46 @@ pub fn arrangeLayers(out: *Output) void {
     }
 }
 
+fn notifyNodeScale(out: *Output, node: *c.wlr_scene_node) void {
+    if (node.type == c.WLR_SCENE_NODE_TREE) {
+        const tree: *c.wlr_scene_tree = @ptrCast(@alignCast(node));
+        var link = tree.children.next;
+        while (link) |lp| {
+            if (@intFromPtr(lp) == @intFromPtr(&tree.children)) break;
+            const link_ptr: *c.wl_list = @ptrCast(@alignCast(lp));
+            const child: *c.wlr_scene_node = @fieldParentPtr("link", link_ptr);
+            notifyNodeScale(out, child);
+            link = link_ptr.next;
+        }
+        return;
+    }
+    if (node.type != c.WLR_SCENE_NODE_BUFFER) return;
+
+    const scene_buffer: *c.wlr_scene_buffer = @ptrCast(@alignCast(c.wlr_scene_buffer_from_node(node)));
+    const raw_surface = c.wlr_scene_surface_try_from_buffer(scene_buffer);
+    if (raw_surface == null) return;
+    const scene_surface: *c.wlr_scene_surface = @ptrCast(@alignCast(raw_surface));
+    const buffer: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_surface.buffer));
+    if (buffer.primary_output != out.scene_output) return;
+
+    const scale = out.wlr.scale;
+    c.wlr_fractional_scale_v1_notify_scale(scene_surface.surface, scale);
+    c.wlr_surface_set_preferred_buffer_scale(scene_surface.surface, @intFromFloat(@ceil(scale)));
+}
+
+fn onOutputCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const out: *Output = @fieldParentPtr("commit", listener.?);
+    const event: *c.wlr_output_event_commit = @ptrCast(@alignCast(data.?));
+    const state: *const c.wlr_output_state = @ptrCast(@alignCast(event.state));
+    if ((state.committed & c.WLR_OUTPUT_STATE_SCALE) == 0) return;
+    const scale = state.scale;
+    if (scale == out.last_scale) return;
+    out.last_scale = scale;
+    notifyNodeScale(out, &out.server.scene.tree.node);
+    core.logInfo("output scale: {s} {d:.2}", .{ core.cstr(out.wlr.name), scale });
+    core.markDirty(out.server);
+}
+
 fn onOutputFrame(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const out: *Output = @fieldParentPtr("frame", listener.?);
@@ -479,6 +519,7 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
 
     c.wl_list_remove(&out.frame.link);
     c.wl_list_remove(&out.request_state.link);
+    c.wl_list_remove(&out.commit.link);
     c.wl_list_remove(&out.destroy.link);
     c.wlr_scene_node_destroy(&out.bg_rect.node);
 
@@ -589,10 +630,13 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.ws_layouts = server.config.layout_by_ws;
     applySavedLayouts(server, out);
 
+    out.last_scale = wlr_out.scale;
     out.frame.notify = onOutputFrame;
     c.wl_signal_add(&wlr_out.events.frame, &out.frame);
     out.request_state.notify = onOutputRequestState;
     c.wl_signal_add(&wlr_out.events.request_state, &out.request_state);
+    out.commit.notify = onOutputCommit;
+    c.wl_signal_add(&wlr_out.events.commit, &out.commit);
     out.destroy.notify = onOutputDestroy;
     c.wl_signal_add(&wlr_out.events.destroy, &out.destroy);
 

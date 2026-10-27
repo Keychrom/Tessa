@@ -46,7 +46,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
   持ち、パネルも出力ごとに自動起動。`wlr-randr` による出力管理、設定の
-  永続化、整数倍の HiDPI パネルバッファスケーリングに対応
+  永続化、`wp_fractional_scale_v1` によるフラクショナルな Wayland
+  スケーリング、整数倍の HiDPI パネルバッファスケーリングに対応
 - 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
   ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
 - ゲームやポインタルック向けの `relative-pointer-v1`
@@ -106,7 +107,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 ストリーム、カスタムステータス、カスタムランチャー項目、設定再読み込みは
 `tests/smoke.sh`、`tests/output-persistence.sh`、パネルのスクリーンショットで
 確認しました。ワークスペースごとの master/mosaic/grid/columns レイアウト、
-2 倍 HiDPI パネル、再起動後の出力モード/位置/スケール/レイアウト復元も
+2 倍 HiDPI パネル、フラクショナルな出力スケール変更、再起動後の出力
+モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
 `tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
@@ -115,7 +117,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、`tests/xim.sh`、
-`tests/interaction.sh`、`tests/popups.sh`、
+`tests/fractional-scale.sh`、`tests/interaction.sh`、`tests/popups.sh`、
 `tests/portal.sh` で
 検証しています。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
@@ -337,8 +339,11 @@ Tessa は Wayland ソケットの準備後に `xwayland-satellite` を起動し�
 `PATH` の外にある場合は
 `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite` を設定してください。
 
-X11 アプリケーションはスケール 1 で描画されます。フラクショナルスケーリング
-と XWayland の XSETTINGS 連携はまだ実装されていません。
+XWayland のスケーリングは `xwayland-satellite` に委譲します。Tessa は
+`wp_fractional_scale_v1` と `wp_viewporter` を広告するため、satellite は
+X11 クライアントをフラクショナルな出力スケールに合わせて拡大できます。
+XSETTINGS を無視するツールキットは 1 倍のまま表示される場合があります。
+フラクショナルな X11 表示は satellite を導入した環境で追加検証が必要です。
 
 ## ロックと idle
 
@@ -396,10 +401,13 @@ TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 `$XDG_CONFIG_HOME/tessa/outputs.conf`（または
 `~/.config/tessa/outputs.conf`）に保存され、出力が再び現れたときに復元
 されます。保存先はメイン設定の `output_config` または
-`TESSA_OUTPUT_CONFIG` で変更できます。パネルは `wl_output` のスケールに
-追従するため、整数倍の HiDPI でもバーとランチャーが鮮明に描画されます。
-フラクショナルスケールでは出力スケールの切り上げ値を整数バッファスケール
-として使い、X11 クライアントはスケール 1 のままです。
+`TESSA_OUTPUT_CONFIG` で変更できます。`wp_fractional_scale_v1` に対応する
+Wayland クライアントには、実行中の変更を含めて正確な出力スケールが通知
+されます。プロトコル非対応のクライアントは出力スケールの切り上げ値を
+使います。パネルは切り上げ値を Cairo の整数バッファスケールとして使うため、
+整数倍では鮮明、フラクショナルではダウンサンプルされます。XWayland の
+スケーリングは `xwayland-satellite` が同じフラクショナルスケールを利用して
+処理します。
 
 ## 拡張
 
@@ -712,10 +720,12 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **DRM / キーボード / マウスは実機で未検証。** 開発は headless バックエンドで
   `wtype` / Fcitx5 とソフトウェアレンダリングを使って行っています。実際の
   ポインタ操作と DRM モード設定は、物理環境でのテストが必要です。
-- **フラクショナルスケーリングは部分的。** パネルは整数の Wayland バッファ
-  スケールを使い、X11 クライアントはスケール 1 で描画されます。整数倍の
-  HiDPI は動作しますが、フラクショナルなデスクトップスケーリングには専用の
-  対応が必要です。
+- **フラクショナルスケーリングは部分的。** フラクショナル対応の Wayland
+  クライアントには実行中の変更を含めて正確な出力スケールが通知されます。
+  パネルは Cairo の整数バッファスケールを使うため、フラクショナルでは
+  ダウンサンプルされます。非対応クライアントは切り上げスケールを使います。
+  XWayland のスケーリングは `xwayland-satellite` に依存し、headless
+  テスト環境では未検証です。
 - **出力の無効化は永続化されません。** `wlr-randr --off` は実行中のみ有効で、
   保存された出力エントリは次回起動時にその出力を有効化します。
 - **パネルは出力ごとに 1 プロセス。** バーが独立し、クラッシュの影響も

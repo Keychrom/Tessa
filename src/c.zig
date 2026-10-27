@@ -43,6 +43,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_ext_image_copy_capture_v1.h");
     @cInclude("wlr/types/wlr_xdg_output_v1.h");
     @cInclude("wlr/types/wlr_viewporter.h");
+    @cInclude("wlr/types/wlr_fractional_scale_v1.h");
     @cInclude("wlr/types/wlr_xdg_activation_v1.h");
     @cInclude("wlr/types/wlr_primary_selection_v1.h");
     @cInclude("wlr/types/wlr_primary_selection.h");

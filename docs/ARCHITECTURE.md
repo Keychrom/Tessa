@@ -326,6 +326,24 @@ file is mode 0600 and is only rewritten when settings change, not at startup.
 Output `enabled` state is not persisted yet. The output power-management
 protocol is separate and handled in `idle.zig`.
 
+## Fractional scaling
+
+`main.zig` creates `wp_fractional_scale_manager_v1` before the shell globals.
+`wlr_scene_surface` already notifies fractional scale and the preferred integer
+buffer scale when a surface's primary output changes. Tessa additionally listens
+to each `wlr_output.events.commit`: when `WLR_OUTPUT_STATE_SCALE` changes, it
+walks the scene graph, finds every scene surface whose `primary_output` is that
+output, and calls `wlr_fractional_scale_v1_notify_scale()` followed by
+`wlr_surface_set_preferred_buffer_scale(ceil(scale))`. This is what makes
+`wlr-randr --scale 1.25` update already-mapped clients instead of only new ones.
+
+Fractional-scale-aware clients render at the exact scale. Other clients use the
+integer ceiling and are downsampled by the scene renderer. The panel is a
+separate client and still uses the ceiling as its integer Cairo buffer scale.
+XWayland scaling is delegated to `xwayland-satellite`, which consumes the same
+advertised fractional scale. `tests/fractional-scale.sh` checks the 1.0 → 1.5 →
+2.0 notification path with a compiled client.
+
 ## Session lock
 
 `lock.zig` implements `ext-session-lock-v1`. On a new lock it:

@@ -340,6 +340,27 @@ headless 既定へフォールバックします。その後、一致する出�
 状態はまだ永続化しません。出力電源管理プロトコルは別で、`idle.zig` が
 処理します。
 
+## フラクショナルスケーリング
+
+`main.zig` はシェルのグローバルより先に `wp_fractional_scale_manager_v1` を
+作成します。`wlr_scene_surface` はサーフェスのプライマリ出力が変わった
+時点で、フラクショナルスケールと優先整数バッファスケールをすでに通知します。
+Tessa はさらに各 `wlr_output.events.commit` を監視し、
+`WLR_OUTPUT_STATE_SCALE` が変わったときにシーングラフを走査します。
+`primary_output` がその出力である各シーンサーフェスに対して
+`wlr_fractional_scale_v1_notify_scale()` と
+`wlr_surface_set_preferred_buffer_scale(ceil(scale))` を呼びます。これにより
+`wlr-randr --scale 1.25` が、新規クライアントだけでなく既に map 済みの
+クライアントにも反映されます。
+
+フラクショナル対応クライアントは正確なスケールで描画します。非対応
+クライアントは整数の切り上げ値を使い、シーンレンダラーがダウンサンプル
+します。パネルは別クライアントで、Cairo の整数バッファスケールとして
+切り上げ値を引き続き使います。XWayland のスケーリングは
+`xwayland-satellite` に委譲し、同じフラクショナルスケールを利用します。
+`tests/fractional-scale.sh` はコンパイルしたクライアントで 1.0 → 1.5 →
+2.0 の通知経路を検証します。
+
 ## セッションロック
 
 `lock.zig` が `ext-session-lock-v1` を実装します。新しいロックを受け取ると:

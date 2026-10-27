@@ -20,6 +20,7 @@ pub fn cleanupGlobals(server: *Server) void {
         const out = server.outputs[i] orelse continue;
         c.wl_list_remove(&out.frame.link);
         c.wl_list_remove(&out.request_state.link);
+        c.wl_list_remove(&out.commit.link);
         c.wl_list_remove(&out.destroy.link);
     }
     c.wl_list_remove(&server.new_output.link);
