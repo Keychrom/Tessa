@@ -98,7 +98,8 @@ a daily Japanese desktop, then by polish.
 - [x] Fractional desktop scaling through `wp_fractional_scale_v1`, including
       runtime scale changes. XWayland scaling uses xwayland-satellite's
       fractional-scale support.
-- [ ] Multi-monitor workspace pinning.
+- [x] Multi-monitor workspace pinning with `workspace_pin`, including
+      cross-output window moves.
 
 ## 0.5 — deep customization
 

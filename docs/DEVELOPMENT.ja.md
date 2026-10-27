@@ -292,6 +292,20 @@ commit 経路の両方を検証します。
 sh tests/fractional-scale.sh
 ```
 
+### ワークスペース固定のテスト
+
+`tests/workspace-pinning.sh` は 2 出力の headless セッションを起動し、両方の
+出力名を検出します。ワークスペース 3 を 2 番目の出力に固定した設定を
+リロードし、1 番目の出力で `foot` を起動します。`tessa-ctl workspace 3` が
+固定先の出力へフォーカスすること、`CMD move-workspace 3` がウィンドウと
+フォーカスを出力間で移動すること、`workspace 3 <1番目の出力>` と明示しても
+リダイレクトされること、ピン留めされていないワークスペースは指定した出力に
+残ることを確認します。
+
+```sh
+sh tests/workspace-pinning.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

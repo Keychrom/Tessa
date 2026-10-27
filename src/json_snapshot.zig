@@ -169,6 +169,16 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         });
     }
 
+    addRaw(buf, &off, "],\"workspace_pins\":[");
+    wi = 0;
+    while (wi < cfg.workspace_pin_count) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        const pin = &cfg.workspace_pins[wi];
+        addRaw(buf, &off, "{\"output\":");
+        addString(buf, &off, pin.output_name[0..pin.output_len]);
+        add(buf, &off, ",\"workspace\":{d}}}", .{pin.ws});
+    }
+
     addRaw(buf, &off, "],\"panel\":");
     addBool(buf, &off, cfg.autostart_panel);
     addRaw(buf, &off, ",\"xwayland\":");

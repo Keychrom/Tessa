@@ -45,9 +45,10 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
-  持ち、パネルも出力ごとに自動起動。`wlr-randr` による出力管理、設定の
-  永続化、`wp_fractional_scale_v1` によるフラクショナルな Wayland
-  スケーリング、整数倍の HiDPI パネルバッファスケーリングに対応
+  持ち、パネルも出力ごとに自動起動。ワークスペースの出力固定、`wlr-randr`
+  による出力管理、設定の永続化、`wp_fractional_scale_v1` による
+  フラクショナルな Wayland スケーリング、整数倍の HiDPI パネルバッファ
+  スケーリングに対応
 - 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
   ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
 - ゲームやポインタルック向けの `relative-pointer-v1`
@@ -117,8 +118,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、`tests/xim.sh`、
-`tests/fractional-scale.sh`、`tests/interaction.sh`、`tests/popups.sh`、
-`tests/portal.sh` で
+`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
+`tests/interaction.sh`、`tests/popups.sh`、`tests/portal.sh` で
 検証しています。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
@@ -382,6 +383,9 @@ idle を抑制できます。Tessa は出力電源管理プロトコルも実装
 
 各出力に独立した壁紙、バー、アクティブワークスペースがあります。
 `Super+1` … `Super+9` はフォーカス中の出力のワークスペースを変更します。
+`workspace_pin = OUTPUT WORKSPACE` を設定するとその対象が上書きされ、
+ショートカットとバーは常に固定先のモニタへ切り替えます。ピン留めした
+ワークスペースへウィンドウを移動すると、その出力へ移ります。
 バーをクリック/スクロールすると、そのモニタのワークスペースを変更し、
 その出力へフォーカスします。ランチャーはフォーカス中の出力に開き、新しい
 ウィンドウもそこに配置されます。`Super+Shift+H/J/K/L` はまず同じ出力内で
@@ -537,6 +541,7 @@ cp config/config.example ~/.config/tessa/config
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
+| `workspace_pin` | ワークスペースを出力に固定: `workspace_pin = eDP-1 3`（繰り返し可） |
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
@@ -701,6 +706,7 @@ WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
+CMD move-workspace 3
 CMD focus 4
 CMD close 4
 CMD spawn kitty

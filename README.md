@@ -42,9 +42,10 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   configurable wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
-  every output; panels are auto-started per output; output management via
-  `wlr-randr`, persisted across restarts; fractional Wayland scaling through
-  `wp_fractional_scale_v1` and integer HiDPI panel buffer scaling
+  every output; panels are auto-started per output; workspace-to-output pins;
+  output management via `wlr-randr`, persisted across restarts; fractional
+  Wayland scaling through `wp_fractional_scale_v1` and integer HiDPI panel
+  buffer scaling
 - external extension API: event subscriptions, config hooks, custom bar status
   entries, custom launcher entries, and the `tessa-ctl` automation client
 - `relative-pointer-v1` for games and pointer-look applications
@@ -107,7 +108,8 @@ restarts were exercised by
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/input.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`, `tests/fractional-scale.sh`,
-`tests/interaction.sh`, `tests/popups.sh`, and `tests/portal.sh`.
+`tests/workspace-pinning.sh`, `tests/interaction.sh`, `tests/popups.sh`, and
+`tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
@@ -366,6 +368,9 @@ management protocol, so `wlopm` can turn outputs off and back on.
 Every output gets its own background, bar, and independent active workspace.
 `Super+1` … `Super+9` change the workspace of the focused output. Clicking or
 scrolling a bar changes that monitor's workspace and focuses that output.
+`workspace_pin = OUTPUT WORKSPACE` overrides that target, so the shortcut and
+bar always bring the pinned monitor forward; moving a window to a pinned
+workspace transfers it to that output.
 The launcher opens on the focused output, and new windows are placed there.
 `Super+Shift+H/J/K/L` swaps within the current output first; when there is no
 window in that direction it moves the focused window to the adjacent monitor.
@@ -512,6 +517,7 @@ diagnostics. Selected keys:
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
+| `workspace_pin` | bind a workspace to an output: `workspace_pin = eDP-1 3` (repeatable) |
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
@@ -672,6 +678,7 @@ WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
+CMD move-workspace 3
 CMD focus 4
 CMD close 4
 CMD spawn kitty

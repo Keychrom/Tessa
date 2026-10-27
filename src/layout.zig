@@ -1025,13 +1025,23 @@ pub fn focusFirst(server: *Server) void {
     focusClient(server, null);
 }
 
+fn pinnedOutputFor(server: *Server, ws: usize) ?*Output {
+    const pins = server.config.workspace_pins[0..server.config.workspace_pin_count];
+    for (pins) |pin| {
+        if (pin.ws != ws) continue;
+        return core.outputByName(server, pin.output_name[0..pin.output_len]);
+    }
+    return null;
+}
+
 pub fn switchWorkspace(server: *Server, ws: usize) void {
     const out = core.focusOutput(server) orelse return;
     switchWorkspaceOnOutput(server, out, ws);
 }
 
-pub fn switchWorkspaceOnOutput(server: *Server, out: *Output, ws: usize) void {
+pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usize) void {
     if (ws < 1 or ws > types.WS_COUNT) return;
+    const out = pinnedOutputFor(server, ws) orelse requested_out;
     const previous_ws = out.active_ws;
     out.active_ws = ws;
     server.focused_output = out;
@@ -1070,10 +1080,19 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
     const cl = server.focused orelse return;
     const out = cl.output;
     const old_ws = cl.ws;
-    if (old_ws == ws) return;
+    const target_out = pinnedOutputFor(server, ws) orelse out;
+    if (old_ws == ws and target_out == out) return;
+
+    if (target_out != out) {
+        if (cl.floating) {
+            cl.float_x += target_out.full.x - out.full.x;
+            cl.float_y += target_out.full.y - out.full.y;
+        }
+        cl.output = target_out;
+    }
     cl.ws = ws;
-    out.last_focused[ws] = cl;
     if (out.last_focused[old_ws] == cl) out.last_focused[old_ws] = null;
+    target_out.last_focused[ws] = cl;
 
     var next: ?*Client = null;
     var i: usize = 0;
@@ -1084,8 +1103,13 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
             break;
         }
     }
-    focusClient(server, next);
+    if (target_out != out and target_out.active_ws == ws) {
+        focusClient(server, cl);
+    } else {
+        focusClient(server, next);
+    }
     arrangeOutput(server, out);
+    if (target_out != out) arrangeOutput(server, target_out);
     events.emit(server, .{
         .name = event_names.window_moved,
         .id = cl.id,
@@ -1093,7 +1117,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
         .previous_workspace = old_ws,
         .app_id = cl.app_id[0..cl.app_id_len],
         .title = cl.title[0..cl.title_len],
-        .output = core.outputName(out),
+        .output = core.outputName(target_out),
     });
     core.markDirty(server);
 }

@@ -106,6 +106,60 @@ fn parseFloatValue(
     };
 }
 
+fn addWorkspacePin(
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) void {
+    var it = std.mem.tokenizeAny(u8, value, " \t");
+    const output_name = it.next() orelse {
+        addIssue(server, path, line, "expected OUTPUT WORKSPACE for {s}", .{key});
+        return;
+    };
+    const ws_text = it.next() orelse {
+        addIssue(server, path, line, "expected OUTPUT WORKSPACE for {s}", .{key});
+        return;
+    };
+    if (it.next() != null) {
+        addIssue(server, path, line, "unexpected extra value for {s}", .{key});
+        return;
+    }
+    if (output_name.len >= 64) {
+        addIssue(server, path, line, "output name too long for {s}", .{key});
+        return;
+    }
+    const ws = std.fmt.parseInt(usize, ws_text, 10) catch {
+        addIssue(server, path, line, "invalid workspace for {s}: '{s}'", .{ key, ws_text });
+        return;
+    };
+    if (ws < 1 or ws > types.WS_COUNT) {
+        addIssue(server, path, line, "workspace out of range for {s}: '{s}'", .{ key, ws_text });
+        return;
+    }
+
+    var pin: ?*types.WorkspacePin = null;
+    var i: usize = 0;
+    while (i < server.config.workspace_pin_count) : (i += 1) {
+        if (server.config.workspace_pins[i].ws == ws) {
+            pin = &server.config.workspace_pins[i];
+            break;
+        }
+    }
+    if (pin == null) {
+        if (server.config.workspace_pin_count >= server.config.workspace_pins.len) {
+            addIssue(server, path, line, "too many workspace pins", .{});
+            return;
+        }
+        pin = &server.config.workspace_pins[server.config.workspace_pin_count];
+        server.config.workspace_pin_count += 1;
+    }
+    const p = pin.?;
+    core.copyString(&p.output_name, &p.output_len, output_name);
+    p.ws = ws;
+}
+
 fn parseBoolValue(
     server: *Server,
     path: []const u8,
@@ -731,6 +785,8 @@ fn loadPath(
             } else {
                 addIssue(server, path, line_no, "unknown layout '{s}'", .{value});
             }
+        } else if (std.mem.eql(u8, key, "workspace_pin") or std.mem.eql(u8, key, "workspace-pin")) {
+            addWorkspacePin(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
         } else if (std.mem.eql(u8, key, "animations")) {

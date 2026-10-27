@@ -381,7 +381,14 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 - Each output owns an `active_ws`, a per-workspace `ws_layouts[]` and
   `layout_overridden[]` table, and a `last_focused[]` table. Workspaces and
   layout choices are therefore independent per monitor, and `Super+1`…`9`
-  applies to the focused output.
+  applies to the focused output unless that workspace is pinned.
+- `workspace_pin = OUTPUT WORKSPACE` binds a workspace index to a monitor.
+  `switchWorkspaceOnOutput` looks up the pin and redirects every switch path
+  (keys, gestures, IPC, bar, foreign activation) to that output. A pin whose
+  output is absent is ignored. `moveToWorkspace` changes the client's output
+  when the target workspace is pinned elsewhere, translates floating geometry
+  between output origins, updates both `last_focused[]` tables, and arranges
+  both outputs. `CMD move-workspace <n>` exposes the same path to automation.
 - **master**: one master area (ratio, default 0.58) and a vertical stack.
 - **mosaic**: recursive spiral. Each remaining window takes a 62% slice of the
   current rectangle; the direction rotates left → top → right → bottom. The last
@@ -492,6 +499,7 @@ Subscriptions and client → compositor commands:
 CMD subscribe state|events|all
 CMD state
 CMD workspace <1..9> [output]
+CMD move-workspace <1..9>
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

@@ -110,6 +110,14 @@ pub const SavedOutput = struct {
     present: bool = false,
 };
 
+pub const WorkspacePin = struct {
+    output_name: [64]u8 = undefined,
+    output_len: usize = 0,
+    ws: usize = 1,
+};
+
+pub const MAX_WORKSPACE_PINS = 32;
+
 pub const SavedLayout = struct {
     output_name: [64]u8 = undefined,
     output_len: usize = 0,
@@ -190,6 +198,8 @@ pub const Config = struct {
     layout_mode: LayoutMode,
     layout_by_ws: [WS_COUNT]LayoutMode,
     layout_overrides: [WS_COUNT]bool,
+    workspace_pins: [MAX_WORKSPACE_PINS]WorkspacePin,
+    workspace_pin_count: usize,
     animations: bool,
     reduce_motion: bool,
     animation_ms: i32,

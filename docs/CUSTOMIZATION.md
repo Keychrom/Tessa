@@ -102,6 +102,20 @@ A runtime layout choice still wins over the seed and is persisted. The
 `Super+Ctrl+H/L` ratio binding adjusts the active workspace's ratio for the
 current session; config reload restores configured ratio values.
 
+Workspaces can be bound to monitors so the shortcut always brings that monitor
+forward:
+
+```ini
+workspace_pin = eDP-1 1
+workspace_pin = HDMI-A-1 3
+```
+
+Keyboard, gesture, IPC, and bar switches to a pinned workspace redirect to its
+output. `Super+Shift+<n>` moves the focused window to that workspace, changing
+its output when the workspace is pinned elsewhere. A missing output releases the
+pin until that output appears. `tessa-ctl workspace <n> <output>` still names the
+requested monitor, but a pin takes precedence.
+
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.

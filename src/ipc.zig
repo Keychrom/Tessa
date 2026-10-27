@@ -368,6 +368,12 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             }
             broadcastState(server);
         }
+    } else if (std.mem.eql(u8, cmd, "move-workspace")) {
+        if (start + 1 < n) {
+            const ws = std.fmt.parseInt(usize, toks[start + 1], 10) catch return;
+            layout.moveToWorkspace(server, ws);
+            broadcastState(server);
+        }
     } else if (std.mem.eql(u8, cmd, "focus")) {
         if (start + 1 < n) {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
@@ -626,6 +632,11 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
             cfg.ws_outer_gaps[ws],
             cfg.ws_master_ratio[ws],
         });
+    }
+    var pi: usize = 0;
+    while (pi < cfg.workspace_pin_count) : (pi += 1) {
+        const pin = &cfg.workspace_pins[pi];
+        append(&buf, &off, "workspace_pin {s} {d}\n", .{ pin.output_name[0..pin.output_len], pin.ws });
     }
     append(&buf, &off, "active_mode {s}\n", .{modes.currentName(server)});
     var mi: usize = 0;

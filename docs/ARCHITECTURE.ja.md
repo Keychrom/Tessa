@@ -401,8 +401,16 @@ inhibitor が存在する間またはセッションロック中は
 
 - 各出力が `active_ws`、ワークスペースごとの `ws_layouts[]` と
   `layout_overridden[]`、`last_focused[]` を持ちます。ワークスペースと
-  レイアウト選択はモニタごとに独立し、`Super+1`…`9` はフォーカス中の出力に
-  適用されます。
+  レイアウト選択はモニタごとに独立し、`Super+1`…`9` はピン留めがない限り
+  フォーカス中の出力に適用されます。
+- `workspace_pin = OUTPUT WORKSPACE` はワークスペース番号をモニタに結び付け
+  ます。`switchWorkspaceOnOutput` はピンを検索し、キー、ジェスチャ、IPC、
+  バー、foreign activation のすべての切り替え経路をその出力へリダイレクト
+  します。出力が存在しないピンは無視されます。`moveToWorkspace` は移動先
+  ワークスペースが別出力にピン留めされている場合、クライアントの出力を
+  変更し、フローティングジオメトリを出力原点間で移動させ、両方の
+  `last_focused[]` を更新して両出力を再配置します。`CMD move-workspace <n>`
+  は同じ経路を自動化に公開します。
 - **master**: 1 つのマスター領域（比率、デフォルト 0.58）と縦スタック。
 - **mosaic**: 再帰的なスパイラル。残りの各ウィンドウが現在の矩形の 62% を
   取り、方向が左 → 上 → 右 → 下と回転します。最後のウィンドウが中央を
@@ -515,6 +523,7 @@ CR、LF がエスケープされます。各パネルは `WIN` と `OUT` を自�
 CMD subscribe state|events|all
 CMD state
 CMD workspace <1..9> [output]
+CMD move-workspace <1..9>
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

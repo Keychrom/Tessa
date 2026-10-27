@@ -313,6 +313,19 @@ commit path that re-notifies existing surfaces.
 sh tests/fractional-scale.sh
 ```
 
+### Workspace pinning test
+
+`tests/workspace-pinning.sh` starts a two-output headless session, discovers
+both output names, reloads a config that pins workspace 3 to the second output,
+and spawns `foot` on the first. It checks that `tessa-ctl workspace 3` focuses
+the pinned output, that `CMD move-workspace 3` transfers the window and its
+focus across outputs, that an explicit `workspace 3 <first-output>` request is
+still redirected, and that an unpinned workspace stays on the requested output.
+
+```sh
+sh tests/workspace-pinning.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config
