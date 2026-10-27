@@ -1466,6 +1466,20 @@ pkg-config --modversion wlroots-0.19
 場合は、ビルド環境からそのパスを外すか、`PKG_CONFIG_PATH` を AUR の
 インストール先へ向けてください。
 
+### Arch の Debug ビルドが R_X86_64_PC64 で失敗する
+
+```text
+fatal linker error: unhandled relocation type R_X86_64_PC64
+note: in .../Scrt1.o:.sframe
+```
+
+Zig 0.16 のセルフホストリンカーは、Arch の glibc 2.43 / GCC 16 が
+`Scrt1.o` に入れる `.sframe` のリロケーションを処理できません。現在の
+`build.zig` は 3 つの実行ファイルすべてで LLVM/LLD を強制しているため、
+ビルド前にツリーを更新してください。古いクローンでは
+`-Doptimize=ReleaseSafe`（LLVM/LLD を使用）で回避するか、各実行ファイルに
+`use_llvm = true` と `use_lld = true` を設定してください。
+
 ### パネルが出ない
 
 - `PATH` に `tessa-panel` があるか

@@ -32,6 +32,11 @@ pub fn build(b: *std.Build) void {
         .root_module = server_mod,
     });
     server.pie = true;
+    // Zig 0.16's self-hosted linker cannot handle the R_X86_64_PC64
+    // relocations in glibc 2.43's .sframe sections (Arch/GCC 16). Use LLD
+    // for every build mode, including Debug.
+    server.use_llvm = true;
+    server.use_lld = true;
     if (scenefx) server.root_module.linkSystemLibrary("scenefx-0.4", .{});
     server.root_module.linkSystemLibrary("wlroots-0.19", .{});
     server.root_module.linkSystemLibrary("wayland-server", .{});
@@ -99,6 +104,8 @@ pub fn build(b: *std.Build) void {
         .root_module = panel_mod,
     });
     panel.pie = true;
+    panel.use_llvm = true;
+    panel.use_lld = true;
     b.installArtifact(panel);
 
     const ctl_mod = b.createModule(.{
@@ -112,6 +119,8 @@ pub fn build(b: *std.Build) void {
         .root_module = ctl_mod,
     });
     ctl.pie = true;
+    ctl.use_llvm = true;
+    ctl.use_lld = true;
     b.installArtifact(ctl);
 
     const run_cmd = b.addRunArtifact(server);

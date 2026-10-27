@@ -130,6 +130,12 @@ Arch パッケージはまだ実機の Arch で検証していません。`makep
 `pkg-config --modversion wlroots-0.19` が `0.19.x` を返すことを確認して
 ください。
 
+Arch で **Debug** ビルドを行うと
+`unhandled relocation type R_X86_64_PC64 ... Scrt1.o:.sframe` で失敗する
+ことがあります。Zig 0.16 のリンカーと glibc 2.43 / GCC 16 の組み合わせに
+よる制限です。現在の `build.zig` は LLVM/LLD を強制しているため、ツリーを
+更新してください。古いツリーでは `-Doptimize=ReleaseSafe` で回避できます。
+
 ## 状態
 
 MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。

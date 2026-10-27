@@ -1413,6 +1413,19 @@ The first command must print `0.16.x`; the second must print `0.19.x`. If
 Tessa. If pkg-config finds `/usr/local`, remove that prefix from the build
 environment or point `PKG_CONFIG_PATH` at the AUR installation.
 
+### Arch Debug build fails with R_X86_64_PC64
+
+```text
+fatal linker error: unhandled relocation type R_X86_64_PC64
+note: in .../Scrt1.o:.sframe
+```
+
+Zig 0.16's self-hosted linker cannot handle the `.sframe` relocations emitted
+by glibc 2.43 and GCC 16 on Arch. The current `build.zig` forces LLVM/LLD for
+all three programs, so update the tree before building. On an older clone, use
+a release build (`-Doptimize=ReleaseSafe`), which already selects LLVM/LLD, or
+apply the `use_llvm = true` and `use_lld = true` settings to each executable.
+
 ### Panel missing
 
 - Is `tessa-panel` in `PATH`?

@@ -131,6 +131,12 @@ If `makepkg` reports a missing dependency or ABI mismatch, confirm that
 `zig-0.16` is the compiler and `pkg-config --modversion wlroots-0.19` reports
 `0.19.x`.
 
+A custom **Debug** build on Arch can fail with
+`unhandled relocation type R_X86_64_PC64 ... Scrt1.o:.sframe`. This is a Zig
+0.16 linker limitation with glibc 2.43/GCC 16. The current `build.zig` forces
+LLVM/LLD, so update the tree; an older tree can use
+`-Doptimize=ReleaseSafe` instead.
+
 ## Status
 
 This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
