@@ -54,11 +54,12 @@ fn keyboardClear(server: *Server) void {
 }
 
 fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
-    const geo = tBase(cl.xdg).geometry;
     const border: i32 = if (cl.fullscreen) 0 else cl.server.config.border_width;
+    // wlr_scene_xdg_surface_create() already anchors the scene node at the
+    // xdg window geometry, so do not subtract geometry.x/y a second time.
     return .{
-        .x = cl.frame.node.x + border - geo.x,
-        .y = cl.frame.node.y + border - geo.y,
+        .x = cl.frame.node.x + border,
+        .y = cl.frame.node.y + border,
     };
 }
 
@@ -428,11 +429,8 @@ fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enab
         c.wlr_scene_node_set_enabled(&client.border_rect.node, false);
     }
 
-    const geo = tBase(client.xdg).geometry;
-    const gx = geo.x;
-    const gy = geo.y;
     const b = if (enabled_border) border else 0;
-    c.wlr_scene_node_set_position(&client.surface_tree.node, b - gx, b - gy);
+    c.wlr_scene_node_set_position(&client.surface_tree.node, b, b);
 
     const cw = @max(1, client.w - b * 2);
     const ch = @max(1, client.h - b * 2);
@@ -1309,9 +1307,9 @@ pub fn beginInteractive(client: *Client, mode: types.CursorMode, edges: u32) voi
     } else {
         const g = tBase(client.xdg).geometry;
         const border = s.config.border_width;
-        const bx = @as(f64, @floatFromInt(client.x + border + g.x)) +
+        const bx = @as(f64, @floatFromInt(client.x + border)) +
             (if (edges & c.WLR_EDGE_RIGHT != 0) @as(f64, @floatFromInt(g.width)) else 0);
-        const by = @as(f64, @floatFromInt(client.y + border + g.y)) +
+        const by = @as(f64, @floatFromInt(client.y + border)) +
             (if (edges & c.WLR_EDGE_BOTTOM != 0) @as(f64, @floatFromInt(g.height)) else 0);
         s.grab_x = s.cursor.x - bx;
         s.grab_y = s.cursor.y - by;

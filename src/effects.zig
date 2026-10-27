@@ -208,14 +208,13 @@ fn start(
         window_effects.applyCloseContent(content, @min(server.config.corner_radius, max_radius));
     }
 
-    const geometry = tBase(client.xdg).geometry;
     const border_width: i32 = if (client.fullscreen) 0 else server.config.border_width;
     const frame_x: f64 = @floatFromInt(client.x);
     const frame_y: f64 = @floatFromInt(client.y);
     const frame_w: f64 = @floatFromInt(@max(1, client.w));
     const frame_h: f64 = @floatFromInt(@max(1, client.h));
-    const content_x = frame_x + @as(f64, @floatFromInt(border_width - geometry.x));
-    const content_y = frame_y + @as(f64, @floatFromInt(border_width - geometry.y));
+    const content_x = frame_x + @as(f64, @floatFromInt(border_width));
+    const content_y = frame_y + @as(f64, @floatFromInt(border_width));
 
     const effect = @as(*CloseEffect, @ptrCast(@alignCast(c.calloc(1, @sizeOf(CloseEffect)).?)));
     effect.server = server;
