@@ -134,6 +134,39 @@ a daily Japanese desktop, then by polish.
 - [x] JSON-RPC/event stream with request ids and capability negotiation.
 - [ ] Interactive config editor/check with diff preview.
 
+## 0.7 — customization parity
+
+The target is to make the core Hyprland/Niri customization surface expressible
+from one validated Tessa config, with live reload and without embedding a
+JavaScript or plugin VM. Complete the two open 0.6 items (layout-helper v2 and
+the interactive config editor/diff preview) before or alongside this work.
+
+- [ ] Automatic config reload through inotify, with debounce and transactional
+      validation. A failed edit keeps the previous configuration.
+- [ ] Motion v2: named cubic-bezier and spring curves, per-kind curves,
+      per-window animation overrides, and configurable open/close fade, scale,
+      and translation.
+- [ ] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
+      border width; layer-shell rules; reactive re-evaluation on title/app-id
+      changes without a full reload.
+- [ ] Workspace/layout v2: named workspaces, special/scratchpad workspaces,
+      window groups, and the completed asynchronous per-output layout helper.
+- [ ] Input/output policy: per-device touchpad/mouse rules (tap, natural
+      scrolling, acceleration, scroll method, button map), monitor rules by
+      make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.
+- [ ] Shell v2: composable bar modules/layout, per-surface font and color
+      roles, wallpaper image/shader sources, and layer-rule-aware popovers and
+      toasts.
+- [ ] Shader/effect hooks through the long-lived process protocol; no
+      in-process plugin VM.
+- [ ] Performance guardrails: headless benchmarks and a frame-time budget for
+      blur, rounded corners, and animations on the target laptop.
+
+The success criterion is that a typical Hyprland/Niri theme and workflow can be
+reproduced from one Tessa config, changed without logging out, and extended
+through the process API. The goal is coherent expressiveness and validation,
+not feature-for-feature plugin parity.
+
 ## 1.0 — stability
 
 - [x] Config validation with useful errors and transactional reload.
