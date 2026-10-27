@@ -462,6 +462,9 @@ fn openLauncher(query_arg: []const u8) void {
         return;
     }
 
+    // Rescan on every fresh open so newly installed .desktop entries appear
+    // without restarting Tessa or the panel.
+    refreshApps();
     if (!ensureOverlay()) return;
     beginOverlay(.launcher);
     m.setQuery(query_arg);
@@ -786,6 +789,12 @@ fn restartAudioService() void {
     if (g.overlay_mode == .audio) refreshOverlay();
 }
 
+fn refreshApps() void {
+    apps.scan(&g.app_list);
+    addCustomApps();
+    m.recomputeResults();
+}
+
 fn reloadPanelConfig() void {
     const old_height = g.bar_height;
     const old_top = g.bar_top_margin;
@@ -813,9 +822,7 @@ fn reloadPanelConfig() void {
         !std.mem.eql(u8, old_volume_down[0..old_down_len], g.volume_down[0..g.volume_down_len]) or
         old_mute_len != g.volume_mute_len or
         !std.mem.eql(u8, old_volume_mute[0..old_mute_len], g.volume_mute[0..g.volume_mute_len]);
-    apps.scan(&g.app_list);
-    addCustomApps();
-    m.recomputeResults();
+    refreshApps();
     if (volume_changed) restartAudioService();
     if (g.bar_height != old_height or g.bar_top_margin != old_top or
         g.bar_side_margin != old_side)
@@ -3576,10 +3583,8 @@ pub fn main() !void {
     }
     initListeners();
     m.loadConfig();
-    apps.scan(&g.app_list);
-    addCustomApps();
+    refreshApps();
     logMsg("loaded {d} desktop entries", .{g.app_list.count});
-    m.recomputeResults();
     _ = m.updateClock();
     m.updateCpu();
     m.updateMem();
