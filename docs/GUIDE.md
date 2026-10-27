@@ -3,8 +3,8 @@
 # Tessa Setup & Customization Guide
 
 This guide collects the setup and customization surface of the current Tessa
-tree. It covers the implementation through the 0.5 roadmap; 0.6+ items are not
-included.
+tree. It covers the implementation through the 0.6 roadmap; layout-helper v2
+and the interactive config editor are the remaining 0.6 items.
 
 Tessa is three programs:
 
@@ -21,6 +21,10 @@ and `tessa-ctl config` prints the effective values and parsed rules.
 ## 1. Requirements
 
 ### Required
+
+For a normal install on Ubuntu 26.04, use the prebuilt `.deb` in section 2.1.
+It pulls the runtime libraries automatically; the Zig/wlroots development
+requirements below apply only to source builds.
 
 - Linux (development is tested on Ubuntu 26.04)
 - Zig **0.16.0**
@@ -66,7 +70,59 @@ ldconfig -p | grep wlroots
 
 ---
 
-## 2. Build
+## 2. Install or Build
+
+### 2.1 Binary package (Ubuntu 26.04)
+
+The recommended install uses the `v0.1.0` amd64 package:
+
+```sh
+sudo apt update
+sudo apt install curl
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
+grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.1.0_amd64.deb
+```
+
+The package installs:
+
+- `/usr/bin/tessa`, `/usr/bin/tessa-panel`, `/usr/bin/tessa-ctl`
+- `/usr/bin/tessa-session`
+- `/usr/share/wayland-sessions/tessa.desktop`
+- `/usr/share/tessa/config.example`
+- `/usr/share/xdg-desktop-portal/portals/tessa.portal`
+- man pages and documentation
+
+Log out and select **Tessa** in GDM, SDDM, greetd, or another display manager.
+The session entry starts the installed compositor and panel directly; the
+source session installer in section 3.2 is only for development.
+
+Useful optional packages:
+
+```sh
+sudo apt install kitty wlr-randr grim dbus \
+  fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+`xwayland-satellite` is not packaged in Ubuntu 26.04. Install it from upstream
+if X11 applications are needed; otherwise `xwayland = true` will log a warning
+and X11 clients will not start.
+
+Verify the package and configuration:
+
+```sh
+dpkg -s tessa
+command -v tessa tessa-panel tessa-ctl
+tessa-ctl config-check
+```
+
+If Tessa was previously installed manually under `/usr/local`, keep only one
+installation. `/usr/local/bin` normally precedes `/usr/bin` in `PATH`, so the
+manual binaries would otherwise win.
+
+### 2.2 Build from source (development)
 
 From the repository root:
 
@@ -127,7 +183,14 @@ no visual effect.
 
 ### 3.1 Directly from a TTY
 
-Run from the active physical console or a TTY, not over SSH:
+Run from the active physical console or a TTY, not over SSH. For a package
+install:
+
+```sh
+tessa
+```
+
+For a source build:
 
 ```sh
 cd /path/to/Tessa
@@ -142,6 +205,9 @@ An SSH session cannot use DRM, so use headless or nested Wayland there.
 Quit with `Super+Shift+E` or `tessa-ctl quit`.
 
 ### 3.2 Display-manager session
+
+The `.deb` already installs the session entry. Use this only for a source
+build:
 
 ```sh
 # Per-user install

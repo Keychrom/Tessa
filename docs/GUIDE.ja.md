@@ -3,16 +3,16 @@
 # Tessa セットアップ & カスタマイズ完全ガイド
 
 このガイドは、現在の Tessa ツリーで使えるセットアップ方法とカスタマイズ
-項目を一か所にまとめたものです。対象は 0.6 以降の未実装項目を除く、
-0.5 ロードマップまでの実装です。
+項目を一か所にまとめたものです。0.6 ロードマップまでの実装を対象にし、
+残る 0.6 項目はレイアウトヘルパー v2 と対話型設定エディタです。
 
 Tessa は **wlroots ベースのコンポジタ本体 `tessa`**、**タスクバー／
 ランチャー／壁紙を担当する `tessa-panel`**、**自動化用の `tessa-ctl`** の
 3 プロセス構成です。Waybar、Rofi、wofi などの外部シェルは不要です。
 
-- コンポジタ: `zig-out/bin/tessa`
-- パネル: `zig-out/bin/tessa-panel`（出力ごとに 1 プロセス）
-- CLI: `zig-out/bin/tessa-ctl`
+- コンポジタ: `/usr/bin/tessa`（ソースビルドでは `zig-out/bin/tessa`）
+- パネル: `/usr/bin/tessa-panel`（出力ごとに 1 プロセス）
+- CLI: `/usr/bin/tessa-ctl`
 
 設定はフラットな `key = value` 形式です。設定の再読み込みは `Super+R`、
 診断は `tessa-ctl config-check`、実効値の確認は `tessa-ctl config` で行います。
@@ -22,6 +22,10 @@ Tessa は **wlroots ベースのコンポジタ本体 `tessa`**、**タスクバ
 ## 1. 必要環境
 
 ### 必須
+
+Ubuntu 26.04 で通常利用する場合は、2.1 節のビルド済み `.deb` を使えます。
+実行時ライブラリは `apt` が自動導入します。以下の Zig / wlroots 開発環境は
+ソースビルド時だけ必要です。
 
 - Linux（開発・検証は Ubuntu 26.04）
 - Zig **0.16.0**
@@ -67,7 +71,59 @@ ldconfig -p | grep wlroots
 
 ---
 
-## 2. ビルド
+## 2. インストールまたはビルド
+
+### 2.1 バイナリパッケージ（Ubuntu 26.04）
+
+推奨は `v0.1.0` の amd64 パッケージです:
+
+```sh
+sudo apt update
+sudo apt install curl
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
+grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.1.0_amd64.deb
+```
+
+パッケージが導入するもの:
+
+- `/usr/bin/tessa`、`/usr/bin/tessa-panel`、`/usr/bin/tessa-ctl`
+- `/usr/bin/tessa-session`
+- `/usr/share/wayland-sessions/tessa.desktop`
+- `/usr/share/tessa/config.example`
+- `/usr/share/xdg-desktop-portal/portals/tessa.portal`
+- man ページとドキュメント
+
+ログアウトし、GDM / SDDM / greetd などのセッション選択で **Tessa** を選びます。
+セッションエントリがインストール済みのコンポジタとパネルを直接起動します。
+3.2 節のソース用セッションインストーラーは開発時だけ必要です。
+
+実用的な追加パッケージ:
+
+```sh
+sudo apt install kitty wlr-randr grim dbus \
+  fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+`xwayland-satellite` は Ubuntu 26.04 にはパッケージされていません。X11
+アプリが必要なら上流から導入してください。ない場合、`xwayland = true` の
+ままでは警告が出て X11 クライアントは起動しません。
+
+パッケージと設定の確認:
+
+```sh
+dpkg -s tessa
+command -v tessa tessa-panel tessa-ctl
+tessa-ctl config-check
+```
+
+以前 `/usr/local` に手動インストールしたTessaがある場合は、どちらか一方に
+揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
+手動版が使われ続けます。
+
+### 2.2 ソースからビルド（開発向け）
 
 リポジトリのルートで実行します。
 
@@ -130,6 +186,13 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 ### 3.1 TTY から直接起動
 
 物理コンソール（SSH ではなく、ログイン中の TTY）で実行します。
+パッケージ版なら:
+
+```sh
+tessa
+```
+
+ソースビルドなら:
 
 ```sh
 cd /path/to/Tessa
@@ -147,6 +210,9 @@ DRM バックエンドは logind/seat のアクティブセッションと入力
 終了は `Super+Shift+E` または `tessa-ctl quit` です。
 
 ### 3.2 ディスプレイマネージャー用セッション
+
+`.deb` はセッションエントリを導入済みです。この手順はソースビルドから
+実行する場合だけ使います:
 
 ```sh
 # ~/.local 以下へ

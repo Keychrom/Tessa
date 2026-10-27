@@ -20,6 +20,55 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 フックを一冊にまとめた
 [セットアップ＆カスタマイズ完全ガイド](docs/GUIDE.ja.md) もあります。
 
+## Ubuntu 26.04 へのインストール
+
+[v0.1.0 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.1.0)
+に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
+バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
+
+```sh
+sudo apt update
+sudo apt install curl
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
+grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.1.0_amd64.deb
+```
+
+`apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
+設定例、ポータル設定、man ページを導入します。実用的な追加パッケージ:
+
+```sh
+sudo apt install kitty wlr-randr grim dbus \
+  fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+`xwayland-satellite` は Ubuntu 26.04 のパッケージにはないため、X11
+アプリケーションが必要なら上流から導入してください。既定の
+`xwayland = true` のまま satellite がない場合は警告が出ます。
+
+ログアウトし、GDM / SDDM などのセッション選択で **Tessa** を選びます。
+`.deb` が `/usr/share/wayland-sessions/tessa.desktop` を導入するので、
+下のソース用セッションインストーラーは開発時だけ必要です。
+
+TTY で最初の動作確認をする場合:
+
+```sh
+tessa
+```
+
+終了は `Super+Shift+E` です。パッケージの確認:
+
+```sh
+dpkg -s tessa
+tessa-ctl config-check
+```
+
+以前 `/usr/local` に手動インストールしたTessaがある場合は、どちらか一方に
+揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
+手動版のバイナリが使われ続けます。
+
 ## 状態
 
 MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
@@ -170,7 +219,10 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 ターミナルをゼロから実装することは意図的に避けています。デフォルトは
 **kitty** です。foot が好みなら設定で `terminal = foot` にしてください。
 
-## ビルド
+## ソースからビルド（開発向け）
+
+開発、Ubuntu 26.04 以外、または scenefx のカスタムビルドではこちらを使います。
+Ubuntu 26.04 で通常利用する場合は上の `.deb` で十分です。
 
 必要なもの:
 
@@ -273,7 +325,13 @@ wlroots 側に `xdg-shell-protocol.h` がなくてもビルドできます。
 ### TTY から（最初のテストに推奨）
 
 SSH 越しではなく、対象マシンのコンソールにログインし、アクティブな仮想
-ターミナルから実行します:
+ターミナルから実行します。パッケージ版なら:
+
+```sh
+tessa
+```
+
+ソースビルドなら:
 
 ```sh
 cd /path/to/Tessa
@@ -286,6 +344,9 @@ wlroots が DRM バックエンドと libinput を自動検出します。Tessa 
 インストールするか、設定で `terminal = foot` に変更してください。
 
 ### ディスプレイマネージャ / セッションファイル
+
+バイナリパッケージはセッションエントリを導入済みです。この手順はソース
+ビルドから実行する場合だけ使います:
 
 ```sh
 # ~/.local にインストール

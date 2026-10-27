@@ -19,6 +19,57 @@ For a single end-to-end reference covering build, installation, every config
 key, rules, effects, IPC, events, and hooks, see the
 [complete setup and customization guide](docs/GUIDE.md).
 
+## Install on Ubuntu 26.04
+
+A prebuilt amd64 package is available on the
+[v0.1.0 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.1.0).
+This is the recommended install path; Zig and the wlroots development headers
+are not needed for the binary package.
+
+```sh
+sudo apt update
+sudo apt install curl
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
+grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.1.0_amd64.deb
+```
+
+`apt` installs the runtime libraries, the compositor, panel, CLI, session
+entry, example config, portal selector, and man pages. Useful runtime
+extras:
+
+```sh
+sudo apt install kitty wlr-randr grim dbus \
+  fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+`xwayland-satellite` is not in Ubuntu 26.04; install it from upstream if you
+need X11 applications. `xwayland = true` is the default and logs a warning
+until satellite is available.
+
+Log out and select **Tessa** in GDM, SDDM, or another display manager. The
+`.deb` already installs `/usr/share/wayland-sessions/tessa.desktop`, so the
+source session installer below is only needed for development.
+
+For a quick first test from a TTY:
+
+```sh
+tessa
+```
+
+Quit with `Super+Shift+E`. Verify the package with:
+
+```sh
+dpkg -s tessa
+tessa-ctl config-check
+```
+
+If Tessa was previously installed manually under `/usr/local`, choose one
+installation method. `/usr/local/bin` usually precedes `/usr/bin` in `PATH`, so
+the manual binaries would otherwise continue to be used.
+
 ## Status
 
 This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
@@ -157,7 +208,10 @@ desktop:
 The terminal is intentionally not implemented from scratch. The default
 terminal is **kitty**; set `terminal = foot` if you prefer foot.
 
-## Build
+## Build from source (development)
+
+Use this path for development, unsupported distributions, or a custom scenefx
+build. The `.deb` above is sufficient for normal use on Ubuntu 26.04.
 
 Requirements:
 
@@ -260,7 +314,13 @@ wlroots installation without generated `xdg-shell-protocol.h` still builds.
 ### From a TTY (recommended first test)
 
 Log in on the target machine's console, not over SSH, and run from the active
-virtual terminal:
+virtual terminal. For a package install:
+
+```sh
+tessa
+```
+
+For a source build:
 
 ```sh
 cd /path/to/Tessa
@@ -273,6 +333,9 @@ install the binaries. The default terminal is `kitty`; install it, or set
 `terminal = foot` in the config.
 
 ### Display manager / session file
+
+The binary package already installs the session entry. Use this only when
+running from a source build:
 
 ```sh
 # install to ~/.local
