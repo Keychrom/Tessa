@@ -2,6 +2,7 @@
 # Install this file as ~/.config/tessa/config.
 # Values are simple `key = value` lines. Lines starting with # are ignored.
 # Relative include paths are resolved next to the including file.
+# The config directory is watched; atomic saves reload automatically.
 # include = keybindings.conf
 
 terminal = kitty

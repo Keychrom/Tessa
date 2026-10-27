@@ -70,6 +70,7 @@ pub const c = @cImport({
     @cInclude("stdio.h");
     @cInclude("stdlib.h");
     @cInclude("string.h");
+    @cInclude("sys/inotify.h");
     @cInclude("sys/mman.h");
     @cInclude("sys/poll.h");
     @cInclude("sys/socket.h");

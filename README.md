@@ -156,9 +156,10 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   position, and per-window border colors
 - external layout-helper protocol for custom tiling algorithms, with a timeout,
   process restart, and built-in fallback
-- file/line config diagnostics, transactional reload, and versioned JSON
-  state/config snapshots for external tools; per-workspace and per-output
-  layout/gap/master rules; animation lifecycle hooks
+- file/line config diagnostics, automatic reload on atomic config saves,
+  transactional reload, and versioned JSON state/config snapshots for external
+  tools; per-workspace and per-output layout/gap/master rules; animation
+  lifecycle hooks
 - named layout profiles shared by output and workspace rules, plus per-output
   theme rules for backgrounds, borders, wallpaper, and panel dimensions
 - config-defined event rules with expression filtering and command actions
@@ -234,7 +235,8 @@ scale changes, and output mode/position/scale and layout persistence across
 restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
-`tests/json-ipc.sh`, `tests/modes.sh`, `tests/panel-theme.sh`,
+`tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
+`tests/panel-theme.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,

@@ -141,7 +141,7 @@ from one validated Tessa config, with live reload and without embedding a
 JavaScript or plugin VM. Complete the two open 0.6 items (layout-helper v2 and
 the interactive config editor/diff preview) before or alongside this work.
 
-- [ ] Automatic config reload through inotify, with debounce and transactional
+- [x] Automatic config reload through inotify, with debounce and transactional
       validation. A failed edit keeps the previous configuration.
 - [ ] Motion v2: named cubic-bezier and spring curves, per-kind curves,
       per-window animation overrides, and configurable open/close fade, scale,

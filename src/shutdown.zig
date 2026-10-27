@@ -8,6 +8,7 @@ const constraints = @import("constraints.zig");
 const xim = @import("xim.zig");
 const effects = @import("effects.zig");
 const modes = @import("modes.zig");
+const config_watch = @import("config_watch.zig");
 
 const Server = types.Server;
 
@@ -117,6 +118,7 @@ pub fn cleanupGlobals(server: *Server) void {
     effects.cleanup(server);
     xim.cleanup(server);
     modes.cleanup(server);
+    config_watch.deinit(server);
 
     if (server.sigint) |src| {
         _ = c.wl_event_source_remove(src);

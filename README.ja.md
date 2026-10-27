@@ -155,10 +155,10 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   サイズ、位置、ウィンドウ別ボーダー色を指定可能
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
-- 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
-  リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット。
-  ワークスペース別・出力別のレイアウト/隙間/マスター設定と、
-  アニメーションライフサイクルフック
+- 行番号付きの設定診断、設定のアトミック保存時の自動リロード、失敗時に
+  旧設定を維持するトランザクショナルなリロード、外部ツール向けの
+  バージョン付き JSON 状態/設定スナップショット。ワークスペース別・出力別の
+  レイアウト/隙間/マスター設定と、アニメーションライフサイクルフック
 - 出力/ワークスペースルールから参照する名前付きレイアウトプロファイルと、
   出力別の背景・ボーダー・壁紙・パネル寸法テーマルール
 - 式で絞り込めるイベント→コマンドルール（ポリシー自動化）
@@ -243,7 +243,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
-`tests/json-ipc.sh`、`tests/modes.sh`、`tests/panel-theme.sh`、
+`tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
+`tests/panel-theme.sh`、
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、

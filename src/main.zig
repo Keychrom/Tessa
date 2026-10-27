@@ -4,6 +4,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const config = @import("config.zig");
+const config_watch = @import("config_watch.zig");
 const layout = @import("layout.zig");
 const output = @import("output.zig");
 const client = @import("client.zig");
@@ -181,6 +182,7 @@ pub fn main() !void {
     ime.init(server);
     lock.init(server);
     ipc.init(server);
+    config_watch.init(server);
 
     const socket = addSocket(server) orelse {
         core.logInfo("failed to add Wayland socket", .{});

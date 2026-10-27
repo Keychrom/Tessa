@@ -1660,20 +1660,24 @@ fn loadPath(
     }
 }
 
+pub fn resolvePath(path_buf: *[512]u8) []const u8 {
+    if (c.getenv("TESSA_CONFIG")) |p| return core.cstr(p);
+    if (c.getenv("XDG_CONFIG_HOME")) |p| {
+        return std.fmt.bufPrint(path_buf, "{s}/tessa/config", .{core.cstr(p)}) catch "";
+    }
+    if (c.getenv("HOME")) |p| {
+        return std.fmt.bufPrint(path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
+    }
+    return "";
+}
+
 pub fn load(server: *Server) void {
     server.config_issue_count = 0;
     server.config_error_count = 0;
     initDefaults(&server.config);
 
     var path_buf: [512]u8 = undefined;
-    var path: []const u8 = "";
-    if (c.getenv("TESSA_CONFIG")) |p| {
-        path = core.cstr(p);
-    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{core.cstr(p)}) catch "";
-    } else if (c.getenv("HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{core.cstr(p)}) catch "";
-    }
+    const path = resolvePath(&path_buf);
 
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);

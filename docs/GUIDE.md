@@ -217,6 +217,7 @@ Run tests with:
 sh tests/smoke.sh
 sh tests/animations.sh
 sh tests/output-rules.sh
+sh tests/config-watch.sh
 ```
 
 The full set is `sh tests/*.sh`. Tests skip optional dependencies that are not
@@ -434,6 +435,11 @@ tessa-ctl dispatch reload        # same as Super+R
 
 A reload with errors is rejected and the previous configuration remains active.
 Diagnostics include the file name and line number.
+
+Tessa also watches the config directory. Atomic saves of the main config and
+`.conf` includes in that directory reload automatically after a short debounce;
+manual `Super+R` / `tessa-ctl dispatch reload` is still available. Invalid
+edits are rejected and keep the previous configuration.
 
 ---
 

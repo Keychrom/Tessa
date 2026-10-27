@@ -219,6 +219,7 @@ chmod +x scripts/*.sh scripts/tessa-session
 sh tests/smoke.sh
 sh tests/animations.sh
 sh tests/output-rules.sh
+sh tests/config-watch.sh
 ```
 
 全テストは `sh tests/*.sh` で実行できます。テストは不足している任意依存
@@ -447,6 +448,11 @@ tessa-ctl dispatch reload        # Super+R と同じ
 
 エラーのあるリロードは拒否され、以前の設定が維持されます。診断には
 ファイル名と行番号が付きます。
+
+Tessa は設定ディレクトリも監視します。メイン設定と同ディレクトリ内の
+`.conf` include をアトミックに保存すると、短いデバウンス後に自動で
+再読み込みされます。`Super+R` / `tessa-ctl dispatch reload` も引き続き使えます。
+不正な編集は拒否され、以前の設定が維持されます。
 
 ---
 
