@@ -16,6 +16,10 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 上のスクリーンショットは headless 開発セッションで、ターミナルに foot を使って
 撮影したものです。
 
+ビルド、インストール、全設定キー、ルール、エフェクト、IPC、イベント、
+フックを一冊にまとめた
+[セットアップ＆カスタマイズ完全ガイド](docs/GUIDE.ja.md) もあります。
+
 ## 状態
 
 MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
@@ -694,6 +698,8 @@ bind = SUPER+SHIFT+T set-layout custom
 
 ## 仕組み
 
+- [docs/GUIDE.ja.md](docs/GUIDE.ja.md) — 現行ツリーのセットアップと
+  カスタマイズの完全ガイド
 - [docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) — ウィンドウルール、
   レイアウト調整、外観、カスタマイズモデル
 - [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) — コンポーネント、

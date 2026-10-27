@@ -15,6 +15,10 @@ all part of this repository. There is no Waybar/Rofi/wofi dependency.
 The screenshots above are from a headless development session, using foot as the
 terminal.
 
+For a single end-to-end reference covering build, installation, every config
+key, rules, effects, IPC, events, and hooks, see the
+[complete setup and customization guide](docs/GUIDE.md).
+
 ## Status
 
 This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
@@ -668,6 +672,8 @@ protocol.
 
 ## How it works
 
+- [docs/GUIDE.md](docs/GUIDE.md) — complete setup, configuration, and
+  customization guide for the current tree
 - [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) — window rules, layout
   tuning, appearance, and the customization model
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, scene graph, IPC,
