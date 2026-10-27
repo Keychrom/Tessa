@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 prefix="${PREFIX:-$HOME/.local}"
 
-zig build -Doptimize=ReleaseSafe --prefix "$prefix"
+./scripts/build.sh -Doptimize=ReleaseSafe --prefix "$prefix"
 install -Dm755 scripts/tessa-session "$prefix/bin/tessa-session"
 desktop="$prefix/share/wayland-sessions/tessa.desktop"
 install -Dm644 session/tessa.desktop "$desktop"

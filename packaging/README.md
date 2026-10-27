@@ -1,17 +1,49 @@
 # Packaging Tessa
 
-Tessa is built with Zig and links wlroots 0.19. Distribution packages should pin
-the `wlroots-0.19` library; the source build refers to it explicitly in
+Tessa requires Zig 0.16 and links the wlroots 0.19 ABI. Distribution packages
+must pin both; the source build refers to `wlroots-0.19` explicitly in
 `build.zig`.
 
 ## Arch Linux
 
-The PKGBUILD builds a `tessa-git` package from GitHub:
+Arch's official repositories currently provide Zig 0.17 as `zig` and wlroots
+0.20 as `wlroots0.20`. Neither is compatible with this tree. Use the AUR
+packages:
+
+- `zig0.16-bin` — provides `zig0.16` and installs `/usr/bin/zig-0.16`
+- `wlroots0.19` — 0.19.3, provides `libwlroots-0.19.so`
+
+With an AUR helper such as paru:
 
 ```sh
-cd packaging/arch
+sudo pacman -Syu --needed base-devel git
+paru -S --needed zig0.16-bin wlroots0.19
+```
+
+Without a helper, build the AUR packages manually:
+
+```sh
+sudo pacman -S --needed base-devel git meson ninja glslang \
+  vulkan-headers wayland-protocols xorg-xwayland minisign
+mkdir -p ~/aur && cd ~/aur
+for pkg in zig0.16-bin wlroots0.19; do
+  git clone "https://aur.archlinux.org/$pkg.git"
+  (cd "$pkg" && makepkg -si)
+done
+```
+
+Then build the `tessa-git` package:
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa/packaging/arch
 makepkg -si
 ```
+
+`makepkg` does not fetch AUR dependencies automatically, so install
+`zig0.16-bin` and `wlroots0.19` first. The PKGBUILD declares
+`depends=('wlroots0.19' ...)` and `makedepends=('git' 'zig0.16')`; its build
+step calls `scripts/build.sh`, which prefers `zig-0.16` when available.
 
 It installs:
 
@@ -20,13 +52,16 @@ It installs:
 - `/usr/share/wayland-sessions/tessa.desktop`
 - `/usr/share/tessa/config.example`
 - `/usr/share/xdg-desktop-portal/portals/tessa.portal`
+- man pages and documentation under `/usr/share`
 
-Runtime dependencies are checked by `makepkg`. `xwayland-satellite` is optional;
-without it, X11 applications do not start. `kitty`/`foot` are user choices.
-Screen sharing additionally needs `xdg-desktop-portal`,
-`xdg-desktop-portal-wlr`, and PipeWire. The installed `tessa.portal` routes the
-Screenshot and ScreenCast portals to the wlr backend when
-`XDG_CURRENT_DESKTOP=Tessa`. With a single monitor, set up
+For rounded corners and blur, install AUR `scenefx0.4` and build from source
+with `-Dscenefx=true`; the PKGBUILD uses the default wlroots scene and does not
+enable scenefx. `xwayland-satellite` is optional and is available in the AUR as
+`xwayland-satellite-git`; without it, X11 applications do not start.
+`kitty`/`foot` are user choices. Screen sharing additionally needs
+`xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and PipeWire. The installed
+`tessa.portal` routes the Screenshot and ScreenCast portals to the wlr backend
+when `XDG_CURRENT_DESKTOP=Tessa`. With a single monitor, set up
 `~/.config/xdg-desktop-portal-wlr/config`:
 
 ```ini

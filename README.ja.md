@@ -69,6 +69,67 @@ tessa-ctl config-check
 揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
 手動版のバイナリが使われ続けます。
 
+## Arch Linux へのインストール
+
+Tessa は Zig **0.16** と wlroots **0.19** を要求します。Arch 公式リポジトリの
+`zig` は 0.17、wlroots は `wlroots0.20`（0.20 系）で、このツリーとは ABI
+互換性がありません。ビルド前に AUR の `zig0.16-bin`（`zig0.16` を提供し、
+`/usr/bin/zig-0.16` を導入）と `wlroots0.19` を入れてください。
+
+paru などの AUR ヘルパーを使う場合:
+
+```sh
+sudo pacman -Syu --needed base-devel git
+paru -S --needed zig0.16-bin wlroots0.19
+```
+
+AUR ヘルパーを使わない場合は、次の 2 パッケージを手動でビルドします:
+
+```sh
+sudo pacman -S --needed base-devel git meson ninja glslang \
+  vulkan-headers wayland-protocols xorg-xwayland minisign
+mkdir -p ~/aur && cd ~/aur
+for pkg in zig0.16-bin wlroots0.19; do
+  git clone "https://aur.archlinux.org/$pkg.git"
+  (cd "$pkg" && makepkg -si)
+done
+```
+
+続いて Tessa の PKGBUILD からインストールします:
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa/packaging/arch
+makepkg -si
+```
+
+`tessa-git` パッケージはコンポジタ、パネル、CLI、セッションエントリ、
+設定例、ポータル設定、man ページ、ドキュメントを `/usr` 以下へ導入します。
+`makepkg` は AUR 依存パッケージを自動取得しないため、先に
+`zig0.16-bin` と `wlroots0.19` を入れてください。確認:
+
+```sh
+tessa-ctl config-check
+command -v tessa tessa-panel tessa-ctl
+```
+
+実用的な追加パッケージ:
+
+```sh
+sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+X11 アプリケーションには AUR の `xwayland-satellite-git` を導入します。
+`scenefx0.4` は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
+ビルドでは角丸もブラーも有効になりません。TTY にログインして `tessa` を
+実行するか、ディスプレイマネージャーで **Tessa** を選んでください。
+
+Arch パッケージはまだ実機の Arch で検証していません。`makepkg` が依存
+関係や ABI の不一致を報告した場合は、コンパイラが `zig-0.16` で、
+`pkg-config --modversion wlroots-0.19` が `0.19.x` を返すことを確認して
+ください。
+
 ## 状態
 
 MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
@@ -221,8 +282,9 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 
 ## ソースからビルド（開発向け）
 
-開発、Ubuntu 26.04 以外、または scenefx のカスタムビルドではこちらを使います。
-Ubuntu 26.04 で通常利用する場合は上の `.deb` で十分です。
+開発、Ubuntu 26.04 / Arch Linux 以外、または scenefx のカスタムビルドでは
+こちらを使います。通常利用なら、それぞれのディストリビューション向けの
+`.deb` または Arch の `tessa-git` パッケージで十分です。
 
 必要なもの:
 
@@ -275,6 +337,12 @@ sudo apt install build-essential pkg-config git \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
+
+Arch Linux では上記「Arch Linux へのインストール」の手順で AUR の
+`zig0.16-bin` と `wlroots0.19` を導入してください。
+`scripts/build.sh` は `/usr/bin/zig-0.16` を自動的に優先し、
+`ZIG=/path/to/zig` で上書きできます。Arch 公式の `zig` 0.17 と
+`wlroots0.20` はこのビルドには使えません。
 
 `xwayland-satellite` はすべてのディストリビューションにパッケージされている
 わけではありません。`PATH` の通った場所（例:

@@ -24,8 +24,9 @@ Tessa は **wlroots ベースのコンポジタ本体 `tessa`**、**タスクバ
 ### 必須
 
 Ubuntu 26.04 で通常利用する場合は、2.1 節のビルド済み `.deb` を使えます。
-実行時ライブラリは `apt` が自動導入します。以下の Zig / wlroots 開発環境は
-ソースビルド時だけ必要です。
+Arch Linux では 2.2 節の PKGBUILD（AUR パッケージを利用）を使います。実行時
+ライブラリはパッケージマネージャーが導入します。以下の Zig / wlroots 開発
+環境はソースビルドとパッケージビルド時だけ必要です。
 
 - Linux（開発・検証は Ubuntu 26.04）
 - Zig **0.16.0**
@@ -47,6 +48,10 @@ sudo apt install build-essential pkg-config git \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
+
+Arch Linux の公式 `zig`（0.17）と `wlroots0.20` は、Tessa が固定している
+Zig 0.16 / wlroots 0.19 ABI と一致しません。2.2 節に従い、AUR の
+`zig0.16-bin` と `wlroots0.19` を使ってください。
 
 wlroots を `/usr/local` に自前ビルドした場合は、`.pc` と共有ライブラリが
 見えることを確認してください。
@@ -123,7 +128,67 @@ tessa-ctl config-check
 揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
 手動版が使われ続けます。
 
-### 2.2 ソースからビルド（開発向け）
+### 2.2 Arch Linux（AUR）
+
+Arch の公式リポジトリは `zig` 0.17 と `wlroots0.20`（0.20 系）を提供して
+います。Tessa は Zig 0.16 と wlroots 0.19 ABI を前提とするため、先に AUR の
+`zig0.16-bin` と `wlroots0.19` を導入してください。公式 `zig` と
+`wlroots0.20` は使えません。
+
+paru / yay などの AUR ヘルパーを使う場合（ヘルパー導入済み）:
+
+```sh
+sudo pacman -Syu --needed base-devel git
+paru -S --needed zig0.16-bin wlroots0.19
+```
+
+ヘルパーを使わない場合:
+
+```sh
+sudo pacman -S --needed base-devel git meson ninja glslang \
+  vulkan-headers wayland-protocols xorg-xwayland minisign
+mkdir -p ~/aur && cd ~/aur
+for pkg in zig0.16-bin wlroots0.19; do
+  git clone "https://aur.archlinux.org/$pkg.git"
+  (cd "$pkg" && makepkg -si)
+done
+```
+
+続いて Tessa を PKGBUILD からビルドします:
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa/packaging/arch
+makepkg -si
+```
+
+`makepkg` は AUR 依存パッケージを自動取得しないため、先に 2 つを入れて
+おく必要があります。`tessa-git` は `.deb` と同じバイナリ、セッション
+エントリ、設定例、ポータル設定、man ページ、ドキュメントを `/usr` 以下へ
+導入します。
+
+確認:
+
+```sh
+tessa-ctl config-check
+command -v tessa tessa-panel tessa-ctl
+```
+
+実用的な追加パッケージ:
+
+```sh
+sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+X11 アプリには AUR の `xwayland-satellite-git` を使います。
+`scenefx0.4` は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
+ビルドでは角丸もブラーも有効になりません。Arch パッケージはまだ実機の
+Arch で検証していません。`makepkg` が ABI や依存関係のエラーを出した場合は、
+`zig-0.16 version` が 0.16.x、`pkg-config --modversion wlroots-0.19` が
+0.19.x を返すことを確認してください。
+
+### 2.3 ソースからビルド（開発向け）
 
 リポジトリのルートで実行します。
 
@@ -137,6 +202,10 @@ chmod +x scripts/*.sh scripts/tessa-session
 ```sh
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
+
+`scripts/build.sh` は `zig-0.16` があれば優先し、なければ `zig` を使います。
+`ZIG=/path/to/zig` で明示指定できます。Arch では `zig0.16-bin` の
+`/usr/bin/zig-0.16` が選ばれます。
 
 生成物:
 
@@ -211,8 +280,8 @@ DRM バックエンドは logind/seat のアクティブセッションと入力
 
 ### 3.2 ディスプレイマネージャー用セッション
 
-`.deb` はセッションエントリを導入済みです。この手順はソースビルドから
-実行する場合だけ使います:
+`.deb` と Arch の `tessa-git` はセッションエントリを導入済みです。この
+手順はソースビルドから実行する場合だけ使います:
 
 ```sh
 # ~/.local 以下へ
@@ -1380,6 +1449,23 @@ tessa-ctl config
 エラーのあるリロードは拒否されます。`config-check` は最後に読み込まれた
 設定を検査するので、編集後に `reload` を実行してから確認してください。
 
+### Arch のビルドで Zig / wlroots が違うと言われる
+
+Tessa は Zig 0.16 と wlroots 0.19 を要求します。Arch 公式の `zig` は 0.17、
+`wlroots0.20` は 0.20 系なので、AUR の `zig0.16-bin` と `wlroots0.19` を
+導入し、2.2 節の PKGBUILD でビルドしてください。
+
+```sh
+zig-0.16 version
+pkg-config --modversion wlroots-0.19
+```
+
+1 つ目が `0.16.x`、2 つ目が `0.19.x` を返す必要があります。`makepkg` が
+`zig0.16` を見つけられない場合は、Tessa のビルド前に AUR の
+`zig0.16-bin` を導入してください。pkg-config が `/usr/local` を拾っている
+場合は、ビルド環境からそのパスを外すか、`PKG_CONFIG_PATH` を AUR の
+インストール先へ向けてください。
+
 ### パネルが出ない
 
 - `PATH` に `tessa-panel` があるか
@@ -1460,6 +1546,10 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **物理 DRM / libinput は実機検証が未完了**。開発は headless pixman、
   `wtype`、Fcitx5、`xwayland-satellite` が中心です。実際の DRM モード設定、
   物理キーボード／マウス／タッチパッドの最終確認が必要です。
+- **Arch パッケージは実機未検証**。PKGBUILD は AUR の `zig0.16-bin` と
+  `wlroots0.19` を前提にしています。`makepkg` が失敗した場合は、
+  トラブルシューティングにあるコンパイラと pkg-config のバージョンを
+  添えて報告してください。
 - **フラクショナルスケーリングは部分的**。Wayland の対応クライアントには
   正確なスケールを通知しますが、パネルは整数 Cairo バッファでダウンサンプル
   され、非対応クライアントは切り上げスケールです。XWayland は

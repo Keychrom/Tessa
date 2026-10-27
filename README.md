@@ -70,6 +70,67 @@ If Tessa was previously installed manually under `/usr/local`, choose one
 installation method. `/usr/local/bin` usually precedes `/usr/bin` in `PATH`, so
 the manual binaries would otherwise continue to be used.
 
+## Install on Arch Linux
+
+Tessa requires Zig **0.16** and wlroots **0.19**. Arch's official repositories
+currently ship Zig 0.17 as `zig` and wlroots 0.20 as `wlroots0.20`, which are
+not ABI-compatible with this tree. Install the AUR packages `zig0.16-bin`
+(provides `zig0.16` and `/usr/bin/zig-0.16`) and `wlroots0.19` before building.
+
+With an AUR helper such as paru:
+
+```sh
+sudo pacman -Syu --needed base-devel git
+paru -S --needed zig0.16-bin wlroots0.19
+```
+
+Without an AUR helper, build those two packages manually:
+
+```sh
+sudo pacman -S --needed base-devel git meson ninja glslang \
+  vulkan-headers wayland-protocols xorg-xwayland minisign
+mkdir -p ~/aur && cd ~/aur
+for pkg in zig0.16-bin wlroots0.19; do
+  git clone "https://aur.archlinux.org/$pkg.git"
+  (cd "$pkg" && makepkg -si)
+done
+```
+
+Then build and install Tessa from its PKGBUILD:
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa/packaging/arch
+makepkg -si
+```
+
+The `tessa-git` package installs the compositor, panel, CLI, session entry,
+example config, portal selector, man pages, and documentation under `/usr`.
+`makepkg` does not fetch AUR dependencies automatically; install
+`zig0.16-bin` and `wlroots0.19` first. Verify the result with:
+
+```sh
+tessa-ctl config-check
+command -v tessa tessa-panel tessa-ctl
+```
+
+Useful extras:
+
+```sh
+sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+```
+
+For X11 applications, install the AUR `xwayland-satellite-git` package.
+`scenefx0.4` is only for a custom `-Dscenefx=true` build; the PKGBUILD uses the
+default wlroots scene and does not enable rounded corners or blur. Log in on a
+TTY and run `tessa`, or select **Tessa** in your display manager.
+
+The Arch package has not yet been exercised on a physical Arch installation.
+If `makepkg` reports a missing dependency or ABI mismatch, confirm that
+`zig-0.16` is the compiler and `pkg-config --modversion wlroots-0.19` reports
+`0.19.x`.
+
 ## Status
 
 This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
@@ -211,7 +272,8 @@ terminal is **kitty**; set `terminal = foot` if you prefer foot.
 ## Build from source (development)
 
 Use this path for development, unsupported distributions, or a custom scenefx
-build. The `.deb` above is sufficient for normal use on Ubuntu 26.04.
+build. The `.deb` and Arch `tessa-git` package above are sufficient for normal
+use on their respective distributions.
 
 Requirements:
 
@@ -266,6 +328,11 @@ sudo apt install build-essential pkg-config git \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
+
+On Arch Linux, install AUR `zig0.16-bin` and `wlroots0.19` as described in
+[Install on Arch Linux](#install-on-arch-linux). `scripts/build.sh` prefers
+`/usr/bin/zig-0.16` automatically; `ZIG=/path/to/zig` overrides it. Do not use
+Arch's official `zig` 0.17 or `wlroots0.20` for this build.
 
 `xwayland-satellite` is not packaged everywhere; install it into `PATH` (for
 example `~/.local/bin/xwayland-satellite`), or set `TESSA_XWAYLAND_BIN` to its

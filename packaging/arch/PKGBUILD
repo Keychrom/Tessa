@@ -6,14 +6,20 @@ pkgdesc="A quiet tiled Wayland compositor and desktop shell written in Zig"
 arch=('x86_64')
 url="https://github.com/Keychrom/Tessa"
 license=('MIT')
-depends=('wlroots' 'wayland' 'libxkbcommon' 'pixman' 'cairo' 'pango' 'glib2')
-makedepends=('git' 'zig')
+depends=('wlroots0.19' 'wayland' 'libxkbcommon' 'pixman' 'cairo' 'pango' 'glib2')
+makedepends=('git' 'zig0.16')
 optdepends=(
-    'xwayland-satellite: run X11 applications'
+    'xwayland-satellite-git: run X11 applications'
     'foot: terminal'
     'kitty: terminal'
+    'wlr-randr: change output mode, position, and scale at runtime'
+    'grim: screenshots from scripts'
     'swaylock: session lock binding'
+    'swayidle: idle management and locking'
+    'wlopm: output power management'
     'dbus: desktop notifications'
+    'fcitx5: input method framework'
+    'fcitx5-mozc: Japanese input'
     'xdg-desktop-portal: desktop portals'
     'xdg-desktop-portal-wlr: screen sharing'
     'pipewire: screen sharing streams'
@@ -30,7 +36,7 @@ pkgver() {
 
 build() {
     cd Tessa
-    zig build -Doptimize=ReleaseSafe --prefix "$srcdir/out"
+    ./scripts/build.sh -Doptimize=ReleaseSafe --prefix "$srcdir/out"
 }
 
 package() {
@@ -47,7 +53,18 @@ package() {
     install -Dm644 README.md "$pkgdir/usr/share/doc/tessa/README.md"
     install -Dm644 README.ja.md "$pkgdir/usr/share/doc/tessa/README.ja.md"
     install -Dm644 docs/ARCHITECTURE.md "$pkgdir/usr/share/doc/tessa/ARCHITECTURE.md"
+    install -Dm644 docs/ARCHITECTURE.ja.md "$pkgdir/usr/share/doc/tessa/ARCHITECTURE.ja.md"
     install -Dm644 docs/CUSTOMIZATION.md "$pkgdir/usr/share/doc/tessa/CUSTOMIZATION.md"
+    install -Dm644 docs/CUSTOMIZATION.ja.md "$pkgdir/usr/share/doc/tessa/CUSTOMIZATION.ja.md"
     install -Dm644 docs/EXTENDING.md "$pkgdir/usr/share/doc/tessa/EXTENDING.md"
+    install -Dm644 docs/EXTENDING.ja.md "$pkgdir/usr/share/doc/tessa/EXTENDING.ja.md"
+    install -Dm644 docs/GUIDE.md "$pkgdir/usr/share/doc/tessa/GUIDE.md"
+    install -Dm644 docs/GUIDE.ja.md "$pkgdir/usr/share/doc/tessa/GUIDE.ja.md"
+    install -Dm644 docs/ROADMAP.md "$pkgdir/usr/share/doc/tessa/ROADMAP.md"
+    install -Dm644 docs/ROADMAP.ja.md "$pkgdir/usr/share/doc/tessa/ROADMAP.ja.md"
+    install -Dm644 debian/man/tessa.1 "$pkgdir/usr/share/man/man1/tessa.1"
+    install -Dm644 debian/man/tessa-panel.1 "$pkgdir/usr/share/man/man1/tessa-panel.1"
+    install -Dm644 debian/man/tessa-ctl.1 "$pkgdir/usr/share/man/man1/tessa-ctl.1"
+    install -Dm644 debian/man/tessa-session.1 "$pkgdir/usr/share/man/man1/tessa-session.1"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
