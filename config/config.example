@@ -72,11 +72,24 @@ layout = master
 # Window motion. Open and workspace switches slide into place. Per-kind
 # durations override animation_ms; -1 inherits it. reduce_motion disables
 # movement, while reduce_motion_animations=fade keeps only a close fade.
+# Built-in curves: linear, ease-out-cubic, ease-in-out-cubic, ease-out-quint,
+# ease-in-out-quint, smoothstep, overshoot. Define a named cubic-bezier with
+# `bezier = name, x1, y1, x2, y2` and reference it by name.
 animations = true
 animation_ms = 160
 # animation_open_ms = 160
 # animation_workspace_ms = 220
 # animation_close_ms = 180
+# animation_curve = ease-out-cubic
+# animation_open_curve = linear
+# animation_workspace_curve = ease-in-out-cubic
+# animation_close_curve = smoothstep
+# bezier = snap, 0.16, 1.0, 0.3, 1.0
+# animation_open_x = 0
+# animation_open_y = 18
+# animation_workspace_offset = 54
+# animation_close_scale = 0.92
+# animation_close_fade = true
 reduce_motion = false
 reduce_motion_animations = none
 reduce_motion_fade_ms = 120

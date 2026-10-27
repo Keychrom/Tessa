@@ -15,6 +15,8 @@ pub const MAX_EVENT_RULES = 64;
 pub const MAX_THEME_ROLES = 16;
 pub const MAX_PROFILES = 32;
 pub const MAX_WORKSPACE_RULES = 64;
+pub const MAX_CURVES = 16;
+pub const MAX_CURVE_NAME = 32;
 
 pub const ReducedMotionAnimations = enum { none, fade };
 pub const MAX_STATUS = 8;
@@ -199,6 +201,13 @@ pub const Profile = struct {
     tuning: LayoutTuning = .{},
 };
 
+pub const CurveDef = struct {
+    name: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    name_len: usize = 0,
+    /// Cubic-bezier control points x1, y1, x2, y2.
+    points: [4]f32 = .{ 0.33, 1.0, 0.68, 1.0 },
+};
+
 pub const WorkspaceRule = struct {
     ws: u8 = 0,
     profile: [32]u8 = [_]u8{0} ** 32,
@@ -328,6 +337,21 @@ pub const Config = struct {
     animation_open_ms: i32,
     animation_workspace_ms: i32,
     animation_close_ms: i32,
+    animation_curve: [MAX_CURVE_NAME]u8,
+    animation_curve_len: usize,
+    animation_open_curve: [MAX_CURVE_NAME]u8,
+    animation_open_curve_len: usize,
+    animation_workspace_curve: [MAX_CURVE_NAME]u8,
+    animation_workspace_curve_len: usize,
+    animation_close_curve: [MAX_CURVE_NAME]u8,
+    animation_close_curve_len: usize,
+    animation_open_x: i32,
+    animation_open_y: i32,
+    animation_workspace_offset: i32,
+    animation_close_scale: f32,
+    animation_close_fade: bool,
+    curves: [MAX_CURVES]CurveDef,
+    curve_count: usize,
     shadows: bool,
     corner_radius: i32,
     blur: bool,
@@ -451,6 +475,7 @@ pub const Client = struct {
     anim_from_y: i32,
     anim_start_ms: i64,
     anim_ms: i32,
+    anim_curve: [4]f32,
     animating: bool,
     anim_kind: AnimationKind,
     close_snapshot: ?*c.wlr_buffer,
@@ -648,6 +673,9 @@ pub const CloseEffect = struct {
     start_ms: i64,
     ms: i32,
     fade_only: bool,
+    curve: [4]f32,
+    close_scale: f64,
+    close_fade: bool,
     border_color: [4]f32,
     shadow_color: [4]f32,
 };

@@ -455,14 +455,15 @@ theme-role = wallpaper.bottom = #070a12
 
 ## モーション、シャドウ、壁紙
 
-ウィンドウは map 時に小さな縦オフセットからスライドインし、ワークスペース
-切り替えでは新しいワークスペースが横方向から入ります。どちらも種類別の
-再生時間（`animation_open_ms` / `animation_workspace_ms`、未指定は
-`animation_ms`）の cubic ease-out です。キーバインド、バーのチップ、IPC、
+ウィンドウは map 時に設定可能なオフセットからスライドインし、ワークスペース
+切り替えでは新しいワークスペースが横方向から入ります。どちらも名前付き
+cubic-bezier カーブ（組み込み、または `bezier = name, x1, y1, x2, y2`）を
+使い、種類別の再生時間（`animation_open_ms` / `animation_workspace_ms`、
+未指定は `animation_ms`）で再生します。キーバインド、バーのチップ、IPC、
 他のクライアントなどコンポジタ経由で閉じたウィンドウは、サーフェスを
-キャプチャして `animation_close_ms` の smoothstep でスナップショットを
-スケール/フェードします。クライアント自身が閉じた場合はバッファが既に
-消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
+キャプチャして `animation_close_curve` と `animation_close_ms` で
+スナップショットをスケール/フェードします。クライアント自身が閉じた場合は
+バッファが既に消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
 無効化します。`animation_ms = 0` と `animations = false` は全体を無効化
 します。視差効果低減時は `reduce_motion_animations = fade` で縮小/移動なしの
 閉じるフェードだけを残し、`none` で close エフェクトも無効にします。

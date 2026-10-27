@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const window_effects = @import("window_effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const motion = @import("motion.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -80,8 +81,15 @@ fn inactiveBorderColor(server: *Server) [4]f32 {
 }
 
 fn apply(effect: *CloseEffect, eased: f64) void {
-    const scale = if (effect.fade_only) 1.0 else 1.0 - 0.08 * eased;
-    const opacity = 1.0 - eased;
+    const scale = if (effect.fade_only)
+        1.0
+    else
+        1.0 - (1.0 - effect.close_scale) * eased;
+    const opacity = std.math.clamp(
+        if (effect.fade_only or effect.close_fade) 1.0 - eased else 1.0,
+        0.0,
+        1.0,
+    );
 
     const frame_cx = effect.frame_x + effect.frame_w / 2.0;
     const frame_cy = effect.frame_y + effect.frame_h / 2.0;
@@ -238,6 +246,12 @@ fn start(
     effect.start_ms = core.timeNowMs();
     effect.ms = closeAnimationMs(server);
     effect.fade_only = server.config.reduce_motion;
+    effect.curve = motion.close(&server.config);
+    effect.close_scale = if (server.config.reduce_motion)
+        1.0
+    else
+        @as(f64, server.config.animation_close_scale);
+    effect.close_fade = server.config.reduce_motion or server.config.animation_close_fade;
     effect.border_color = border_color;
     effect.shadow_color = shadow_color;
 
@@ -302,7 +316,7 @@ pub fn tick(server: *Server, now: i64) bool {
             0.0,
             1.0,
         );
-        const eased = progress * progress * (3.0 - 2.0 * progress);
+        const eased = motion.evaluate(effect.curve, progress);
         apply(effect, eased);
         if (progress >= 1.0) finish(server, i);
     }

@@ -187,12 +187,40 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.xwayland_display[0..cfg.xwayland_display_len]);
     addRaw(buf, &off, ",\"animations\":");
     addBool(buf, &off, cfg.animations);
-    add(buf, &off, ",\"animation_ms\":{d},\"animation_open_ms\":{d},\"animation_workspace_ms\":{d},\"animation_close_ms\":{d},\"reduce_motion\":", .{
+    add(buf, &off, ",\"animation_ms\":{d},\"animation_open_ms\":{d},\"animation_workspace_ms\":{d},\"animation_close_ms\":{d},\"animation_open_x\":{d},\"animation_open_y\":{d},\"animation_workspace_offset\":{d},\"animation_close_scale\":{d:.3},\"animation_close_fade\":", .{
         cfg.animation_ms,
         if (cfg.animation_open_ms >= 0) cfg.animation_open_ms else cfg.animation_ms,
         if (cfg.animation_workspace_ms >= 0) cfg.animation_workspace_ms else cfg.animation_ms,
         if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms,
+        cfg.animation_open_x,
+        cfg.animation_open_y,
+        cfg.animation_workspace_offset,
+        cfg.animation_close_scale,
     });
+    addBool(buf, &off, cfg.animation_close_fade);
+    addRaw(buf, &off, ",\"animation_curve\":");
+    addString(buf, &off, cfg.animation_curve[0..cfg.animation_curve_len]);
+    addRaw(buf, &off, ",\"animation_open_curve\":");
+    addString(buf, &off, cfg.animation_open_curve[0..cfg.animation_open_curve_len]);
+    addRaw(buf, &off, ",\"animation_workspace_curve\":");
+    addString(buf, &off, cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len]);
+    addRaw(buf, &off, ",\"animation_close_curve\":");
+    addString(buf, &off, cfg.animation_close_curve[0..cfg.animation_close_curve_len]);
+    addRaw(buf, &off, ",\"curves\":[");
+    var ci: usize = 0;
+    while (ci < cfg.curve_count) : (ci += 1) {
+        if (ci > 0) addRaw(buf, &off, ",");
+        const curve = &cfg.curves[ci];
+        addRaw(buf, &off, "{\"name\":");
+        addString(buf, &off, curve.name[0..curve.name_len]);
+        add(buf, &off, ",\"points\":[{d:.3},{d:.3},{d:.3},{d:.3}]}}", .{
+            curve.points[0],
+            curve.points[1],
+            curve.points[2],
+            curve.points[3],
+        });
+    }
+    addRaw(buf, &off, "],\"reduce_motion\":");
     addBool(buf, &off, cfg.reduce_motion);
     addRaw(buf, &off, ",\"reduce_motion_animations\":");
     addString(buf, &off, switch (cfg.reduce_motion_animations) {

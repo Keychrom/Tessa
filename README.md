@@ -167,10 +167,11 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   and per-mode timeouts
 - semantic theme roles for accent, borders, wallpaper, and the panel
 - configurable bar height, top/side margins, and bar background/foreground colors
-- window open/workspace slide animations with per-kind durations, close
-  scale/fade snapshots, reduced-motion close fades, and soft layered shadows;
-  opt-in scenefx rounded corners and backdrop blur for windows and shell
-  surfaces; configurable wallpaper gradient colors and an art on/off switch
+- window open/workspace slide animations with per-kind durations and named
+  cubic-bezier curves, configurable offsets, close scale/fade snapshots,
+  reduced-motion close fades, and soft layered shadows; opt-in scenefx rounded
+  corners and backdrop blur for windows and shell surfaces; configurable
+  wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; workspace-to-output pins;
@@ -921,9 +922,10 @@ These are real and important:
   focused output. Rich HTML markup beyond Pango's subset, notification sounds,
   and per-notification output pinning are not implemented.
 - **Window effects depend on the build.** Open and workspace transitions slide
-  the window frame with a cubic ease-out. Compositor-initiated closes capture
-  the window surface and scale/fade that snapshot; a client that closes itself
-  is removed immediately because its buffer is already gone at unmap. Shadows
+  the window frame with configurable named cubic-bezier curves and offsets.
+  Compositor-initiated closes capture the window surface and scale/fade that
+  snapshot with a configurable curve, scale, and fade; a client that closes
+  itself is removed immediately because its buffer is already gone at unmap. Shadows
   are fixed layered rectangles. Rounded corners and backdrop blur require a
   `-Dscenefx=true` build; that build uses scenefx's GLES2 renderer and cannot
   use the pixman software renderer. Blur is only visible for translucent

@@ -493,6 +493,15 @@ edits are rejected and keep the previous configuration.
 | `animation_open_ms` | inherited | Open-animation duration (`-1` inherits) |
 | `animation_workspace_ms` | inherited | Workspace-animation duration (`-1` inherits) |
 | `animation_close_ms` | inherited | Close-effect duration (`-1` inherits) |
+| `animation_curve` | `ease-out-cubic` | Global timing curve for open/workspace |
+| `animation_open_curve` | inherited | Open timing curve |
+| `animation_workspace_curve` | inherited | Workspace timing curve |
+| `animation_close_curve` | `smoothstep` | Close timing curve |
+| `bezier` | — | Named cubic-bezier: `name, x1, y1, x2, y2` |
+| `animation_open_x` / `_y` | `0` / `18` | Open-animation start offset in px |
+| `animation_workspace_offset` | `54` | Workspace-slide start offset in px |
+| `animation_close_scale` | `0.92` | Close snapshot final scale (0–1) |
+| `animation_close_fade` | `true` | Fade the close snapshot |
 | `shadows` | `true` | Layered window shadows |
 | `corner_radius` | `10` | Rounded window radius (0–64; scenefx build) |
 | `blur` | `true` | Backdrop blur for translucent surfaces (scenefx build) |
@@ -935,15 +944,28 @@ animation_ms = 160
 animation_open_ms = 160
 animation_workspace_ms = 220
 animation_close_ms = 180
+animation_curve = ease-out-cubic
+animation_open_curve = ease-out-quint
+animation_workspace_curve = ease-in-out-cubic
+animation_close_curve = smoothstep
+bezier = snap, 0.16, 1.0, 0.3, 1.0
+animation_open_x = 0
+animation_open_y = 18
+animation_workspace_offset = 54
+animation_close_scale = 0.92
+animation_close_fade = true
 reduce_motion = false
 reduce_motion_animations = fade
 reduce_motion_fade_ms = 120
 ```
 
-- Open: 18 px vertical offset with cubic ease-out
-- Workspace: ±54 px horizontal offset with cubic ease-out
-- Close: compositor-initiated closes keep the surface buffer, scale to 92%,
-  and fade with smoothstep when movement is enabled
+- Built-in curves: `linear`, `ease-out-cubic`, `ease-in-out-cubic`,
+  `ease-out-quint`, `ease-in-out-quint`, `smoothstep`, and `overshoot`
+- `bezier = name, x1, y1, x2, y2` defines a custom cubic-bezier curve
+- Open: configurable x/y offset (default 0/18 px) with the open curve
+- Workspace: configurable ±offset (default 54 px) with the workspace curve
+- Close: compositor-initiated closes keep the surface buffer, scale to
+  `animation_close_scale`, and optionally fade with the close curve
 - Per-kind durations override `animation_ms`; `-1` inherits it
 - Client-initiated closes are immediate because the buffer is gone at unmap
 - `reduce_motion = true` disables open/workspace movement

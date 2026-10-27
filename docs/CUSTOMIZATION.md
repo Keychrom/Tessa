@@ -453,13 +453,14 @@ theme rule still wins for that output. The panel reads the same roles.
 
 ## Motion, shadows, and wallpaper
 
-Windows slide in from a small vertical offset when mapped, and workspace
-switches slide the incoming workspace horizontally. Both use a cubic ease-out
-over their per-kind duration (`animation_open_ms` / `animation_workspace_ms`,
-falling back to `animation_ms`). A window closed through the compositor (a key
-binding, bar chip, IPC, or another client) captures its surface and scales/fades
-that snapshot with a smoothstep over `animation_close_ms`. A client that closes
-itself disappears immediately because its buffer is already gone.
+Windows slide in from a configurable offset when mapped, and workspace
+switches slide the incoming workspace horizontally. Both use named
+cubic-bezier curves (built-ins or `bezier = name, x1, y1, x2, y2`) over their
+per-kind duration (`animation_open_ms` / `animation_workspace_ms`, falling back
+to `animation_ms`). A window closed through the compositor (a key binding, bar
+chip, IPC, or another client) captures its surface and scales/fades that
+snapshot with `animation_close_curve` over `animation_close_ms`. A client that
+closes itself disappears immediately because its buffer is already gone.
 `reduce_motion = true` disables open/workspace movement while leaving other
 settings intact; `animation_ms = 0` and `animations = false` disable everything.
 With reduced motion, `reduce_motion_animations = fade` keeps only a close fade

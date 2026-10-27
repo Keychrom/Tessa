@@ -143,9 +143,9 @@ the interactive config editor/diff preview) before or alongside this work.
 
 - [x] Automatic config reload through inotify, with debounce and transactional
       validation. A failed edit keeps the previous configuration.
-- [ ] Motion v2: named cubic-bezier and spring curves, per-kind curves,
-      per-window animation overrides, and configurable open/close fade, scale,
-      and translation.
+- [x] Motion v2 curves: named cubic-bezier definitions, per-kind curves,
+      configurable open/workspace offsets, and close scale/fade.
+- [ ] Motion v2 extensions: spring curves and per-window animation overrides.
 - [ ] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
       border width; layer-shell rules; reactive re-evaluation on title/app-id
       changes without a full reload.

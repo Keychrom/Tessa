@@ -506,6 +506,15 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `animation_open_ms` | 継承 | 開くアニメーション時間（`-1` で継承） |
 | `animation_workspace_ms` | 継承 | ワークスペース遷移の時間（`-1` で継承） |
 | `animation_close_ms` | 継承 | 閉じるエフェクトの時間（`-1` で継承） |
+| `animation_curve` | `ease-out-cubic` | 開く/ワークスペースの共通カーブ |
+| `animation_open_curve` | 継承 | 開くアニメーションのカーブ |
+| `animation_workspace_curve` | 継承 | ワークスペース遷移のカーブ |
+| `animation_close_curve` | `smoothstep` | 閉じるエフェクトのカーブ |
+| `bezier` | — | 名前付き cubic-bezier: `name, x1, y1, x2, y2` |
+| `animation_open_x` / `_y` | `0` / `18` | 開くアニメーションの開始オフセット px |
+| `animation_workspace_offset` | `54` | ワークスペース遷移の開始オフセット px |
+| `animation_close_scale` | `0.92` | 閉じるスナップショットの最終スケール（0〜1） |
+| `animation_close_fade` | `true` | 閉じるスナップショットをフェードする |
 | `shadows` | `true` | ウィンドウの多層シャドウ |
 | `corner_radius` | `10` | 角丸半径（0〜64。scenefx ビルドのみ有効） |
 | `blur` | `true` | 半透明サーフェスの背景ブラー（scenefx ビルドのみ） |
@@ -959,15 +968,28 @@ animation_ms = 160
 animation_open_ms = 160
 animation_workspace_ms = 220
 animation_close_ms = 180
+animation_curve = ease-out-cubic
+animation_open_curve = ease-out-quint
+animation_workspace_curve = ease-in-out-cubic
+animation_close_curve = smoothstep
+bezier = snap, 0.16, 1.0, 0.3, 1.0
+animation_open_x = 0
+animation_open_y = 18
+animation_workspace_offset = 54
+animation_close_scale = 0.92
+animation_close_fade = true
 reduce_motion = false
 reduce_motion_animations = fade
 reduce_motion_fade_ms = 120
 ```
 
-- 開く: 縦 18 px から cubic ease-out
-- ワークスペース: 方向に応じて横 ±54 px から cubic ease-out
-- 閉じる: コンポジタ起点の close ではウィンドウバッファを保持し、
-  移動が有効なら 92% まで縮小しながらフェード
+- 組み込みカーブ: `linear`、`ease-out-cubic`、`ease-in-out-cubic`、
+  `ease-out-quint`、`ease-in-out-quint`、`smoothstep`、`overshoot`
+- `bezier = name, x1, y1, x2, y2` で独自 cubic-bezier を定義
+- 開く: 設定した x/y オフセット（既定 0/18 px）から開くカーブで移動
+- ワークスペース: 設定した ±オフセット（既定 54 px）から遷移
+- 閉じる: バッファを保持して `animation_close_scale` まで縮小し、
+  必要なら閉じるカーブでフェード
 - 種類別の時間が `animation_ms` を上書きします。`-1` で継承
 - クライアント自身が閉じた場合は unmap 時点でバッファがなくなるため即時
 - `reduce_motion = true` は開く／ワークスペースの移動を無効化

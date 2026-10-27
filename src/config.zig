@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const event_names = @import("event_names.zig");
 const rule_expr = @import("rule_expr.zig");
+const motion = @import("motion.zig");
 
 const Server = types.Server;
 const Config = types.Config;
@@ -37,6 +38,13 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.animation_open_ms = -1;
     cfg.animation_workspace_ms = -1;
     cfg.animation_close_ms = -1;
+    copyDefault(&cfg.animation_curve, &cfg.animation_curve_len, "ease-out-cubic");
+    copyDefault(&cfg.animation_close_curve, &cfg.animation_close_curve_len, "smoothstep");
+    cfg.animation_open_x = 0;
+    cfg.animation_open_y = 18;
+    cfg.animation_workspace_offset = 54;
+    cfg.animation_close_scale = 0.92;
+    cfg.animation_close_fade = true;
     cfg.shadows = true;
     cfg.corner_radius = 10;
     cfg.blur = true;
@@ -825,6 +833,58 @@ fn validProfileName(name: []const u8) bool {
     return true;
 }
 
+fn findCurve(cfg: *const Config, name: []const u8) ?*const types.CurveDef {
+    var i: usize = 0;
+    while (i < cfg.curve_count) : (i += 1) {
+        const curve = &cfg.curves[i];
+        if (std.mem.eql(u8, curve.name[0..curve.name_len], name)) return curve;
+    }
+    return null;
+}
+
+fn addBezier(cfg: *Config, value: []const u8) bool {
+    if (cfg.curve_count >= cfg.curves.len) {
+        core.logInfo("config: too many bezier curves (max {d})", .{cfg.curves.len});
+        return false;
+    }
+    var it = std.mem.splitScalar(u8, value, ',');
+    const name = std.mem.trim(u8, it.next() orelse return false, " \t");
+    if (!validProfileName(name) or findCurve(cfg, name) != null) return false;
+
+    var points: [4]f32 = undefined;
+    var i: usize = 0;
+    while (i < points.len) : (i += 1) {
+        const token = std.mem.trim(u8, it.next() orelse return false, " \t");
+        const n = std.fmt.parseFloat(f32, token) catch return false;
+        if ((i == 0 or i == 2) and (n < 0.0 or n > 1.0)) return false;
+        if ((i == 1 or i == 3) and (n < -1.0 or n > 2.0)) return false;
+        points[i] = n;
+    }
+    if (it.next() != null) return false;
+
+    var curve = types.CurveDef{};
+    core.copyString(&curve.name, &curve.name_len, name);
+    curve.points = points;
+    cfg.curves[cfg.curve_count] = curve;
+    cfg.curve_count += 1;
+    return true;
+}
+
+fn validateAnimationCurves(server: *Server) void {
+    const cfg = &server.config;
+    const names = [4][]const u8{
+        cfg.animation_curve[0..cfg.animation_curve_len],
+        cfg.animation_open_curve[0..cfg.animation_open_curve_len],
+        cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len],
+        cfg.animation_close_curve[0..cfg.animation_close_curve_len],
+    };
+    for (names) |name| {
+        if (name.len > 0 and !motion.isKnown(cfg, name)) {
+            addIssue(server, "<config>", 0, "unknown animation curve '{s}'", .{name});
+        }
+    }
+}
+
 pub fn findProfile(cfg: *Config, name: []const u8) ?*types.Profile {
     var i: usize = 0;
     while (i < cfg.profile_count) : (i += 1) {
@@ -1457,6 +1517,46 @@ fn loadPath(
             std.mem.eql(u8, key, "animation-close-ms"))
         {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_close_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_curve") or
+            std.mem.eql(u8, key, "animation-curve"))
+        {
+            core.copyString(&server.config.animation_curve, &server.config.animation_curve_len, value);
+        } else if (std.mem.eql(u8, key, "animation_open_curve") or
+            std.mem.eql(u8, key, "animation-open-curve"))
+        {
+            core.copyString(&server.config.animation_open_curve, &server.config.animation_open_curve_len, value);
+        } else if (std.mem.eql(u8, key, "animation_workspace_curve") or
+            std.mem.eql(u8, key, "animation-workspace-curve"))
+        {
+            core.copyString(&server.config.animation_workspace_curve, &server.config.animation_workspace_curve_len, value);
+        } else if (std.mem.eql(u8, key, "animation_close_curve") or
+            std.mem.eql(u8, key, "animation-close-curve"))
+        {
+            core.copyString(&server.config.animation_close_curve, &server.config.animation_close_curve_len, value);
+        } else if (std.mem.eql(u8, key, "animation_open_x") or
+            std.mem.eql(u8, key, "animation-open-x"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_open_x = v;
+        } else if (std.mem.eql(u8, key, "animation_open_y") or
+            std.mem.eql(u8, key, "animation-open-y"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_open_y = v;
+        } else if (std.mem.eql(u8, key, "animation_workspace_offset") or
+            std.mem.eql(u8, key, "animation-workspace-offset"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_workspace_offset = v;
+        } else if (std.mem.eql(u8, key, "animation_close_scale") or
+            std.mem.eql(u8, key, "animation-close-scale"))
+        {
+            if (parseFloatValue(server, path, line_no, key, value)) |v| server.config.animation_close_scale = v;
+        } else if (std.mem.eql(u8, key, "animation_close_fade") or
+            std.mem.eql(u8, key, "animation-close-fade"))
+        {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.animation_close_fade = v;
+        } else if (std.mem.eql(u8, key, "bezier") or std.mem.eql(u8, key, "curve")) {
+            if (!addBezier(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid bezier: '{s}' (expected name,x1,y1,x2,y2)", .{value});
+            }
         } else if (std.mem.eql(u8, key, "reduce_motion_animations") or
             std.mem.eql(u8, key, "reduce-motion-animations"))
         {
@@ -1682,6 +1782,7 @@ pub fn load(server: *Server) void {
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
     resolveProfileReferences(server);
+    validateAnimationCurves(server);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;
@@ -1708,6 +1809,14 @@ pub fn load(server: *Server) void {
     if (server.config.animation_close_ms > 1000) server.config.animation_close_ms = 1000;
     if (server.config.reduce_motion_fade_ms < 0) server.config.reduce_motion_fade_ms = 0;
     if (server.config.reduce_motion_fade_ms > 1000) server.config.reduce_motion_fade_ms = 1000;
+    if (server.config.animation_open_x < -500) server.config.animation_open_x = -500;
+    if (server.config.animation_open_x > 500) server.config.animation_open_x = 500;
+    if (server.config.animation_open_y < -500) server.config.animation_open_y = -500;
+    if (server.config.animation_open_y > 500) server.config.animation_open_y = 500;
+    if (server.config.animation_workspace_offset < -500) server.config.animation_workspace_offset = -500;
+    if (server.config.animation_workspace_offset > 500) server.config.animation_workspace_offset = 500;
+    if (server.config.animation_close_scale < 0.0) server.config.animation_close_scale = 0.0;
+    if (server.config.animation_close_scale > 1.0) server.config.animation_close_scale = 1.0;
     if (server.config.corner_radius < 0) server.config.corner_radius = 0;
     if (server.config.corner_radius > 64) server.config.corner_radius = 64;
     if (server.config.blur_radius < 1) server.config.blur_radius = 1;

@@ -10,6 +10,7 @@ const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
+const motion = @import("motion.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -301,6 +302,11 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
     client.anim_off_y = from_y;
     client.anim_start_ms = core.timeNowMs();
     client.anim_ms = duration_ms;
+    client.anim_curve = switch (kind) {
+        .open => motion.open(&server.config),
+        .workspace => motion.workspace(&server.config),
+        .none => motion.DEFAULT_OPEN,
+    };
     client.animating = true;
     client.anim_kind = kind;
     scheduleAnimationFrames(server);
@@ -318,8 +324,8 @@ pub fn startOpenAnimation(client: *Client) void {
     if (!client.mapped or client.ws != client.output.active_ws) return;
     beginAnimation(
         client,
-        0,
-        18,
+        client.server.config.animation_open_x,
+        client.server.config.animation_open_y,
         .open,
         animationMs(client.server, client.server.config.animation_open_ms),
     );
@@ -327,7 +333,8 @@ pub fn startOpenAnimation(client: *Client) void {
 
 pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize, ws: usize) void {
     if (!animationsEnabled(server) or previous_ws == ws) return;
-    const dir: i32 = if (ws > previous_ws) 54 else -54;
+    const offset = server.config.animation_workspace_offset;
+    const dir: i32 = if (ws > previous_ws) offset else -offset;
     const duration_ms = animationMs(server, server.config.animation_workspace_ms);
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
@@ -351,7 +358,7 @@ pub fn tickAnimations(server: *Server, now: i64) bool {
             0.0,
             1.0,
         );
-        const eased = 1.0 - std.math.pow(f64, 1.0 - progress, 3.0);
+        const eased = motion.evaluate(cl.anim_curve, progress);
         const remain = 1.0 - eased;
         cl.anim_off_x = @intFromFloat(@as(f64, @floatFromInt(cl.anim_from_x)) * remain);
         cl.anim_off_y = @intFromFloat(@as(f64, @floatFromInt(cl.anim_from_y)) * remain);

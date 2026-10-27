@@ -745,6 +745,27 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "animation_close_ms {d}\n", .{
         if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms,
     });
+    append(&buf, &off, "animation_curve {s}\n", .{cfg.animation_curve[0..cfg.animation_curve_len]});
+    append(&buf, &off, "animation_open_curve {s}\n", .{cfg.animation_open_curve[0..cfg.animation_open_curve_len]});
+    append(&buf, &off, "animation_workspace_curve {s}\n", .{cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len]});
+    append(&buf, &off, "animation_close_curve {s}\n", .{cfg.animation_close_curve[0..cfg.animation_close_curve_len]});
+    append(&buf, &off, "animation_open_x {d}\n", .{cfg.animation_open_x});
+    append(&buf, &off, "animation_open_y {d}\n", .{cfg.animation_open_y});
+    append(&buf, &off, "animation_workspace_offset {d}\n", .{cfg.animation_workspace_offset});
+    append(&buf, &off, "animation_close_scale {d:.3}\n", .{cfg.animation_close_scale});
+    append(&buf, &off, "animation_close_fade {d}\n", .{@as(u8, if (cfg.animation_close_fade) 1 else 0)});
+    append(&buf, &off, "curve_count {d}\n", .{cfg.curve_count});
+    var ci: usize = 0;
+    while (ci < cfg.curve_count) : (ci += 1) {
+        const curve = &cfg.curves[ci];
+        append(&buf, &off, "bezier {s} {d:.3} {d:.3} {d:.3} {d:.3}\n", .{
+            curve.name[0..curve.name_len],
+            curve.points[0],
+            curve.points[1],
+            curve.points[2],
+            curve.points[3],
+        });
+    }
     append(&buf, &off, "reduce_motion {d}\n", .{@as(u8, if (cfg.reduce_motion) 1 else 0)});
     append(&buf, &off, "reduce_motion_animations {s}\n", .{switch (cfg.reduce_motion_animations) {
         .none => "none",
