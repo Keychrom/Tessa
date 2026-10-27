@@ -65,6 +65,7 @@ pub const c = @cImport({
 
     @cInclude("xkbcommon/xkbcommon.h");
     @cInclude("fcntl.h");
+    @cInclude("regex_shim.h");
     @cInclude("signal.h");
     @cInclude("stdio.h");
     @cInclude("stdlib.h");

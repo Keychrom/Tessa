@@ -325,8 +325,10 @@ Diagnostics include the file name and line number.
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
 | `workspace-rule` | — | Per-workspace layout/spacing rule |
-| `output-rule` | — | Per-output (optionally per-workspace) layout/spacing rule |
+| `output-rule` | — | Per-output (optionally per-workspace) layout, spacing, and theme rule |
+| `profile` | — | Named layout/tuning profile referenced by output/workspace rules |
 | `window-rule` | — | Declarative window rule |
+| `theme-role` | — | Semantic color role (`accent`, borders, wallpaper, panel) |
 | `mode` | `default` | Start a named input-mode section for following `bind` lines |
 | `bind` | — | Add or override a key binding |
 | `include` | — | Include another config file |
@@ -344,8 +346,13 @@ Diagnostics include the file name and line number.
 | `border_inactive` | `#293347` | Unfocused border |
 | `font` | `Inter` | Panel UI font |
 | `animations` | `true` | Window open/close and workspace motion |
-| `reduce_motion` | `false` | Disable motion regardless of `animations` |
-| `animation_ms` | `160` | Animation duration (0–1000 ms) |
+| `reduce_motion` | `false` | Disable movement animations |
+| `reduce_motion_animations` | `none` | `none`, or `fade` for a closing-window fade |
+| `reduce_motion_fade_ms` | `120` | Fade duration when reduced motion is `fade` |
+| `animation_ms` | `160` | Default animation duration (0–1000 ms) |
+| `animation_open_ms` | inherited | Open-animation duration (`-1` inherits) |
+| `animation_workspace_ms` | inherited | Workspace-animation duration (`-1` inherits) |
+| `animation_close_ms` | inherited | Close-effect duration (`-1` inherits) |
 | `shadows` | `true` | Layered window shadows |
 | `corner_radius` | `10` | Rounded window radius (0–64; scenefx build) |
 | `blur` | `true` | Backdrop blur for translucent surfaces (scenefx build) |
@@ -390,6 +397,9 @@ zone.
 | `kb_rules` | empty | XKB rules |
 | `repeat_rate` | `25` | Repeat rate |
 | `repeat_delay` | `600` | Delay before repeat (ms) |
+| `leader` | unset | Leader chord such as `SUPER+SPACE` |
+| `leader_timeout` | `1000` | Leader-mode timeout in ms; `0` keeps it active |
+| `mode_timeout` | `0` | Timeout for the current named mode in ms |
 | `gestures` | `true` | Touchpad gestures |
 | `gesture_fingers` | `3` | Fingers for workspace/launcher swipes (2–5) |
 | `gesture_workspace_threshold` | `400` | Horizontal swipe threshold (20–1000) |
@@ -416,6 +426,7 @@ zone.
 | --- | --- |
 | `startup` | Command run once at startup |
 | `hook` | `<event> <command>` lifecycle hook; repeatable |
+| `event-rule` | Conditional event command; see section 8.7 |
 | `include` | Split configuration across files |
 
 See the event table in section 13.
@@ -505,17 +516,24 @@ with no saved/runtime choice. Runtime choices are persisted in `outputs.conf`.
 workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 ```
 
-Keys: required `ws=1..9`, `layout`, `gaps`, `outer-gaps`, and
-`master-ratio=0.15..0.9`.
+Keys: required `ws=1..9`, plus `layout`, `gaps`, `outer-gaps`,
+`master-ratio=0.15..0.9`, `master-count=1..8`, `mosaic-ratio=0.25..0.85`,
+`mosaic-min-size=80..600`, `grid-columns=0..8`, and `profile=NAME`.
 
 ### 8.3 `output-rule`
 
 ```ini
 output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+output-rule = output=HDMI-A-1; profile=compact; gaps=4
+output-rule = output=HEADLESS-*; accent=#8fd3ff; bg=#0c1118
+output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
+output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
+output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
+output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
 ```
 
-Keys:
+Layout/tuning keys:
 
 - `output=` / `monitor=`: required; supports `*` and `?`
 - `ws=1..9`: optional; omitted means all workspaces
@@ -524,6 +542,35 @@ Keys:
 - `master-ratio=0.15..0.9`, `master-count=1..8`
 - `mosaic-ratio=0.25..0.85`, `mosaic-min-size=80..600`
 - `grid-columns=0..8`
+- `profile=NAME`: apply a named profile before this rule's explicit keys
+
+Theme keys (all workspaces only):
+
+- `accent=#RRGGBB`, `bg=#RRGGBB`
+- `border-active=#RRGGBB`, `border-inactive=#RRGGBB`
+- `panel-bg=#RRGGBB`, `panel-fg=#RRGGBB`
+- `bg-top=#RRGGBB`, `bg-bottom=#RRGGBB`
+- `bar-height=32..96`, `bar-top-margin=0..64`, `bar-side-margin=0..128`
+
+The compositor applies the output background and border colors. The panel
+re-reads the same rule for its own output, so bar height, margins, wallpaper,
+and panel colors stay in sync. Theme fields are ignored when `ws=` is present.
+
+#### Named profiles
+
+```ini
+profile = compact; gaps=0; outer-gaps=0; master-ratio=0.5; master-count=2
+profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
+output-rule = output=DP-1; profile=compact; gaps=4
+workspace-rule = ws=2; profile=grid3
+```
+
+Profiles can be declared before or after the rules that use them. Explicit
+keys in the rule override the profile. Profiles cover layout and spacing;
+theme keys remain on `output-rule`. An unknown profile is a config error and
+the reload is rejected. Workspace profiles can set `layout`, `gaps`,
+`outer-gaps`, `master-ratio`, `master-count`, `mosaic-ratio`,
+`mosaic-min-size`, and `grid-columns`.
 
 Precedence:
 
@@ -545,6 +592,9 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=*Picture-in-Picture*; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = app-id=org.example.*; fullscreen=true
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = match=(class == "foot" || class == "Alacritty") && output ~ "^DP-"; float=true
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 Match keys:
@@ -554,6 +604,13 @@ Match keys:
 | `app-id`, `app_id`, `class` | xdg app-id |
 | `title` | Window title |
 | `output`, `monitor` | Output name |
+| `match`, `expr` | Boolean expression with POSIX ERE regexes |
+
+Expression fields are `app` / `app-id` / `class`, `title`, and `output` /
+`monitor`. Operators are `==`, `!=`, `~` (regex match), `!~` (regex
+non-match), `&&` / `and`, `||` / `or`, `!` / `not`, and parentheses. Quoted
+values may contain spaces. Regexes use POSIX extended syntax and are
+case-sensitive.
 
 Actions:
 
@@ -566,10 +623,15 @@ Actions:
 | `size=WxH` | Floating size |
 | `width=N`, `height=N` | One floating axis |
 | `position=X,Y` | Floating position |
+| `border-active=#RRGGBB` | Per-window focused border |
+| `border-inactive=#RRGGBB` | Per-window unfocused border |
 
-Patterns use `*` and `?`; matching is case-sensitive. Rules run in file order
-and later matches win. They run at map time and on config reload; a title change
-after mapping does not retrigger them until the next reload.
+Patterns use `*` and `?`. Simple keys and `match` are combined with AND. Rules
+run in file order and later matches win, including border colors. Invalid
+expressions or regexes are reported with file/line diagnostics and reject the
+reload. Rules run at map time and on config reload; a title change after
+mapping does not retrigger them until the next reload. Per-rule border colors
+are also used by the close snapshot effect.
 
 ### 8.5 External layout helper
 
@@ -602,6 +664,27 @@ Keyboard, gesture, IPC, bar, and foreign-activation switches redirect to the
 pinned output. `Super+Shift+<n>` and `CMD move-workspace <n>` move a window to
 that output. A missing output ignores the pin. A later pin for the same
 workspace wins.
+
+### 8.7 Event rules
+
+Event rules run a command when a lifecycle event matches an expression:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "Opened on workspace 2"
+event-rule = window-open; match=title == "Mail" && id ~ "^[0-9]+$"; run=touch ~/.local/state/mail-opened
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+The event name is the first clause or `event=<name>`. `match` / `expr` is
+optional; without it every event of that name runs the command. `run` /
+`command` is required. Event rules use the same boolean/regex syntax as window
+rules and additionally expose `event`, `ws`, and `id`; numeric values are
+compared as strings (`ws == "3"`).
+
+Commands receive the normal hook environment (`TESSA_EVENT`, `TESSA_WINDOW_ID`,
+`TESSA_WORKSPACE`, `TESSA_TITLE`, `TESSA_OUTPUT`, `TESSA_ARG`, and so on).
+Matching rules run in config order before unconditional `hook` entries. Like
+hooks, commands run through `/bin/sh -c` with the compositor's privileges.
 
 ---
 
@@ -672,8 +755,25 @@ panel_fg = #eef2f8
 font = Inter
 ```
 
-A theme-role system is not implemented yet; these direct values are the current
-theme surface.
+Semantic theme roles let one value drive the compositor and panel:
+
+```ini
+theme-role = accent = #e2684f
+theme-role = window.border.active = #8fd3ff
+theme-role = window.border.inactive = #243040
+theme-role = window.background = #0a0f1a
+theme-role = panel.background = #0e1320
+theme-role = panel.foreground = #eef2f8
+theme-role = wallpaper.top = #162038
+theme-role = wallpaper.bottom = #070a12
+```
+
+Supported roles are `accent`, `window.border.active`,
+`window.border.inactive`, `window.background`, `panel.background`,
+`panel.foreground`, `wallpaper.top`, and `wallpaper.bottom`. Roles are applied
+after direct keys, so a role wins over `accent`, `border_active`,
+`border_inactive`, `bg`, and the corresponding panel keys. A matching
+`output-rule` theme still overrides the global role for that output.
 
 ### Borders and shadows
 
@@ -691,16 +791,26 @@ rounded corners.
 
 ```ini
 animations = true
-reduce_motion = false
 animation_ms = 160
+animation_open_ms = 160
+animation_workspace_ms = 220
+animation_close_ms = 180
+reduce_motion = false
+reduce_motion_animations = fade
+reduce_motion_fade_ms = 120
 ```
 
 - Open: 18 px vertical offset with cubic ease-out
 - Workspace: ±54 px horizontal offset with cubic ease-out
 - Close: compositor-initiated closes keep the surface buffer, scale to 92%,
-  and fade with smoothstep
+  and fade with smoothstep when movement is enabled
+- Per-kind durations override `animation_ms`; `-1` inherits it
 - Client-initiated closes are immediate because the buffer is gone at unmap
-- `animation_ms` is 0–1000
+- `reduce_motion = true` disables open/workspace movement
+- `reduce_motion_animations = fade` keeps only a close fade, with no scale or
+  slide, for `reduce_motion_fade_ms`
+- `reduce_motion_animations = none` (default) disables close effects too
+- Durations are 0–1000 ms; `0` disables that animation
 
 Lifecycle hooks: `animation-start`, `animation-done`,
 `close-animation-start`, and `close-animation-done`.
@@ -750,6 +860,25 @@ bind = SUPER+SHIFT+r enter-mode resize
 ```
 
 Mode bindings match without modifiers and take priority over global bindings.
+Set `mode_timeout = 300` inside a mode section to return to `default` after
+300 ms without a matching key.
+
+A leader chord enters the `leader` mode:
+
+```ini
+leader = SUPER+SPACE
+leader_timeout = 1000
+
+mode = leader
+bind = f spawn firefox
+bind = t spawn kitty
+bind = Escape enter-mode default
+```
+
+The leader is recognized only in the default mode. Pressing it again, binding
+`Escape`, or waiting `leader_timeout` exits. A matching leader-mode binding
+runs one action and returns to default unless the action enters another mode.
+`leader_timeout = 0` keeps leader mode active until an explicit exit.
 
 ### Gestures
 
@@ -942,12 +1071,37 @@ tessa-ctl dispatch reload
 tessa-ctl quit
 ```
 
-### 13.2 JSON
+### 13.2 JSON and JSON-RPC
 
 - `state --json`: schema 1, outputs, occupancy, focus, statuses, windows
 - `config --json`: schema 1, effective config, layouts, workspace tuning,
-  rules, output rules, hooks, diagnostics
+  rules, output rules, hooks, event rules, profiles, theme roles, diagnostics
 - Reject unknown schema versions
+
+The same socket accepts JSON-RPC 2.0 requests as one-line JSON objects:
+
+```sh
+tessa-ctl rpc '{"jsonrpc":"2.0","id":1,"method":"hello"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":7,"method":"state"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
+```
+
+Methods: `hello`/`capabilities`, `ping`, `state`, `config`, `subscribe`, and
+`unsubscribe`. Every response echoes the request `id`. `hello` reports
+`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`, and the
+capabilities `state`, `config`, `events`, `subscriptions`, `request-ids`.
+Errors use standard JSON-RPC codes (`-32700` parse error, `-32601` unknown
+method).
+
+After `subscribe`, lifecycle events arrive as notifications:
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"name":"workspace-change","ws":2,"previous-ws":1,"output":"eDP-1","subscription":"sub-1"}}
+```
+
+The event plane remains line-oriented for existing clients; JSON-RPC
+subscribers receive JSON notifications with the same fields.
 
 ### 13.3 Events
 
@@ -1205,9 +1359,15 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Corners/blur are opt-in.** Requires scenefx 0.4.1 and GLES2; no pixman.
 - **Window effects are simple.** Close snapshots only apply to
   compositor-initiated closes; client self-closes are immediate.
-- **No theme-role system yet.** Theme changes are direct color/size/font values.
-- Per-output themes, per-output layout helpers, and asynchronous helpers are
-  0.6+ items.
+- **Profiles cover layout/tuning, not theme values.** Use per-output
+  `output-rule` theme keys for output-specific colors and panel dimensions.
+- **Window rules do not retrigger on title changes** until config reload.
+- **The layout helper is synchronous and shared across outputs.** Per-output
+  helper instances, asynchronous/incremental updates, and helper v2 metadata
+  are still pending.
+- **JSON-RPC is read-only plus event subscriptions.** Mutation still uses the
+  line commands.
+- **There is no graphical config editor/diff preview yet.**
 - Output `enabled` state, notification output pinning, and custom notification
   sounds are not implemented.
 

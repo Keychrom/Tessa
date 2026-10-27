@@ -98,7 +98,12 @@ pub fn updateBorders(server: *Server) void {
             cl.mapped and
             cl.ws == cl.output.active_ws and
             server.focused_layer == null;
-        c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active else &inactive);
+        const output_active = cl.output.theme_border_active orelse
+            cl.output.theme_accent orelse active;
+        const output_inactive = cl.output.theme_border_inactive orelse inactive;
+        const active_color = cl.border_active_override orelse output_active;
+        const inactive_color = cl.border_inactive_override orelse output_inactive;
+        c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active_color else &inactive_color);
     }
 }
 
@@ -263,8 +268,11 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
 }
 
 fn animationsEnabled(server: *Server) bool {
-    return server.config.animations and !server.config.reduce_motion and
-        server.config.animation_ms > 0;
+    return server.config.animations and !server.config.reduce_motion;
+}
+
+fn animationMs(server: *Server, specific: i32) i32 {
+    return if (specific >= 0) specific else server.config.animation_ms;
 }
 
 fn scheduleAnimationFrames(server: *Server) void {
@@ -283,15 +291,15 @@ fn animationKindName(kind: types.AnimationKind) []const u8 {
     };
 }
 
-fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.AnimationKind) void {
+fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.AnimationKind, duration_ms: i32) void {
     const server = client.server;
-    if (!animationsEnabled(server)) return;
+    if (!animationsEnabled(server) or duration_ms <= 0) return;
     client.anim_from_x = from_x;
     client.anim_from_y = from_y;
     client.anim_off_x = from_x;
     client.anim_off_y = from_y;
     client.anim_start_ms = core.timeNowMs();
-    client.anim_ms = server.config.animation_ms;
+    client.anim_ms = duration_ms;
     client.animating = true;
     client.anim_kind = kind;
     scheduleAnimationFrames(server);
@@ -307,17 +315,24 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
 
 pub fn startOpenAnimation(client: *Client) void {
     if (!client.mapped or client.ws != client.output.active_ws) return;
-    beginAnimation(client, 0, 18, .open);
+    beginAnimation(
+        client,
+        0,
+        18,
+        .open,
+        animationMs(client.server, client.server.config.animation_open_ms),
+    );
 }
 
 pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize, ws: usize) void {
     if (!animationsEnabled(server) or previous_ws == ws) return;
     const dir: i32 = if (ws > previous_ws) 54 else -54;
+    const duration_ms = animationMs(server, server.config.animation_workspace_ms);
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
         if (cl.output == out and cl.ws == ws and cl.mapped) {
-            beginAnimation(cl, dir, 0, .workspace);
+            beginAnimation(cl, dir, 0, .workspace, duration_ms);
         }
     }
 }

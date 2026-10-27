@@ -629,6 +629,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.server = server;
     out.wlr = wlr_out;
     out.active_ws = 1;
+    rules.applyOutputTheme(server, out);
     rules.seedOutputLayouts(server, out);
     applySavedLayouts(server, out);
 
@@ -650,7 +651,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.scene_output = c.wlr_scene_output_create(server.scene, wlr_out);
     c.wlr_scene_output_layout_add_output(server.scene_layout, out.layout_output, out.scene_output);
 
-    const bg = [4]f32{ 0.025, 0.04, 0.075, 1.0 };
+    const bg = out.theme_bg;
     out.bg_rect = c.wlr_scene_rect_create(server.tree_bg, 1, 1, &bg);
 
     core.outputBox(server, out, &out.full);

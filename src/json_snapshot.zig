@@ -187,8 +187,19 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.xwayland_display[0..cfg.xwayland_display_len]);
     addRaw(buf, &off, ",\"animations\":");
     addBool(buf, &off, cfg.animations);
-    add(buf, &off, ",\"animation_ms\":{d},\"reduce_motion\":", .{cfg.animation_ms});
+    add(buf, &off, ",\"animation_ms\":{d},\"animation_open_ms\":{d},\"animation_workspace_ms\":{d},\"animation_close_ms\":{d},\"reduce_motion\":", .{
+        cfg.animation_ms,
+        if (cfg.animation_open_ms >= 0) cfg.animation_open_ms else cfg.animation_ms,
+        if (cfg.animation_workspace_ms >= 0) cfg.animation_workspace_ms else cfg.animation_ms,
+        if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms,
+    });
     addBool(buf, &off, cfg.reduce_motion);
+    addRaw(buf, &off, ",\"reduce_motion_animations\":");
+    addString(buf, &off, switch (cfg.reduce_motion_animations) {
+        .none => "none",
+        .fade => "fade",
+    });
+    add(buf, &off, ",\"reduce_motion_fade_ms\":{d}", .{cfg.reduce_motion_fade_ms});
     addRaw(buf, &off, ",\"shadows\":");
     addBool(buf, &off, cfg.shadows);
     addRaw(buf, &off, ",\"scenefx\":");
@@ -234,9 +245,12 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.bg[0..cfg.bg_len]);
     addRaw(buf, &off, ",\"output_config\":");
     addString(buf, &off, cfg.output_config[0..cfg.output_config_len]);
-    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d}", .{
+    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"event_rule_count\":{d},\"profile_count\":{d},\"workspace_rule_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d}", .{
         cfg.binding_count,
         cfg.hook_count,
+        cfg.event_rule_count,
+        cfg.profile_count,
+        cfg.workspace_rule_count,
         cfg.rule_count,
         cfg.output_rule_count,
     });
@@ -268,6 +282,47 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         addString(buf, &off, hook.event[0..hook.event_len]);
         addRaw(buf, &off, ",\"command\":");
         addString(buf, &off, hook.command[0..hook.command_len]);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"event_rules\":[");
+    i = 0;
+    while (i < cfg.event_rule_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const rule = &cfg.event_rules[i];
+        addRaw(buf, &off, "{\"event\":");
+        addString(buf, &off, rule.event[0..rule.event_len]);
+        addRaw(buf, &off, ",\"match\":");
+        addString(buf, &off, rule.expr[0..rule.expr_len]);
+        addRaw(buf, &off, ",\"run\":");
+        addString(buf, &off, rule.command[0..rule.command_len]);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"profiles\":[");
+    i = 0;
+    while (i < cfg.profile_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const profile = &cfg.profiles[i];
+        addRaw(buf, &off, "{\"name\":");
+        addString(buf, &off, profile.name[0..profile.name_len]);
+        addRaw(buf, &off, ",\"layout\":");
+        addString(buf, &off, types.layoutName(profile.tuning.layout));
+        add(buf, &off, ",\"gaps\":{d},\"outer_gaps\":{d},\"master_ratio\":{d:.3},\"master_count\":{d},\"grid_columns\":{d}}}", .{
+            profile.tuning.gaps,
+            profile.tuning.outer_gaps,
+            profile.tuning.master_ratio,
+            profile.tuning.master_count,
+            profile.tuning.grid_columns,
+        });
+    }
+    addRaw(buf, &off, "],\"theme_roles\":[");
+    i = 0;
+    while (i < cfg.theme_role_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const role = &cfg.theme_roles[i];
+        addRaw(buf, &off, "{\"name\":");
+        addString(buf, &off, role.name[0..role.name_len]);
+        addRaw(buf, &off, ",\"color\":");
+        addString(buf, &off, role.color[0..role.color_len]);
         addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "],\"diagnostics\":[");

@@ -18,6 +18,7 @@ fn usage() void {
         "  config [--json]               print the effective configuration\n" ++
         "  config-check                  check config diagnostics; exit 1 on errors\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
+        "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
         "  workspace <1-9> [output]      switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
@@ -320,6 +321,21 @@ fn runStatus(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runRpc(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var json_buf: [8192]u8 = undefined;
+    const json = joinArgs(args, 1, &json_buf);
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    var line_buf: [8192]u8 = undefined;
+    const line = std.fmt.bufPrint(&line_buf, "{s}\n", .{json}) catch return error.LineTooLong;
+    try sendAll(fd, line);
+    var reader = LineReader{ .fd = fd };
+    var reply_buf: [131072]u8 = undefined;
+    const reply = (try reader.next(&reply_buf)) orelse return error.NoReply;
+    writeLine(reply);
+}
+
 fn runDispatch(args: []const []const u8) !void {
     if (args.len < 2) return error.BadArguments;
     var cmd_buf: [2048]u8 = undefined;
@@ -454,6 +470,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runConfig(args)
     else if (std.mem.eql(u8, cmd, "config-check"))
         printConfigCheck()
+    else if (std.mem.eql(u8, cmd, "rpc"))
+        runRpc(args)
     else if (std.mem.eql(u8, cmd, "events"))
         printEvents(if (args.len > 1) args[1] else "")
     else if (std.mem.eql(u8, cmd, "dispatch"))

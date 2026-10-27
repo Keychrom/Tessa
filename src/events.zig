@@ -1,6 +1,7 @@
 const std = @import("std");
 const types = @import("types.zig");
 const core = @import("core.zig");
+const rule_expr = @import("rule_expr.zig");
 
 const Server = types.Server;
 
@@ -85,7 +86,7 @@ pub fn emit(server: *Server, ev: Event) void {
     const line = buildLine(ev, &line_buf);
     if (server.broadcast_line) |broadcast| broadcast(server, line);
 
-    if (server.config.hook_count == 0) return;
+    if (server.config.hook_count == 0 and server.config.event_rule_count == 0) return;
 
     var envs: [14]core.EnvVar = undefined;
     var env_count: usize = 0;
@@ -135,6 +136,36 @@ pub fn emit(server: *Server, ev: Event) void {
     add(&envs, &env_count, "TESSA_ACTIVE_WORKSPACE", active_ws);
     if (core.focusOutput(server)) |out| {
         add(&envs, &env_count, "TESSA_FOCUSED_OUTPUT", core.outputName(out));
+    }
+
+    var ws_text_buf: [16]u8 = undefined;
+    const ws_text = if (ev.workspace) |ws|
+        std.fmt.bufPrint(&ws_text_buf, "{d}", .{ws}) catch ""
+    else
+        "";
+    var id_text_buf: [32]u8 = undefined;
+    const id_text = if (ev.id) |id|
+        std.fmt.bufPrint(&id_text_buf, "{d}", .{id}) catch ""
+    else
+        "";
+    const expr_ctx = rule_expr.Context{
+        .app_id = ev.app_id,
+        .title = ev.title,
+        .output = ev.output,
+        .event = ev.name,
+        .workspace = ws_text,
+        .window_id = id_text,
+    };
+
+    var ri: usize = 0;
+    while (ri < server.config.event_rule_count) : (ri += 1) {
+        const rule = &server.config.event_rules[ri];
+        if (!std.mem.eql(u8, rule.event[0..rule.event_len], ev.name)) continue;
+        if (rule.expr_len > 0) {
+            const matched = rule_expr.evaluate(rule.expr[0..rule.expr_len], expr_ctx) orelse continue;
+            if (!matched) continue;
+        }
+        core.spawnWithEnv(rule.command[0..rule.command_len], envs[0..env_count]);
     }
 
     var i: usize = 0;

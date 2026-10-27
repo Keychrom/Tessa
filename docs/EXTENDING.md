@@ -107,6 +107,36 @@ State JSON includes the active `mode`; config JSON includes a `modes` array.
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
 `app_id`, `title`, `output`, `x`, `y`, `width`, and `height`. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
+Config JSON also exposes `event_rules`, `profiles`, `theme_roles`, and the
+corresponding counts.
+
+## JSON-RPC
+
+The same socket accepts JSON-RPC 2.0 requests as single-line JSON objects. The
+line protocol remains available; a connection can use either style.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"hello"}
+{"jsonrpc":"2.0","id":7,"method":"state"}
+{"jsonrpc":"2.0","id":"cfg","method":"config"}
+{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}
+```
+
+Responses are `{"jsonrpc":"2.0","id":<request id>,"result":...}` and errors use
+standard JSON-RPC codes. Supported methods are `hello` / `capabilities`,
+`ping`, `state`, `config`, `subscribe`, and `unsubscribe`. `hello` returns
+`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`, and the
+capabilities `state`, `config`, `events`, `subscriptions`, and `request-ids`.
+
+After `subscribe`, every lifecycle event is sent as a notification:
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"name":"window-open","id":7,"ws":1,"app":"foot","title":"notes","output":"eDP-1","subscription":"sub-1"}}
+```
+
+`subscription` is the serialized request id. Events are best-effort; a slow
+client is disconnected rather than blocking the compositor. Mutation remains
+on the line command plane.
 
 Text `CMD config` also includes diagnostics in this human-readable form:
 
@@ -202,6 +232,21 @@ Hooks are fire-and-forget and run concurrently. They are not ordered, and a hook
 that changes state can cause further events. Commands receive the full privileges
 of the session user.
 
+## Event rules
+
+`event-rule` is a filtered hook. It uses the same boolean/POSIX-regex expression
+language as window rules and additionally exposes `event`, `ws`, and `id`:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "workspace 2"
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+The first clause is the event name (or `event=`), `match`/`expr` is optional,
+and `run`/`command` is required. Matching rules execute in config order before
+unconditional `hook` entries and receive the same `TESSA_*` environment.
+`tessa-ctl config` shows `event_rule_count` and each parsed rule.
+
 ## Status entries
 
 A process can publish a small text entry in the bar:
@@ -280,7 +325,8 @@ lines to stderr.
 
 ## Current limits
 
-The command/event protocol is still line-oriented. JSON snapshots are versioned
-with `schema: 1`, but the command plane has no version negotiation or JSON-RPC
-request ids yet. There is no extension ordering or sandbox, and fire-and-forget
-commands have no acknowledgement. Status entries are text-only.
+JSON snapshots are versioned with `schema: 1`. JSON-RPC provides read methods,
+request ids, capability negotiation, and JSON event subscriptions, but mutation
+still uses the line command plane. There is no extension ordering or sandbox,
+and fire-and-forget commands have no acknowledgement. Status entries are
+text-only. The layout helper remains synchronous and shared across outputs.

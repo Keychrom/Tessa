@@ -7,6 +7,7 @@ const tablet = @import("tablet.zig");
 const constraints = @import("constraints.zig");
 const xim = @import("xim.zig");
 const effects = @import("effects.zig");
+const modes = @import("modes.zig");
 
 const Server = types.Server;
 
@@ -115,6 +116,7 @@ pub fn cleanupGlobals(server: *Server) void {
     constraints.cleanup(server);
     effects.cleanup(server);
     xim.cleanup(server);
+    modes.cleanup(server);
 
     if (server.sigint) |src| {
         _ = c.wl_event_source_remove(src);

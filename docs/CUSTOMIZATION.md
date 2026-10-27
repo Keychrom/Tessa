@@ -27,6 +27,8 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=Picture-in-Picture; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 Match clauses:
@@ -36,6 +38,12 @@ Match clauses:
 | `app-id`, `app_id`, `class` | xdg application id |
 | `title` | window title |
 | `output`, `monitor` | output name |
+| `match`, `expr` | boolean expression using POSIX extended regexes |
+
+Expression fields are `app` / `app-id` / `class`, `title`, and `output` /
+`monitor`. Operators are `==`, `!=`, `~`, `!~`, `&&` / `and`, `||` / `or`,
+`!` / `not`, and parentheses. Values may be quoted to include spaces. Simple
+match keys and `match` are combined with AND.
 
 Patterns support shell-style `*` and `?` wildcards and are case-sensitive.
 `*` matches any sequence, including an empty one:
@@ -56,8 +64,12 @@ Action clauses:
 | `size=WxH` | floating size, for example `size=900x600` |
 | `width=N`, `height=N` | floating size, one axis at a time |
 | `position=X,Y` | floating position |
+| `border-active=#RRGGBB` | per-window focused border |
+| `border-inactive=#RRGGBB` | per-window unfocused border |
 
 `size` and `position` imply floating unless the same rule says `float=false`.
+Invalid expressions or regular expressions are config errors with file/line
+diagnostics. Border overrides are also used by close snapshots.
 Rules are evaluated in file order; a later matching rule can override an earlier
 one. They run when a window maps and are re-evaluated for existing windows on
 `Super+R` / `tessa-ctl dispatch reload`. A title change after mapping does not
@@ -115,10 +127,32 @@ output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 | `master-ratio=0.15..0.9`, `master-count=1..8` | master tuning |
 | `mosaic-ratio=0.25..0.85`, `mosaic-min-size=N` | mosaic tuning |
 | `grid-columns=0..8` | fixed grid columns; `0` is automatic |
+| `profile=NAME` | apply a named tuning profile first |
+
+Output rules also accept theme keys: `accent`, `bg`, `border-active`,
+`border-inactive`, `panel-bg`, `panel-fg`, `bg-top`, `bg-bottom`, `bar-height`,
+`bar-top-margin`, and `bar-side-margin`. The panel applies the rule matching its
+own output, so per-monitor colors and dimensions stay in sync. Use hyphens or
+underscores; both are accepted.
 
 Rules are applied in file order. Precedence is global defaults < output rule
 (all workspaces) < `workspace-rule` < output rule with `ws=`. A runtime layout
 choice still wins over the seed and is persisted.
+
+Named profiles group layout/tuning values:
+
+```ini
+profile = compact; gaps=0; outer-gaps=0; master-ratio=0.5; master-count=2
+profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
+output-rule = output=DP-1; profile=compact; gaps=4
+workspace-rule = ws=2; profile=grid3
+```
+
+Profiles may be declared before or after the rules that reference them.
+Explicit rule keys override profile values. Profiles cover layout/spacing, not
+theme colors. Unknown profile references reject the reload. Workspace profiles
+support `layout`, `gaps`, `outer-gaps`, `master-ratio`, `master-count`,
+`mosaic-ratio`, `mosaic-min-size`, and `grid-columns`.
 
 The `Super+Ctrl+H/L` ratio binding adjusts the active output/workspace ratio
 for the current session; config reload restores configured ratio values.
@@ -224,6 +258,48 @@ compositor. `tessa-ctl mode <name>` switches from a script, and the active mode
 is exposed as `MODE <name>` in `tessa-ctl state`, `"mode"` in state JSON,
 `"modes"` in config JSON, and the `mode-change` event.
 
+Leader keys and per-mode timeouts extend named modes:
+
+```ini
+leader = SUPER+SPACE
+leader_timeout = 1000
+
+mode = leader
+bind = f spawn firefox
+bind = t spawn kitty
+bind = Escape enter-mode default
+
+mode = resize
+mode_timeout = 300
+bind = h resize-width -30
+bind = l resize-width 30
+```
+
+Press the leader in the default mode to enter `leader`; a matching binding runs
+one action and returns to default unless it enters another mode. Pressing the
+leader again, `Escape`, or `leader_timeout` exits. `leader_timeout = 0` keeps
+leader mode active. `mode_timeout` applies to the mode section it appears in and
+returns to `default`; `0` disables it.
+
+## Event rules
+
+Event rules filter lifecycle events with the same expression language and run a
+shell command:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "Opened on 2"
+event-rule = window-open; match=id ~ "^[0-9]+$" && title == "Mail"; run=touch ~/.local/state/mail
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+The first clause is the event name (or use `event=`). `match`/`expr` is optional;
+`run`/`command` is required. Expressions additionally expose `event`, `ws`, and
+`id`, compared as strings. Commands receive the hook environment
+(`TESSA_EVENT`, `TESSA_WINDOW_ID`, `TESSA_WORKSPACE`, `TESSA_TITLE`,
+`TESSA_OUTPUT`, `TESSA_ARG`, ...). Matching event rules run in config order
+before `hook` commands. Like hooks, they run through `/bin/sh -c` with the
+session user's privileges.
+
 ## Validation and JSON
 
 Configuration is parsed with file and line tracking. Unknown keys, invalid
@@ -248,8 +324,21 @@ tessa-ctl config --json
 
 State JSON contains `schema: 1`, outputs, occupancy, focused id, statuses, and
 window geometry. Config JSON contains scalar settings, per-workspace layouts and
-tuning, rules, hooks, and diagnostics. The full wire format is in
-[EXTENDING.md](EXTENDING.md).
+tuning, rules, hooks, event rules, profiles, theme roles, and diagnostics. The
+full wire format is in [EXTENDING.md](EXTENDING.md).
+
+The same socket supports JSON-RPC 2.0 for read access and event subscriptions:
+
+```sh
+tessa-ctl rpc '{"jsonrpc":"2.0","id":1,"method":"hello"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":7,"method":"state"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
+```
+
+`hello` negotiates capabilities (`state`, `config`, `events`, `subscriptions`,
+`request-ids`, protocol version 1). `subscribe` streams lifecycle events as JSON
+notifications with the request id in `params.subscription`. Mutation still uses
+the line commands.
 
 ## Input, gestures, and XIM
 
@@ -320,8 +409,11 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `bg_bottom` | bottom color of the wallpaper gradient; unset derives it from `bg` |
 | `wallpaper_art` | draw the decorative wallpaper art (default `true`) |
 | `animations` | animate window open, close, and workspace transitions (default `true`) |
-| `animation_ms` | motion duration in milliseconds, 0–1000 (default 160) |
-| `reduce_motion` | disable motion regardless of `animations` (default `false`) |
+| `animation_ms` | default motion duration in milliseconds, 0–1000 (default 160) |
+| `animation_open_ms`, `animation_workspace_ms`, `animation_close_ms` | per-kind duration; `-1` inherits (default `-1`) |
+| `reduce_motion` | disable movement animations (default `false`) |
+| `reduce_motion_animations` | `none` or `fade` for a close-only fade (default `none`) |
+| `reduce_motion_fade_ms` | reduced-motion close fade duration (default `120`) |
 | `shadows` | draw layered window drop shadows (default `true`) |
 | `corner_radius` | rounded window radius in logical pixels, 0–64 (default `10`; scenefx builds) |
 | `blur` | backdrop blur for translucent clients and shell layers (default `true`; scenefx builds) |
@@ -343,16 +435,35 @@ the bar layer surface, so the reserved area follows immediately. `bg_top`,
 `bg_bottom`, and `wallpaper_art` repaint the panel background without a restart.
 A separately installed theme file is still planned.
 
+Semantic roles are available for colors shared by the compositor and panel:
+
+```ini
+theme-role = accent = #e2684f
+theme-role = window.border.active = #8fd3ff
+theme-role = window.border.inactive = #243040
+theme-role = window.background = #0a0f1a
+theme-role = panel.background = #0e1320
+theme-role = panel.foreground = #eef2f8
+theme-role = wallpaper.top = #162038
+theme-role = wallpaper.bottom = #070a12
+```
+
+Roles are applied after direct keys and override them; a matching per-output
+theme rule still wins for that output. The panel reads the same roles.
+
 ## Motion, shadows, and wallpaper
 
 Windows slide in from a small vertical offset when mapped, and workspace
 switches slide the incoming workspace horizontally. Both use a cubic ease-out
-over `animation_ms`. A window closed through the compositor (a key binding, bar
-chip, IPC, or another client) captures its surface and scales/fades that
-snapshot with a smoothstep over the same duration. A client that closes itself
-disappears immediately because its buffer is already gone. `reduce_motion =
-true` disables all such motion while leaving other settings intact;
-`animation_ms = 0` and `animations = false` do the same. Popover animation is
+over their per-kind duration (`animation_open_ms` / `animation_workspace_ms`,
+falling back to `animation_ms`). A window closed through the compositor (a key
+binding, bar chip, IPC, or another client) captures its surface and scales/fades
+that snapshot with a smoothstep over `animation_close_ms`. A client that closes
+itself disappears immediately because its buffer is already gone.
+`reduce_motion = true` disables open/workspace movement while leaving other
+settings intact; `animation_ms = 0` and `animations = false` disable everything.
+With reduced motion, `reduce_motion_animations = fade` keeps only a close fade
+without scale or slide, and `none` disables close effects. Popover animation is
 controlled separately by the panel.
 
 Shadows are three translucent scene rectangles behind each client frame. They
@@ -607,19 +718,16 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 
 ## Planned customization work
 
-- Per-output layout/gap rules (per-workspace rules are available now).
 - Per-output helper instances, asynchronous/incremental updates, and protocol
   version negotiation (the current helper is one process with a bounded
   request/response per arrangement).
-- Regex/boolean window-rule expressions and per-rule border/background colors.
-- Keybinding sequences and leader keys (named input modes are available now).
-- Config-defined event-to-action rules and per-output theme roles.
-- Configurable animations and shader/effect hooks for window movement,
-  workspace changes, borders, and the shell.
+- Shader/effect hooks for window movement, workspace changes, borders, and the
+  shell.
 - Interactive config editor/check with diff preview, built on the existing
   diagnostics and JSON snapshots.
-- More shell theming: font/palette roles per surface, wallpaper art, and
-  replaceable shell surfaces (bar size/margins are configurable now).
+- More shell theming: font/palette roles per surface and replaceable shell
+  surfaces (bar size/margins, per-output colors, and theme roles are available
+  now).
 
 The roadmap is in [ROADMAP.md](ROADMAP.md). A TypeScript/TSX configuration
 runtime remains a non-goal; Tessa's answer to ShojiWM-style composition is a

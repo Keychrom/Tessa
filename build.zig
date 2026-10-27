@@ -22,6 +22,10 @@ pub fn build(b: *std.Build) void {
     server_mod.addIncludePath(b.path("protocol"));
     server_mod.addIncludePath(b.path("src"));
     server_mod.addOptions("build_options", build_options);
+    server_mod.addCSourceFile(.{
+        .file = b.path("src/regex_shim.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
 
     const server = b.addExecutable(.{
         .name = "tessa",

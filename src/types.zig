@@ -11,6 +11,12 @@ pub const MAX_BINDINGS = 192;
 pub const MAX_MODES = 8;
 pub const MAX_MODE_NAME = 32;
 pub const MAX_HOOKS = 32;
+pub const MAX_EVENT_RULES = 64;
+pub const MAX_THEME_ROLES = 16;
+pub const MAX_PROFILES = 32;
+pub const MAX_WORKSPACE_RULES = 64;
+
+pub const ReducedMotionAnimations = enum { none, fade };
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
 pub const MAX_OUTPUT_RULES = 64;
@@ -151,7 +157,13 @@ pub const WindowRule = struct {
     title_len: usize = 0,
     output: [64]u8 = [_]u8{0} ** 64,
     output_len: usize = 0,
+    expr: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    expr_len: usize = 0,
     workspace: usize = 0,
+    has_border_active: bool = false,
+    border_active_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_border_inactive: bool = false,
+    border_inactive_rgb: [3]f32 = .{ 0, 0, 0 },
     floating: RuleBool = .unset,
     fullscreen: RuleBool = .unset,
     has_size: bool = false,
@@ -162,11 +174,45 @@ pub const WindowRule = struct {
     y: i32 = 0,
 };
 
+pub const LayoutTuning = struct {
+    has_layout: bool = false,
+    layout: LayoutMode = .master,
+    has_gaps: bool = false,
+    gaps: i32 = 0,
+    has_outer_gaps: bool = false,
+    outer_gaps: i32 = 0,
+    has_master_ratio: bool = false,
+    master_ratio: f32 = 0,
+    has_master_count: bool = false,
+    master_count: usize = 0,
+    has_mosaic_ratio: bool = false,
+    mosaic_ratio: f32 = 0,
+    has_mosaic_min_size: bool = false,
+    mosaic_min_size: i32 = 0,
+    has_grid_columns: bool = false,
+    grid_columns: usize = 0,
+};
+
+pub const Profile = struct {
+    name: [32]u8 = [_]u8{0} ** 32,
+    name_len: usize = 0,
+    tuning: LayoutTuning = .{},
+};
+
+pub const WorkspaceRule = struct {
+    ws: u8 = 0,
+    profile: [32]u8 = [_]u8{0} ** 32,
+    profile_len: usize = 0,
+    tuning: LayoutTuning = .{},
+};
+
 pub const OutputRule = struct {
     raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
     raw_len: usize = 0,
     output: [64]u8 = [_]u8{0} ** 64,
     output_len: usize = 0,
+    profile: [32]u8 = [_]u8{0} ** 32,
+    profile_len: usize = 0,
     ws: u8 = 0,
     has_gaps: bool = false,
     gaps: i32 = 0,
@@ -184,6 +230,28 @@ pub const OutputRule = struct {
     grid_columns: usize = 0,
     has_layout: bool = false,
     layout: LayoutMode = .master,
+    has_accent: bool = false,
+    accent_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_bg: bool = false,
+    bg_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_border_active: bool = false,
+    border_active_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_border_inactive: bool = false,
+    border_inactive_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_panel_bg: bool = false,
+    panel_bg_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_panel_fg: bool = false,
+    panel_fg_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_bg_top: bool = false,
+    bg_top_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_bg_bottom: bool = false,
+    bg_bottom_rgb: [3]f32 = .{ 0, 0, 0 },
+    has_bar_height: bool = false,
+    bar_height: i32 = 0,
+    has_bar_top_margin: bool = false,
+    bar_top_margin: i32 = 0,
+    has_bar_side_margin: bool = false,
+    bar_side_margin: i32 = 0,
 };
 
 pub const Hook = struct {
@@ -191,6 +259,23 @@ pub const Hook = struct {
     event_len: usize,
     command: [MAX_COMMAND]u8,
     command_len: usize,
+};
+
+pub const EventRule = struct {
+    event: [32]u8 = [_]u8{0} ** 32,
+    event_len: usize = 0,
+    expr: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    expr_len: usize = 0,
+    command: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    command_len: usize = 0,
+};
+
+pub const ThemeRole = struct {
+    name: [32]u8 = [_]u8{0} ** 32,
+    name_len: usize = 0,
+    color: [16]u8 = [_]u8{0} ** 16,
+    color_len: usize = 0,
+    rgb: [3]f32 = .{ 0, 0, 0 },
 };
 
 pub const StatusEntry = struct {
@@ -222,6 +307,14 @@ pub const Config = struct {
     ws_gaps_set: [WS_COUNT]bool,
     ws_outer_set: [WS_COUNT]bool,
     ws_ratio_set: [WS_COUNT]bool,
+    ws_master_count: [WS_COUNT]usize,
+    ws_master_count_set: [WS_COUNT]bool,
+    ws_mosaic_ratio: [WS_COUNT]f32,
+    ws_mosaic_ratio_set: [WS_COUNT]bool,
+    ws_mosaic_min_size: [WS_COUNT]i32,
+    ws_mosaic_min_size_set: [WS_COUNT]bool,
+    ws_grid_columns: [WS_COUNT]usize,
+    ws_grid_columns_set: [WS_COUNT]bool,
     layout_mode: LayoutMode,
     layout_by_ws: [WS_COUNT]LayoutMode,
     layout_overrides: [WS_COUNT]bool,
@@ -229,7 +322,12 @@ pub const Config = struct {
     workspace_pin_count: usize,
     animations: bool,
     reduce_motion: bool,
+    reduce_motion_animations: ReducedMotionAnimations,
+    reduce_motion_fade_ms: i32,
     animation_ms: i32,
+    animation_open_ms: i32,
+    animation_workspace_ms: i32,
+    animation_close_ms: i32,
     shadows: bool,
     corner_radius: i32,
     blur: bool,
@@ -283,8 +381,21 @@ pub const Config = struct {
     mode_count: usize,
     bindings: [MAX_BINDINGS]Binding,
     binding_count: usize,
+    leader_mods: u32,
+    leader_sym: u32,
+    leader_set: bool,
+    leader_timeout: i32,
+    mode_timeouts: [MAX_MODES]i32,
     hooks: [MAX_HOOKS]Hook,
     hook_count: usize,
+    event_rules: [MAX_EVENT_RULES]EventRule,
+    event_rule_count: usize,
+    theme_roles: [MAX_THEME_ROLES]ThemeRole,
+    theme_role_count: usize,
+    profiles: [MAX_PROFILES]Profile,
+    profile_count: usize,
+    workspace_rules: [MAX_WORKSPACE_RULES]WorkspaceRule,
+    workspace_rule_count: usize,
     rules: [MAX_RULES]WindowRule,
     rule_count: usize,
     output_rules: [MAX_OUTPUT_RULES]OutputRule,
@@ -299,6 +410,10 @@ pub const Output = struct {
     usable: c.wlr_box,
     full: c.wlr_box,
     bg_rect: *c.wlr_scene_rect,
+    theme_bg: [4]f32,
+    theme_accent: ?[4]f32,
+    theme_border_active: ?[4]f32,
+    theme_border_inactive: ?[4]f32,
     active_ws: usize,
     ws_layouts: [WS_COUNT]LayoutMode,
     layout_overridden: [WS_COUNT]bool,
@@ -343,6 +458,8 @@ pub const Client = struct {
     close_snapshot_transform: c.wl_output_transform,
     close_snapshot_w: i32,
     close_snapshot_h: i32,
+    border_active_override: ?[4]f32,
+    border_inactive_override: ?[4]f32,
 
     x: i32,
     y: i32,
@@ -444,6 +561,9 @@ pub const IpcClient = struct {
     alive: bool,
     wants_state: bool,
     wants_events: bool,
+    json_events: bool,
+    rpc_subscription: [128]u8,
+    rpc_subscription_len: usize,
 };
 
 pub const Popup = struct {
@@ -527,6 +647,7 @@ pub const CloseEffect = struct {
     content_h: f64,
     start_ms: i64,
     ms: i32,
+    fade_only: bool,
     border_color: [4]f32,
     shadow_color: [4]f32,
 };
@@ -652,6 +773,8 @@ pub const Server = struct {
     active_mode: u8,
     active_mode_name: [MAX_MODE_NAME]u8,
     active_mode_name_len: usize,
+    mode_timer: ?*c.wl_event_source,
+    mode_timeout_ms: i32,
     config_issues: [MAX_CONFIG_ISSUES]ConfigIssue,
     config_issue_count: usize,
     config_error_count: usize,

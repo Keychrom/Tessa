@@ -337,8 +337,10 @@ tessa-ctl dispatch reload        # Super+R と同じ
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
 | `workspace-rule` | — | ワークスペース別のレイアウト／間隔ルール |
-| `output-rule` | — | 出力別（任意でワークスペース別）のレイアウト／間隔ルール |
+| `output-rule` | — | 出力別（任意でワークスペース別）のレイアウト／間隔／テーマルール |
+| `profile` | — | 出力／ワークスペースルールから参照する名前付きプロファイル |
 | `window-rule` | — | ウィンドウのマッチルール |
+| `theme-role` | — | アクセント、ボーダー、壁紙、パネル用の意味論的カラー |
 | `mode` | `default` | 以降の `bind` を入れる名前付き入力モード |
 | `bind` | — | キーバインドを追加・上書き |
 | `include` | — | 別設定ファイルの読み込み |
@@ -356,8 +358,13 @@ tessa-ctl dispatch reload        # Super+R と同じ
 | `border_inactive` | `#293347` | 非フォーカスボーダー |
 | `font` | `Inter` | パネルの UI フォント |
 | `animations` | `true` | ウィンドウ開閉・ワークスペース遷移を有効化 |
-| `reduce_motion` | `false` | `animations` に関係なく動きを止める |
-| `animation_ms` | `160` | アニメーション時間（0〜1000 ms） |
+| `reduce_motion` | `false` | 移動アニメーションを止める |
+| `reduce_motion_animations` | `none` | `none`、または閉じるフェードのみの `fade` |
+| `reduce_motion_fade_ms` | `120` | 視差効果低減フェードの時間 |
+| `animation_ms` | `160` | 既定のアニメーション時間（0〜1000 ms） |
+| `animation_open_ms` | 継承 | 開くアニメーション時間（`-1` で継承） |
+| `animation_workspace_ms` | 継承 | ワークスペース遷移の時間（`-1` で継承） |
+| `animation_close_ms` | 継承 | 閉じるエフェクトの時間（`-1` で継承） |
 | `shadows` | `true` | ウィンドウの多層シャドウ |
 | `corner_radius` | `10` | 角丸半径（0〜64。scenefx ビルドのみ有効） |
 | `blur` | `true` | 半透明サーフェスの背景ブラー（scenefx ビルドのみ） |
@@ -402,6 +409,9 @@ tessa-ctl dispatch reload        # Super+R と同じ
 | `kb_rules` | 空 | XKB ルール |
 | `repeat_rate` | `25` | キーリピート速度 |
 | `repeat_delay` | `600` | リピート開始までの ms |
+| `leader` | 未指定 | `SUPER+SPACE` などのリーダーキーコード |
+| `leader_timeout` | `1000` | リーダーモードのタイムアウト（ms）。`0` で無期限 |
+| `mode_timeout` | `0` | 現在の名前付きモードのタイムアウト（ms） |
 | `gestures` | `true` | タッチパッドジェスチャ |
 | `gesture_fingers` | `3` | ワークスペース／ランチャー用の指の本数（2〜5） |
 | `gesture_workspace_threshold` | `400` | 横スワイプの閾値（20〜1000） |
@@ -428,6 +438,7 @@ tessa-ctl dispatch reload        # Super+R と同じ
 | --- | --- |
 | `startup` | 起動時に 1 回実行するコマンド |
 | `hook` | `<event> <command>` 形式のイベントフック。複数可 |
+| `event-rule` | 条件付きイベント→コマンドルール。8.7 節参照 |
 | `include` | 設定の分割 |
 
 利用可能なイベントは「13. 拡張 API」の表を参照してください。
@@ -523,14 +534,25 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 - `ws=1..9`: 必須
 - `layout=...`
 - `gaps=N`、`outer-gaps=N`
-- `master-ratio=0.15..0.9`
+- `master-ratio=0.15..0.9`、`master-count=1..8`
+- `mosaic-ratio=0.25..0.85`、`mosaic-min-size=80..600`
+- `grid-columns=0..8`
+- `profile=NAME`: 名前付きプロファイルを適用
 
 ### 8.3 `output-rule`
 
 ```ini
 output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+output-rule = output=HDMI-A-1; profile=compact; gaps=4
+output-rule = output=HEADLESS-*; accent=#8fd3ff; bg=#0c1118
+output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
+output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
+output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
+output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
 ```
+
+レイアウト／チューニング:
 
 - `output=` / `monitor=`: 必須。`*` と `?` が使える
 - `ws=1..9`: 省略時は全ワークスペース
@@ -539,6 +561,35 @@ output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 - `master-ratio=0.15..0.9`、`master-count=1..8`
 - `mosaic-ratio=0.25..0.85`、`mosaic-min-size=80..600`
 - `grid-columns=0..8`
+- `profile=NAME`: 明示キーの前に名前付きプロファイルを適用
+
+テーマ（全ワークスペースのみ）:
+
+- `accent=#RRGGBB`、`bg=#RRGGBB`
+- `border-active=#RRGGBB`、`border-inactive=#RRGGBB`
+- `panel-bg=#RRGGBB`、`panel-fg=#RRGGBB`
+- `bg-top=#RRGGBB`、`bg-bottom=#RRGGBB`
+- `bar-height=32..96`、`bar-top-margin=0..64`、`bar-side-margin=0..128`
+
+コンポジタが出力の背景とボーダー色を適用し、パネルも同じ出力向けルールを
+読み直すため、バーの高さ、マージン、壁紙、パネル色が一致します。`ws=` を
+指定したルールではテーマ項目を無視します。
+
+#### 名前付きプロファイル
+
+```ini
+profile = compact; gaps=0; outer-gaps=0; master-ratio=0.5; master-count=2
+profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
+output-rule = output=DP-1; profile=compact; gaps=4
+workspace-rule = ws=2; profile=grid3
+```
+
+プロファイルは参照するルールの前後どちらでも宣言できます。ルール内の明示
+キーがプロファイルより優先されます。プロファイルはレイアウトと間隔のみを
+扱い、テーマは `output-rule` に直接書きます。存在しないプロファイルを参照
+すると設定エラーになり、リロードは拒否されます。ワークスペース側では
+`layout`、`gaps`、`outer-gaps`、`master-ratio`、`master-count`、
+`mosaic-ratio`、`mosaic-min-size`、`grid-columns` を指定できます。
 
 優先順位:
 
@@ -560,6 +611,9 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=*Picture-in-Picture*; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = app-id=org.example.*; fullscreen=true
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = match=(class == "foot" || class == "Alacritty") && output ~ "^DP-"; float=true
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 マッチ:
@@ -569,6 +623,12 @@ window-rule = app-id=org.example.*; fullscreen=true
 | `app-id`、`app_id`、`class` | xdg app-id |
 | `title` | タイトル |
 | `output`、`monitor` | 出力名 |
+| `match`、`expr` | POSIX ERE 正規表現を使う真偽値式 |
+
+式のフィールドは `app` / `app-id` / `class`、`title`、`output` /
+`monitor` です。演算子は `==`、`!=`、`~`（正規表現一致）、`!~`（不一致）、
+`&&` / `and`、`||` / `or`、`!` / `not`、括弧です。空白を含む値は引用符で
+囲めます。正規表現は POSIX 拡張構文で、大文字小文字を区別します。
 
 アクション:
 
@@ -581,10 +641,15 @@ window-rule = app-id=org.example.*; fullscreen=true
 | `size=WxH` | フローティングサイズ |
 | `width=N`、`height=N` | 片軸のみ |
 | `position=X,Y` | フローティング位置 |
+| `border-active=#RRGGBB` | ウィンドウ別フォーカスボーダー |
+| `border-inactive=#RRGGBB` | ウィンドウ別非フォーカスボーダー |
 
-パターンは `*`／`?`、大文字小文字は区別されます。ルールはファイル順で、
-後のルールが優先されます。マップ時と設定リロード時に評価されますが、
-マップ後のタイトル変更だけでは再評価されません。
+パターンは `*`／`?`、大文字小文字は区別されます。単純キーと `match` は
+AND で結合されます。ルールはファイル順で、後のルールが優先され、ボーダー
+色も同じ規則です。不正な式や正規表現はファイル名／行番号付きで報告され、
+リロードは拒否されます。マップ時と設定リロード時に評価されますが、マップ
+後のタイトル変更だけでは再評価されません。ボーダー色は閉じるスナップ
+ショットにも使われます。
 
 ### 8.5 外部レイアウトヘルパー
 
@@ -621,6 +686,27 @@ workspace_pin = HDMI-A-1 3
   移動できます
 - 出力が存在しない間はピンが無視されます
 - 同じワークスペースに複数のピンを書いた場合、後の設定が優先されます
+
+### 8.7 イベントルール
+
+ライフサイクルイベントが式に一致したときコマンドを実行します:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "ワークスペース 2 で起動"
+event-rule = window-open; match=title == "Mail" && id ~ "^[0-9]+$"; run=touch ~/.local/state/mail-opened
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+イベント名は最初の節、または `event=<name>` で指定します。`match` / `expr`
+は省略可能で、省略時はそのイベントの全発生で実行します。`run` / `command`
+は必須です。ウィンドウルールと同じ真偽値・正規表現構文を使い、追加で
+`event`、`ws`、`id` を参照できます。数値も文字列として比較します
+（`ws == "3"`）。
+
+コマンドには通常のフック環境（`TESSA_EVENT`、`TESSA_WINDOW_ID`、
+`TESSA_WORKSPACE`、`TESSA_TITLE`、`TESSA_OUTPUT`、`TESSA_ARG` など）が
+渡されます。一致したルールは設定順に並び、無条件 `hook` より先に実行され
+ます。フックと同様に `/bin/sh -c` とセッションユーザーの権限で動きます。
 
 ---
 
@@ -692,8 +778,25 @@ panel_fg = #eef2f8
 font = Inter
 ```
 
-テーマファイルによるロールシステムはまだありません。現在のテーマ設定は
-上記の色、ボーダー色、バー寸法、フォントが中心です。
+意味論的テーマロールを使うと、1 つの値をコンポジタとパネルで共有できます:
+
+```ini
+theme-role = accent = #e2684f
+theme-role = window.border.active = #8fd3ff
+theme-role = window.border.inactive = #243040
+theme-role = window.background = #0a0f1a
+theme-role = panel.background = #0e1320
+theme-role = panel.foreground = #eef2f8
+theme-role = wallpaper.top = #162038
+theme-role = wallpaper.bottom = #070a12
+```
+
+対応ロールは `accent`、`window.border.active`、`window.border.inactive`、
+`window.background`、`panel.background`、`panel.foreground`、
+`wallpaper.top`、`wallpaper.bottom` です。ロールは直接キーの後に適用される
+ため、`accent`、`border_active`、`border_inactive`、`bg` と対応するパネル
+キーより優先されます。一致する `output-rule` のテーマは、その出力に限り
+グローバルロールも上書きします。
 
 ### 10.3 ボーダーとシャドウ
 
@@ -711,16 +814,26 @@ shadows = true
 
 ```ini
 animations = true
-reduce_motion = false
 animation_ms = 160
+animation_open_ms = 160
+animation_workspace_ms = 220
+animation_close_ms = 180
+reduce_motion = false
+reduce_motion_animations = fade
+reduce_motion_fade_ms = 120
 ```
 
 - 開く: 縦 18 px から cubic ease-out
 - ワークスペース: 方向に応じて横 ±54 px から cubic ease-out
 - 閉じる: コンポジタ起点の close ではウィンドウバッファを保持し、
-  smoothstep で 92% に縮小しながらフェード
+  移動が有効なら 92% まで縮小しながらフェード
+- 種類別の時間が `animation_ms` を上書きします。`-1` で継承
 - クライアント自身が閉じた場合は unmap 時点でバッファがなくなるため即時
-- `animation_ms` は 0〜1000
+- `reduce_motion = true` は開く／ワークスペースの移動を無効化
+- `reduce_motion_animations = fade` は縮小や移動をせず、閉じるフェードだけを
+  `reduce_motion_fade_ms` の間実行
+- `reduce_motion_animations = none`（既定）は close エフェクトも無効
+- 時間は 0〜1000 ms で、`0` はそのアニメーションを無効化
 
 アニメーションの開始／完了は `animation-start`、`animation-done`、
 `close-animation-start`、`close-animation-done` イベントで取得できます。
@@ -773,7 +886,27 @@ bind = SUPER+SHIFT+r enter-mode resize
 ```
 
 モード内のバインドは修飾キーなしでマッチします。モード固有のバインドが
-グローバルより優先されます。`Enter` などは XKB keysym 名です。
+グローバルより優先されます。`Enter` などは XKB keysym 名です。モード節の
+中で `mode_timeout = 300` を設定すると、一致するキーがないまま 300 ms
+経過した時点で `default` に戻ります。
+
+リーダーキーコードは `leader` モードへ入ります:
+
+```ini
+leader = SUPER+SPACE
+leader_timeout = 1000
+
+mode = leader
+bind = f spawn firefox
+bind = t spawn kitty
+bind = Escape enter-mode default
+```
+
+リーダーは既定モードでのみ認識されます。もう一度リーダーを押す、
+`Escape` にバインドする、または `leader_timeout` 経過で終了します。
+リーダーモードのバインドが一致すると 1 アクション実行後に既定モードへ
+戻ります。アクションが別モードへ入る場合はそのモードを維持します。
+`leader_timeout = 0` は明示的に終了するまで維持します。
 
 ### 11.3 ジェスチャ
 
@@ -972,12 +1105,39 @@ CMD quit
 `id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h`
 です。
 
-### 13.2 JSON
+### 13.2 JSON と JSON-RPC
 
 - `state --json`: `schema: 1`、出力、占有、フォーカス、ステータス、ウィンドウ
 - `config --json`: 実効設定、`layouts`、`workspace_tuning`、`rules`、
-  `output_rules`、`hooks`、`diagnostics`
+  `output_rules`、`hooks`、`event_rules`、`profiles`、`theme_roles`、
+  `diagnostics`
 - 未知の schema は拒否する前提で扱う
+
+同じソケットで、1 行の JSON オブジェクトによる JSON-RPC 2.0 リクエストを
+受け付けます:
+
+```sh
+tessa-ctl rpc '{"jsonrpc":"2.0","id":1,"method":"hello"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":7,"method":"state"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
+```
+
+メソッドは `hello` / `capabilities`、`ping`、`state`、`config`、`subscribe`、
+`unsubscribe` です。応答はリクエストの `id` をそのまま返します。`hello` は
+`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1` と、
+`state`、`config`、`events`、`subscriptions`、`request-ids` の
+ケイパビリティを返します。エラーは標準の JSON-RPC コード
+（`-32700` パースエラー、`-32601` 未知メソッド）を使います。
+
+`subscribe` 後、ライフサイクルイベントは通知として届きます:
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"name":"workspace-change","ws":2,"previous-ws":1,"output":"eDP-1","subscription":"sub-1"}}
+```
+
+既存クライアント向けの行イベントはそのまま残り、JSON-RPC 購読者は同じ
+フィールドを JSON 通知で受け取ります。
 
 ### 13.3 イベント
 
@@ -1257,10 +1417,14 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **ウィンドウ効果はシンプル**。角丸・ブラーは scenefx ビルドのみ。閉じる
   アニメーションはコンポジタ起点の close のみで、クライアント自身の close は
   即時です。
-- **テーマロールシステムは未実装**。現在は色・バー寸法・フォントの直接指定
-  です。
-- **出力別テーマ、per-output layout helper、非同期ヘルパー**は 0.6 以降の
-  項目です。
+- **プロファイルはレイアウト／チューニングのみ**。出力別の色やパネル寸法は
+  `output-rule` のテーマキーを直接使います。
+- **ウィンドウルールはタイトル変更で再評価されません**。次回の設定リロード
+  まで反映されません。
+- **レイアウトヘルパーは同期実行で全出力共有のまま**。出力別インスタンス、
+  非同期/差分更新、ヘルパー v2 メタデータは未実装です。
+- **JSON-RPC は読み取りとイベント購読のみ**。変更操作は行コマンドを使います。
+- **差分プレビュー付きの設定エディタは未実装**です。
 - 出力の `enabled` 状態、通知の出力固定、カスタム通知音などは未対応です。
 
 ---

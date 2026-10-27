@@ -34,21 +34,27 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   比率、マスター列の数、モザイク比率/最小サイズ、グリッド列数も設定可能
   （`Super+T` で巡回）。実行中に選んだレイアウトは再起動後も復元され、
   設定の再読み込みは上書きしていないワークスペースだけを更新
-- app-id/タイトル/出力でマッチする宣言的ウィンドウルール。フローティング、
-  ワークスペース、フルスクリーン、サイズ、位置を指定可能
+- app-id/タイトル/出力、または真偽値と POSIX 正規表現の式でマッチする
+  宣言的ウィンドウルール。フローティング、ワークスペース、フルスクリーン、
+  サイズ、位置、ウィンドウ別ボーダー色を指定可能
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
 - 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
   リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット。
   ワークスペース別・出力別のレイアウト/隙間/マスター設定と、
   アニメーションライフサイクルフック
-- 名前付き入力モードと、モード固有のキーバインド（`enter-mode`）
+- 出力/ワークスペースルールから参照する名前付きレイアウトプロファイルと、
+  出力別の背景・ボーダー・壁紙・パネル寸法テーマルール
+- 式で絞り込めるイベント→コマンドルール（ポリシー自動化）
+- 名前付き入力モードと、モード固有のキーバインド、リーダーキー、
+  `enter-mode`、モードごとのタイムアウト
+- アクセント、ボーダー、壁紙、パネル向けの意味論的テーマロール
 - バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
-- ウィンドウを開く/ワークスペース切り替え時のスライドアニメーションと、
-  閉じる際のスケール/フェードスナップショット（`reduce_motion` と再生時間を
-  設定可能）、レイヤー化したソフトなウィンドウシャドウ、任意で有効にできる
-  scenefx の角丸と背景ブラー（ウィンドウとシェルサーフェス）、壁紙
-  グラデーション色とアート表示のオン/オフ設定
+- ウィンドウを開く/ワークスペース切り替え時のスライドアニメーション
+  （種類別の再生時間）、閉じる際のスケール/フェードスナップショット、
+  視差効果低減時のフェード、レイヤー化したソフトなウィンドウシャドウ、
+  任意で有効にできる scenefx の角丸と背景ブラー（ウィンドウとシェル
+  サーフェス）、壁紙グラデーション色とアート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -56,8 +62,10 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   による出力管理、設定の永続化、`wp_fractional_scale_v1` による
   フラクショナルな Wayland スケーリング、整数倍の HiDPI パネルバッファ
   スケーリングに対応
-- 外部プロセス向け拡張 API: イベント購読、設定フック、バーへのカスタム
-  ステータス、ランチャー項目、自動化クライアント `tessa-ctl`
+- 外部プロセス向け拡張 API: 行イベント、リクエスト ID とケイパビリティを
+  持つ JSON-RPC、JSON イベント通知、設定フックとイベントルール、
+  バーへのカスタムステータス、ランチャー項目、自動化クライアント
+  `tessa-ctl`
 - ゲームやポインタルック向けの `relative-pointer-v1`
 - スクリプトからのポインタ操作と headless テスト向けの
   `wlr-virtual-pointer-v1`
@@ -126,8 +134,10 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/effects.sh`、`tests/input.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
-`tests/output-rules.sh`、`tests/interaction.sh`、`tests/popups.sh`、
-`tests/portal.sh` で
+`tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
+`tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
+`tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
+`tests/popups.sh`、`tests/portal.sh` で
 検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
@@ -567,8 +577,11 @@ cp config/config.example ~/.config/tessa/config
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
-| `workspace-rule` | ワークスペース別のレイアウト/隙間/マスター上書き |
-| `output-rule` | 出力別（任意でワークスペース別）のレイアウト/隙間/マスター上書き |
+| `workspace-rule` | ワークスペース別のレイアウト/隙間/マスター上書きとプロファイル |
+| `output-rule` | 出力別のレイアウト/チューニング/テーマ上書き |
+| `profile` | ルールから参照する名前付きレイアウト/チューニングプロファイル |
+| `event-rule` | 条件付きイベント→コマンドルール |
+| `theme-role` | コンポジタとパネルで共有する意味論的カラー |
 | `workspace_pin` | ワークスペースを出力に固定: `workspace_pin = eDP-1 3`（繰り返し可） |
 | `corner_radius` | ウィンドウの角丸半径（0〜64。scenefx ビルド） |
 | `blur` | 半透明サーフェスの背景ブラー（scenefx ビルド） |
@@ -617,6 +630,9 @@ cp config/config.example ~/.config/tessa/config
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |
 | `workspace-rule` | ワークスペース別のレイアウト、隙間、マスター比率 |
 | `mode` | 後続の `bind` が属する名前付き入力モードを開始 |
+| `leader` | `leader` モードへ入るリーダーキーコード |
+| `leader_timeout` | リーダーモードのタイムアウト（ミリ秒） |
+| `mode_timeout` | 現在の名前付きモードのタイムアウト（ミリ秒） |
 
 追加のバインドには XKB keysym 名を使います:
 
@@ -650,6 +666,8 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=Picture-in-Picture; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 ルールはウィンドウのマップ時と設定再読み込み時に評価されます。
@@ -797,7 +815,8 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   scenefx の GLES2 レンダラーを使うため、pixman のソフトウェア
   レンダリングは利用できません。ブラーは半透明のクライアントとシェル
   レイヤーでのみ見えます。動きを止めるには `animations = false` または
-  `reduce_motion = true` を設定します。
+  `reduce_motion = true` を設定します。`reduce_motion_animations = fade`
+  なら閉じる際のフェードだけを残せます。
 - **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
   使います。MPRIS は最初に見つかったプレイヤーを操作し、アルバムアートは
@@ -831,9 +850,12 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **XWayland には `xwayland-satellite` が必要。** Tessa には同梱されません。
   ない場合、X11 アプリは起動しません。Wayland クライアントには影響しません。
 - **拡張は信頼されたローカルプロセス。** セッションユーザーの全権限で動き、
-  サンドボックスはありません。状態/設定スナップショットはバージョン付き JSON
-  ですが、コマンド/イベントは引き続き行ベースで、JSON-RPC のリクエスト/
-  バージョン交渉は未対応です。ステータスは短い文字列 8 件までです。
+  サンドボックスはありません。状態/設定スナップショットはバージョン付き
+  JSON で、JSON-RPC の読み取りメソッドと JSON イベント購読も利用できますが、
+  変更操作は引き続き行コマンドを使います。ステータスは短い文字列 8 件までです。
+- **レイアウトヘルパーは同期実行で全出力共有のまま。** 出力別インスタンス、
+  非同期/差分更新、ヘルパー v2 メタデータ、差分プレビュー付き設定エディタは
+  今後の予定です。
 - layer-shell とキーボードフォーカスは wlroots 0.19 の unstable API を
   使っています。パッケージング時は wlroots のバージョンを固定してください。
 - ランチャーは `.desktop` ファイルを走査します。インストールされている

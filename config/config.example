@@ -32,19 +32,34 @@ layout = master
 # grid_columns = 0
 
 # Declarative window rules. Match app-id, title, and/or output; values support
-# shell-style * and ? patterns. Actions are separated by semicolons.
+# shell-style * and ? patterns. `match`/`expr` adds boolean POSIX-regex
+# expressions (==, !=, ~, !~, &&/and, ||/or, !, parentheses).
 # window-rule = app-id=pavucontrol; float=true
 # window-rule = title=Picture-in-Picture; float=true; position=40,40
 # window-rule = app-id=firefox; workspace=2
 # window-rule = title=GIMP*; float=false
+# window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+# Per-window decoration colors are also used by close snapshots.
+# window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 
 # Per-workspace layout/spacing overrides. Runtime layout choices still win over
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
 # workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 
-# Per-output tuning. Add ws= to apply a rule to one workspace on that output.
+# Named layout/tuning profiles, referenced by output/workspace rules. Explicit
+# keys in the rule override profile values.
+# profile = compact; gaps=0; outer-gaps=0; master-ratio=0.5; master-count=2
+# profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
+# workspace-rule = ws=2; profile=grid3
+
+# Per-output tuning. Add ws= to apply a layout rule to one workspace on that
+# output. Theme keys apply to all workspaces and are re-read by the panel.
 # output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 # output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+# output-rule = output=HDMI-A-1; profile=compact; gaps=4
+# output-rule = output=HDMI-A-1; accent=#8fd3ff; bg=#0c1118
+# output-rule = output=HDMI-A-1; border-active=#8fd3ff; border-inactive=#243040
+# output-rule = output=HDMI-A-1; panel-bg=#111827; bar-height=52; bar-top-margin=8
 
 # External custom tiling. The helper is a long-lived process; it receives
 # tab-separated LAYOUT/AREA/WINDOW/END requests and returns RECT/END responses.
@@ -53,11 +68,17 @@ layout = master
 # layout_helper = python3 ~/.config/tessa/layout.py
 # layout_helper_timeout = 100
 
-# Window motion. Open and workspace switches slide into place; set
-# reduce_motion = true or animations = false for an immediate layout.
+# Window motion. Open and workspace switches slide into place. Per-kind
+# durations override animation_ms; -1 inherits it. reduce_motion disables
+# movement, while reduce_motion_animations=fade keeps only a close fade.
 animations = true
-reduce_motion = false
 animation_ms = 160
+# animation_open_ms = 160
+# animation_workspace_ms = 220
+# animation_close_ms = 180
+reduce_motion = false
+reduce_motion_animations = none
+reduce_motion_fade_ms = 120
 # Soft stacked shadows behind tiled and floating windows.
 shadows = true
 # Rounded corners and backdrop blur require -Dscenefx=true; otherwise these
@@ -148,12 +169,28 @@ bg = #0a0f1a
 # border_inactive = #293347
 font = Inter
 
+# Semantic theme roles shared by the compositor and panel. Roles are applied
+# after direct keys, so they win over accent/border/bg/panel values above.
+# A matching output-rule theme still wins for that output.
+# theme-role = accent = #e2684f
+# theme-role = window.border.active = #8fd3ff
+# theme-role = window.border.inactive = #243040
+# theme-role = window.background = #0a0f1a
+# theme-role = panel.background = #0e1320
+# theme-role = panel.foreground = #eef2f8
+# theme-role = wallpaper.top = #162038
+# theme-role = wallpaper.bottom = #070a12
+
 # Run commands at startup, or react to compositor events.
 # Hooks receive TESSA_EVENT plus TESSA_WINDOW_ID, TESSA_WORKSPACE,
 # TESSA_OUTPUT, TESSA_APP_ID, TESSA_TITLE, and related variables.
 # startup = fcitx5 -d
 # hook = window-open notify-send "Window opened" "$TESSA_TITLE"
 # hook = workspace-change ~/.config/tessa/workspace.sh
+# Event rules filter events with the same expressions as window rules and run
+# before unconditional hooks. Extra fields: event, ws, id (compared as strings).
+# event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "workspace 2"
+# event-rule = workspace-change; match=ws == "3"; run=~/.config/tessa/on-workspace-3
 
 # Extra launcher entries (panel-side; included files also work).
 # launcher_entry = Notes | foot -e nvim ~/notes.md
@@ -178,8 +215,17 @@ font = Inter
 # bind = SUPER+shift+e quit
 
 # Named input modes. In a mode, bindings match without Super. Add
-# `mode = default` before returning to the global keymap.
+# `mode = default` before returning to the global keymap. mode_timeout returns
+# to default after inactivity. leader enters the "leader" mode; a matching
+# binding runs one action and returns to default.
+# leader = SUPER+SPACE
+# leader_timeout = 1000
+# mode = leader
+# bind = f spawn firefox
+# bind = t spawn kitty
+# bind = Escape enter-mode default
 # mode = resize
+# mode_timeout = 300
 # bind = h resize-width -30
 # bind = l resize-width 30
 # bind = Escape enter-mode default

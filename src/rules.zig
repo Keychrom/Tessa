@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const rule_expr = @import("rule_expr.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -47,7 +48,29 @@ pub fn wildcardMatch(pattern: []const u8, text: []const u8) bool {
     return p == pattern.len;
 }
 
-fn applyOutputRule(rule: *const types.OutputRule, tuning: *Tuning) void {
+fn applyProfileTuning(profile: *const types.Profile, tuning: *Tuning) void {
+    const p = &profile.tuning;
+    if (p.has_layout) tuning.layout = p.layout;
+    if (p.has_gaps) tuning.gaps = p.gaps;
+    if (p.has_outer_gaps) tuning.outer_gaps = p.outer_gaps;
+    if (p.has_master_ratio) tuning.master_ratio = p.master_ratio;
+    if (p.has_master_count) tuning.master_count = p.master_count;
+    if (p.has_mosaic_ratio) tuning.mosaic_ratio = p.mosaic_ratio;
+    if (p.has_mosaic_min_size) tuning.mosaic_min_size = p.mosaic_min_size;
+    if (p.has_grid_columns) tuning.grid_columns = p.grid_columns;
+}
+
+fn applyOutputRule(cfg: *const types.Config, rule: *const types.OutputRule, tuning: *Tuning) void {
+    if (rule.profile_len > 0) {
+        var pi: usize = 0;
+        while (pi < cfg.profile_count) : (pi += 1) {
+            const profile = &cfg.profiles[pi];
+            if (std.mem.eql(u8, profile.name[0..profile.name_len], rule.profile[0..rule.profile_len])) {
+                applyProfileTuning(profile, tuning);
+                break;
+            }
+        }
+    }
     if (rule.has_layout) tuning.layout = rule.layout;
     if (rule.has_gaps) tuning.gaps = rule.gaps;
     if (rule.has_outer_gaps) tuning.outer_gaps = rule.outer_gaps;
@@ -56,6 +79,17 @@ fn applyOutputRule(rule: *const types.OutputRule, tuning: *Tuning) void {
     if (rule.has_mosaic_ratio) tuning.mosaic_ratio = rule.mosaic_ratio;
     if (rule.has_mosaic_min_size) tuning.mosaic_min_size = rule.mosaic_min_size;
     if (rule.has_grid_columns) tuning.grid_columns = rule.grid_columns;
+}
+
+fn applyWorkspaceOverrides(cfg: *const types.Config, index: usize, tuning: *Tuning) void {
+    if (cfg.ws_gaps_set[index]) tuning.gaps = cfg.ws_gaps[index];
+    if (cfg.ws_outer_set[index]) tuning.outer_gaps = cfg.ws_outer_gaps[index];
+    if (cfg.ws_ratio_set[index]) tuning.master_ratio = cfg.ws_master_ratio[index];
+    if (cfg.ws_master_count_set[index]) tuning.master_count = cfg.ws_master_count[index];
+    if (cfg.ws_mosaic_ratio_set[index]) tuning.mosaic_ratio = cfg.ws_mosaic_ratio[index];
+    if (cfg.ws_mosaic_min_size_set[index]) tuning.mosaic_min_size = cfg.ws_mosaic_min_size[index];
+    if (cfg.ws_grid_columns_set[index]) tuning.grid_columns = cfg.ws_grid_columns[index];
+    if (cfg.layout_overrides[index]) tuning.layout = cfg.layout_by_ws[index];
 }
 
 pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
@@ -72,9 +106,7 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
         .grid_columns = cfg.grid_columns,
     };
     if (cfg.output_rule_count == 0) {
-        if (cfg.ws_gaps_set[index]) tuning.gaps = cfg.ws_gaps[index];
-        if (cfg.ws_outer_set[index]) tuning.outer_gaps = cfg.ws_outer_gaps[index];
-        if (cfg.ws_ratio_set[index]) tuning.master_ratio = cfg.ws_master_ratio[index];
+        applyWorkspaceOverrides(cfg, index, &tuning);
         if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
         return tuning;
     }
@@ -85,19 +117,16 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
         const rule = &cfg.output_rules[i];
         if (rule.ws != 0) continue;
         if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
-        applyOutputRule(rule, &tuning);
+        applyOutputRule(cfg, rule, &tuning);
     }
-    if (cfg.ws_gaps_set[index]) tuning.gaps = cfg.ws_gaps[index];
-    if (cfg.ws_outer_set[index]) tuning.outer_gaps = cfg.ws_outer_gaps[index];
-    if (cfg.ws_ratio_set[index]) tuning.master_ratio = cfg.ws_master_ratio[index];
-    if (cfg.layout_overrides[index]) tuning.layout = cfg.layout_by_ws[index];
+    applyWorkspaceOverrides(cfg, index, &tuning);
 
     i = 0;
     while (i < cfg.output_rule_count) : (i += 1) {
         const rule = &cfg.output_rules[i];
         if (rule.ws == 0 or rule.ws != index + 1) continue;
         if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
-        applyOutputRule(rule, &tuning);
+        applyOutputRule(cfg, rule, &tuning);
     }
     if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
     return tuning;
@@ -122,6 +151,45 @@ pub fn clearRuntimeRatios(server: *Server) void {
     }
 }
 
+fn color4(rgb: [3]f32) [4]f32 {
+    return .{ rgb[0], rgb[1], rgb[2], 1.0 };
+}
+
+pub fn applyOutputTheme(server: *Server, out: *Output) void {
+    const cfg = &server.config;
+
+    out.theme_accent = null;
+    out.theme_border_active = null;
+    out.theme_border_inactive = null;
+    out.theme_bg = .{ 0.025, 0.04, 0.075, 1.0 };
+    if (cfg.bg_len > 0) {
+        var rgb: [3]f32 = .{ out.theme_bg[0], out.theme_bg[1], out.theme_bg[2] };
+        core.parseHexColor(cfg.bg[0..cfg.bg_len], &rgb);
+        out.theme_bg = color4(rgb);
+    }
+
+    const name = core.outputName(out);
+    var i: usize = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        const rule = &cfg.output_rules[i];
+        if (rule.ws != 0) continue;
+        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        if (rule.has_accent) out.theme_accent = color4(rule.accent_rgb);
+        if (rule.has_bg) out.theme_bg = color4(rule.bg_rgb);
+        if (rule.has_border_active) out.theme_border_active = color4(rule.border_active_rgb);
+        if (rule.has_border_inactive) out.theme_border_inactive = color4(rule.border_inactive_rgb);
+    }
+}
+
+pub fn applyOutputThemes(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        applyOutputTheme(server, out);
+        core.updateBackground(out);
+    }
+}
+
 fn matches(rule: *const WindowRule, client: *Client) bool {
     if (rule.app_id_len > 0 and
         !wildcardMatch(rule.app_id[0..rule.app_id_len], client.app_id[0..client.app_id_len])) return false;
@@ -129,10 +197,39 @@ fn matches(rule: *const WindowRule, client: *Client) bool {
         !wildcardMatch(rule.title[0..rule.title_len], client.title[0..client.title_len])) return false;
     if (rule.output_len > 0 and
         !wildcardMatch(rule.output[0..rule.output_len], core.outputName(client.output))) return false;
+    if (rule.expr_len > 0) {
+        const value = rule_expr.evaluate(rule.expr[0..rule.expr_len], .{
+            .app_id = client.app_id[0..client.app_id_len],
+            .title = client.title[0..client.title_len],
+            .output = core.outputName(client.output),
+        }) orelse return false;
+        if (!value) return false;
+    }
     return true;
 }
 
+fn resetDecorations(client: *Client) void {
+    client.border_active_override = null;
+    client.border_inactive_override = null;
+}
+
 fn apply(rule: *const WindowRule, client: *Client) void {
+    if (rule.has_border_active) {
+        client.border_active_override = .{
+            rule.border_active_rgb[0],
+            rule.border_active_rgb[1],
+            rule.border_active_rgb[2],
+            1.0,
+        };
+    }
+    if (rule.has_border_inactive) {
+        client.border_inactive_override = .{
+            rule.border_inactive_rgb[0],
+            rule.border_inactive_rgb[1],
+            rule.border_inactive_rgb[2],
+            1.0,
+        };
+    }
     if (rule.floating != .unset) {
         client.floating = rule.floating == .on;
     }
@@ -169,6 +266,7 @@ fn apply(rule: *const WindowRule, client: *Client) void {
 
 pub fn applyToClient(client: *Client) void {
     const cfg = &client.server.config;
+    resetDecorations(client);
     var i: usize = 0;
     while (i < cfg.rule_count) : (i += 1) {
         const rule = &cfg.rules[i];

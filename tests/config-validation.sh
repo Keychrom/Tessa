@@ -73,6 +73,19 @@ accent = red
 window-rule = unknown=1
 include = missing.conf
 output-rule = output=HEADLESS-1; gaps=nope
+window-rule = match=app ~ "(["
+window-rule = title=X; border-active=#zzzzzz
+leader = SUPER+
+leader_timeout = -1
+mode = scratch
+mode_timeout = 70000
+event-rule = window-open; match=app ~ "["; run=touch /tmp/tessa-bad
+event-rule = not-an-event; run=true
+event-rule = window-open; app=foot
+theme-role = unknown = #ffffff
+theme-role = accent = nope
+reduce_motion_animations = spin
+animation_open_ms = nope
 EOF
 
 tessa-ctl dispatch reload
@@ -85,6 +98,18 @@ grep -q "$runtime/config:6: invalid color for accent" "$runtime/config.out"
 grep -q "$runtime/config:7: invalid window-rule" "$runtime/config.out"
 grep -q "$runtime/config:8: included config not found" "$runtime/config.out"
 grep -q "$runtime/config:9: invalid output-rule" "$runtime/config.out"
+grep -q "$runtime/config:10: invalid window-rule" "$runtime/config.out"
+grep -q "$runtime/config:11: invalid window-rule" "$runtime/config.out"
+grep -q "$runtime/config:12: invalid leader chord" "$runtime/config.out"
+grep -q "$runtime/config:13: leader_timeout out of range" "$runtime/config.out"
+grep -q "$runtime/config:15: mode_timeout out of range" "$runtime/config.out"
+grep -q "$runtime/config:16: invalid event-rule" "$runtime/config.out"
+grep -q "$runtime/config:17: invalid event-rule" "$runtime/config.out"
+grep -q "$runtime/config:18: invalid event-rule" "$runtime/config.out"
+grep -q "$runtime/config:19: invalid theme-role" "$runtime/config.out"
+grep -q "$runtime/config:20: invalid theme-role" "$runtime/config.out"
+grep -q "$runtime/config:21: invalid reduce_motion_animations" "$runtime/config.out"
+grep -q "$runtime/config:22: invalid integer for animation_open_ms" "$runtime/config.out"
 echo "line diagnostics + rejected reload: ok"
 
 if tessa-ctl config-check >"$runtime/check.out" 2>&1; then

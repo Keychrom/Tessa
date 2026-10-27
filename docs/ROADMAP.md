@@ -123,15 +123,15 @@ a daily Japanese desktop, then by polish.
 
 ## 0.6 — customization depth
 
-- [ ] Regex/boolean window-rule expressions and per-rule decoration colors.
+- [x] Regex/boolean window-rule expressions and per-rule decoration colors.
 - [x] Named input modes with mode-specific bindings and `enter-mode`.
-- [ ] Leader-key/chord sequences and per-mode timeouts.
-- [ ] Per-output theme rules and named workspace/output profiles.
+- [x] Leader-key/chord sequences and per-mode timeouts.
+- [x] Per-output theme rules and named workspace/output profiles.
 - [ ] Layout-helper v2: per-output instances, asynchronous/incremental updates,
       focus/urgent metadata, and protocol version negotiation.
-- [ ] Config-defined event-to-action rules for policy automation.
-- [ ] Theme role system and configurable, reduced-motion-aware animations.
-- [ ] JSON-RPC/event stream with request ids and capability negotiation.
+- [x] Config-defined event-to-action rules for policy automation.
+- [x] Theme role system and configurable, reduced-motion-aware animations.
+- [x] JSON-RPC/event stream with request ids and capability negotiation.
 - [ ] Interactive config editor/check with diff preview.
 
 ## 1.0 — stability

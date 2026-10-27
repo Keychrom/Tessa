@@ -14,9 +14,16 @@ fn tBase(xdg: *c.wlr_xdg_toplevel) *c.wlr_xdg_surface {
     return @ptrCast(@alignCast(xdg.base));
 }
 
-fn animationsEnabled(server: *Server) bool {
-    return server.config.animations and !server.config.reduce_motion and
-        server.config.animation_ms > 0;
+fn closeAnimationMs(server: *Server) i32 {
+    const cfg = &server.config;
+    if (cfg.reduce_motion) {
+        return if (cfg.reduce_motion_animations == .fade) cfg.reduce_motion_fade_ms else 0;
+    }
+    return if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms;
+}
+
+fn closeEffectsEnabled(server: *Server) bool {
+    return server.config.animations and closeAnimationMs(server) > 0;
 }
 
 fn capture(client: *Client) bool {
@@ -41,7 +48,7 @@ fn capture(client: *Client) bool {
 }
 
 pub fn requestClose(server: *Server, client: *Client) void {
-    if (animationsEnabled(server) and client.mapped and
+    if (closeEffectsEnabled(server) and client.mapped and
         client.ws == client.output.active_ws and client.close_snapshot == null)
     {
         _ = capture(client);
@@ -73,7 +80,7 @@ fn inactiveBorderColor(server: *Server) [4]f32 {
 }
 
 fn apply(effect: *CloseEffect, eased: f64) void {
-    const scale = 1.0 - 0.08 * eased;
+    const scale = if (effect.fade_only) 1.0 else 1.0 - 0.08 * eased;
     const opacity = 1.0 - eased;
 
     const frame_cx = effect.frame_x + effect.frame_w / 2.0;
@@ -182,10 +189,13 @@ fn start(
     const tree = c.wlr_scene_tree_create(server.tree_effects);
     const shadow_color = [4]f32{ 0, 0, 0, 0.07 };
     const shadow = c.wlr_scene_rect_create(tree, 1, 1, &shadow_color);
+    const output_active = client.output.theme_border_active orelse
+        client.output.theme_accent orelse activeBorderColor(server);
+    const output_inactive = client.output.theme_border_inactive orelse inactiveBorderColor(server);
     var border_color = if (server.focused == client)
-        activeBorderColor(server)
+        client.border_active_override orelse output_active
     else
-        inactiveBorderColor(server);
+        client.border_inactive_override orelse output_inactive;
     if (client.fullscreen) border_color[3] = 0;
     var border: [4]*c.wlr_scene_rect = undefined;
     for (&border) |*rect| rect.* = c.wlr_scene_rect_create(tree, 1, 1, &border_color);
@@ -227,7 +237,8 @@ fn start(
     effect.content_w = @floatFromInt(content_w);
     effect.content_h = @floatFromInt(content_h);
     effect.start_ms = core.timeNowMs();
-    effect.ms = server.config.animation_ms;
+    effect.ms = closeAnimationMs(server);
+    effect.fade_only = server.config.reduce_motion;
     effect.border_color = border_color;
     effect.shadow_color = shadow_color;
 
@@ -257,7 +268,7 @@ pub fn clientUnmapped(client: *Client) void {
     client.close_snapshot = null;
     client.close_snapshot_w = 0;
     client.close_snapshot_h = 0;
-    if (!animationsEnabled(server) or client.ws != client.output.active_ws) {
+    if (!closeEffectsEnabled(server) or client.ws != client.output.active_ws) {
         c.wlr_buffer_unlock(buffer);
         return;
     }

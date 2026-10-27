@@ -26,6 +26,8 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=Picture-in-Picture; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 マッチ条件:
@@ -35,6 +37,13 @@ window-rule = title=GIMP*; float=false
 | `app-id`、`app_id`、`class` | xdg アプリケーション ID |
 | `title` | ウィンドウタイトル |
 | `output`、`monitor` | 出力名 |
+| `match`、`expr` | POSIX 拡張正規表現を使う真偽値式 |
+
+式のフィールドは `app` / `app-id` / `class`、`title`、`output` /
+`monitor` です。演算子は `==`、`!=`、`~`、`!~`、`&&` / `and`、`||` / `or`、
+`!` / `not`、括弧です。空白を含む値は引用符で囲めます。単純なマッチ条件と
+`match` は AND で結合されます。不正な式や正規表現はファイル名／行番号付きの
+設定エラーになります。
 
 パターンはシェル風の `*` と `?` を使えます。大文字小文字は区別されます。
 
@@ -54,6 +63,8 @@ window-rule = app-id=org.example.*; workspace=3
 | `size=WxH` | フローティングサイズ（例: `size=900x600`） |
 | `width=N`、`height=N` | 片軸だけ指定するフローティングサイズ |
 | `position=X,Y` | フローティング位置 |
+| `border-active=#RRGGBB` | ウィンドウ別フォーカスボーダー |
+| `border-inactive=#RRGGBB` | ウィンドウ別非フォーカスボーダー |
 
 同じルールで `float=false` を指定しない限り、`size` と `position` は
 フローティングを暗黙に有効にします。ルールはファイル順に評価され、後の
@@ -97,6 +108,8 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | `gaps=N` | このワークスペースのタイル間隔 |
 | `outer-gaps=N` | このワークスペースの外周間隔 |
 | `master-ratio=0.15..0.9` | このワークスペースのマスター列幅 |
+| `master-count=1..8`、`mosaic-ratio`、`mosaic-min-size`、`grid-columns` | 追加の調整 |
+| `profile=NAME` | 名前付きプロファイルを先に適用 |
 
 `output-rule` は 1 つのモニタのレイアウト調整を上書きします。`ws=` を付けると
 そのワークスペースだけに限定できます:
@@ -115,10 +128,31 @@ output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 | `master-ratio=0.15..0.9`、`master-count=1..8` | マスター調整 |
 | `mosaic-ratio=0.25..0.85`、`mosaic-min-size=N` | モザイク調整 |
 | `grid-columns=0..8` | グリッド固定列数。`0` は自動 |
+| `profile=NAME` | 名前付きプロファイルを先に適用 |
+
+出力ルールはテーマキーも受け付けます: `accent`、`bg`、`border-active`、
+`border-inactive`、`panel-bg`、`panel-fg`、`bg-top`、`bg-bottom`、
+`bar-height`、`bar-top-margin`、`bar-side-margin`。パネルも自分の出力に
+一致するルールを読むため、モニタ別の色と寸法が一致します。ハイフンと
+アンダースコアはどちらも使えます。
 
 ルールはファイル順に適用されます。優先順位は、グローバル既定 <
 出力ルール（全ワークスペース） < `workspace-rule` < `ws=` 付き出力ルール
 です。実行中のレイアウト選択はシードより優先され、永続化されます。
+
+名前付きプロファイルはレイアウト/チューニングをまとめます:
+
+```ini
+profile = compact; gaps=0; outer-gaps=0; master-ratio=0.5; master-count=2
+profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
+output-rule = output=DP-1; profile=compact; gaps=4
+workspace-rule = ws=2; profile=grid3
+```
+
+プロファイルは参照するルールの前後どちらでも宣言できます。ルール内の明示
+キーがプロファイルより優先されます。プロファイルはレイアウト/間隔のみで、
+テーマは含みません。存在しないプロファイルは設定エラーになり、リロードは
+拒否されます。
 
 `Super+Ctrl+H/L` は現在のセッションでアクティブな出力/ワークスペースの
 比率を変更し、設定再読み込みで設定値に戻ります。
@@ -222,6 +256,48 @@ bind = SUPER+SHIFT+r enter-mode resize
 `tessa-ctl state` の `MODE <名前>`、状態 JSON の `"mode"`、設定 JSON の
 `"modes"`、`mode-change` イベントで公開されます。
 
+リーダーキーとモード別タイムアウトも使えます:
+
+```ini
+leader = SUPER+SPACE
+leader_timeout = 1000
+
+mode = leader
+bind = f spawn firefox
+bind = t spawn kitty
+bind = Escape enter-mode default
+
+mode = resize
+mode_timeout = 300
+bind = h resize-width -30
+bind = l resize-width 30
+```
+
+既定モードでリーダーを押すと `leader` モードに入ります。一致するバインドは
+1 アクション実行後に既定モードへ戻り、別モードへ入るアクションはそのモードを
+維持します。もう一度リーダーを押す、`Escape`、`leader_timeout` 経過で終了
+します。`leader_timeout = 0` は無期限です。`mode_timeout` はそのモード節に
+適用され、経過後 `default` に戻ります。`0` で無効化します。
+
+## イベントルール
+
+イベントルールはライフサイクルイベントを式で絞り込み、シェルコマンドを
+実行します:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "ワークスペース 2"
+event-rule = window-open; match=id ~ "^[0-9]+$" && title == "Mail"; run=touch ~/.local/state/mail
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+最初の節がイベント名です（`event=` でも指定可）。`match` / `expr` は任意で、
+`run` / `command` は必須です。式では `event`、`ws`、`id` も文字列として
+参照できます。コマンドにはフックと同じ環境変数
+（`TESSA_EVENT`、`TESSA_WINDOW_ID`、`TESSA_WORKSPACE`、`TESSA_TITLE`、
+`TESSA_OUTPUT`、`TESSA_ARG` など）が渡されます。一致したイベントルールは
+設定順に、無条件 `hook` より先に実行されます。フックと同様に `/bin/sh -c`
+とセッションユーザーの権限で動きます。
+
 ## 検証と JSON
 
 設定はファイル名と行番号を追跡して解析します。未知のキー、不正な数値/
@@ -246,8 +322,22 @@ tessa-ctl config --json
 
 状態 JSON は `schema: 1`、出力、占有状況、フォーカス ID、ステータス、
 ウィンドウのジオメトリを含みます。設定 JSON はスカラー設定、ワークスペース
-別レイアウト/調整値、ルール、フック、診断を含みます。ワイヤ形式の詳細は
+別レイアウト/調整値、ルール、フック、イベントルール、プロファイル、
+テーマロール、診断を含みます。ワイヤ形式の詳細は
 [EXTENDING.ja.md](EXTENDING.ja.md) にあります。
+
+同じソケットで JSON-RPC 2.0 の読み取りとイベント購読もできます:
+
+```sh
+tessa-ctl rpc '{"jsonrpc":"2.0","id":1,"method":"hello"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":7,"method":"state"}'
+tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
+```
+
+`hello` はケイパビリティ（`state`、`config`、`events`、`subscriptions`、
+`request-ids`、プロトコルバージョン 1）を返します。`subscribe` は
+`params.subscription` にリクエスト ID を持つ JSON 通知としてイベントを
+配信します。変更操作は行コマンドを使います。
 
 ## 入力、ジェスチャ、XIM
 
@@ -321,8 +411,11 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bg_bottom` | 壁紙グラデーションの下端色。未指定なら `bg` から導出 |
 | `wallpaper_art` | 装飾用の壁紙アートを描画（既定 `true`） |
 | `animations` | ウィンドウを開く/閉じる/ワークスペース切り替えをアニメーション（既定 `true`） |
-| `animation_ms` | 再生時間（ミリ秒、0〜1000、既定 160） |
-| `reduce_motion` | `animations` に関係なく動きを無効化（既定 `false`） |
+| `animation_ms` | 既定の再生時間（ミリ秒、0〜1000、既定 160） |
+| `animation_open_ms`、`animation_workspace_ms`、`animation_close_ms` | 種類別の再生時間。`-1` で継承（既定 `-1`） |
+| `reduce_motion` | 移動アニメーションを無効化（既定 `false`） |
+| `reduce_motion_animations` | `none`、または閉じるフェードのみの `fade`（既定 `none`） |
+| `reduce_motion_fade_ms` | 視差効果低減時の閉じるフェード時間（既定 `120`） |
 | `shadows` | レイヤー化したウィンドウシャドウを描画（既定 `true`） |
 | `corner_radius` | ウィンドウの角丸半径（論理ピクセル、0〜64、既定 `10`。scenefx ビルド） |
 | `blur` | 半透明クライアントとシェルレイヤーの背景ブラー（既定 `true`。scenefx ビルド） |
@@ -344,17 +437,36 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 `bg_top`、`bg_bottom`、`wallpaper_art` は再起動なしで背景を描き直します。
 別ファイルのテーマは今後追加します。
 
+コンポジタとパネルで共有する意味論的カラー:
+
+```ini
+theme-role = accent = #e2684f
+theme-role = window.border.active = #8fd3ff
+theme-role = window.border.inactive = #243040
+theme-role = window.background = #0a0f1a
+theme-role = panel.background = #0e1320
+theme-role = panel.foreground = #eef2f8
+theme-role = wallpaper.top = #162038
+theme-role = wallpaper.bottom = #070a12
+```
+
+ロールは直接キーの後に適用されて上書きし、一致する出力別テーマルールは
+その出力でさらに優先されます。パネルも同じロールを読みます。
+
 ## モーション、シャドウ、壁紙
 
 ウィンドウは map 時に小さな縦オフセットからスライドインし、ワークスペース
-切り替えでは新しいワークスペースが横方向から入ります。どちらも
-`animation_ms` の cubic ease-out です。キーバインド、バーのチップ、IPC、
+切り替えでは新しいワークスペースが横方向から入ります。どちらも種類別の
+再生時間（`animation_open_ms` / `animation_workspace_ms`、未指定は
+`animation_ms`）の cubic ease-out です。キーバインド、バーのチップ、IPC、
 他のクライアントなどコンポジタ経由で閉じたウィンドウは、サーフェスを
-キャプチャして同じ再生時間の smoothstep でスナップショットを
+キャプチャして `animation_close_ms` の smoothstep でスナップショットを
 スケール/フェードします。クライアント自身が閉じた場合はバッファが既に
-消えているため即時に消えます。`reduce_motion = true` は他の設定を変えずに
-動きだけを無効化します。`animation_ms = 0` と `animations = false` も同じ
-効果です。ポップオーバーのアニメーションはパネル側で別に制御します。
+消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
+無効化します。`animation_ms = 0` と `animations = false` は全体を無効化
+します。視差効果低減時は `reduce_motion_animations = fade` で縮小/移動なしの
+閉じるフェードだけを残し、`none` で close エフェクトも無効にします。
+ポップオーバーのアニメーションはパネル側で別に制御します。
 
 シャドウは各クライアントフレーム背後の半透明シーン矩形 3 枚です。
 ボーダーのジオメトリに追従し、`shadows = false` で無効になります。
@@ -602,19 +714,15 @@ IPC から操作できます。プロトコルの詳細は
 
 ## 今後のカスタマイズ
 
-- 出力別のレイアウト/隙間ルール（ワークスペース別は実装済み）。
 - 出力別のヘルパーインスタンス、非同期/差分更新、プロトコルバージョン
   交渉（現在のヘルパーは単一プロセスで、配置ごとに上限付きの要求/応答を
   行います）。
-- 正規表現/論理式によるウィンドウルールと、ルール別のボーダー/背景色。
-- キーバインドのシーケンスとリーダーキー（名前付き入力モードは実装済み）。
-- 設定によるイベント→アクションルールと出力別テーマロール。
-- ウィンドウ移動、ワークスペース切り替え、ボーダー、シェル向けの設定可能な
-  アニメーションとシェーダー/エフェクトフック。
+- ウィンドウ移動、ワークスペース切り替え、ボーダー、シェル向けの
+  シェーダー/エフェクトフック。
 - 既存の診断と JSON スナップショットを使った、差分プレビュー付きの
   対話型設定エディタ/チェッカー。
 - サーフェス別のフォント・配色ロール、壁紙アート、交換可能なシェル
-  サーフェス（バーの高さ・マージンは実装済み）。
+  サーフェス（バーの高さ・マージン、出力別色、テーマロールは実装済み）。
 
 ロードマップは [ROADMAP.ja.md](ROADMAP.ja.md) にあります。
 TypeScript/TSX 設定ランタイムは今後も非目標です。ShojiWM 的なコンポジションに

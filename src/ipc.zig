@@ -310,8 +310,95 @@ fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
     return false;
 }
 
+fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
+    const server = cl.server;
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena.deinit();
+    const parsed = std.json.parseFromSliceLeaky(
+        std.json.Value,
+        arena.allocator(),
+        line,
+        .{ .allocate = .alloc_always },
+    ) catch {
+        sendJsonError(cl, "", -32700, "parse error");
+        return;
+    };
+    const obj = switch (parsed) {
+        .object => |map| map,
+        else => {
+            sendJsonError(cl, "", -32600, "request must be an object");
+            return;
+        },
+    };
+
+    var id_buf: [256]u8 = undefined;
+    var id_off: usize = 0;
+    if (obj.get("id")) |id_value| {
+        if (!serializeJsonId(&id_buf, &id_off, id_value)) {
+            sendJsonError(cl, "", -32600, "id must be a string, integer, or null");
+            return;
+        }
+    } else {
+        @memcpy(id_buf[0..4], "null");
+        id_off = 4;
+    }
+    const id_text = id_buf[0..id_off];
+
+    const method_value = obj.get("method") orelse {
+        sendJsonError(cl, id_text, -32600, "missing method");
+        return;
+    };
+    const method = switch (method_value) {
+        .string => |name| name,
+        else => {
+            sendJsonError(cl, id_text, -32600, "method must be a string");
+            return;
+        },
+    };
+
+    if (std.mem.eql(u8, method, "hello") or std.mem.eql(u8, method, "capabilities")) {
+        sendJsonResult(
+            cl,
+            id_text,
+            "{\"protocol\":\"tessa-jsonrpc\",\"version\":1,\"line_protocol\":1," ++
+                "\"capabilities\":[\"state\",\"config\",\"events\",\"subscriptions\",\"request-ids\"]}",
+        );
+    } else if (std.mem.eql(u8, method, "ping")) {
+        sendJsonResult(cl, id_text, "{\"pong\":true}");
+    } else if (std.mem.eql(u8, method, "state")) {
+        var result_buf: [131072]u8 = undefined;
+        const len = json_snapshot.buildState(server, &result_buf);
+        sendJsonResult(cl, id_text, result_buf[0..len]);
+    } else if (std.mem.eql(u8, method, "config")) {
+        var result_buf: [131072]u8 = undefined;
+        const len = json_snapshot.buildConfig(server, &result_buf);
+        sendJsonResult(cl, id_text, result_buf[0..len]);
+    } else if (std.mem.eql(u8, method, "subscribe")) {
+        if (id_text.len > cl.rpc_subscription.len) {
+            sendJsonError(cl, id_text, -32600, "subscription id is too long");
+            return;
+        }
+        cl.wants_events = true;
+        cl.json_events = true;
+        cl.rpc_subscription_len = id_text.len;
+        @memcpy(cl.rpc_subscription[0..id_text.len], id_text);
+        sendJsonResult(cl, id_text, "{\"subscribed\":true,\"topic\":\"events\"}");
+    } else if (std.mem.eql(u8, method, "unsubscribe")) {
+        cl.wants_events = false;
+        cl.json_events = false;
+        cl.rpc_subscription_len = 0;
+        sendJsonResult(cl, id_text, "{\"subscribed\":false}");
+    } else {
+        sendJsonError(cl, id_text, -32601, "method not found");
+    }
+}
+
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
     const server = cl.server;
+    if (line.len > 0 and line[0] == '{') {
+        handleJsonRpc(cl, line);
+        return;
+    }
     if (std.mem.startsWith(u8, line, "CMD\t")) {
         if (handleTabCommand(cl, line[4..])) return;
         core.logInfo("ipc: unknown tab command", .{});
@@ -649,7 +736,30 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "xwayland_display {s}\n", .{cfg.xwayland_display[0..cfg.xwayland_display_len]});
     append(&buf, &off, "animations {d}\n", .{@as(u8, if (cfg.animations) 1 else 0)});
     append(&buf, &off, "animation_ms {d}\n", .{cfg.animation_ms});
+    append(&buf, &off, "animation_open_ms {d}\n", .{
+        if (cfg.animation_open_ms >= 0) cfg.animation_open_ms else cfg.animation_ms,
+    });
+    append(&buf, &off, "animation_workspace_ms {d}\n", .{
+        if (cfg.animation_workspace_ms >= 0) cfg.animation_workspace_ms else cfg.animation_ms,
+    });
+    append(&buf, &off, "animation_close_ms {d}\n", .{
+        if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms,
+    });
     append(&buf, &off, "reduce_motion {d}\n", .{@as(u8, if (cfg.reduce_motion) 1 else 0)});
+    append(&buf, &off, "reduce_motion_animations {s}\n", .{switch (cfg.reduce_motion_animations) {
+        .none => "none",
+        .fade => "fade",
+    }});
+    append(&buf, &off, "reduce_motion_fade_ms {d}\n", .{cfg.reduce_motion_fade_ms});
+    append(&buf, &off, "theme_role_count {d}\n", .{cfg.theme_role_count});
+    var tri: usize = 0;
+    while (tri < cfg.theme_role_count) : (tri += 1) {
+        const role = &cfg.theme_roles[tri];
+        append(&buf, &off, "theme_role {s} {s}\n", .{
+            role.name[0..role.name_len],
+            role.color[0..role.color_len],
+        });
+    }
     append(&buf, &off, "shadows {d}\n", .{@as(u8, if (cfg.shadows) 1 else 0)});
     append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
     append(&buf, &off, "corner_radius {d}\n", .{cfg.corner_radius});
@@ -679,6 +789,9 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "output_config {s}\n", .{cfg.output_config[0..cfg.output_config_len]});
     append(&buf, &off, "binding_count {d}\n", .{cfg.binding_count});
     append(&buf, &off, "hook_count {d}\n", .{cfg.hook_count});
+    append(&buf, &off, "event_rule_count {d}\n", .{cfg.event_rule_count});
+    append(&buf, &off, "profile_count {d}\n", .{cfg.profile_count});
+    append(&buf, &off, "workspace_rule_count {d}\n", .{cfg.workspace_rule_count});
     append(&buf, &off, "rule_count {d}\n", .{cfg.rule_count});
     append(&buf, &off, "output_rule_count {d}\n", .{cfg.output_rule_count});
     var hi: usize = 0;
@@ -687,6 +800,34 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         var command_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const command = escape(&command_buf, hook.command[0..hook.command_len]);
         append(&buf, &off, "hook {s} {s}\n", .{ hook.event[0..hook.event_len], command });
+    }
+    var eri: usize = 0;
+    while (eri < cfg.event_rule_count) : (eri += 1) {
+        const rule = &cfg.event_rules[eri];
+        var expr_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        var command_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        const expr_text = escape(&expr_buf, rule.expr[0..rule.expr_len]);
+        const command_text = escape(&command_buf, rule.command[0..rule.command_len]);
+        append(&buf, &off, "event_rule {s} {s} {s}\n", .{
+            rule.event[0..rule.event_len],
+            expr_text,
+            command_text,
+        });
+    }
+    var profi: usize = 0;
+    while (profi < cfg.profile_count) : (profi += 1) {
+        const profile = &cfg.profiles[profi];
+        append(&buf, &off, "profile {s} {s} {d} {d} {d:.3} {d} {d:.3} {d} {d}\n", .{
+            profile.name[0..profile.name_len],
+            types.layoutName(profile.tuning.layout),
+            profile.tuning.gaps,
+            profile.tuning.outer_gaps,
+            profile.tuning.master_ratio,
+            profile.tuning.master_count,
+            profile.tuning.mosaic_ratio,
+            profile.tuning.mosaic_min_size,
+            profile.tuning.grid_columns,
+        });
     }
     var i: usize = 0;
     while (i < cfg.rule_count) : (i += 1) {
@@ -765,12 +906,209 @@ fn sendRaw(cl: *IpcClient, data: []const u8) void {
     }
 }
 
+fn appendJsonString(buf: []u8, off: *usize, value: []const u8) bool {
+    const hex = "0123456789abcdef";
+    if (off.* + 1 > buf.len) return false;
+    buf[off.*] = '"';
+    off.* += 1;
+    for (value) |ch| {
+        switch (ch) {
+            '"' => {
+                if (off.* + 2 > buf.len) return false;
+                buf[off.*] = '\\';
+                buf[off.* + 1] = '"';
+                off.* += 2;
+            },
+            '\\' => {
+                if (off.* + 2 > buf.len) return false;
+                buf[off.*] = '\\';
+                buf[off.* + 1] = '\\';
+                off.* += 2;
+            },
+            '\n' => {
+                if (off.* + 2 > buf.len) return false;
+                buf[off.*] = '\\';
+                buf[off.* + 1] = 'n';
+                off.* += 2;
+            },
+            '\r' => {
+                if (off.* + 2 > buf.len) return false;
+                buf[off.*] = '\\';
+                buf[off.* + 1] = 'r';
+                off.* += 2;
+            },
+            '\t' => {
+                if (off.* + 2 > buf.len) return false;
+                buf[off.*] = '\\';
+                buf[off.* + 1] = 't';
+                off.* += 2;
+            },
+            else => {
+                if (ch < 0x20) {
+                    if (off.* + 6 > buf.len) return false;
+                    buf[off.*] = '\\';
+                    buf[off.* + 1] = 'u';
+                    buf[off.* + 2] = '0';
+                    buf[off.* + 3] = '0';
+                    buf[off.* + 4] = hex[ch >> 4];
+                    buf[off.* + 5] = hex[ch & 0xf];
+                    off.* += 6;
+                } else {
+                    if (off.* + 1 > buf.len) return false;
+                    buf[off.*] = ch;
+                    off.* += 1;
+                }
+            },
+        }
+    }
+    if (off.* + 1 > buf.len) return false;
+    buf[off.*] = '"';
+    off.* += 1;
+    return true;
+}
+
+fn serializeJsonId(buf: []u8, off: *usize, value: std.json.Value) bool {
+    switch (value) {
+        .integer => |v| {
+            const text = std.fmt.bufPrint(buf[off.*..], "{d}", .{v}) catch return false;
+            off.* += text.len;
+            return true;
+        },
+        .string => |v| return appendJsonString(buf, off, v),
+        .null => {
+            if (off.* + 4 > buf.len) return false;
+            @memcpy(buf[off.* .. off.* + 4], "null");
+            off.* += 4;
+            return true;
+        },
+        else => return false,
+    }
+}
+
+fn sendJsonError(cl: *IpcClient, id_text: []const u8, code: i32, message: []const u8) void {
+    var buf: [512]u8 = undefined;
+    var off: usize = 0;
+    const h = "{\"jsonrpc\":\"2.0\",\"id\":";
+    @memcpy(buf[off .. off + h.len], h);
+    off += h.len;
+    const id = if (id_text.len > 0) id_text else "null";
+    @memcpy(buf[off .. off + id.len], id);
+    off += id.len;
+    const mid = ",\"error\":{\"code\":";
+    @memcpy(buf[off .. off + mid.len], mid);
+    off += mid.len;
+    const ctext = std.fmt.bufPrint(buf[off..], "{d}", .{code}) catch return;
+    off += ctext.len;
+    const mid2 = ",\"message\":";
+    @memcpy(buf[off .. off + mid2.len], mid2);
+    off += mid2.len;
+    if (!appendJsonString(&buf, &off, message)) return;
+    const tail = "}}\n";
+    @memcpy(buf[off .. off + tail.len], tail);
+    off += tail.len;
+    sendRaw(cl, buf[0..off]);
+}
+
+fn sendJsonResult(cl: *IpcClient, id_text: []const u8, result: []const u8) void {
+    sendRaw(cl, "{\"jsonrpc\":\"2.0\",\"id\":");
+    sendRaw(cl, id_text);
+    sendRaw(cl, ",\"result\":");
+    sendRaw(cl, result);
+    sendRaw(cl, "}\n");
+}
+
+fn decodeEventValue(dest: []u8, src: []const u8) []const u8 {
+    var out: usize = 0;
+    var i: usize = 0;
+    while (i < src.len and out < dest.len) {
+        if (src[i] == '\\' and i + 1 < src.len) {
+            const ch = switch (src[i + 1]) {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                '\\' => '\\',
+                else => src[i + 1],
+            };
+            dest[out] = ch;
+            out += 1;
+            i += 2;
+        } else {
+            dest[out] = src[i];
+            out += 1;
+            i += 1;
+        }
+    }
+    return dest[0..out];
+}
+
+fn sendJsonEvent(cl: *IpcClient, line: []const u8) void {
+    var fields: [16][]const u8 = undefined;
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, line, '\t');
+    while (it.next()) |field| {
+        if (count < fields.len) {
+            fields[count] = field;
+            count += 1;
+        }
+    }
+    if (count < 2 or !std.mem.eql(u8, fields[0], "EVENT")) return;
+
+    var buf: [8192]u8 = undefined;
+    var off: usize = 0;
+    const prefix = "{\"jsonrpc\":\"2.0\",\"method\":\"event\",\"params\":{\"name\":";
+    @memcpy(buf[off .. off + prefix.len], prefix);
+    off += prefix.len;
+    var decoded: [1024]u8 = undefined;
+    if (!appendJsonString(&buf, &off, decodeEventValue(&decoded, fields[1]))) return;
+
+    var fi: usize = 2;
+    while (fi < count) : (fi += 1) {
+        const field = fields[fi];
+        const eq = std.mem.indexOfScalar(u8, field, '=') orelse continue;
+        const key = field[0..eq];
+        const value = field[eq + 1 ..];
+        if (off + key.len + 4 > buf.len) return;
+        buf[off] = ',';
+        off += 1;
+        if (!appendJsonString(&buf, &off, key)) return;
+        buf[off] = ':';
+        off += 1;
+
+        if (std.mem.eql(u8, key, "id") or std.mem.eql(u8, key, "previous") or
+            std.mem.eql(u8, key, "ws") or std.mem.eql(u8, key, "previous-ws"))
+        {
+            if (off + value.len > buf.len) return;
+            @memcpy(buf[off .. off + value.len], value);
+            off += value.len;
+        } else if (!appendJsonString(&buf, &off, decodeEventValue(&decoded, value))) {
+            return;
+        }
+    }
+
+    if (cl.rpc_subscription_len > 0) {
+        const sub_prefix = ",\"subscription\":";
+        if (off + sub_prefix.len + cl.rpc_subscription_len > buf.len) return;
+        @memcpy(buf[off .. off + sub_prefix.len], sub_prefix);
+        off += sub_prefix.len;
+        @memcpy(buf[off .. off + cl.rpc_subscription_len], cl.rpc_subscription[0..cl.rpc_subscription_len]);
+        off += cl.rpc_subscription_len;
+    }
+    if (off + 3 > buf.len) return;
+    @memcpy(buf[off .. off + 3], "}}\n");
+    off += 3;
+    sendRaw(cl, buf[0..off]);
+}
+
 pub fn broadcastLine(server: *Server, line: []const u8) void {
     var i: usize = 0;
     while (i < server.ipcs.len) : (i += 1) {
         const cl = server.ipcs[i] orelse continue;
         if (!cl.wants_events) continue;
         core.logDebug("ipc: event to client fd={d}", .{cl.fd});
-        sendRaw(cl, line);
+        if (cl.json_events) {
+            sendJsonEvent(cl, line);
+        } else {
+            sendRaw(cl, line);
+        }
     }
 }

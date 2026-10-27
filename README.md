@@ -33,17 +33,23 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   mosaic ratio/size, grid columns, and per-workspace gaps/master ratio; explicit
   runtime choices are restored on restart, and config reload updates workspaces
   without a runtime override
-- declarative window rules matched by app-id/title/output, with floating,
-  workspace, fullscreen, size, and position actions
+- declarative window rules matched by app-id/title/output or boolean
+  POSIX-regex expressions, with floating, workspace, fullscreen, size,
+  position, and per-window border colors
 - external layout-helper protocol for custom tiling algorithms, with a timeout,
   process restart, and built-in fallback
 - file/line config diagnostics, transactional reload, and versioned JSON
   state/config snapshots for external tools; per-workspace and per-output
   layout/gap/master rules; animation lifecycle hooks
-- named input modes with mode-specific key bindings and `enter-mode`
+- named layout profiles shared by output and workspace rules, plus per-output
+  theme rules for backgrounds, borders, wallpaper, and panel dimensions
+- config-defined event rules with expression filtering and command actions
+- named input modes with mode-specific key bindings, leader keys, `enter-mode`,
+  and per-mode timeouts
+- semantic theme roles for accent, borders, wallpaper, and the panel
 - configurable bar height, top/side margins, and bar background/foreground colors
-- window open/workspace slide animations and close scale/fade snapshots with
-  `reduce_motion` and duration settings; soft layered window shadows;
+- window open/workspace slide animations with per-kind durations, close
+  scale/fade snapshots, reduced-motion close fades, and soft layered shadows;
   opt-in scenefx rounded corners and backdrop blur for windows and shell
   surfaces; configurable wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
@@ -52,8 +58,10 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   output management via `wlr-randr`, persisted across restarts; fractional
   Wayland scaling through `wp_fractional_scale_v1` and integer HiDPI panel
   buffer scaling
-- external extension API: event subscriptions, config hooks, custom bar status
-  entries, custom launcher entries, and the `tessa-ctl` automation client
+- external extension API: line events, JSON-RPC with request ids and
+  capabilities, JSON event notifications, config hooks and event rules, custom
+  bar status entries, custom launcher entries, and the `tessa-ctl` automation
+  client
 - `relative-pointer-v1` for games and pointer-look applications
 - `wlr-virtual-pointer-v1` for scripted pointer automation and headless tests
 - `pointer-constraints-v1` locked/confined pointers, activated with window focus
@@ -115,8 +123,10 @@ restarts were exercised by
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/effects.sh`,
 `tests/input.sh`, `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/workspace-pinning.sh`,
-`tests/output-rules.sh`, `tests/interaction.sh`, `tests/popups.sh`, and
-`tests/portal.sh`.
+`tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
+`tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
+`tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
+`tests/popups.sh`, and `tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
 corners only in a `-Dscenefx=true` build and skips otherwise.
@@ -542,8 +552,11 @@ diagnostics. Selected keys:
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
-| `workspace-rule` | per-workspace layout/gap/master overrides |
-| `output-rule` | per-output (optionally per-workspace) layout/gap/master overrides |
+| `workspace-rule` | per-workspace layout/gap/master overrides and profiles |
+| `output-rule` | per-output layout/tuning/theme overrides |
+| `profile` | named layout/tuning profile referenced by rules |
+| `event-rule` | conditional event-to-command rule |
+| `theme-role` | semantic color role shared by compositor and panel |
 | `workspace_pin` | bind a workspace to an output: `workspace_pin = eDP-1 3` (repeatable) |
 | `corner_radius` | rounded window radius, 0–64 (scenefx builds) |
 | `blur` | backdrop blur for translucent surfaces (scenefx builds) |
@@ -592,6 +605,9 @@ diagnostics. Selected keys:
 | `window-rule` | declarative rule; see the customization guide |
 | `workspace-rule` | per-workspace layout, gaps, and master ratio |
 | `mode` | start a named input-mode section for following `bind` lines |
+| `leader` | leader chord that enters the `leader` mode |
+| `leader_timeout` | leader-mode timeout in milliseconds |
+| `mode_timeout` | timeout for the current named mode in milliseconds |
 
 Additional bindings use XKB keysym names:
 
@@ -624,6 +640,8 @@ window-rule = app-id=pavucontrol; float=true
 window-rule = title=Picture-in-Picture; float=true; position=40,40
 window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
+window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
+window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 ```
 
 Rules are applied when a window maps and re-evaluated on config reload. Run
@@ -766,7 +784,7 @@ These are real and important:
   `-Dscenefx=true` build; that build uses scenefx's GLES2 renderer and cannot
   use the pixman software renderer. Blur is only visible for translucent
   clients and shell layers. Set `animations = false` or `reduce_motion = true`
-  to disable motion.
+  to disable movement; `reduce_motion_animations = fade` keeps a close fade.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
   MPRIS controls the first discovered player and does not display album art.
@@ -800,9 +818,13 @@ These are real and important:
 - **XWayland needs `xwayland-satellite`.** Tessa does not bundle it. If it is
   missing, X11 applications simply do not start; Wayland clients are unaffected.
 - **Extensions are trusted local processes.** They run with the session user's
-  full privileges; there is no sandbox. State/config snapshots are versioned JSON,
-  but the command/event plane is still line-oriented and has no JSON-RPC
-  request/version negotiation. Status entries are limited to eight short strings.
+  full privileges; there is no sandbox. State/config snapshots are versioned
+  JSON, and JSON-RPC read methods plus JSON event subscriptions are available,
+  but mutation still uses the line command plane. Status entries are limited to
+  eight short strings.
+- **The layout helper remains synchronous and shared.** Per-output helper
+  instances, asynchronous/incremental updates, helper v2 metadata, and an
+  interactive config diff editor are still planned.
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the

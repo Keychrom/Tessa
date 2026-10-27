@@ -482,16 +482,212 @@ pub fn copyTrunc(dest: []u8, len: *usize, src: []const u8) void {
     len.* = n;
 }
 
-fn hexColor(hex_in: []const u8, out: *[3]f64) void {
+fn parseHexColor(hex_in: []const u8, out: *[3]f64) bool {
     var hex = hex_in;
     if (hex.len > 0 and hex[0] == '#') hex = hex[1..];
-    if (hex.len < 6) return;
-    const r = std.fmt.parseInt(u8, hex[0..2], 16) catch return;
-    const gg = std.fmt.parseInt(u8, hex[2..4], 16) catch return;
-    const b = std.fmt.parseInt(u8, hex[4..6], 16) catch return;
+    if (hex.len < 6) return false;
+    const r = std.fmt.parseInt(u8, hex[0..2], 16) catch return false;
+    const gg = std.fmt.parseInt(u8, hex[2..4], 16) catch return false;
+    const b = std.fmt.parseInt(u8, hex[4..6], 16) catch return false;
     out[0] = @as(f64, @floatFromInt(r)) / 255.0;
     out[1] = @as(f64, @floatFromInt(gg)) / 255.0;
     out[2] = @as(f64, @floatFromInt(b)) / 255.0;
+    return true;
+}
+
+fn hexColor(hex_in: []const u8, out: *[3]f64) void {
+    _ = parseHexColor(hex_in, out);
+}
+
+fn globMatch(pattern: []const u8, text: []const u8) bool {
+    if (pattern.len == 0) return true;
+    var p: usize = 0;
+    var t: usize = 0;
+    var star: ?usize = null;
+    var star_text: usize = 0;
+    while (t < text.len) {
+        if (p < pattern.len and (pattern[p] == '?' or pattern[p] == text[t])) {
+            p += 1;
+            t += 1;
+        } else if (p < pattern.len and pattern[p] == '*') {
+            star = p;
+            star_text = t;
+            p += 1;
+        } else if (star) |s| {
+            star_text += 1;
+            t = star_text;
+            p = s + 1;
+        } else {
+            return false;
+        }
+    }
+    while (p < pattern.len and pattern[p] == '*') p += 1;
+    return p == pattern.len;
+}
+
+const OutputTheme = struct {
+    matched: bool = false,
+    accent: ?[3]f64 = null,
+    bg: ?[3]f64 = null,
+    bg_top: ?[3]f64 = null,
+    bg_bottom: ?[3]f64 = null,
+    panel_bg: ?[3]f64 = null,
+    panel_fg: ?[3]f64 = null,
+    bar_height: ?i32 = null,
+    bar_top_margin: ?i32 = null,
+    bar_side_margin: ?i32 = null,
+};
+
+var output_theme: OutputTheme = .{};
+
+const ThemeRole = struct {
+    name: [32]u8 = [_]u8{0} ** 32,
+    name_len: usize = 0,
+    color: [3]f64 = .{ 0, 0, 0 },
+};
+
+var theme_roles: [16]ThemeRole = undefined;
+var theme_role_count: usize = 0;
+
+fn parseThemeRole(value: []const u8) void {
+    const eq = std.mem.indexOfScalar(u8, value, '=') orelse return;
+    const name = trim(value[0..eq]);
+    var color_text = trim(value[eq + 1 ..]);
+    if (color_text.len >= 2 and
+        ((color_text[0] == '"' and color_text[color_text.len - 1] == '"') or
+            (color_text[0] == '\'' and color_text[color_text.len - 1] == '\'')))
+    {
+        color_text = color_text[1 .. color_text.len - 1];
+    }
+    var color: [3]f64 = undefined;
+    if (!parseHexColor(color_text, &color)) return;
+
+    var existing: ?usize = null;
+    var i: usize = 0;
+    while (i < theme_role_count) : (i += 1) {
+        if (std.mem.eql(u8, theme_roles[i].name[0..theme_roles[i].name_len], name)) {
+            existing = i;
+            break;
+        }
+    }
+    const index = existing orelse blk: {
+        if (theme_role_count >= theme_roles.len) return;
+        const n = theme_role_count;
+        theme_role_count += 1;
+        theme_roles[n] = .{};
+        break :blk n;
+    };
+    const role = &theme_roles[index];
+    copyTrunc(&role.name, &role.name_len, name);
+    role.color = color;
+}
+
+fn applyThemeRoles() void {
+    var i: usize = 0;
+    while (i < theme_role_count) : (i += 1) {
+        const role = &theme_roles[i];
+        const name = role.name[0..role.name_len];
+        if (std.mem.eql(u8, name, "accent")) {
+            g.accent = role.color;
+        } else if (std.mem.eql(u8, name, "window.background")) {
+            g.bg_rgb = role.color;
+        } else if (std.mem.eql(u8, name, "panel.background")) {
+            g.panel_bg = role.color;
+        } else if (std.mem.eql(u8, name, "panel.foreground")) {
+            g.panel_fg = role.color;
+        } else if (std.mem.eql(u8, name, "wallpaper.top")) {
+            g.bg_top = role.color;
+            g.bg_top_set = true;
+        } else if (std.mem.eql(u8, name, "wallpaper.bottom")) {
+            g.bg_bottom = role.color;
+            g.bg_bottom_set = true;
+        }
+    }
+}
+
+fn applyOutputTheme() void {
+    if (!output_theme.matched) return;
+    if (output_theme.accent) |v| g.accent = v;
+    if (output_theme.bg) |v| g.bg_rgb = v;
+    if (output_theme.bg_top) |v| {
+        g.bg_top = v;
+        g.bg_top_set = true;
+    }
+    if (output_theme.bg_bottom) |v| {
+        g.bg_bottom = v;
+        g.bg_bottom_set = true;
+    }
+    if (output_theme.panel_bg) |v| g.panel_bg = v;
+    if (output_theme.panel_fg) |v| g.panel_fg = v;
+    if (output_theme.bar_height) |v| g.bar_height = v;
+    if (output_theme.bar_top_margin) |v| g.bar_top_margin = v;
+    if (output_theme.bar_side_margin) |v| g.bar_side_margin = v;
+}
+
+fn parseOutputTheme(value: []const u8) void {
+    var theme = OutputTheme{};
+    var output_buf: [64]u8 = undefined;
+    var output_len: usize = 0;
+    var ws: usize = 0;
+
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = trim(raw);
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse continue;
+        const key = trim(clause[0..eq]);
+        var val = trim(clause[eq + 1 ..]);
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (std.mem.eql(u8, key, "output") or std.mem.eql(u8, key, "monitor")) {
+            output_len = @min(val.len, output_buf.len);
+            @memcpy(output_buf[0..output_len], val[0..output_len]);
+        } else if (std.mem.eql(u8, key, "ws") or std.mem.eql(u8, key, "workspace")) {
+            ws = std.fmt.parseInt(usize, val, 10) catch 0;
+        } else if (std.mem.eql(u8, key, "accent")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.accent = v;
+        } else if (std.mem.eql(u8, key, "bg")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.bg = v;
+        } else if (std.mem.eql(u8, key, "bg_top") or std.mem.eql(u8, key, "bg-top")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.bg_top = v;
+        } else if (std.mem.eql(u8, key, "bg_bottom") or std.mem.eql(u8, key, "bg-bottom")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.bg_bottom = v;
+        } else if (std.mem.eql(u8, key, "panel_bg") or std.mem.eql(u8, key, "panel-bg")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.panel_bg = v;
+        } else if (std.mem.eql(u8, key, "panel_fg") or std.mem.eql(u8, key, "panel-fg")) {
+            var v: [3]f64 = undefined;
+            if (parseHexColor(val, &v)) theme.panel_fg = v;
+        } else if (std.mem.eql(u8, key, "bar_height") or std.mem.eql(u8, key, "bar-height")) {
+            theme.bar_height = std.fmt.parseInt(i32, val, 10) catch null;
+        } else if (std.mem.eql(u8, key, "bar_top_margin") or std.mem.eql(u8, key, "bar-top-margin")) {
+            theme.bar_top_margin = std.fmt.parseInt(i32, val, 10) catch null;
+        } else if (std.mem.eql(u8, key, "bar_side_margin") or std.mem.eql(u8, key, "bar-side-margin")) {
+            theme.bar_side_margin = std.fmt.parseInt(i32, val, 10) catch null;
+        }
+    }
+
+    if (output_len == 0 or ws != 0) return;
+    if (g.target_name_len > 0 and
+        !globMatch(output_buf[0..output_len], g.target_name[0..g.target_name_len])) return;
+    output_theme.matched = true;
+    if (theme.accent) |v| output_theme.accent = v;
+    if (theme.bg) |v| output_theme.bg = v;
+    if (theme.bg_top) |v| output_theme.bg_top = v;
+    if (theme.bg_bottom) |v| output_theme.bg_bottom = v;
+    if (theme.panel_bg) |v| output_theme.panel_bg = v;
+    if (theme.panel_fg) |v| output_theme.panel_fg = v;
+    if (theme.bar_height) |v| output_theme.bar_height = v;
+    if (theme.bar_top_margin) |v| output_theme.bar_top_margin = v;
+    if (theme.bar_side_margin) |v| output_theme.bar_side_margin = v;
 }
 
 fn parsePanelBool(value: []const u8) ?bool {
@@ -558,6 +754,10 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             var include_buf: [512]u8 = undefined;
             const include_path = resolveInclude(&include_buf, path, val);
             if (include_path.len > 0) loadConfigFile(include_path, depth + 1);
+        } else if (std.mem.eql(u8, key, "output-rule") or std.mem.eql(u8, key, "output_rule")) {
+            parseOutputTheme(val);
+        } else if (std.mem.eql(u8, key, "theme-role") or std.mem.eql(u8, key, "theme_role")) {
+            parseThemeRole(val);
         } else if (std.mem.eql(u8, key, "terminal")) {
             copyTrunc(&g.terminal, &g.terminal_len, val);
         } else if (std.mem.eql(u8, key, "font")) {
@@ -629,6 +829,8 @@ pub fn loadConfig() void {
     copyTrunc(&g.power_off, &g.power_off_len, "systemctl poweroff");
     copyTrunc(&g.screenshot_dir, &g.screenshot_dir_len, "~/Pictures/Screenshots");
     g.custom_count = 0;
+    output_theme = .{};
+    theme_role_count = 0;
 
     var path_buf: [512]u8 = undefined;
     var path: []const u8 = "";
@@ -640,6 +842,8 @@ pub fn loadConfig() void {
         path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
     }
     if (path.len > 0) loadConfigFile(path, 0);
+    applyThemeRoles();
+    applyOutputTheme();
     g.bar_height = std.math.clamp(g.bar_height, 32, 96);
     g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
     g.bar_side_margin = std.math.clamp(g.bar_side_margin, 0, 128);

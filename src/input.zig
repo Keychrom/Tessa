@@ -98,6 +98,7 @@ pub fn init(server: *Server) void {
     tablet.init(server);
     constraints.init(server);
     idle.init(server);
+    modes.init(server);
 }
 
 // Headless sessions and XWayland need a seat keymap before the first physical
@@ -377,6 +378,7 @@ pub fn reloadRuntime(server: *Server) void {
     reloadKeymaps(server);
     layout_helper.reload(server);
     rules.applyAll(server);
+    rules.applyOutputThemes(server);
     constraints.reload(server);
     window_effects.reload(server);
     rules.clearRuntimeRatios(server);
@@ -459,6 +461,29 @@ fn tryBindings(
     return false;
 }
 
+fn leaderModeActive(server: *Server) bool {
+    return std.mem.eql(u8, modes.currentName(server), "leader");
+}
+
+fn isLeaderKey(server: *Server, syms: [*c]const c.xkb_keysym_t, count: c_int, mods: u32) bool {
+    if (!server.config.leader_set or mods != server.config.leader_mods or count <= 0) return false;
+    var i: c_int = 0;
+    while (i < count) : (i += 1) {
+        if (@as(u32, @intCast(syms[@intCast(i)])) == server.config.leader_sym) return true;
+    }
+    return false;
+}
+
+fn tryModeBindings(server: *Server, syms: [*c]const c.xkb_keysym_t, count: c_int, mods: u32) bool {
+    const was_leader = leaderModeActive(server);
+    const mode_before = server.active_mode;
+    if (!tryBindings(server, syms, count, mods, server.active_mode)) return false;
+    if (was_leader and server.active_mode == mode_before) {
+        modes.setDefault(server);
+    }
+    return true;
+}
+
 fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const kb: *Keyboard = @fieldParentPtr("key", listener.?);
     const server = kb.server;
@@ -492,12 +517,20 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
         var syms: [*c]const c.xkb_keysym_t = null;
         const n = c.xkb_state_key_get_syms(@ptrCast(@alignCast(kb.wlr.xkb_state)), keycode, &syms);
 
+        if (isLeaderKey(server, syms, n, bind_mods)) {
+            if (leaderModeActive(server)) {
+                modes.setDefault(server);
+                return;
+            }
+            if (server.active_mode == 0 and modes.setLeader(server)) return;
+        }
+
         if (server.active_mode != 0) {
-            if (tryBindings(server, syms, n, bind_mods, server.active_mode)) return;
+            if (tryModeBindings(server, syms, n, bind_mods)) return;
             if (kb.wlr.keymap != null) {
                 var base: [*c]const c.xkb_keysym_t = null;
                 const bn = c.xkb_keymap_key_get_syms_by_level(@ptrCast(@alignCast(kb.wlr.keymap)), keycode, 0, 0, &base);
-                if (bn > 0 and tryBindings(server, base, bn, bind_mods, server.active_mode)) return;
+                if (bn > 0 and tryModeBindings(server, base, bn, bind_mods)) return;
             }
         }
 

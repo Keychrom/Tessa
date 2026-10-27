@@ -184,6 +184,7 @@ pub fn updateBackground(out: *Output) void {
     outputBox(s, out, &out.full);
     c.wlr_scene_node_set_position(&out.bg_rect.node, out.full.x, out.full.y);
     c.wlr_scene_rect_set_size(out.bg_rect, out.full.width, out.full.height);
+    c.wlr_scene_rect_set_color(out.bg_rect, &out.theme_bg);
 }
 
 pub fn activeVisible(server: *Server, client: *types.Client) bool {

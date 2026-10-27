@@ -109,7 +109,37 @@ END
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
 `fullscreen`、`app_id`、`title`、`output`、`x`、`y`、`width`、`height` が
 入ります。設定の `diagnostics` は `severity`、`path`、`line`、`message` を
-持ちます。
+持ちます。設定 JSON は `event_rules`、`profiles`、`theme_roles` と各件数も
+公開します。
+
+## JSON-RPC
+
+同じソケットで、1 行の JSON オブジェクトによる JSON-RPC 2.0 リクエストを
+受け付けます。行プロトコルも残り、同じ接続でどちらも使えます。
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"hello"}
+{"jsonrpc":"2.0","id":7,"method":"state"}
+{"jsonrpc":"2.0","id":"cfg","method":"config"}
+{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}
+```
+
+応答は `{"jsonrpc":"2.0","id":<リクエスト ID>,"result":...}` で、エラーは
+標準 JSON-RPC コードです。メソッドは `hello` / `capabilities`、`ping`、
+`state`、`config`、`subscribe`、`unsubscribe` です。`hello` は
+`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1` と、
+`state`、`config`、`events`、`subscriptions`、`request-ids` の
+ケイパビリティを返します。
+
+`subscribe` 後、ライフサイクルイベントは通知として届きます:
+
+```json
+{"jsonrpc":"2.0","method":"event","params":{"name":"window-open","id":7,"ws":1,"app":"foot","title":"notes","output":"eDP-1","subscription":"sub-1"}}
+```
+
+`subscription` はシリアライズされたリクエスト ID です。イベントはベスト
+エフォートで、遅いクライアントはコンポジタを止めずに切断されます。変更操作は
+引き続き行コマンドを使います。
 
 テキストの `CMD config` にも、次の形式で診断が含まれます。
 
@@ -203,6 +233,21 @@ XWayland 有効時の `DISPLAY` など）を継承し、さらに次を受け取
 | `TESSA_ACTIVE_WORKSPACE` | フォーカス出力のアクティブワークスペース |
 | `TESSA_FOCUSED_OUTPUT` | フォーカス出力名 |
 
+## イベントルール
+
+`event-rule` は条件付きフックです。ウィンドウルールと同じ真偽値／POSIX
+正規表現の式を使い、追加で `event`、`ws`、`id` を参照できます:
+
+```ini
+event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "workspace 2"
+event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
+```
+
+最初の節がイベント名（`event=` でも可）、`match`/`expr` は任意、
+`run`/`command` は必須です。一致したルールは設定順に、無条件 `hook` より
+先に実行され、同じ `TESSA_*` 環境を受け取ります。`tessa-ctl config` は
+`event_rule_count` と解析済みルールを表示します。
+
 フックは投げっぱなしで並行に実行されます。順序保証はなく、フックが状態を
 変えると次のイベントを発生させることがあります。コマンドはセッション
 ユーザーの全権限を持ちます。
@@ -285,8 +330,8 @@ sh tests/smoke.sh
 
 ## 現在の制限
 
-コマンド/イベントプロトコルは引き続き行ベースです。JSON スナップショットは
-`schema: 1` でバージョン管理していますが、コマンドプレーンにはバージョン
-交渉や JSON-RPC のリクエスト ID はまだありません。拡張間の順序制御、
-サンドボックス、投げっぱなしコマンドの ACK もありません。ステータスは
-テキストのみです。
+JSON スナップショットは `schema: 1` でバージョン管理しています。JSON-RPC は
+読み取り、リクエスト ID、ケイパビリティ交渉、JSON イベント購読を提供します
+が、変更操作は行コマンドを使います。拡張間の順序制御、サンドボックス、
+投げっぱなしコマンドの ACK はありません。ステータスはテキストのみです。
+レイアウトヘルパーは同期実行で全出力共有のままです。

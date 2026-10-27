@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const event_names = @import("event_names.zig");
+const rule_expr = @import("rule_expr.zig");
 
 const Server = types.Server;
 const Config = types.Config;
@@ -30,7 +31,12 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.layout_helper_timeout = 100;
     cfg.animations = true;
     cfg.reduce_motion = false;
+    cfg.reduce_motion_animations = .none;
+    cfg.reduce_motion_fade_ms = 120;
     cfg.animation_ms = 160;
+    cfg.animation_open_ms = -1;
+    cfg.animation_workspace_ms = -1;
+    cfg.animation_close_ms = -1;
     cfg.shadows = true;
     cfg.corner_radius = 10;
     cfg.blur = true;
@@ -60,6 +66,7 @@ pub fn initDefaults(cfg: *Config) void {
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
     cfg.repeat_rate = 25;
     cfg.repeat_delay = 600;
+    cfg.leader_timeout = 1000;
     core.parseHexColor(cfg.accent[0..cfg.accent_len], &cfg.accent_rgb);
 
     addDefaults(cfg);
@@ -235,17 +242,12 @@ fn addDefaults(cfg: *Config) void {
     }
 }
 
-pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg: []const u8) bool {
-    return addBindingInMode(cfg, 0, chord, action_name, arg);
-}
+const ParsedChord = struct {
+    mods: u32,
+    sym: u32,
+};
 
-pub fn addBindingInMode(
-    cfg: *Config,
-    mode: u8,
-    chord: []const u8,
-    action_name: []const u8,
-    arg: []const u8,
-) bool {
+fn parseChord(chord: []const u8) ?ParsedChord {
     var mods: u32 = 0;
     var key: []const u8 = "";
 
@@ -268,7 +270,7 @@ pub fn addBindingInMode(
             key = tok;
         }
     }
-    if (key.len == 0) return false;
+    if (key.len == 0) return null;
 
     var kbuf: [64:0]u8 = undefined;
     core.copyZ(&kbuf, key);
@@ -280,9 +282,35 @@ pub fn addBindingInMode(
         sym = c.xkb_keysym_from_name(&alt, 0);
     }
     if (sym == c.XKB_KEY_NoSymbol) {
-        core.logInfo("config: unknown keysym '{s}'", .{key});
-        return false;
+        var lower: [64:0]u8 = undefined;
+        core.copyZ(&lower, key);
+        for (lower[0..@min(key.len, 63)]) |*ch| ch.* = std.ascii.toLower(ch.*);
+        sym = c.xkb_keysym_from_name(&lower, 0);
     }
+    if (sym == c.XKB_KEY_NoSymbol) {
+        core.logInfo("config: unknown keysym '{s}'", .{key});
+        return null;
+    }
+    return .{ .mods = mods, .sym = @intCast(sym) };
+}
+
+pub fn addBinding(cfg: *Config, chord: []const u8, action_name: []const u8, arg: []const u8) bool {
+    return addBindingInMode(cfg, 0, chord, action_name, arg);
+}
+
+pub fn addBindingInMode(
+    cfg: *Config,
+    mode: u8,
+    chord: []const u8,
+    action_name: []const u8,
+    arg: []const u8,
+) bool {
+    const parsed = parseChord(chord) orelse {
+        core.logInfo("config: invalid chord '{s}'", .{chord});
+        return false;
+    };
+    const mods = parsed.mods;
+    const sym = parsed.sym;
 
     const action = parseAction(action_name);
     if (action == .none) {
@@ -384,6 +412,159 @@ pub fn addHook(cfg: *Config, event: []const u8, command: []const u8) bool {
     return true;
 }
 
+fn validThemeRole(name: []const u8) bool {
+    const roles = [_][]const u8{
+        "accent",
+        "window.border.active",
+        "window.border.inactive",
+        "window.background",
+        "panel.background",
+        "panel.foreground",
+        "wallpaper.top",
+        "wallpaper.bottom",
+    };
+    for (roles) |role| {
+        if (std.mem.eql(u8, name, role)) return true;
+    }
+    return false;
+}
+
+pub fn addThemeRole(cfg: *Config, value: []const u8) bool {
+    const eq = std.mem.indexOfScalar(u8, value, '=') orelse {
+        core.logInfo("config: theme-role needs name=color", .{});
+        return false;
+    };
+    const name = std.mem.trim(u8, value[0..eq], " \t");
+    var color = std.mem.trim(u8, value[eq + 1 ..], " \t");
+    if (color.len >= 2 and
+        ((color[0] == '"' and color[color.len - 1] == '"') or
+            (color[0] == '\'' and color[color.len - 1] == '\'')))
+    {
+        color = color[1 .. color.len - 1];
+    }
+    if (!validThemeRole(name)) {
+        core.logInfo("config: unknown theme role '{s}'", .{name});
+        return false;
+    }
+    if (!validHexColor(color) or color.len >= 16) {
+        core.logInfo("config: invalid color for theme role '{s}'", .{name});
+        return false;
+    }
+
+    var index: ?usize = null;
+    var i: usize = 0;
+    while (i < cfg.theme_role_count) : (i += 1) {
+        const role = &cfg.theme_roles[i];
+        if (std.mem.eql(u8, role.name[0..role.name_len], name)) {
+            index = i;
+            break;
+        }
+    }
+    if (index == null) {
+        if (cfg.theme_role_count >= cfg.theme_roles.len) {
+            core.logInfo("config: too many theme roles (max {d})", .{cfg.theme_roles.len});
+            return false;
+        }
+        index = cfg.theme_role_count;
+        cfg.theme_role_count += 1;
+        cfg.theme_roles[index.?] = std.mem.zeroes(types.ThemeRole);
+    }
+
+    const role = &cfg.theme_roles[index.?];
+    core.copyString(&role.name, &role.name_len, name);
+    core.copyString(&role.color, &role.color_len, color);
+    core.parseHexColor(color, &role.rgb);
+    return true;
+}
+
+fn applyThemeRoles(cfg: *Config) void {
+    var i: usize = 0;
+    while (i < cfg.theme_role_count) : (i += 1) {
+        const role = &cfg.theme_roles[i];
+        const name = role.name[0..role.name_len];
+        const color = role.color[0..role.color_len];
+        if (std.mem.eql(u8, name, "accent")) {
+            core.copyString(&cfg.accent, &cfg.accent_len, color);
+        } else if (std.mem.eql(u8, name, "window.border.active")) {
+            core.copyString(&cfg.border_active, &cfg.border_active_len, color);
+        } else if (std.mem.eql(u8, name, "window.border.inactive")) {
+            core.copyString(&cfg.border_inactive, &cfg.border_inactive_len, color);
+        } else if (std.mem.eql(u8, name, "window.background")) {
+            core.copyString(&cfg.bg, &cfg.bg_len, color);
+        }
+    }
+}
+
+pub fn addEventRule(cfg: *Config, value: []const u8) bool {
+    if (cfg.event_rule_count >= cfg.event_rules.len) {
+        core.logInfo("config: too many event rules (max {d})", .{cfg.event_rules.len});
+        return false;
+    }
+
+    var rule = types.EventRule{};
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            if (rule.event_len > 0 or !event_names.isKnown(clause)) {
+                core.logInfo("config: invalid event-rule clause '{s}'", .{clause});
+                return false;
+            }
+            core.copyString(&rule.event, &rule.event_len, clause);
+            continue;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid event-rule clause '{s}'", .{clause});
+            return false;
+        }
+
+        if (std.ascii.eqlIgnoreCase(key, "event")) {
+            if (!event_names.isKnown(val)) {
+                core.logInfo("config: unknown event-rule event '{s}'", .{val});
+                return false;
+            }
+            core.copyString(&rule.event, &rule.event_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "match") or
+            std.ascii.eqlIgnoreCase(key, "expr"))
+        {
+            if (val.len >= types.MAX_COMMAND or !rule_expr.validate(val)) {
+                core.logInfo("config: invalid event-rule expression '{s}'", .{val});
+                return false;
+            }
+            core.copyString(&rule.expr, &rule.expr_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "run") or
+            std.ascii.eqlIgnoreCase(key, "command") or
+            std.ascii.eqlIgnoreCase(key, "action"))
+        {
+            if (val.len >= types.MAX_COMMAND) {
+                core.logInfo("config: event-rule command too long", .{});
+                return false;
+            }
+            core.copyString(&rule.command, &rule.command_len, val);
+        } else {
+            core.logInfo("config: unknown event-rule key '{s}'", .{key});
+            return false;
+        }
+    }
+
+    if (rule.event_len == 0 or rule.command_len == 0) {
+        core.logInfo("config: event-rule needs an event and a run command", .{});
+        return false;
+    }
+    cfg.event_rules[cfg.event_rule_count] = rule;
+    cfg.event_rule_count += 1;
+    return true;
+}
+
 fn parseRuleBool(value: []const u8) ?bool {
     if (std.ascii.eqlIgnoreCase(value, "true") or
         std.ascii.eqlIgnoreCase(value, "on") or
@@ -437,6 +618,32 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
             std.ascii.eqlIgnoreCase(key, "monitor"))
         {
             core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "match") or
+            std.ascii.eqlIgnoreCase(key, "expr"))
+        {
+            if (!rule_expr.validate(val)) {
+                core.logInfo("config: invalid window-rule expression '{s}'", .{val});
+                return false;
+            }
+            core.copyString(&rule.expr, &rule.expr_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "border-active") or
+            std.ascii.eqlIgnoreCase(key, "border_active"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid rule border-active color '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.border_active_rgb);
+            rule.has_border_active = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "border-inactive") or
+            std.ascii.eqlIgnoreCase(key, "border_inactive"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid rule border-inactive color '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.border_inactive_rgb);
+            rule.has_border_inactive = true;
         } else if (std.ascii.eqlIgnoreCase(key, "workspace") or
             std.ascii.eqlIgnoreCase(key, "ws"))
         {
@@ -532,13 +739,162 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
     return true;
 }
 
-pub fn addWorkspaceRule(cfg: *Config, value: []const u8) bool {
-    var ws: ?usize = null;
-    var gaps: ?i32 = null;
-    var outer_gaps: ?i32 = null;
-    var master_ratio: ?f32 = null;
-    var layout_mode: ?types.LayoutMode = null;
+fn clampTuning(tuning: *types.LayoutTuning) void {
+    if (tuning.has_gaps and tuning.gaps < 0) tuning.gaps = 0;
+    if (tuning.has_outer_gaps and tuning.outer_gaps < 0) tuning.outer_gaps = 0;
+    if (tuning.has_master_ratio) tuning.master_ratio = std.math.clamp(tuning.master_ratio, 0.15, 0.9);
+    if (tuning.has_master_count) tuning.master_count = std.math.clamp(tuning.master_count, 1, 8);
+    if (tuning.has_mosaic_ratio) tuning.mosaic_ratio = std.math.clamp(tuning.mosaic_ratio, 0.25, 0.85);
+    if (tuning.has_mosaic_min_size) tuning.mosaic_min_size = std.math.clamp(tuning.mosaic_min_size, 80, 600);
+    if (tuning.has_grid_columns and tuning.grid_columns > 8) tuning.grid_columns = 8;
+}
 
+fn parseTuningClause(tuning: *types.LayoutTuning, key: []const u8, val: []const u8) bool {
+    if (std.ascii.eqlIgnoreCase(key, "layout")) {
+        tuning.layout = types.layoutFromName(val) orelse {
+            core.logInfo("config: unknown layout '{s}'", .{val});
+            return false;
+        };
+        tuning.has_layout = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "gaps")) {
+        tuning.gaps = std.fmt.parseInt(i32, val, 10) catch {
+            core.logInfo("config: invalid gaps '{s}'", .{val});
+            return false;
+        };
+        tuning.has_gaps = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "outer-gaps") or
+        std.ascii.eqlIgnoreCase(key, "outer_gaps"))
+    {
+        tuning.outer_gaps = std.fmt.parseInt(i32, val, 10) catch {
+            core.logInfo("config: invalid outer-gaps '{s}'", .{val});
+            return false;
+        };
+        tuning.has_outer_gaps = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "master-ratio") or
+        std.ascii.eqlIgnoreCase(key, "master_ratio"))
+    {
+        tuning.master_ratio = std.fmt.parseFloat(f32, val) catch {
+            core.logInfo("config: invalid master-ratio '{s}'", .{val});
+            return false;
+        };
+        tuning.has_master_ratio = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "master-count") or
+        std.ascii.eqlIgnoreCase(key, "master_count"))
+    {
+        tuning.master_count = std.fmt.parseInt(usize, val, 10) catch {
+            core.logInfo("config: invalid master-count '{s}'", .{val});
+            return false;
+        };
+        tuning.has_master_count = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "mosaic-ratio") or
+        std.ascii.eqlIgnoreCase(key, "mosaic_ratio"))
+    {
+        tuning.mosaic_ratio = std.fmt.parseFloat(f32, val) catch {
+            core.logInfo("config: invalid mosaic-ratio '{s}'", .{val});
+            return false;
+        };
+        tuning.has_mosaic_ratio = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "mosaic-min-size") or
+        std.ascii.eqlIgnoreCase(key, "mosaic_min_size"))
+    {
+        tuning.mosaic_min_size = std.fmt.parseInt(i32, val, 10) catch {
+            core.logInfo("config: invalid mosaic-min-size '{s}'", .{val});
+            return false;
+        };
+        tuning.has_mosaic_min_size = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "grid-columns") or
+        std.ascii.eqlIgnoreCase(key, "grid_columns"))
+    {
+        tuning.grid_columns = std.fmt.parseInt(usize, val, 10) catch {
+            core.logInfo("config: invalid grid-columns '{s}'", .{val});
+            return false;
+        };
+        tuning.has_grid_columns = true;
+    } else {
+        core.logInfo("config: unknown tuning key '{s}'", .{key});
+        return false;
+    }
+    return true;
+}
+
+fn validProfileName(name: []const u8) bool {
+    if (name.len == 0 or name.len >= 32) return false;
+    for (name) |ch| {
+        if (!std.ascii.isAlphanumeric(ch) and ch != '_' and ch != '-' and ch != '.') return false;
+    }
+    return true;
+}
+
+pub fn findProfile(cfg: *Config, name: []const u8) ?*types.Profile {
+    var i: usize = 0;
+    while (i < cfg.profile_count) : (i += 1) {
+        const profile = &cfg.profiles[i];
+        if (std.mem.eql(u8, profile.name[0..profile.name_len], name)) return profile;
+    }
+    return null;
+}
+
+pub fn addProfile(cfg: *Config, value: []const u8) bool {
+    if (cfg.profile_count >= cfg.profiles.len) {
+        core.logInfo("config: too many profiles (max {d})", .{cfg.profiles.len});
+        return false;
+    }
+
+    var profile = types.Profile{};
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            if (profile.name_len == 0 and validProfileName(clause)) {
+                core.copyString(&profile.name, &profile.name_len, clause);
+                continue;
+            }
+            core.logInfo("config: profile clause needs '=': '{s}'", .{clause});
+            return false;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid profile clause '{s}'", .{clause});
+            return false;
+        }
+        if (std.ascii.eqlIgnoreCase(key, "name") or
+            std.ascii.eqlIgnoreCase(key, "profile"))
+        {
+            if (!validProfileName(val) or findProfile(cfg, val) != null) {
+                core.logInfo("config: invalid or duplicate profile name '{s}'", .{val});
+                return false;
+            }
+            core.copyString(&profile.name, &profile.name_len, val);
+        } else if (!parseTuningClause(&profile.tuning, key, val)) {
+            return false;
+        }
+    }
+
+    if (profile.name_len == 0) {
+        core.logInfo("config: profile needs name=<name>", .{});
+        return false;
+    }
+    clampTuning(&profile.tuning);
+    cfg.profiles[cfg.profile_count] = profile;
+    cfg.profile_count += 1;
+    return true;
+}
+
+pub fn addWorkspaceRule(cfg: *Config, value: []const u8) bool {
+    if (cfg.workspace_rule_count >= cfg.workspace_rules.len) {
+        core.logInfo("config: too many workspace rules (max {d})", .{cfg.workspace_rules.len});
+        return false;
+    }
+
+    var rule = types.WorkspaceRule{};
     var clauses = std.mem.splitScalar(u8, value, ';');
     while (clauses.next()) |raw| {
         const clause = std.mem.trim(u8, raw, " \t");
@@ -571,58 +927,91 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) bool {
                 core.logInfo("config: workspace-rule workspace out of range: {d}", .{n});
                 return false;
             }
-            ws = n - 1;
-        } else if (std.ascii.eqlIgnoreCase(key, "gaps")) {
-            gaps = std.fmt.parseInt(i32, val, 10) catch {
-                core.logInfo("config: invalid workspace-rule gaps '{s}'", .{val});
+            rule.ws = @intCast(n);
+        } else if (std.ascii.eqlIgnoreCase(key, "profile")) {
+            if (!validProfileName(val)) {
+                core.logInfo("config: invalid workspace-rule profile '{s}'", .{val});
                 return false;
-            };
-        } else if (std.ascii.eqlIgnoreCase(key, "outer-gaps") or
-            std.ascii.eqlIgnoreCase(key, "outer_gaps"))
-        {
-            outer_gaps = std.fmt.parseInt(i32, val, 10) catch {
-                core.logInfo("config: invalid workspace-rule outer-gaps '{s}'", .{val});
-                return false;
-            };
-        } else if (std.ascii.eqlIgnoreCase(key, "master-ratio") or
-            std.ascii.eqlIgnoreCase(key, "master_ratio"))
-        {
-            master_ratio = std.fmt.parseFloat(f32, val) catch {
-                core.logInfo("config: invalid workspace-rule master-ratio '{s}'", .{val});
-                return false;
-            };
-        } else if (std.ascii.eqlIgnoreCase(key, "layout")) {
-            layout_mode = types.layoutFromName(val) orelse {
-                core.logInfo("config: unknown workspace-rule layout '{s}'", .{val});
-                return false;
-            };
-        } else {
-            core.logInfo("config: unknown workspace-rule key '{s}'", .{key});
+            }
+            core.copyString(&rule.profile, &rule.profile_len, val);
+        } else if (!parseTuningClause(&rule.tuning, key, val)) {
             return false;
         }
     }
 
-    const idx = ws orelse {
+    if (rule.ws == 0) {
         core.logInfo("config: workspace-rule needs ws=<1..9>", .{});
         return false;
-    };
-    if (gaps) |v| {
-        cfg.ws_gaps[idx] = v;
-        cfg.ws_gaps_set[idx] = true;
     }
-    if (outer_gaps) |v| {
-        cfg.ws_outer_gaps[idx] = v;
-        cfg.ws_outer_set[idx] = true;
-    }
-    if (master_ratio) |v| {
-        cfg.ws_master_ratio[idx] = v;
-        cfg.ws_ratio_set[idx] = true;
-    }
-    if (layout_mode) |v| {
-        cfg.layout_by_ws[idx] = v;
+    clampTuning(&rule.tuning);
+    cfg.workspace_rules[cfg.workspace_rule_count] = rule;
+    cfg.workspace_rule_count += 1;
+    return true;
+}
+
+fn applyTuningToWorkspace(cfg: *Config, tuning: *const types.LayoutTuning, idx: usize) void {
+    if (tuning.has_layout) {
+        cfg.layout_by_ws[idx] = tuning.layout;
         cfg.layout_overrides[idx] = true;
     }
-    return true;
+    if (tuning.has_gaps) {
+        cfg.ws_gaps[idx] = tuning.gaps;
+        cfg.ws_gaps_set[idx] = true;
+    }
+    if (tuning.has_outer_gaps) {
+        cfg.ws_outer_gaps[idx] = tuning.outer_gaps;
+        cfg.ws_outer_set[idx] = true;
+    }
+    if (tuning.has_master_ratio) {
+        cfg.ws_master_ratio[idx] = tuning.master_ratio;
+        cfg.ws_ratio_set[idx] = true;
+    }
+    if (tuning.has_master_count) {
+        cfg.ws_master_count[idx] = tuning.master_count;
+        cfg.ws_master_count_set[idx] = true;
+    }
+    if (tuning.has_mosaic_ratio) {
+        cfg.ws_mosaic_ratio[idx] = tuning.mosaic_ratio;
+        cfg.ws_mosaic_ratio_set[idx] = true;
+    }
+    if (tuning.has_mosaic_min_size) {
+        cfg.ws_mosaic_min_size[idx] = tuning.mosaic_min_size;
+        cfg.ws_mosaic_min_size_set[idx] = true;
+    }
+    if (tuning.has_grid_columns) {
+        cfg.ws_grid_columns[idx] = tuning.grid_columns;
+        cfg.ws_grid_columns_set[idx] = true;
+    }
+}
+
+fn resolveProfileReferences(server: *Server) void {
+    const cfg = &server.config;
+    var i: usize = 0;
+    while (i < cfg.workspace_rule_count) : (i += 1) {
+        const rule = &cfg.workspace_rules[i];
+        if (rule.profile_len > 0) {
+            if (findProfile(&server.config, rule.profile[0..rule.profile_len])) |profile| {
+                applyTuningToWorkspace(&server.config, &profile.tuning, rule.ws - 1);
+            } else {
+                addIssue(server, "<config>", 0, "workspace-rule references unknown profile '{s}'", .{
+                    rule.profile[0..rule.profile_len],
+                });
+            }
+        }
+        applyTuningToWorkspace(&server.config, &rule.tuning, rule.ws - 1);
+    }
+
+    i = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        const rule = &cfg.output_rules[i];
+        if (rule.profile_len > 0 and
+            findProfile(&server.config, rule.profile[0..rule.profile_len]) == null)
+        {
+            addIssue(server, "<config>", 0, "output-rule references unknown profile '{s}'", .{
+                rule.profile[0..rule.profile_len],
+            });
+        }
+    }
 }
 
 pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
@@ -663,6 +1052,12 @@ pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
                 return false;
             }
             core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "profile")) {
+            if (!validProfileName(val)) {
+                core.logInfo("config: invalid output-rule profile '{s}'", .{val});
+                return false;
+            }
+            core.copyString(&rule.profile, &rule.profile_len, val);
         } else if (std.ascii.eqlIgnoreCase(key, "ws") or
             std.ascii.eqlIgnoreCase(key, "workspace"))
         {
@@ -747,6 +1142,113 @@ pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
             }
             rule.grid_columns = n;
             rule.has_grid_columns = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "accent")) {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule accent '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.accent_rgb);
+            rule.has_accent = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bg")) {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule bg '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.bg_rgb);
+            rule.has_bg = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "border-active") or
+            std.ascii.eqlIgnoreCase(key, "border_active"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule border-active '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.border_active_rgb);
+            rule.has_border_active = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "border-inactive") or
+            std.ascii.eqlIgnoreCase(key, "border_inactive"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule border-inactive '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.border_inactive_rgb);
+            rule.has_border_inactive = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "panel-bg") or
+            std.ascii.eqlIgnoreCase(key, "panel_bg"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule panel-bg '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.panel_bg_rgb);
+            rule.has_panel_bg = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "panel-fg") or
+            std.ascii.eqlIgnoreCase(key, "panel_fg"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule panel-fg '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.panel_fg_rgb);
+            rule.has_panel_fg = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bg-top") or
+            std.ascii.eqlIgnoreCase(key, "bg_top"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule bg-top '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.bg_top_rgb);
+            rule.has_bg_top = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bg-bottom") or
+            std.ascii.eqlIgnoreCase(key, "bg_bottom"))
+        {
+            if (!validHexColor(val)) {
+                core.logInfo("config: invalid output-rule bg-bottom '{s}'", .{val});
+                return false;
+            }
+            core.parseHexColor(val, &rule.bg_bottom_rgb);
+            rule.has_bg_bottom = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bar-height") or
+            std.ascii.eqlIgnoreCase(key, "bar_height"))
+        {
+            const n = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule bar-height '{s}'", .{val});
+                return false;
+            };
+            if (n < 0 or n > 200) {
+                core.logInfo("config: output-rule bar-height out of range: {d}", .{n});
+                return false;
+            }
+            rule.bar_height = n;
+            rule.has_bar_height = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bar-top-margin") or
+            std.ascii.eqlIgnoreCase(key, "bar_top_margin"))
+        {
+            const n = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule bar-top-margin '{s}'", .{val});
+                return false;
+            };
+            if (n < 0 or n > 128) {
+                core.logInfo("config: output-rule bar-top-margin out of range: {d}", .{n});
+                return false;
+            }
+            rule.bar_top_margin = n;
+            rule.has_bar_top_margin = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "bar-side-margin") or
+            std.ascii.eqlIgnoreCase(key, "bar_side_margin"))
+        {
+            const n = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule bar-side-margin '{s}'", .{val});
+                return false;
+            };
+            if (n < 0 or n > 256) {
+                core.logInfo("config: output-rule bar-side-margin out of range: {d}", .{n});
+                return false;
+            }
+            rule.bar_side_margin = n;
+            rule.has_bar_side_margin = true;
         } else if (std.ascii.eqlIgnoreCase(key, "layout")) {
             rule.layout = types.layoutFromName(val) orelse {
                 core.logInfo("config: unknown output-rule layout '{s}'", .{val});
@@ -943,6 +1445,35 @@ fn loadPath(
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.reduce_motion = v;
         } else if (std.mem.eql(u8, key, "animation_ms")) {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_open_ms") or
+            std.mem.eql(u8, key, "animation-open-ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_open_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_workspace_ms") or
+            std.mem.eql(u8, key, "animation-workspace-ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_workspace_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_close_ms") or
+            std.mem.eql(u8, key, "animation-close-ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_close_ms = v;
+        } else if (std.mem.eql(u8, key, "reduce_motion_animations") or
+            std.mem.eql(u8, key, "reduce-motion-animations"))
+        {
+            if (std.ascii.eqlIgnoreCase(value, "none") or
+                std.ascii.eqlIgnoreCase(value, "off") or
+                std.ascii.eqlIgnoreCase(value, "disabled"))
+            {
+                server.config.reduce_motion_animations = .none;
+            } else if (std.ascii.eqlIgnoreCase(value, "fade")) {
+                server.config.reduce_motion_animations = .fade;
+            } else {
+                addIssue(server, path, line_no, "invalid {s}: '{s}' (expected none or fade)", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "reduce_motion_fade_ms") or
+            std.mem.eql(u8, key, "reduce-motion-fade-ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.reduce_motion_fade_ms = v;
         } else if (std.mem.eql(u8, key, "shadows")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.shadows = v;
         } else if (std.mem.eql(u8, key, "corner_radius")) {
@@ -1021,6 +1552,41 @@ fn loadPath(
             } else {
                 addIssue(server, path, line_no, "invalid mode name '{s}'", .{value});
             }
+        } else if (std.mem.eql(u8, key, "leader")) {
+            if (parseChord(value)) |parsed| {
+                server.config.leader_mods = parsed.mods;
+                server.config.leader_sym = parsed.sym;
+                server.config.leader_set = true;
+                if (ensureMode(&server.config, "leader") == null) {
+                    addIssue(server, path, line_no, "cannot create leader mode (too many modes)", .{});
+                }
+            } else {
+                addIssue(server, path, line_no, "invalid leader chord: '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "leader_timeout") or std.mem.eql(u8, key, "leader-timeout")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| {
+                if (v < 0 or v > 60000) {
+                    addIssue(server, path, line_no, "{s} out of range (0-60000): {d}", .{ key, v });
+                } else {
+                    server.config.leader_timeout = v;
+                }
+            }
+        } else if (std.mem.eql(u8, key, "mode_timeout") or std.mem.eql(u8, key, "mode-timeout")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| {
+                if (v < 0 or v > 60000) {
+                    addIssue(server, path, line_no, "{s} out of range (0-60000): {d}", .{ key, v });
+                } else {
+                    server.config.mode_timeouts[current_mode.*] = v;
+                }
+            }
+        } else if (std.mem.eql(u8, key, "profile")) {
+            if (!addProfile(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid profile: '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "theme-role") or std.mem.eql(u8, key, "theme_role")) {
+            if (!addThemeRole(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid theme-role: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "window-rule") or std.mem.eql(u8, key, "window_rule")) {
             if (!addRule(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid window-rule: '{s}'", .{value});
@@ -1049,6 +1615,10 @@ fn loadPath(
                 }
             } else {
                 addIssue(server, path, line_no, "bind needs a chord and action: '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "event-rule") or std.mem.eql(u8, key, "event_rule")) {
+            if (!addEventRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid event-rule: '{s}'", .{value});
             }
         } else if (std.mem.eql(u8, key, "hook") or std.mem.eql(u8, key, "startup")) {
             if (std.mem.eql(u8, key, "startup")) {
@@ -1107,6 +1677,7 @@ pub fn load(server: *Server) void {
 
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
+    resolveProfileReferences(server);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;
@@ -1125,6 +1696,14 @@ pub fn load(server: *Server) void {
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
     if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
+    if (server.config.animation_open_ms < -1) server.config.animation_open_ms = -1;
+    if (server.config.animation_open_ms > 1000) server.config.animation_open_ms = 1000;
+    if (server.config.animation_workspace_ms < -1) server.config.animation_workspace_ms = -1;
+    if (server.config.animation_workspace_ms > 1000) server.config.animation_workspace_ms = 1000;
+    if (server.config.animation_close_ms < -1) server.config.animation_close_ms = -1;
+    if (server.config.animation_close_ms > 1000) server.config.animation_close_ms = 1000;
+    if (server.config.reduce_motion_fade_ms < 0) server.config.reduce_motion_fade_ms = 0;
+    if (server.config.reduce_motion_fade_ms > 1000) server.config.reduce_motion_fade_ms = 1000;
     if (server.config.corner_radius < 0) server.config.corner_radius = 0;
     if (server.config.corner_radius > 64) server.config.corner_radius = 64;
     if (server.config.blur_radius < 1) server.config.blur_radius = 1;
@@ -1149,6 +1728,13 @@ pub fn load(server: *Server) void {
         if (server.config.ws_outer_gaps[wi] < 0) server.config.ws_outer_gaps[wi] = 0;
         if (server.config.ws_master_ratio[wi] < 0.15) server.config.ws_master_ratio[wi] = 0.15;
         if (server.config.ws_master_ratio[wi] > 0.9) server.config.ws_master_ratio[wi] = 0.9;
+        if (server.config.ws_master_count[wi] < 1) server.config.ws_master_count[wi] = 1;
+        if (server.config.ws_master_count[wi] > 8) server.config.ws_master_count[wi] = 8;
+        if (server.config.ws_mosaic_ratio[wi] < 0.25) server.config.ws_mosaic_ratio[wi] = 0.25;
+        if (server.config.ws_mosaic_ratio[wi] > 0.85) server.config.ws_mosaic_ratio[wi] = 0.85;
+        if (server.config.ws_mosaic_min_size[wi] < 80) server.config.ws_mosaic_min_size[wi] = 80;
+        if (server.config.ws_mosaic_min_size[wi] > 600) server.config.ws_mosaic_min_size[wi] = 600;
+        if (server.config.ws_grid_columns[wi] > 8) server.config.ws_grid_columns[wi] = 8;
         if (!server.config.layout_overrides[wi]) {
             server.config.layout_by_ws[wi] = server.config.layout_mode;
         }
@@ -1166,6 +1752,7 @@ pub fn load(server: *Server) void {
             rule.mosaic_min_size = std.math.clamp(rule.mosaic_min_size, 80, 600);
         }
     }
+    applyThemeRoles(&server.config);
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
     if (server.config.border_active_len > 0) {
         core.parseHexColor(server.config.border_active[0..server.config.border_active_len], &server.config.border_active_rgb);

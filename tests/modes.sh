@@ -39,7 +39,15 @@ cat > "$runtime/config" <<EOF
 panel = false
 xwayland = false
 
+leader = SUPER+SPACE
+leader_timeout = 300
+
+mode = leader
+bind = f spawn touch $runtime/leader-fired
+bind = Escape enter-mode default
+
 mode = resize
+mode_timeout = 250
 bind = h resize-width -30
 bind = l resize-width 30
 bind = Escape enter-mode default
@@ -114,7 +122,7 @@ grep -q "active_mode default" "$runtime/config.out"
 tessa-ctl config-check >"$runtime/check.out"
 grep -q "config: ok" "$runtime/check.out"
 tessa-ctl config --json >"$runtime/config.json"
-grep -q '"modes":\["default","resize"\]' "$runtime/config.json"
+grep -q '"modes":\["default","leader","resize"\]' "$runtime/config.json"
 echo "mode config: ok"
 
 tessa-ctl spawn foot -T ModeTest
@@ -159,6 +167,33 @@ if [ "$width3" != "$width2" ]; then
     exit 1
 fi
 echo "mode exit: ok"
+
+rm -f "$runtime/leader-fired"
+wtype -M logo -k space
+wait_state "MODE leader"
+wait_state "MODE default"
+echo "leader timeout: ok"
+
+wtype -M logo -k space
+wait_state "MODE leader"
+wtype -k f
+i=0
+while [ ! -e "$runtime/leader-fired" ]; do
+    i=$((i + 1))
+    if [ "$i" -ge 30 ]; then
+        echo "leader binding did not run" >&2
+        cat "$runtime/tessa.log" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+wait_state "MODE default"
+echo "leader chord binding: ok"
+
+tessa-ctl mode resize
+wait_state "MODE resize"
+wait_state "MODE default"
+echo "mode timeout: ok"
 
 kill "$epid" 2>/dev/null || true
 wait "$epid" 2>/dev/null || true
