@@ -183,8 +183,14 @@ Requirements:
 Distribution packaging definitions live in `packaging/` and `debian/`:
 `packaging/arch/PKGBUILD` and the debhelper `debian/` tree both install the
 compositor, panel, CLI, session file, example config, and the
-`xdg-desktop-portal` backend selector. See
-[packaging/README.md](packaging/README.md).
+`xdg-desktop-portal` backend selector. To build a Debian binary package:
+
+```sh
+ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
+# result: dist/tessa_<version>_<arch>.deb
+```
+
+See [packaging/README.md](packaging/README.md).
 
 For screen sharing, install `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and
 PipeWire. The packaged selector is

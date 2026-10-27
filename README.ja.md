@@ -194,8 +194,15 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 
 配布用パッケージ定義は `packaging/` と `debian/` にあります。
 `packaging/arch/PKGBUILD` と debhelper 用 `debian/` が、コンポジタ、パネル、
-CLI、セッションファイル、設定例、ポータル設定をインストールします。詳細は
-[packaging/README.md](packaging/README.md) を参照してください。
+CLI、セッションファイル、設定例、ポータル設定をインストールします。
+Debianバイナリパッケージを作る場合:
+
+```sh
+ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
+# 生成物: dist/tessa_<version>_<arch>.deb
+```
+
+詳細は [packaging/README.md](packaging/README.md) を参照してください。
 
 画面共有には `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire が
 必要です。同梱の `packaging/portal/tessa.portal` をシステムへ入れると
