@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const ime = @import("ime.zig");
 const constraints = @import("constraints.zig");
 const effects = @import("effects.zig");
+const window_effects = @import("window_effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
@@ -397,6 +398,7 @@ fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enab
     if (cw != client.xdg.current.width or ch != client.xdg.current.height) {
         _ = c.wlr_xdg_toplevel_set_size(client.xdg, cw, ch);
     }
+    window_effects.applyClient(client, enabled_border);
 }
 
 fn initFloatRect(client: *Client, out: *Output) void {

@@ -4,6 +4,7 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
 const effects = @import("effects.zig");
+const scene_util = @import("scene_util.zig");
 const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -463,6 +464,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.border_rect = c.wlr_scene_rect_create(client.frame, 1, 1, &inactive);
 
     client.surface_tree = c.wlr_scene_xdg_surface_create(client.frame, tBase(xdg));
+    client.content_buffer = scene_util.surfaceBuffer(client.surface_tree, tSurface(xdg));
     tBase(xdg).data = @ptrCast(client.surface_tree);
 
     client.map.notify = onMap;

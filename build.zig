@@ -3,6 +3,14 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const scenefx = b.option(
+        bool,
+        "scenefx",
+        "build with scenefx rounded corners and backdrop blur (requires scenefx-0.4 and GLES2)",
+    ) orelse false;
+
+    const build_options = b.addOptions();
+    build_options.addOption(bool, "scenefx", scenefx);
 
     const server_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -12,11 +20,14 @@ pub fn build(b: *std.Build) void {
     });
 
     server_mod.addIncludePath(b.path("protocol"));
+    server_mod.addIncludePath(b.path("src"));
+    server_mod.addOptions("build_options", build_options);
 
     const server = b.addExecutable(.{
         .name = "tessa",
         .root_module = server_mod,
     });
+    if (scenefx) server.root_module.linkSystemLibrary("scenefx-0.4", .{});
     server.root_module.linkSystemLibrary("wlroots-0.19", .{});
     server.root_module.linkSystemLibrary("wayland-server", .{});
     server.root_module.linkSystemLibrary("xkbcommon", .{});

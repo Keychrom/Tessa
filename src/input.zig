@@ -14,6 +14,7 @@ const gestures = @import("gestures.zig");
 const touch = @import("touch.zig");
 const tablet = @import("tablet.zig");
 const constraints = @import("constraints.zig");
+const window_effects = @import("window_effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -377,6 +378,7 @@ pub fn reloadRuntime(server: *Server) void {
     layout_helper.reload(server);
     rules.applyAll(server);
     constraints.reload(server);
+    window_effects.reload(server);
     layout.clearAnimations(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);

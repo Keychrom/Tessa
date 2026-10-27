@@ -20,6 +20,14 @@ For a debug build:
 ./scripts/build.sh
 ```
 
+Rounded corners and backdrop blur use scenefx 0.4.1. Install it, then build
+with `-Dscenefx=true`. This binary uses the scenefx GLES2 renderer and cannot
+use the pixman renderer.
+
+```sh
+./scripts/build.sh -Dscenefx=true
+```
+
 Prerequisites are listed in the main README. In short: Zig 0.16, wlroots 0.19,
 Wayland, xkbcommon, pixman, DRM/input/seat development headers, Cairo, Pango,
 and fonts. For X11 testing, also install `xwayland-satellite` in `PATH`.
@@ -311,6 +319,19 @@ commit path that re-notifies existing surfaces.
 
 ```sh
 sh tests/fractional-scale.sh
+```
+
+### Effects test
+
+`tests/effects.sh` checks the scenefx build only; it exits 0 and skips when
+`tessa-ctl config` reports `scenefx 0`. It starts with a 24 px corner radius,
+a red border, and a black wallpaper, spawns `foot` with a white background, and
+samples the screenshot. The window center must be white, the top-left corner
+must be background-dark instead of white/red, and the top border midpoint must
+be red.
+
+```sh
+sh tests/effects.sh
 ```
 
 ### Workspace pinning test

@@ -97,6 +97,32 @@ parent. `output.zig` listens for that event and creates the popup scene tree
 under the layer surface's tree. This is what makes third-party panel menus and
 dropdowns visible.
 
+## Effects backend
+
+The default build uses the upstream wlroots scene implementation. With
+`-Dscenefx=true`, `src/scene_include.h` selects the scenefx 0.4 header and
+`main.zig` creates the renderer with `fx_renderer_create()` instead of
+`wlr_renderer_autocreate()`. Scenefx's scene entry points and wlroots' scene
+entry points resolve to the same `wlr_scene_*` symbols, so the rest of Tessa
+continues to use the scene graph unchanged. This build requires GLES2 and cannot
+run with `WLR_RENDERER=pixman`.
+
+`window_effects.zig` is compiled as a no-op in the default build. In a scenefx
+build it:
+
+- locates each client's root scene buffer and applies `corner_radius`
+  (`CORNER_LOCATION_ALL`), resetting the radius for fullscreen windows,
+- rounds the client border and the three shadow rectangles to match,
+- enables backdrop blur on client buffers and on buffer nodes in the top,
+  overlay, and popup trees; opaque regions are unaffected,
+- publishes `blur_radius` and `blur_passes` through
+  `wlr_scene_set_blur_data()`.
+
+Scenefx logs a fallback warning on every blur until its optimized-blur
+framebuffer exists, so `configure()` creates one invisible 1×1 optimized-blur
+node to allocate that shared buffer; the normal blur path is still used. Config
+reload reapplies both scene-wide blur data and per-client/layer state.
+
 ## Window motion, close effects, and shadows
 
 Motion is a position offset on the client frame node; layout still records the

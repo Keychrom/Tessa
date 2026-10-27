@@ -191,6 +191,11 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addBool(buf, &off, cfg.reduce_motion);
     addRaw(buf, &off, ",\"shadows\":");
     addBool(buf, &off, cfg.shadows);
+    addRaw(buf, &off, ",\"scenefx\":");
+    addBool(buf, &off, @import("build_options").scenefx);
+    add(buf, &off, ",\"corner_radius\":{d},\"blur\":", .{cfg.corner_radius});
+    addBool(buf, &off, cfg.blur);
+    add(buf, &off, ",\"blur_radius\":{d},\"blur_passes\":{d}", .{ cfg.blur_radius, cfg.blur_passes });
     addRaw(buf, &off, ",\"gestures\":");
     addBool(buf, &off, cfg.gestures);
     add(buf, &off, ",\"gesture_fingers\":{d},\"gesture_workspace_threshold\":{d},\"gesture_launcher_threshold\":{d}", .{

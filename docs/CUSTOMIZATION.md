@@ -302,6 +302,10 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `animation_ms` | motion duration in milliseconds, 0–1000 (default 160) |
 | `reduce_motion` | disable motion regardless of `animations` (default `false`) |
 | `shadows` | draw layered window drop shadows (default `true`) |
+| `corner_radius` | rounded window radius in logical pixels, 0–64 (default `10`; scenefx builds) |
+| `blur` | backdrop blur for translucent clients and shell layers (default `true`; scenefx builds) |
+| `blur_radius` | blur radius, 1–32 (default `6`) |
+| `blur_passes` | blur quality passes, 1–5 (default `3`) |
 | `power_lock` | command for the power menu's Lock action (default `loginctl lock-session`) |
 | `power_suspend` | command for Suspend (default `systemctl suspend`) |
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |
@@ -332,6 +336,13 @@ controlled separately by the panel.
 
 Shadows are three translucent scene rectangles behind each client frame. They
 follow the border geometry and are disabled with `shadows = false`.
+
+In a build made with `-Dscenefx=true`, `corner_radius` rounds client content,
+the border, and shadow layers; fullscreen windows stay square. `blur` enables
+backdrop blur on translucent windows and on the top/overlay/popup layer
+surfaces, using `blur_radius` and `blur_passes`. Both apply immediately on
+config reload. These keys are accepted but have no visual effect in the default
+wlroots-scene build.
 
 The wallpaper is a vertical gradient. Set `bg_top` and `bg_bottom` to override
 the derived default; either key can be omitted independently. Decorative shapes

@@ -46,6 +46,29 @@ pub fn layerForSurface(server: *Server, surface: *c.wlr_surface) ?*LayerSurface 
     return null;
 }
 
+const SurfaceBufferContext = struct {
+    target: *c.wlr_surface,
+    buffer: ?*c.wlr_scene_buffer = null,
+};
+
+fn surfaceBufferCallback(buffer_raw: [*c]c.wlr_scene_buffer, sx: c_int, sy: c_int, data: ?*anyopaque) callconv(.c) void {
+    _ = sx;
+    _ = sy;
+    const ctx: *SurfaceBufferContext = @ptrCast(@alignCast(data.?));
+    if (ctx.buffer != null) return;
+    const buffer: *c.wlr_scene_buffer = @ptrCast(@alignCast(buffer_raw));
+    const scene_surface_raw = c.wlr_scene_surface_try_from_buffer(buffer) orelse return;
+    const scene_surface: *c.wlr_scene_surface = @ptrCast(@alignCast(scene_surface_raw));
+    if (scene_surface.surface != ctx.target) return;
+    ctx.buffer = buffer;
+}
+
+pub fn surfaceBuffer(root: *c.wlr_scene_tree, target: *c.wlr_surface) ?*c.wlr_scene_buffer {
+    var ctx = SurfaceBufferContext{ .target = target };
+    c.wlr_scene_node_for_each_buffer(&root.node, surfaceBufferCallback, &ctx);
+    return ctx.buffer;
+}
+
 const OriginContext = struct {
     target: *c.wlr_surface,
     origin: ?Origin = null,

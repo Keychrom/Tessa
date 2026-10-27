@@ -6,6 +6,7 @@ const layout = @import("layout.zig");
 const effects = @import("effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const window_effects = @import("window_effects.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -732,6 +733,7 @@ fn onLayerMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         layout.focusLayer(ls.server, ls);
     }
 
+    window_effects.applyLayers(ls.server);
     arrangeLayers(ls.output);
     core.markDirty(ls.server);
 }

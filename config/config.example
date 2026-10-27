@@ -56,6 +56,12 @@ reduce_motion = false
 animation_ms = 160
 # Soft stacked shadows behind tiled and floating windows.
 shadows = true
+# Rounded corners and backdrop blur require -Dscenefx=true; otherwise these
+# keys are accepted but have no visual effect.
+corner_radius = 10
+blur = true
+blur_radius = 6
+blur_passes = 3
 
 # Start tessa-panel together with the compositor.
 panel = true

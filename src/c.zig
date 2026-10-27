@@ -1,8 +1,11 @@
+const build_options = @import("build_options");
+
 pub const c = @cImport({
     @cDefine("WLR_USE_UNSTABLE", "1");
     @cDefine("_GNU_SOURCE", "1");
     // ReleaseSafe enables glibc fortify wrappers that translate-c cannot handle.
     @cDefine("_FORTIFY_SOURCE", "0");
+    @cDefine("TESSA_SCENEFX", if (build_options.scenefx) "1" else "0");
 
     @cInclude("wayland-server-core.h");
     @cInclude("wlr/backend.h");
@@ -26,7 +29,7 @@ pub const c = @cImport({
     @cInclude("wlr/types/wlr_tablet_v2.h");
     @cInclude("wlr/types/wlr_output.h");
     @cInclude("wlr/types/wlr_output_layout.h");
-    @cInclude("wlr/types/wlr_scene.h");
+    @cInclude("scene_include.h");
     @cInclude("wlr/types/wlr_seat.h");
     @cInclude("wlr/types/wlr_cursor.h");
     @cInclude("wlr/types/wlr_cursor_shape_v1.h");

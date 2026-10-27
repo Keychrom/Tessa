@@ -40,8 +40,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
 - ウィンドウを開く/ワークスペース切り替え時のスライドアニメーションと、
   閉じる際のスケール/フェードスナップショット（`reduce_motion` と再生時間を
-  設定可能）、レイヤー化したソフトなウィンドウシャドウ、壁紙グラデーション色と
-  アート表示のオン/オフ設定
+  設定可能）、レイヤー化したソフトなウィンドウシャドウ、任意で有効にできる
+  scenefx の角丸と背景ブラー（ウィンドウとシェルサーフェス）、壁紙
+  グラデーション色とアート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
@@ -117,10 +118,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
-`tests/input.sh`、`tests/pointer-constraints.sh`、`tests/xim.sh`、
-`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
+`tests/effects.sh`、`tests/input.sh`、`tests/pointer-constraints.sh`、
+`tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
 `tests/interaction.sh`、`tests/popups.sh`、`tests/portal.sh` で
-検証しています。ポータルのテストはポータルと PipeWire がインストール
+検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
+検査し、それ以外ではスキップします。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
@@ -165,6 +167,8 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
 - 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
+- 任意: 角丸と背景ブラー用の [scenefx](https://github.com/wlrfx/scenefx)
+  **0.4.1**（`pkg-config --modversion scenefx-0.4`）
 - 任意: デスクトップ通知、トレイ、ポータル用の D-Bus セッション bus
 - 任意: 音量操作用の `wpctl`（PipeWire）、`pactl`（PulseAudio）、
   `amixer`（ALSA）
@@ -217,6 +221,19 @@ ldconfig -p | grep wlroots
 chmod +x scripts/*.sh scripts/tessa-session   # 実行権限が失われている場合
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
+
+角丸と背景ブラーは scenefx を使うオプトイン・ビルドです。scenefx 0.4.1
+（wlroots 0.19 系）を導入してから次を実行します:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+```
+
+このバイナリはシーンとレンダラーが scenefx の GLES2 経路に切り替わり、
+`WLR_RENDERER=pixman` は使えません。既定ビルドは upstream wlroots の
+シーンを使い、GL とソフトウェアレンダリングの両方をサポートします。
+scenefx をシステム以外の prefix に入れた場合は、ビルド時と実行時に
+pkg-config とライブラリのパスを設定してください。
 
 生成されるもの:
 
@@ -542,6 +559,10 @@ cp config/config.example ~/.config/tessa/config
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
 | `workspace_pin` | ワークスペースを出力に固定: `workspace_pin = eDP-1 3`（繰り返し可） |
+| `corner_radius` | ウィンドウの角丸半径（0〜64。scenefx ビルド） |
+| `blur` | 半透明サーフェスの背景ブラー（scenefx ビルド） |
+| `blur_radius` | ブラー半径（1〜32） |
+| `blur_passes` | ブラー品質のパス数（1〜5） |
 | `panel` | `tessa-panel` を自動起動 |
 | `xwayland` | `xwayland-satellite` を起動し `DISPLAY` をエクスポート |
 | `xwayland_display` | `auto`、または `:0` などの明示的なディスプレイ |
@@ -759,8 +780,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   閉じる操作ではウィンドウのサーフェスをキャプチャし、そのスナップショットを
   スケール/フェードさせます。クライアント自身が閉じた場合は unmap 時点で
   バッファが消えているため即時に消えます。シャドウは固定のレイヤー矩形です。
-  角丸とブラーは wlroots 0.19 の scene API にシェーダーフックがないため、
-  独自レンダラーが必要です。動きを止めるには `animations = false` または
+  角丸と背景ブラーは `-Dscenefx=true` ビルドが必要です。そのビルドは
+  scenefx の GLES2 レンダラーを使うため、pixman のソフトウェア
+  レンダリングは利用できません。ブラーは半透明のクライアントとシェル
+  レイヤーでのみ見えます。動きを止めるには `animations = false` または
   `reduce_motion = true` を設定します。
 - **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を

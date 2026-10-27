@@ -96,6 +96,32 @@ layer-shell のポップアップは、`xdg_popup` 作成時点では xdg の親
 layer サーフェスのツリーの下にポップアップのシーンツリーを作成します。
 これによりサードパーティパネルのメニューやドロップダウンが表示されます。
 
+## エフェクトバックエンド
+
+既定ビルドは upstream wlroots のシーン実装を使います。`-Dscenefx=true` では
+`src/scene_include.h` が scenefx 0.4 のヘッダを選び、`main.zig` は
+`wlr_renderer_autocreate()` の代わりに `fx_renderer_create()` でレンダラーを
+作成します。scenefx のシーン関数と wlroots のシーン関数は同じ
+`wlr_scene_*` シンボルに解決されるため、Tessa の残りのシーングラフコードは
+そのまま動きます。このビルドは GLES2 が必要で、`WLR_RENDERER=pixman` では
+実行できません。
+
+`window_effects.zig` は既定ビルドでは no-op としてコンパイルされます。
+scenefx ビルドでは次を行います:
+
+- 各クライアントのルートシーンバッファを見つけ、`corner_radius` を
+  `CORNER_LOCATION_ALL` で適用する。フルスクリーンでは半径を 0 に戻す
+- クライアントのボーダーと 3 枚のシャドウ矩形も同じ半径で角丸にする
+- クライアントバッファと、top/overlay/popup ツリー内のバッファノードに
+  背景ブラーを有効化する。不透明領域には影響しない
+- `blur_radius` と `blur_passes` を `wlr_scene_set_blur_data()` に渡す
+
+scenefx は最適化ブラーフレームバッファが未作成の間、ブラーごとに
+フォールバック警告を出します。`configure()` は共有バッファを一度確保させる
+ため、非表示の 1×1 optimized-blur ノードを 1 つ作りますが、通常のブラー
+経路はそのまま使います。設定再読み込みではシーン全体のブラー設定と、
+クライアント/レイヤーごとの状態を再適用します。
+
 ## ウィンドウの動き、閉じるエフェクト、シャドウ
 
 動きはクライアントフレームノードの位置オフセットで実現し、論理的な

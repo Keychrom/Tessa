@@ -39,7 +39,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - configurable bar height, top/side margins, and bar background/foreground colors
 - window open/workspace slide animations and close scale/fade snapshots with
   `reduce_motion` and duration settings; soft layered window shadows;
-  configurable wallpaper gradient colors and an art on/off switch
+  opt-in scenefx rounded corners and backdrop blur for windows and shell
+  surfaces; configurable wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; workspace-to-output pins;
@@ -106,12 +107,13 @@ restarts were exercised by
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
-`tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/input.sh`,
-`tests/pointer-constraints.sh`, `tests/xim.sh`, `tests/fractional-scale.sh`,
-`tests/workspace-pinning.sh`, `tests/interaction.sh`, `tests/popups.sh`, and
-`tests/portal.sh`.
+`tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/effects.sh`,
+`tests/input.sh`, `tests/pointer-constraints.sh`, `tests/xim.sh`,
+`tests/fractional-scale.sh`, `tests/workspace-pinning.sh`,
+`tests/interaction.sh`, `tests/popups.sh`, and `tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
-services are installed; otherwise it skips.
+services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
+corners only in a `-Dscenefx=true` build and skips otherwise.
 **DRM/tty and real keyboard/mouse testing still needs to be done on the target
 machine.** See [Known limitations](#known-limitations).
 
@@ -154,6 +156,8 @@ Requirements:
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
+- optional: [scenefx](https://github.com/wlrfx/scenefx) **0.4.1** for rounded
+  corners and backdrop blur (`pkg-config --modversion scenefx-0.4`)
 - optional: a D-Bus session bus for desktop notifications, tray, and portals
 - optional: `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for
   volume control
@@ -206,6 +210,19 @@ Build:
 chmod +x scripts/*.sh scripts/tessa-session   # once, if not preserved
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
+
+Rounded corners and backdrop blur are an opt-in scenefx build. Install
+scenefx 0.4.1 (the wlroots 0.19 series), then:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+```
+
+This switches the scene and renderer to scenefx's GLES2 path;
+`WLR_RENDERER=pixman` is no longer available in that binary. The default build
+keeps the upstream wlroots scene and supports both GL and software rendering.
+If scenefx is installed under a non-system prefix, export its pkg-config and
+library paths when building and running.
 
 This produces:
 
@@ -518,6 +535,10 @@ diagnostics. Selected keys:
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `workspace_pin` | bind a workspace to an output: `workspace_pin = eDP-1 3` (repeatable) |
+| `corner_radius` | rounded window radius, 0–64 (scenefx builds) |
+| `blur` | backdrop blur for translucent surfaces (scenefx builds) |
+| `blur_radius` | blur radius, 1–32 |
+| `blur_passes` | blur quality passes, 1–5 |
 | `panel` | auto-start `tessa-panel` |
 | `xwayland` | start `xwayland-satellite` and export `DISPLAY` |
 | `xwayland_display` | `auto`, or an explicit display such as `:0` |
@@ -725,13 +746,15 @@ These are real and important:
   replacement, close, and expiry. Cross-output routing sends toasts to the
   focused output. Rich HTML markup beyond Pango's subset, notification sounds,
   and per-notification output pinning are not implemented.
-- **Window effects are still simple.** Open and workspace transitions slide the
-  window frame with a cubic ease-out. Compositor-initiated closes capture the
-  window surface and scale/fade that snapshot; a client that closes itself is
-  removed immediately because its buffer is already gone at unmap. Shadows are
-  fixed layered rectangles. Rounded corners and blur need a custom renderer
-  because the wlroots 0.19 scene API has no shader hook. Set
-  `animations = false` or `reduce_motion = true` to disable motion.
+- **Window effects depend on the build.** Open and workspace transitions slide
+  the window frame with a cubic ease-out. Compositor-initiated closes capture
+  the window surface and scale/fade that snapshot; a client that closes itself
+  is removed immediately because its buffer is already gone at unmap. Shadows
+  are fixed layered rectangles. Rounded corners and backdrop blur require a
+  `-Dscenefx=true` build; that build uses scenefx's GLES2 renderer and cannot
+  use the pixman software renderer. Blur is only visible for translucent
+  clients and shell layers. Set `animations = false` or `reduce_motion = true`
+  to disable motion.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
   MPRIS controls the first discovered player and does not display album art.

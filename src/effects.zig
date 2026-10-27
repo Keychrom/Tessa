@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const window_effects = @import("window_effects.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -190,6 +191,10 @@ fn start(
     c.wlr_buffer_unlock(buffer);
     c.wlr_scene_buffer_set_source_box(content, &content_src);
     c.wlr_scene_buffer_set_transform(content, content_transform);
+    if (!client.fullscreen) {
+        const max_radius = @divTrunc(@max(1, @min(content_w, content_h)), 2);
+        window_effects.applyCloseContent(content, @min(server.config.corner_radius, max_radius));
+    }
 
     const geometry = tBase(client.xdg).geometry;
     const border_width: i32 = if (client.fullscreen) 0 else server.config.border_width;

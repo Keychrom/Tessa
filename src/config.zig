@@ -32,6 +32,10 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.reduce_motion = false;
     cfg.animation_ms = 160;
     cfg.shadows = true;
+    cfg.corner_radius = 10;
+    cfg.blur = true;
+    cfg.blur_radius = 6;
+    cfg.blur_passes = 3;
     cfg.gestures = true;
     cfg.gesture_fingers = 3;
     cfg.gesture_workspace_threshold = 400;
@@ -797,6 +801,14 @@ fn loadPath(
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_ms = v;
         } else if (std.mem.eql(u8, key, "shadows")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.shadows = v;
+        } else if (std.mem.eql(u8, key, "corner_radius")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.corner_radius = v;
+        } else if (std.mem.eql(u8, key, "blur")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.blur = v;
+        } else if (std.mem.eql(u8, key, "blur_radius")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.blur_radius = v;
+        } else if (std.mem.eql(u8, key, "blur_passes")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.blur_passes = v;
         } else if (std.mem.eql(u8, key, "gestures")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.gestures = v;
         } else if (std.mem.eql(u8, key, "gesture_fingers")) {
@@ -965,6 +977,12 @@ pub fn load(server: *Server) void {
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
     if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
+    if (server.config.corner_radius < 0) server.config.corner_radius = 0;
+    if (server.config.corner_radius > 64) server.config.corner_radius = 64;
+    if (server.config.blur_radius < 1) server.config.blur_radius = 1;
+    if (server.config.blur_radius > 32) server.config.blur_radius = 32;
+    if (server.config.blur_passes < 1) server.config.blur_passes = 1;
+    if (server.config.blur_passes > 5) server.config.blur_passes = 5;
     if (server.config.gesture_fingers < 2) server.config.gesture_fingers = 2;
     if (server.config.gesture_fingers > 5) server.config.gesture_fingers = 5;
     if (server.config.gesture_workspace_threshold < 20) server.config.gesture_workspace_threshold = 20;

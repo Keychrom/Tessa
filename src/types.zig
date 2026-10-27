@@ -204,6 +204,10 @@ pub const Config = struct {
     reduce_motion: bool,
     animation_ms: i32,
     shadows: bool,
+    corner_radius: i32,
+    blur: bool,
+    blur_radius: i32,
+    blur_passes: i32,
     gestures: bool,
     gesture_fingers: i32,
     gesture_workspace_threshold: i32,
@@ -285,6 +289,7 @@ pub const Client = struct {
     output: *Output,
     frame: *c.wlr_scene_tree,
     surface_tree: *c.wlr_scene_tree,
+    content_buffer: ?*c.wlr_scene_buffer,
     border_rect: *c.wlr_scene_rect,
     shadow_rects: [3]?*c.wlr_scene_rect,
 

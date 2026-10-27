@@ -82,7 +82,8 @@ a daily Japanese desktop, then by polish.
       `animation_ms`, and `reduce_motion` settings.
 - [x] Window close animations and scale/fade easing snapshots for
       compositor-initiated closes.
-- [ ] Rounded corners and blur via custom wlroots shaders.
+- [x] Rounded corners and backdrop blur through the opt-in scenefx 0.4
+      renderer (`-Dscenefx=true`; GLES2).
 - [x] Window drop shadows using layered scene geometry (`shadows = true`).
 - [x] Theme/config for bar height, margins, fonts, and palette.
 - [x] Configurable wallpaper gradients (`bg_top`/`bg_bottom`) and an art toggle

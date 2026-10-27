@@ -20,6 +20,14 @@ chmod +x scripts/*.sh scripts/tessa-session
 ./scripts/build.sh
 ```
 
+角丸と背景ブラーを使う場合は scenefx 0.4.1 を導入し、
+`-Dscenefx=true` を付けます。このバイナリは scenefx の GLES2 レンダラーを
+使うため、pixman レンダラーでは実行できません。
+
+```sh
+./scripts/build.sh -Dscenefx=true
+```
+
 必要なものはメイン README にまとめています。要点は Zig 0.16、wlroots 0.19、
 Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、Cairo、Pango、
 フォントです。X11 をテストする場合は `xwayland-satellite` も `PATH` に
@@ -290,6 +298,18 @@ commit 経路の両方を検証します。
 
 ```sh
 sh tests/fractional-scale.sh
+```
+
+### エフェクトのテスト
+
+`tests/effects.sh` は scenefx ビルド専用です。`tessa-ctl config` が
+`scenefx 0` を返した場合は 0 でスキップします。24 px の角丸、赤い
+ボーダー、黒い壁紙で起動し、背景を白にした `foot` を起動してスクリーン
+ショットの画素を検査します。ウィンドウ中央は白、左上隅は白/赤ではなく
+背景色、上部ボーダー中央は赤である必要があります。
+
+```sh
+sh tests/effects.sh
 ```
 
 ### ワークスペース固定のテスト

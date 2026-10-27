@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
@@ -13,6 +14,7 @@ const lock = @import("lock.zig");
 const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const window_effects = @import("window_effects.zig");
 const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
@@ -106,7 +108,11 @@ pub fn main() !void {
         return error.BackendCreateFailed;
     };
 
-    server.renderer = c.wlr_renderer_autocreate(server.backend) orelse {
+    const renderer = if (comptime build_options.scenefx)
+        c.fx_renderer_create(server.backend)
+    else
+        c.wlr_renderer_autocreate(server.backend);
+    server.renderer = renderer orelse {
         core.logInfo("failed to create renderer", .{});
         return error.RendererCreateFailed;
     };
@@ -132,6 +138,7 @@ pub fn main() !void {
     server.tree_fullscreen = c.wlr_scene_tree_create(&server.scene.tree);
     server.tree_effects = c.wlr_scene_tree_create(&server.scene.tree);
     server.tree_overlay = c.wlr_scene_tree_create(&server.scene.tree);
+    window_effects.configure(server);
 
     _ = c.wlr_compositor_create(server.display, 5, server.renderer);
     _ = c.wlr_subcompositor_create(server.display);

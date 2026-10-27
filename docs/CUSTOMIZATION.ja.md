@@ -303,6 +303,10 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `animation_ms` | 再生時間（ミリ秒、0〜1000、既定 160） |
 | `reduce_motion` | `animations` に関係なく動きを無効化（既定 `false`） |
 | `shadows` | レイヤー化したウィンドウシャドウを描画（既定 `true`） |
+| `corner_radius` | ウィンドウの角丸半径（論理ピクセル、0〜64、既定 `10`。scenefx ビルド） |
+| `blur` | 半透明クライアントとシェルレイヤーの背景ブラー（既定 `true`。scenefx ビルド） |
+| `blur_radius` | ブラー半径（1〜32、既定 `6`） |
+| `blur_passes` | ブラー品質のパス数（1〜5、既定 `3`） |
 | `power_lock` | 電源メニューのロック用コマンド（既定 `loginctl lock-session`） |
 | `power_suspend` | サスペンド用コマンド（既定 `systemctl suspend`） |
 | `power_reboot` | 再起動用コマンド（既定 `systemctl reboot`） |
@@ -333,6 +337,13 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 
 シャドウは各クライアントフレーム背後の半透明シーン矩形 3 枚です。
 ボーダーのジオメトリに追従し、`shadows = false` で無効になります。
+
+`-Dscenefx=true` でビルドした場合、`corner_radius` がクライアントの
+コンテンツ、ボーダー、シャドウ層を角丸にします。フルスクリーン
+ウィンドウは四角のままです。`blur` は半透明ウィンドウと top/overlay/
+popup レイヤーサーフェスの背景を、`blur_radius` と `blur_passes` の
+設定でぼかします。どちらも設定再読み込みで即座に反映されます。既定の
+wlroots シーンビルドでもキーは受け付けますが、視覚効果はありません。
 
 壁紙は縦グラデーションです。`bg_top` と `bg_bottom` で既定値を上書き
 でき、片方だけの指定も可能です。装飾（アクセントのウォッシュ、インクの
