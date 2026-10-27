@@ -7,6 +7,7 @@ const effects = @import("effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
+const rules = @import("rules.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -628,7 +629,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.server = server;
     out.wlr = wlr_out;
     out.active_ws = 1;
-    out.ws_layouts = server.config.layout_by_ws;
+    rules.seedOutputLayouts(server, out);
     applySavedLayouts(server, out);
 
     out.last_scale = wlr_out.scale;

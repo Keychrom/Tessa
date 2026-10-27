@@ -14,6 +14,10 @@ pub const launcher = "launcher";
 pub const panel = "panel";
 pub const output_added = "output-added";
 pub const output_removed = "output-removed";
+pub const animation_start = "animation-start";
+pub const animation_done = "animation-done";
+pub const close_animation_start = "close-animation-start";
+pub const close_animation_done = "close-animation-done";
 
 pub const known = [_][]const u8{
     startup,
@@ -30,6 +34,10 @@ pub const known = [_][]const u8{
     panel,
     output_added,
     output_removed,
+    animation_start,
+    animation_done,
+    close_animation_start,
+    close_animation_done,
 };
 
 pub fn isKnown(name: []const u8) bool {

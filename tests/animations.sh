@@ -39,9 +39,14 @@ shadows = true
 bg_top = #162038
 bg_bottom = #070a12
 wallpaper_art = true
+hook = animation-start printf 'open-start %s %s\n' "$TESSA_ARG" "$TESSA_WINDOW_ID" >> "$TESSA_HOOK_LOG"
+hook = animation-done printf 'open-done %s %s\n' "$TESSA_ARG" "$TESSA_WINDOW_ID" >> "$TESSA_HOOK_LOG"
+hook = close-animation-start printf 'close-start %s\n' "$TESSA_WINDOW_ID" >> "$TESSA_HOOK_LOG"
+hook = close-animation-done printf 'close-done %s\n' "$TESSA_WINDOW_ID" >> "$TESSA_HOOK_LOG"
 EOF
 
 export TESSA_CONFIG="$runtime/config"
+export TESSA_HOOK_LOG="$runtime/hooks.log"
 export TESSA_IPC="$runtime/tessa.sock"
 export TESSA_OUTPUT_CONFIG="$runtime/outputs.conf"
 export XDG_RUNTIME_DIR="$runtime"
@@ -95,6 +100,22 @@ wait_log_count() {
     exit 1
 }
 
+wait_hook() {
+    pattern=$1
+    i=0
+    while [ "$i" -lt 120 ]; do
+        if grep -qF "$pattern" "$runtime/hooks.log" 2>/dev/null; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    echo "hooks log did not contain: $pattern" >&2
+    cat "$runtime/hooks.log" >&2 2>/dev/null || true
+    cat "$runtime/tessa.log" >&2
+    exit 1
+}
+
 tessa-ctl config-check >"$runtime/check.out"
 grep -q "config: ok" "$runtime/check.out"
 echo "animation/visual config: ok"
@@ -102,6 +123,8 @@ echo "animation/visual config: ok"
 tessa-ctl spawn foot -T AnimTest
 wait_log "animation: start id=1 from=0,18"
 wait_log_count "animation: done id=1" 1
+wait_hook "open-start open 1"
+wait_hook "open-done open 1"
 echo "window open animation: ok"
 
 tessa-ctl workspace 2
@@ -109,6 +132,8 @@ sleep 0.4
 tessa-ctl workspace 1
 wait_log "animation: start id=1 from=-54,0"
 wait_log_count "animation: done id=1" 2
+wait_hook "open-start workspace 1"
+wait_hook "open-done workspace 1"
 echo "workspace animation: ok"
 
 tessa-ctl dispatch close 1
@@ -124,6 +149,8 @@ if command -v grim >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
     echo "close snapshot content: ok"
 fi
 wait_log "close animation: done id=1"
+wait_hook "close-start 1"
+wait_hook "close-done 1"
 i=0
 while [ "$i" -lt 30 ]; do
     if ! tessa-ctl state 2>/dev/null | grep -q "^WIN	1	"; then

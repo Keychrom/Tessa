@@ -625,6 +625,150 @@ pub fn addWorkspaceRule(cfg: *Config, value: []const u8) bool {
     return true;
 }
 
+pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
+    if (cfg.output_rule_count >= cfg.output_rules.len) {
+        core.logInfo("config: too many output rules (max {d})", .{cfg.output_rules.len});
+        return false;
+    }
+
+    var rule = types.OutputRule{};
+    var clauses_seen: usize = 0;
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            core.logInfo("config: output-rule clause needs '=': '{s}'", .{clause});
+            return false;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid output-rule clause '{s}'", .{clause});
+            return false;
+        }
+        clauses_seen += 1;
+
+        if (std.ascii.eqlIgnoreCase(key, "output") or
+            std.ascii.eqlIgnoreCase(key, "monitor"))
+        {
+            if (val.len >= rule.output.len) {
+                core.logInfo("config: output-rule output name too long", .{});
+                return false;
+            }
+            core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "ws") or
+            std.ascii.eqlIgnoreCase(key, "workspace"))
+        {
+            const n = std.fmt.parseInt(usize, val, 10) catch {
+                core.logInfo("config: invalid output-rule workspace '{s}'", .{val});
+                return false;
+            };
+            if (n < 1 or n > types.WS_COUNT) {
+                core.logInfo("config: output-rule workspace out of range: {d}", .{n});
+                return false;
+            }
+            rule.ws = @intCast(n);
+        } else if (std.ascii.eqlIgnoreCase(key, "gaps")) {
+            rule.gaps = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule gaps '{s}'", .{val});
+                return false;
+            };
+            if (rule.gaps < 0) {
+                core.logInfo("config: output-rule gaps must be >= 0", .{});
+                return false;
+            }
+            rule.has_gaps = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "outer-gaps") or
+            std.ascii.eqlIgnoreCase(key, "outer_gaps"))
+        {
+            rule.outer_gaps = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule outer-gaps '{s}'", .{val});
+                return false;
+            };
+            if (rule.outer_gaps < 0) {
+                core.logInfo("config: output-rule outer-gaps must be >= 0", .{});
+                return false;
+            }
+            rule.has_outer_gaps = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "master-ratio") or
+            std.ascii.eqlIgnoreCase(key, "master_ratio"))
+        {
+            rule.master_ratio = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid output-rule master-ratio '{s}'", .{val});
+                return false;
+            };
+            rule.has_master_ratio = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "master-count") or
+            std.ascii.eqlIgnoreCase(key, "master_count"))
+        {
+            const n = std.fmt.parseInt(usize, val, 10) catch {
+                core.logInfo("config: invalid output-rule master-count '{s}'", .{val});
+                return false;
+            };
+            if (n < 1 or n > 8) {
+                core.logInfo("config: output-rule master-count out of range: {d}", .{n});
+                return false;
+            }
+            rule.master_count = n;
+            rule.has_master_count = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "mosaic-ratio") or
+            std.ascii.eqlIgnoreCase(key, "mosaic_ratio"))
+        {
+            rule.mosaic_ratio = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid output-rule mosaic-ratio '{s}'", .{val});
+                return false;
+            };
+            rule.has_mosaic_ratio = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "mosaic-min-size") or
+            std.ascii.eqlIgnoreCase(key, "mosaic_min_size"))
+        {
+            rule.mosaic_min_size = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid output-rule mosaic-min-size '{s}'", .{val});
+                return false;
+            };
+            rule.has_mosaic_min_size = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "grid-columns") or
+            std.ascii.eqlIgnoreCase(key, "grid_columns"))
+        {
+            const n = std.fmt.parseInt(usize, val, 10) catch {
+                core.logInfo("config: invalid output-rule grid-columns '{s}'", .{val});
+                return false;
+            };
+            if (n > 8) {
+                core.logInfo("config: output-rule grid-columns out of range: {d}", .{n});
+                return false;
+            }
+            rule.grid_columns = n;
+            rule.has_grid_columns = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "layout")) {
+            rule.layout = types.layoutFromName(val) orelse {
+                core.logInfo("config: unknown output-rule layout '{s}'", .{val});
+                return false;
+            };
+            rule.has_layout = true;
+        } else {
+            core.logInfo("config: unknown output-rule key '{s}'", .{key});
+            return false;
+        }
+    }
+
+    if (clauses_seen == 0 or rule.output_len == 0) {
+        core.logInfo("config: output-rule needs output=<name>", .{});
+        return false;
+    }
+    core.copyString(&rule.raw, &rule.raw_len, value);
+    cfg.output_rules[cfg.output_rule_count] = rule;
+    cfg.output_rule_count += 1;
+    return true;
+}
+
 fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "spawn") or std.ascii.eqlIgnoreCase(name, "exec")) return .spawn;
     if (std.ascii.eqlIgnoreCase(name, "terminal")) return .terminal;
@@ -885,6 +1029,10 @@ fn loadPath(
             if (!addWorkspaceRule(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid workspace-rule: '{s}'", .{value});
             }
+        } else if (std.mem.eql(u8, key, "output-rule") or std.mem.eql(u8, key, "output_rule")) {
+            if (!addOutputRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid output-rule: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
         } else if (std.mem.eql(u8, key, "output_config")) {
@@ -1005,6 +1153,19 @@ pub fn load(server: *Server) void {
             server.config.layout_by_ws[wi] = server.config.layout_mode;
         }
     }
+    var ri: usize = 0;
+    while (ri < server.config.output_rule_count) : (ri += 1) {
+        const rule = &server.config.output_rules[ri];
+        if (rule.has_master_ratio) {
+            rule.master_ratio = std.math.clamp(rule.master_ratio, 0.15, 0.9);
+        }
+        if (rule.has_mosaic_ratio) {
+            rule.mosaic_ratio = std.math.clamp(rule.mosaic_ratio, 0.25, 0.85);
+        }
+        if (rule.has_mosaic_min_size) {
+            rule.mosaic_min_size = std.math.clamp(rule.mosaic_min_size, 80, 600);
+        }
+    }
     core.parseHexColor(server.config.accent[0..server.config.accent_len], &server.config.accent_rgb);
     if (server.config.border_active_len > 0) {
         core.parseHexColor(server.config.border_active[0..server.config.border_active_len], &server.config.border_active_rgb);
@@ -1017,6 +1178,11 @@ pub fn load(server: *Server) void {
     var si: usize = 0;
     while (si < types.WS_COUNT) : (si += 1) {
         if (server.config.layout_by_ws[si] == .custom) wants_custom = true;
+    }
+    ri = 0;
+    while (ri < server.config.output_rule_count) : (ri += 1) {
+        if (server.config.output_rules[ri].has_layout and
+            server.config.output_rules[ri].layout == .custom) wants_custom = true;
     }
     if (wants_custom and server.config.layout_helper_len == 0) {
         core.logInfo("config: custom layout selected without layout_helper; using master fallback", .{});
@@ -1035,11 +1201,12 @@ pub fn load(server: *Server) void {
         }
     }
 
-    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d})", .{
+    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d}, output_rules={d})", .{
         if (path.len > 0) path else "defaults",
         server.config.terminal[0..server.config.terminal_len],
         server.config.binding_count,
         server.config.hook_count,
         server.config.rule_count,
+        server.config.output_rule_count,
     });
 }

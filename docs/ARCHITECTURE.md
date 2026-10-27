@@ -436,6 +436,15 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 - Per-workspace `workspace-rule` entries supply gaps, outer gaps, and the
   master ratio to `arrangeOutput`; runtime `Super+Ctrl+H/L` updates the active
   workspace's ratio for the current session.
+- Per-output `output-rule` entries can set layout, gaps, outer gaps, master
+  ratio/count, mosaic ratio/minimum, and grid columns. `rules.tuningFor()`
+  resolves them per output/workspace in precedence order: global defaults,
+  output rules for all workspaces, `workspace-rule`, then output rules with a
+  matching `ws=`. `seedOutputLayouts()` applies the result when an output
+  appears and `applyConfigLayouts()` refreshes non-overridden layouts on
+  reload. Runtime ratio changes live in `Output.runtime_ratio[]`; config reload
+  clears them. `arrangeOutput()` and the provisional configure size consume the
+  same `Tuning` result, so gaps and layout cannot disagree.
 - `layout_helper.zig` owns an optional long-lived child process connected by a
   `socketpair`. The `custom` layout sends a tab-separated request
   (`LAYOUT`, `AREA`, `WINDOW`, `END`) and reads `RECT` lines. Requests use a
@@ -562,9 +571,12 @@ Events are sent only to event subscribers.
 The extension API is intentionally process-based; there is no in-process plugin
 VM. `event_names.zig` defines the public topics. `events.zig` builds the wire
 record (`EVENT\t<topic>\tkey=value...`), broadcasts it to subscribed clients,
-and runs matching config hooks with `TESSA_*` environment variables. Event
-delivery is best-effort and never blocks the compositor; a client whose socket
-buffer is full is disconnected.
+and runs matching config hooks with `TESSA_*` environment variables. Topics
+include window/workspace/layout/mode changes, output add/remove, and the
+animation lifecycle (`animation-start`/`animation-done` for open and workspace
+slides, `close-animation-start`/`close-animation-done` for close snapshots).
+Event delivery is best-effort and never blocks the compositor; a client whose
+socket buffer is full is disconnected.
 
 `ipc.zig` owns status entries and state snapshots. Status updates are ordinary
 commands, capped at eight entries and included in every subsequent snapshot.

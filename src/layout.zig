@@ -6,6 +6,7 @@ const ime = @import("ime.zig");
 const constraints = @import("constraints.zig");
 const effects = @import("effects.zig");
 const window_effects = @import("window_effects.zig");
+const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
@@ -274,7 +275,15 @@ fn scheduleAnimationFrames(server: *Server) void {
     }
 }
 
-fn beginAnimation(client: *Client, from_x: i32, from_y: i32) void {
+fn animationKindName(kind: types.AnimationKind) []const u8 {
+    return switch (kind) {
+        .open => "open",
+        .workspace => "workspace",
+        .none => "none",
+    };
+}
+
+fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.AnimationKind) void {
     const server = client.server;
     if (!animationsEnabled(server)) return;
     client.anim_from_x = from_x;
@@ -284,13 +293,21 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32) void {
     client.anim_start_ms = core.timeNowMs();
     client.anim_ms = server.config.animation_ms;
     client.animating = true;
+    client.anim_kind = kind;
     scheduleAnimationFrames(server);
+    events.emit(server, .{
+        .name = event_names.animation_start,
+        .id = client.id,
+        .workspace = client.ws,
+        .output = core.outputName(client.output),
+        .arg = animationKindName(kind),
+    });
     core.logDebug("animation: start id={d} from={d},{d}", .{ client.id, from_x, from_y });
 }
 
 pub fn startOpenAnimation(client: *Client) void {
     if (!client.mapped or client.ws != client.output.active_ws) return;
-    beginAnimation(client, 0, 18);
+    beginAnimation(client, 0, 18, .open);
 }
 
 pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize, ws: usize) void {
@@ -300,7 +317,7 @@ pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
         if (cl.output == out and cl.ws == ws and cl.mapped) {
-            beginAnimation(cl, dir, 0);
+            beginAnimation(cl, dir, 0, .workspace);
         }
     }
 }
@@ -332,6 +349,14 @@ pub fn tickAnimations(server: *Server, now: i64) bool {
             cl.anim_off_x = 0;
             cl.anim_off_y = 0;
             c.wlr_scene_node_set_position(&cl.frame.node, cl.x, cl.y);
+            events.emit(server, .{
+                .name = event_names.animation_done,
+                .id = cl.id,
+                .workspace = cl.ws,
+                .output = core.outputName(cl.output),
+                .arg = animationKindName(cl.anim_kind),
+            });
+            cl.anim_kind = .none;
             core.logDebug("animation: done id={d}", .{cl.id});
         }
     }
@@ -346,6 +371,7 @@ pub fn clearAnimations(server: *Server) void {
         cl.animating = false;
         cl.anim_off_x = 0;
         cl.anim_off_y = 0;
+        cl.anim_kind = .none;
         c.wlr_scene_node_set_position(&cl.frame.node, cl.x, cl.y);
     }
 }
@@ -587,7 +613,7 @@ pub fn applyConfigLayouts(server: *Server) void {
         var ws: usize = 0;
         while (ws < types.WS_COUNT) : (ws += 1) {
             if (!out.layout_overridden[ws]) {
-                out.ws_layouts[ws] = server.config.layout_by_ws[ws];
+                out.ws_layouts[ws] = rules.tuningFor(server, out, ws + 1).layout;
             }
         }
     }
@@ -705,11 +731,11 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
 
     if (tile_count > 0) {
         const cfg = &server.config;
-        const ws_idx = out.active_ws - 1;
+        const tuning = rules.tuningFor(server, out, out.active_ws);
         const border = cfg.border_width;
-        const outer = cfg.ws_outer_gaps[ws_idx];
-        const gap = cfg.ws_gaps[ws_idx];
-        const master_ratio = cfg.ws_master_ratio[ws_idx];
+        const outer = tuning.outer_gaps;
+        const gap = tuning.gaps;
+        const master_ratio = tuning.master_ratio;
 
         const ux = area.x + outer;
         const uy = area.y + outer;
@@ -722,7 +748,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                 applyFrame(tiles[0].?, ux, uy, uw, uh, border, true);
             } else {
                 switch (mode) {
-                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, cfg.master_count),
+                    .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, tuning.master_count),
                     .mosaic => {
                         if (tile_count <= 8) {
                             arrangeMosaicTiles(
@@ -733,14 +759,14 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                                 uh,
                                 border,
                                 gap,
-                                cfg.mosaic_ratio,
-                                cfg.mosaic_min_size,
+                                tuning.mosaic_ratio,
+                                tuning.mosaic_min_size,
                             );
                         } else {
-                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, cfg.master_count);
+                            arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, tuning.master_count);
                         }
                     },
-                    .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, cfg.grid_columns),
+                    .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, tuning.grid_columns),
                     .columns => arrangeColumnsTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
                     .custom => {
                         var rects: [types.MAX_CLIENTS]layout_helper.Rect = undefined;
@@ -770,7 +796,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                                 border,
                                 gap,
                                 master_ratio,
-                                cfg.master_count,
+                                tuning.master_count,
                             );
                         }
                     },
@@ -801,7 +827,7 @@ pub fn setProvisionalSize(client: *Client) void {
     if (area.width < 50 or area.height < 50) area = out.full;
     const cfg = &client.server.config;
     const b = cfg.border_width;
-    const outer = cfg.ws_outer_gaps[client.ws - 1];
+    const outer = rules.tuningFor(client.server, out, client.ws).outer_gaps;
     const w = @max(1, area.width - outer * 2 - b * 2);
     const h = @max(1, area.height - outer * 2 - b * 2);
     _ = c.wlr_xdg_toplevel_set_size(client.xdg, w, h);
@@ -1210,11 +1236,9 @@ pub fn toggleLayout(server: *Server) void {
 pub fn adjustRatio(server: *Server, delta: f32) void {
     const out = core.focusOutput(server) orelse return;
     const ws = out.active_ws - 1;
-    server.config.ws_master_ratio[ws] = std.math.clamp(
-        server.config.ws_master_ratio[ws] + delta,
-        0.15,
-        0.9,
-    );
+    const current = rules.tuningFor(server, out, ws + 1).master_ratio;
+    out.runtime_ratio[ws] = std.math.clamp(current + delta, 0.15, 0.9);
+    out.runtime_ratio_set[ws] = true;
     arrangeAll(server);
     core.markDirty(server);
 }

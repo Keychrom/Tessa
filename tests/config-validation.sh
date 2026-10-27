@@ -72,6 +72,7 @@ gaps = nope
 accent = red
 window-rule = unknown=1
 include = missing.conf
+output-rule = output=HEADLESS-1; gaps=nope
 EOF
 
 tessa-ctl dispatch reload
@@ -83,6 +84,7 @@ grep -q "$runtime/config:5: invalid integer for gaps" "$runtime/config.out"
 grep -q "$runtime/config:6: invalid color for accent" "$runtime/config.out"
 grep -q "$runtime/config:7: invalid window-rule" "$runtime/config.out"
 grep -q "$runtime/config:8: included config not found" "$runtime/config.out"
+grep -q "$runtime/config:9: invalid output-rule" "$runtime/config.out"
 echo "line diagnostics + rejected reload: ok"
 
 if tessa-ctl config-check >"$runtime/check.out" 2>&1; then

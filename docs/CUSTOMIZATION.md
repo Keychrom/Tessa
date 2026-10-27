@@ -98,9 +98,30 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | `outer-gaps=N` | outer gap on this workspace |
 | `master-ratio=0.15..0.9` | master-column width on this workspace |
 
-A runtime layout choice still wins over the seed and is persisted. The
-`Super+Ctrl+H/L` ratio binding adjusts the active workspace's ratio for the
-current session; config reload restores configured ratio values.
+`output-rule` overrides layout tuning for one monitor, optionally narrowed to a
+single workspace:
+
+```ini
+output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
+output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+```
+
+| Clause | Meaning |
+| --- | --- |
+| `output=` / `monitor=` | output name pattern (required; `*` and `?` work) |
+| `ws=1..9` | optional workspace; omitted means every workspace |
+| `layout=master/mosaic/grid/columns/custom` | layout seed |
+| `gaps=N`, `outer-gaps=N` | tile and outer spacing |
+| `master-ratio=0.15..0.9`, `master-count=1..8` | master tuning |
+| `mosaic-ratio=0.25..0.85`, `mosaic-min-size=N` | mosaic tuning |
+| `grid-columns=0..8` | fixed grid columns; `0` is automatic |
+
+Rules are applied in file order. Precedence is global defaults < output rule
+(all workspaces) < `workspace-rule` < output rule with `ws=`. A runtime layout
+choice still wins over the seed and is persisted.
+
+The `Super+Ctrl+H/L` ratio binding adjusts the active output/workspace ratio
+for the current session; config reload restores configured ratio values.
 
 Workspaces can be bound to monitors so the shortcut always brings that monitor
 forward:

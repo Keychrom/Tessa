@@ -234,10 +234,11 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.bg[0..cfg.bg_len]);
     addRaw(buf, &off, ",\"output_config\":");
     addString(buf, &off, cfg.output_config[0..cfg.output_config_len]);
-    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"rule_count\":{d}", .{
+    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d}", .{
         cfg.binding_count,
         cfg.hook_count,
         cfg.rule_count,
+        cfg.output_rule_count,
     });
 
     addRaw(buf, &off, ",\"rules\":[");
@@ -245,6 +246,15 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     while (i < cfg.rule_count) : (i += 1) {
         if (i > 0) addRaw(buf, &off, ",");
         const rule = &cfg.rules[i];
+        addRaw(buf, &off, "{\"raw\":");
+        addString(buf, &off, rule.raw[0..rule.raw_len]);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"output_rules\":[");
+    i = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const rule = &cfg.output_rules[i];
         addRaw(buf, &off, "{\"raw\":");
         addString(buf, &off, rule.raw[0..rule.raw_len]);
         addRaw(buf, &off, "}");

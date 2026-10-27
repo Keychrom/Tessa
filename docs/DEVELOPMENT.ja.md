@@ -280,8 +280,11 @@ sh tests/panel-theme.sh
 （`close animation: start id=1` / `close animation: done id=1`）、および
 `tessa-ctl state` からウィンドウが消えたことを確認します。`grim` と
 ImageMagick がある環境では、閉じるスナップショット中央の画素もサンプルし、
-コンテンツが失われていたら失敗します。最後に `tessa-ctl config-check` で
-視覚設定キーが受け付けられることを確認します。
+コンテンツが失われていたら失敗します。`animation-start`、`animation-done`、
+`close-animation-start`、`close-animation-done` のフックはログへ追記され、
+テストは `open`/`workspace` と `close` の各フェーズを待ちます。最後に
+`tessa-ctl config-check` で視覚設定キーとフックが受け付けられることを
+確認します。
 
 ```sh
 sh tests/animations.sh
@@ -310,6 +313,19 @@ sh tests/fractional-scale.sh
 
 ```sh
 sh tests/effects.sh
+```
+
+### 出力ルールのテスト
+
+`tests/output-rules.sh` は 2 出力の headless セッションを起動し、出力全体の
+grid/gap ルールと、出力+ワークスペース指定のルールを含む設定をリロード
+します。2 番目の出力に 3 ウィンドウを起動し、グリッドのセル幅、横/縦の
+間隔、最終行の中央寄せを検証します。続いてその出力をワークスペース 2 に
+切り替えて 2 ウィンドウを起動し、`ws=` 付き出力ルールの外周間隔とマスター
+レイアウトが、汎用ワークスペースルールより優先されることを確認します。
+
+```sh
+sh tests/output-rules.sh
 ```
 
 ### ワークスペース固定のテスト

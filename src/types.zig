@@ -13,6 +13,7 @@ pub const MAX_MODE_NAME = 32;
 pub const MAX_HOOKS = 32;
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
+pub const MAX_OUTPUT_RULES = 64;
 pub const MAX_CONFIG_ISSUES = 64;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
@@ -139,6 +140,8 @@ pub const ConfigIssue = struct {
 
 pub const RuleBool = enum { unset, on, off };
 
+pub const AnimationKind = enum { none, open, workspace };
+
 pub const WindowRule = struct {
     raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
     raw_len: usize = 0,
@@ -157,6 +160,30 @@ pub const WindowRule = struct {
     has_position: bool = false,
     x: i32 = 0,
     y: i32 = 0,
+};
+
+pub const OutputRule = struct {
+    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw_len: usize = 0,
+    output: [64]u8 = [_]u8{0} ** 64,
+    output_len: usize = 0,
+    ws: u8 = 0,
+    has_gaps: bool = false,
+    gaps: i32 = 0,
+    has_outer_gaps: bool = false,
+    outer_gaps: i32 = 0,
+    has_master_ratio: bool = false,
+    master_ratio: f32 = 0,
+    has_master_count: bool = false,
+    master_count: usize = 0,
+    has_mosaic_ratio: bool = false,
+    mosaic_ratio: f32 = 0,
+    has_mosaic_min_size: bool = false,
+    mosaic_min_size: i32 = 0,
+    has_grid_columns: bool = false,
+    grid_columns: usize = 0,
+    has_layout: bool = false,
+    layout: LayoutMode = .master,
 };
 
 pub const Hook = struct {
@@ -260,6 +287,8 @@ pub const Config = struct {
     hook_count: usize,
     rules: [MAX_RULES]WindowRule,
     rule_count: usize,
+    output_rules: [MAX_OUTPUT_RULES]OutputRule,
+    output_rule_count: usize,
 };
 
 pub const Output = struct {
@@ -273,6 +302,8 @@ pub const Output = struct {
     active_ws: usize,
     ws_layouts: [WS_COUNT]LayoutMode,
     layout_overridden: [WS_COUNT]bool,
+    runtime_ratio: [WS_COUNT]f32,
+    runtime_ratio_set: [WS_COUNT]bool,
     last_focused: [WS_COUNT + 1]?*Client,
 
     last_scale: f32,
@@ -306,6 +337,7 @@ pub const Client = struct {
     anim_start_ms: i64,
     anim_ms: i32,
     animating: bool,
+    anim_kind: AnimationKind,
     close_snapshot: ?*c.wlr_buffer,
     close_snapshot_src: c.wlr_fbox,
     close_snapshot_transform: c.wl_output_transform,
@@ -477,6 +509,9 @@ pub const PointerConstraint = struct {
 pub const CloseEffect = struct {
     server: *Server,
     client_id: u64,
+    workspace: usize,
+    output_name: [64]u8,
+    output_len: usize,
     tree: *c.wlr_scene_tree,
     content: *c.wlr_scene_buffer,
     border: [4]*c.wlr_scene_rect,

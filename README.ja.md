@@ -35,7 +35,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
 - 行番号付きの設定診断、失敗時に旧設定を維持するトランザクショナルな
-  リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット
+  リロード、外部ツール向けのバージョン付き JSON 状態/設定スナップショット。
+  ワークスペース別・出力別のレイアウト/隙間/マスター設定と、
+  アニメーションライフサイクルフック
 - 名前付き入力モードと、モード固有のキーバインド（`enter-mode`）
 - バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
 - ウィンドウを開く/ワークスペース切り替え時のスライドアニメーションと、
@@ -120,7 +122,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/effects.sh`、`tests/input.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
-`tests/interaction.sh`、`tests/popups.sh`、`tests/portal.sh` で
+`tests/output-rules.sh`、`tests/interaction.sh`、`tests/popups.sh`、
+`tests/portal.sh` で
 検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
@@ -458,6 +461,8 @@ tessa-ctl dispatch reload
 ```ini
 startup = fcitx5 -d
 hook = window-open notify-send "Window opened" "$TESSA_TITLE"
+hook = animation-done echo "$TESSA_ARG $TESSA_WINDOW_ID" >> ~/.cache/tessa-animations.log
+hook = close-animation-done echo "closed $TESSA_WINDOW_ID" >> ~/.cache/tessa-animations.log
 launcher_entry = Notes | foot -e nvim ~/notes.md
 include = /home/you/.config/tessa/launcher-entries.conf
 ```
@@ -558,6 +563,8 @@ cp config/config.example ~/.config/tessa/config
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
+| `workspace-rule` | ワークスペース別のレイアウト/隙間/マスター上書き |
+| `output-rule` | 出力別（任意でワークスペース別）のレイアウト/隙間/マスター上書き |
 | `workspace_pin` | ワークスペースを出力に固定: `workspace_pin = eDP-1 3`（繰り返し可） |
 | `corner_radius` | ウィンドウの角丸半径（0〜64。scenefx ビルド） |
 | `blur` | 半透明サーフェスの背景ブラー（scenefx ビルド） |

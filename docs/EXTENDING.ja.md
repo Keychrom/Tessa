@@ -163,6 +163,10 @@ EVENT	notification-action	id=12	action=reply
 | `notification-action` | IPC 経由の通知アクション要求 | id, action（アクションキー） |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |
 | `output-removed` | 出力削除 | output, arg（ジオメトリ） |
+| `animation-start` | ウィンドウ表示/ワークスペーススライド開始 | id, ws, output, arg（`open` / `workspace`） |
+| `animation-done` | ウィンドウ表示/ワークスペーススライド完了 | id, ws, output, arg（`open` / `workspace`） |
+| `close-animation-start` | コンポジタ起点の終了スナップショット開始 | id, ws, output, arg（`close`） |
+| `close-animation-done` | 終了スナップショットのフェード完了 | id, ws, output, arg（`close`） |
 
 イベントは `CMD subscribe events` または `CMD subscribe all` で購読した
 クライアントにだけ届きます。ベストエフォート配信です。読み取りが遅れて

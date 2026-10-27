@@ -111,10 +111,12 @@ a daily Japanese desktop, then by polish.
 - [x] Active/inactive border colors.
 - [x] `tessa-ctl config` for effective configuration and parsed-rule inspection.
 - [x] Per-workspace layout, gap, and master-ratio rules.
-- [ ] Per-output layout/gap rules.
+- [x] Per-output layout/gap rules (`output-rule`, optional `ws=`), with
+      output+workspace precedence over workspace rules.
 - [x] A long-lived external layout-helper protocol with a timeout, restart,
       and built-in fallback.
-- [ ] Configurable animation/effect hooks.
+- [x] Configurable animation/effect hooks (`animation-start`, `animation-done`,
+      `close-animation-start`, `close-animation-done`).
 - [x] Config validation with file/line diagnostics, `tessa-ctl config-check`,
       and transactional reload (failed reloads keep the previous config).
 - [x] JSON state/config output with documented `schema: 1`.

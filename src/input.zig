@@ -379,6 +379,7 @@ pub fn reloadRuntime(server: *Server) void {
     rules.applyAll(server);
     constraints.reload(server);
     window_effects.reload(server);
+    rules.clearRuntimeRatios(server);
     layout.clearAnimations(server);
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);

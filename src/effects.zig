@@ -3,6 +3,8 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const window_effects = @import("window_effects.zig");
+const events = @import("events.zig");
+const event_names = @import("event_names.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -208,6 +210,9 @@ fn start(
     const effect = @as(*CloseEffect, @ptrCast(@alignCast(c.calloc(1, @sizeOf(CloseEffect)).?)));
     effect.server = server;
     effect.client_id = client.id;
+    effect.workspace = client.ws;
+    const output_name = core.outputName(client.output);
+    core.copyString(&effect.output_name, &effect.output_len, output_name);
     effect.tree = tree;
     effect.content = @ptrCast(@alignCast(content));
     effect.border = border;
@@ -231,6 +236,13 @@ fn start(
     server.effects[effect_index] = effect;
     server.effect_count += 1;
     scheduleFrames(server);
+    events.emit(server, .{
+        .name = event_names.close_animation_start,
+        .id = client.id,
+        .workspace = client.ws,
+        .output = output_name,
+        .arg = "close",
+    });
     core.logDebug("close animation: start id={d} {d}x{d}", .{ client.id, content_w, content_h });
 }
 
@@ -255,6 +267,13 @@ pub fn clientUnmapped(client: *Client) void {
 fn finish(server: *Server, index: usize) void {
     const effect = server.effects[index] orelse return;
     core.logDebug("close animation: done id={d}", .{effect.client_id});
+    events.emit(server, .{
+        .name = event_names.close_animation_done,
+        .id = effect.client_id,
+        .workspace = effect.workspace,
+        .output = effect.output_name[0..effect.output_len],
+        .arg = "close",
+    });
     c.wlr_scene_node_destroy(&effect.tree.node);
     server.effects[index] = null;
     if (server.effect_count > 0) server.effect_count -= 1;

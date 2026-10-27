@@ -459,6 +459,15 @@ inhibitor が存在する間またはセッションロック中は
 - ワークスペース別の `workspace-rule` が gaps、外周 gaps、マスター比率を
   `arrangeOutput` に渡します。実行中の `Super+Ctrl+H/L` はアクティブ
   ワークスペースの比率を現在のセッション向けに変更します。
+- 出力別の `output-rule` はレイアウト、gaps、外周 gaps、マスター比率/
+  カウント、モザイク比率/最小サイズ、グリッド列数を設定できます。
+  `rules.tuningFor()` は出力/ワークスペースごとに、グローバル既定 <
+  全ワークスペース向け出力ルール < `workspace-rule` < `ws=` 付き出力
+  ルールの順で解決します。`seedOutputLayouts()` は出力出現時に結果を適用し、
+  `applyConfigLayouts()` は再読み込みで上書きされていないレイアウトを更新
+  します。実行中の比率変更は `Output.runtime_ratio[]` に保持し、設定
+  再読み込みで消去します。`arrangeOutput()` と初期 configure サイズは同じ
+  `Tuning` 結果を使うため、gaps とレイアウトが食い違いません。
 - `layout_helper.zig` は `socketpair` で接続した常駐子プロセスを管理します。
   `custom` レイアウトはタブ区切りのリクエスト（`LAYOUT`、`AREA`、`WINDOW`、
   `END`）を送り、`RECT` 行を読みます。応答は poll のタイムアウト付きです。
@@ -586,7 +595,11 @@ calendar|power|clipboard|screenshot|media` も同様に、要求したポップ�
 拡張 API は意図的にプロセスベースで、プロセス内プラグイン VM はありません。
 `event_names.zig` が公開トピックを定義し、`events.zig` が
 `EVENT\t<topic>\tkey=value...` 形式のレコードを組み立て、購読クライアントへ
-配信し、一致する設定フックを `TESSA_*` 環境変数付きで起動します。配信は
+配信し、一致する設定フックを `TESSA_*` 環境変数付きで起動します。トピックに
+はウィンドウ/ワークスペース/レイアウト/入力モード変更、出力追加/削除、
+アニメーションのライフサイクル（開く/ワークスペーススライドの
+`animation-start`/`animation-done`、終了スナップショットの
+`close-animation-start`/`close-animation-done`）があります。配信は
 ベストエフォートで、コンポジタをブロックしません。ソケットバッファが
 埋まったクライアントは切断されます。
 

@@ -5,7 +5,19 @@ const core = @import("core.zig");
 
 const Server = types.Server;
 const Client = types.Client;
+const Output = types.Output;
 const WindowRule = types.WindowRule;
+
+pub const Tuning = struct {
+    layout: types.LayoutMode,
+    gaps: i32,
+    outer_gaps: i32,
+    master_ratio: f32,
+    master_count: usize,
+    mosaic_ratio: f32,
+    mosaic_min_size: i32,
+    grid_columns: usize,
+};
 
 pub fn wildcardMatch(pattern: []const u8, text: []const u8) bool {
     if (pattern.len == 0) return true;
@@ -33,6 +45,81 @@ pub fn wildcardMatch(pattern: []const u8, text: []const u8) bool {
     }
     while (p < pattern.len and pattern[p] == '*') p += 1;
     return p == pattern.len;
+}
+
+fn applyOutputRule(rule: *const types.OutputRule, tuning: *Tuning) void {
+    if (rule.has_layout) tuning.layout = rule.layout;
+    if (rule.has_gaps) tuning.gaps = rule.gaps;
+    if (rule.has_outer_gaps) tuning.outer_gaps = rule.outer_gaps;
+    if (rule.has_master_ratio) tuning.master_ratio = rule.master_ratio;
+    if (rule.has_master_count) tuning.master_count = rule.master_count;
+    if (rule.has_mosaic_ratio) tuning.mosaic_ratio = rule.mosaic_ratio;
+    if (rule.has_mosaic_min_size) tuning.mosaic_min_size = rule.mosaic_min_size;
+    if (rule.has_grid_columns) tuning.grid_columns = rule.grid_columns;
+}
+
+pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
+    const cfg = &server.config;
+    const index = @min(@max(ws, 1), types.WS_COUNT) - 1;
+    var tuning = Tuning{
+        .layout = if (cfg.layout_overrides[index]) cfg.layout_by_ws[index] else cfg.layout_mode,
+        .gaps = cfg.gaps,
+        .outer_gaps = cfg.outer_gaps,
+        .master_ratio = cfg.master_ratio,
+        .master_count = cfg.master_count,
+        .mosaic_ratio = cfg.mosaic_ratio,
+        .mosaic_min_size = cfg.mosaic_min_size,
+        .grid_columns = cfg.grid_columns,
+    };
+    if (cfg.output_rule_count == 0) {
+        if (cfg.ws_gaps_set[index]) tuning.gaps = cfg.ws_gaps[index];
+        if (cfg.ws_outer_set[index]) tuning.outer_gaps = cfg.ws_outer_gaps[index];
+        if (cfg.ws_ratio_set[index]) tuning.master_ratio = cfg.ws_master_ratio[index];
+        if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
+        return tuning;
+    }
+
+    const name = core.outputName(out);
+    var i: usize = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        const rule = &cfg.output_rules[i];
+        if (rule.ws != 0) continue;
+        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        applyOutputRule(rule, &tuning);
+    }
+    if (cfg.ws_gaps_set[index]) tuning.gaps = cfg.ws_gaps[index];
+    if (cfg.ws_outer_set[index]) tuning.outer_gaps = cfg.ws_outer_gaps[index];
+    if (cfg.ws_ratio_set[index]) tuning.master_ratio = cfg.ws_master_ratio[index];
+    if (cfg.layout_overrides[index]) tuning.layout = cfg.layout_by_ws[index];
+
+    i = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        const rule = &cfg.output_rules[i];
+        if (rule.ws == 0 or rule.ws != index + 1) continue;
+        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        applyOutputRule(rule, &tuning);
+    }
+    if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
+    return tuning;
+}
+
+pub fn seedOutputLayouts(server: *Server, out: *Output) void {
+    var ws: usize = 1;
+    while (ws <= types.WS_COUNT) : (ws += 1) {
+        out.ws_layouts[ws - 1] = tuningFor(server, out, ws).layout;
+    }
+}
+
+pub fn clearRuntimeRatios(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        var ws: usize = 0;
+        while (ws < types.WS_COUNT) : (ws += 1) {
+            out.runtime_ratio_set[ws] = false;
+            out.runtime_ratio[ws] = 0;
+        }
+    }
 }
 
 fn matches(rule: *const WindowRule, client: *Client) bool {

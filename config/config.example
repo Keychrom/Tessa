@@ -42,6 +42,10 @@ layout = master
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
 # workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 
+# Per-output tuning. Add ws= to apply a rule to one workspace on that output.
+# output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
+# output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+
 # External custom tiling. The helper is a long-lived process; it receives
 # tab-separated LAYOUT/AREA/WINDOW/END requests and returns RECT/END responses.
 # See docs/CUSTOMIZATION.md and examples/layout-cascade.py.

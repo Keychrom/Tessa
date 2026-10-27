@@ -98,9 +98,30 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | `outer-gaps=N` | このワークスペースの外周間隔 |
 | `master-ratio=0.15..0.9` | このワークスペースのマスター列幅 |
 
-実行中のレイアウト選択はシードより優先され、永続化されます。
-`Super+Ctrl+H/L` は現在のセッションでアクティブワークスペースの比率を
-変更し、設定再読み込みで設定値に戻ります。
+`output-rule` は 1 つのモニタのレイアウト調整を上書きします。`ws=` を付けると
+そのワークスペースだけに限定できます:
+
+```ini
+output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
+output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+```
+
+| 句 | 意味 |
+| --- | --- |
+| `output=` / `monitor=` | 出力名パターン（必須。`*` と `?` が使える） |
+| `ws=1..9` | 任意。省略すると全ワークスペース |
+| `layout=master/mosaic/grid/columns/custom` | レイアウトのシード |
+| `gaps=N`、`outer-gaps=N` | タイル間隔と外周間隔 |
+| `master-ratio=0.15..0.9`、`master-count=1..8` | マスター調整 |
+| `mosaic-ratio=0.25..0.85`、`mosaic-min-size=N` | モザイク調整 |
+| `grid-columns=0..8` | グリッド固定列数。`0` は自動 |
+
+ルールはファイル順に適用されます。優先順位は、グローバル既定 <
+出力ルール（全ワークスペース） < `workspace-rule` < `ws=` 付き出力ルール
+です。実行中のレイアウト選択はシードより優先され、永続化されます。
+
+`Super+Ctrl+H/L` は現在のセッションでアクティブな出力/ワークスペースの
+比率を変更し、設定再読み込みで設定値に戻ります。
 
 ワークスペースをモニタに固定すると、そのショートカットで常に該当モニタへ
 切り替わります:

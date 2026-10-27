@@ -301,8 +301,10 @@ closes window 1 and checks that the close snapshot starts and finishes
 (`close animation: start id=1` / `close animation: done id=1`) and that the
 window disappears from `tessa-ctl state`. When `grim` and ImageMagick are
 installed, it also samples the center of the closing snapshot and fails if the
-content is missing. It finishes with `tessa-ctl config-check` to confirm the
-visual keys are accepted.
+content is missing. Hooks for `animation-start`, `animation-done`,
+`close-animation-start`, and `close-animation-done` append to a log; the test
+waits for the `open`/`workspace` and `close` phases there. It finishes with
+`tessa-ctl config-check` to confirm the visual keys and hooks are accepted.
 
 ```sh
 sh tests/animations.sh
@@ -332,6 +334,19 @@ be red.
 
 ```sh
 sh tests/effects.sh
+```
+
+### Output rules test
+
+`tests/output-rules.sh` starts a two-output headless session and reloads a
+config with an output-wide grid/gap rule plus an output+workspace rule. It
+spawns three windows on the second output and verifies the grid cell width,
+horizontal/vertical gaps, and centered last row. It then switches that output
+to workspace 2, spawns two windows, and verifies that the `ws=` output rule's
+outer gap and master layout override the generic workspace rule.
+
+```sh
+sh tests/output-rules.sh
 ```
 
 ### Workspace pinning test

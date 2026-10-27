@@ -34,7 +34,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
 - external layout-helper protocol for custom tiling algorithms, with a timeout,
   process restart, and built-in fallback
 - file/line config diagnostics, transactional reload, and versioned JSON
-  state/config snapshots for external tools
+  state/config snapshots for external tools; per-workspace and per-output
+  layout/gap/master rules; animation lifecycle hooks
 - named input modes with mode-specific key bindings and `enter-mode`
 - configurable bar height, top/side margins, and bar background/foreground colors
 - window open/workspace slide animations and close scale/fade snapshots with
@@ -110,7 +111,8 @@ restarts were exercised by
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/effects.sh`,
 `tests/input.sh`, `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/workspace-pinning.sh`,
-`tests/interaction.sh`, `tests/popups.sh`, and `tests/portal.sh`.
+`tests/output-rules.sh`, `tests/interaction.sh`, `tests/popups.sh`, and
+`tests/portal.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
 corners only in a `-Dscenefx=true` build and skips otherwise.
@@ -439,6 +441,8 @@ react to compositor events:
 ```ini
 startup = fcitx5 -d
 hook = window-open notify-send "Window opened" "$TESSA_TITLE"
+hook = animation-done echo "$TESSA_ARG $TESSA_WINDOW_ID" >> ~/.cache/tessa-animations.log
+hook = close-animation-done echo "closed $TESSA_WINDOW_ID" >> ~/.cache/tessa-animations.log
 launcher_entry = Notes | foot -e nvim ~/notes.md
 include = /home/you/.config/tessa/launcher-entries.conf
 ```
@@ -534,6 +538,8 @@ diagnostics. Selected keys:
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
+| `workspace-rule` | per-workspace layout/gap/master overrides |
+| `output-rule` | per-output (optionally per-workspace) layout/gap/master overrides |
 | `workspace_pin` | bind a workspace to an output: `workspace_pin = eDP-1 3` (repeatable) |
 | `corner_radius` | rounded window radius, 0–64 (scenefx builds) |
 | `blur` | backdrop blur for translucent surfaces (scenefx builds) |

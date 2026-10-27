@@ -159,6 +159,10 @@ names the window that lost focus.
 | `notification-action` | A notification action was requested through IPC | id, action (action key) |
 | `output-added` | Output initialized | output, arg (geometry) |
 | `output-removed` | Output removed | output, arg (geometry) |
+| `animation-start` | Window open or workspace slide starts | id, ws, output, arg (`open` or `workspace`) |
+| `animation-done` | Window open or workspace slide finishes | id, ws, output, arg (`open` or `workspace`) |
+| `close-animation-start` | A compositor-initiated close snapshot starts | id, ws, output, arg (`close`) |
+| `close-animation-done` | The close snapshot has faded out | id, ws, output, arg (`close`) |
 
 Events are delivered only to clients that asked for them with
 `CMD subscribe events` or `CMD subscribe all`. They are best-effort: a slow
