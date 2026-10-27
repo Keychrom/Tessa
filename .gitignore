@@ -1,5 +1,7 @@
 .zig-cache/
 zig-out/
+dist/
+stage/
 *.o
 *.swp
 .DS_Store

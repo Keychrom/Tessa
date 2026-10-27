@@ -41,16 +41,27 @@ The `debian/` directory at the repository root uses debhelper and Zig. Build on
 a machine with the development packages in `debian/control`:
 
 ```sh
-dpkg-buildpackage -b -us -uc
-sudo apt install ../tessa_0.1.0_amd64.deb
+sudo apt install debhelper dpkg-dev fakeroot
+ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
+sudo apt install ./dist/tessa_0.1.0_amd64.deb
 ```
+
+The script runs `dpkg-buildpackage -b -us -uc -d`, collects the `.deb`,
+`.buildinfo`, and `.changes` under `dist/`, and prints the package metadata.
+`-d` skips the declared build-dependency check because Ubuntu 26.04 packages
+Zig 0.14; the script verifies the supplied Zig is 0.16.x instead.
 
 The package installs the same binaries, session entry, example config, and
 portal selector. The `libwlroots-0.19-dev` build dependency and the linked
 `wlroots-0.19` pkg-config name pin the compositor ABI.
 
 Zig 0.16 is required. If the distribution packages an older Zig, install the
-upstream 0.16 toolchain and make it the first `zig` in `PATH` before building.
+upstream 0.16 toolchain and pass it with `ZIG=...` before building. Run
+`lintian dist/*.deb` for a first packaging audit.
+
+Do not install the `.deb` on a machine that already has a manual
+`/usr/local` install unless you intend to replace it; both copy the same
+binaries and session entry to different prefixes.
 
 ## Manual install
 

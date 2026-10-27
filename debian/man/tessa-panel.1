@@ -1,0 +1,27 @@
+.TH TESSA-PANEL 1 "2026-10-27" "Tessa 0.1.0" "User Commands"
+.SH NAME
+tessa-panel \- Tessa taskbar, launcher, and desktop widgets
+.SH SYNOPSIS
+.B tessa-panel
+.SH DESCRIPTION
+.B tessa-panel
+is normally started by
+.BR tessa (1)
+once per output. It draws the taskbar and wallpaper, runs the launcher and
+popovers, and provides the notification service and StatusNotifier tray host.
+.PP
+The panel reads the same configuration file and re-reads it after a compositor
+config-reload event.
+.SH ENVIRONMENT
+.TP
+.B TESSA_PANEL_OUTPUT
+Output name this panel instance is attached to.
+.TP
+.B TESSA_PANEL_DEBUG
+Set to any value for additional panel logging.
+.TP
+.B TESSA_PANEL_BIN
+Binary path used by the compositor when starting a panel.
+.SH SEE ALSO
+.BR tessa (1),
+.BR tessa-ctl (1)

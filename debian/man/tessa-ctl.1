@@ -1,0 +1,58 @@
+.TH TESSA-CTL 1 "2026-10-27" "Tessa 0.1.0" "User Commands"
+.SH NAME
+tessa-ctl \- control a running Tessa compositor
+.SH SYNOPSIS
+.B tessa-ctl
+.I command
+.RI [ arguments ...]
+.SH DESCRIPTION
+.B tessa-ctl
+connects to the running compositor over its Unix socket and sends control,
+introspection, or event-subscription commands.
+.SH COMMANDS
+.TP
+.B state [--json]
+Print one state snapshot.
+.TP
+.B config [--json]
+Print the effective configuration and diagnostics.
+.TP
+.B config-check
+Check configuration diagnostics and exit non-zero on errors.
+.TP
+.B events [topic]
+Stream extension events.
+.TP
+.B rpc JSON
+Send one JSON-RPC 2.0 request and print the reply.
+.TP
+.B dispatch COMMAND
+Send a raw compositor command.
+.TP
+.B workspace N [OUTPUT]
+Switch workspace.
+.TP
+.B spawn COMMAND...
+Start a command.
+.TP
+.B launcher [QUERY...]
+Open the launcher.
+.TP
+.B panel POPOVER [OUTPUT]
+Open a panel popover.
+.TP
+.B mode [NAME]
+Switch or reset the input mode.
+.TP
+.B status ID TEXT
+Set or clear a bar status entry.
+.TP
+.B quit
+Stop the compositor.
+.SH ENVIRONMENT
+.TP
+.B TESSA_IPC
+IPC socket path. Defaults to
+.IR $XDG_RUNTIME_DIR/tessa.sock .
+.SH SEE ALSO
+.BR tessa (1)

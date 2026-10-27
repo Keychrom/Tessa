@@ -31,6 +31,7 @@ pub fn build(b: *std.Build) void {
         .name = "tessa",
         .root_module = server_mod,
     });
+    server.pie = true;
     if (scenefx) server.root_module.linkSystemLibrary("scenefx-0.4", .{});
     server.root_module.linkSystemLibrary("wlroots-0.19", .{});
     server.root_module.linkSystemLibrary("wayland-server", .{});
@@ -97,6 +98,7 @@ pub fn build(b: *std.Build) void {
         .name = "tessa-panel",
         .root_module = panel_mod,
     });
+    panel.pie = true;
     b.installArtifact(panel);
 
     const ctl_mod = b.createModule(.{
@@ -109,6 +111,7 @@ pub fn build(b: *std.Build) void {
         .name = "tessa-ctl",
         .root_module = ctl_mod,
     });
+    ctl.pie = true;
     b.installArtifact(ctl);
 
     const run_cmd = b.addRunArtifact(server);

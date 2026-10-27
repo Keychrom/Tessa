@@ -7,11 +7,20 @@ Build-Depends: debhelper-compat (= 13),
                zig,
                libwlroots-0.19-dev,
                libwayland-dev,
+               wayland-protocols,
                libxkbcommon-dev,
                libpixman-1-dev,
+               libdrm-dev,
+               libinput-dev,
+               libseat-dev,
+               libudev-dev,
+               libgbm-dev,
+               libegl-dev,
+               libgles2-mesa-dev,
                libcairo2-dev,
                libpango1.0-dev,
-               libglib2.0-dev
+               libglib2.0-dev,
+               libfontconfig1-dev
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/Keychrom/Tessa
@@ -26,6 +35,6 @@ Description: quiet tiled Wayland compositor and desktop shell
  Tessa is a wlroots-based tiled Wayland compositor written in Zig. It includes
  its own taskbar, launcher, wallpaper, per-output workspaces, compositor-level
  IME relay, XWayland integration, session locking, idle/output-power support,
- declarative window and workspace rules, a process-based extension API, clipboard
- history, a screenshot UI, StatusNotifier tray, volume controls, and a desktop
- notification service.
+ declarative window and workspace rules, a process-based extension API,
+ clipboard history, a screenshot UI, StatusNotifier tray, volume controls, and
+ a desktop notification service.

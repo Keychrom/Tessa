@@ -1,0 +1,4 @@
+debian/man/tessa.1
+debian/man/tessa-ctl.1
+debian/man/tessa-panel.1
+debian/man/tessa-session.1

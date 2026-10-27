@@ -1,0 +1,52 @@
+.TH TESSA 1 "2026-10-27" "Tessa 0.1.0" "User Commands"
+.SH NAME
+tessa \- quiet tiled Wayland compositor and desktop shell
+.SH SYNOPSIS
+.B tessa
+.SH DESCRIPTION
+.B tessa
+is a wlroots-based tiled Wayland compositor written in Zig. It provides a
+taskbar, launcher, wallpaper, per-output workspaces, tiling layouts, window
+rules, input modes, session locking, idle/output-power support, a clipboard
+history, a screenshot UI, a StatusNotifier tray, and a process-based extension
+API.
+.PP
+Start the compositor from an active logind seat, either from a TTY or through a
+display-manager Wayland session. Do not run it as root. Quit with
+.BR Super+Shift+E .
+.SH FILES
+.TP
+.I ~/.config/tessa/config
+Main configuration file. A commented example is installed at
+.IR /usr/share/tessa/config.example .
+.TP
+.I ~/.config/tessa/outputs.conf
+Saved output modes, positions, scales, transforms, and layout overrides.
+.SH ENVIRONMENT
+.TP
+.B TESSA_CONFIG
+Override the configuration path.
+.TP
+.B TESSA_IPC
+Override the IPC socket path.
+.TP
+.B TESSA_OUTPUT_CONFIG
+Override the saved output configuration path.
+.TP
+.B TESSA_DEBUG
+Set to any value for additional compositor logging.
+.TP
+.B WLR_BACKENDS
+Select wlroots backends, for example
+.BR drm ", " headless ", or " wayland .
+.TP
+.B WLR_RENDERER
+Select a renderer such as
+.BR gles2 " or " pixman .
+.SH SEE ALSO
+.BR tessa-ctl (1),
+.BR tessa-panel (1),
+.BR tessa-session (1)
+.PP
+Full documentation is installed under
+.IR /usr/share/doc/tessa/ .

@@ -1,0 +1,25 @@
+.TH TESSA-SESSION 1 "2026-10-27" "Tessa 0.1.0" "User Commands"
+.SH NAME
+tessa-session \- display-manager entry point for Tessa
+.SH SYNOPSIS
+.B tessa-session
+.SH DESCRIPTION
+.B tessa-session
+sets the Tessa session environment, prepends its installation directory to
+.BR PATH ,
+and starts
+.BR tessa (1).
+It is used by the
+.I /usr/share/wayland-sessions/tessa.desktop
+entry.
+.SH ENVIRONMENT
+.TP
+.B XDG_CURRENT_DESKTOP
+Set to
+.BR Tessa .
+.TP
+.B XDG_SESSION_TYPE
+Set to
+.BR wayland .
+.SH SEE ALSO
+.BR tessa (1)
