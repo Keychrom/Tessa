@@ -933,7 +933,10 @@ pub fn drawBar(s: *m.Surface) void {
         _ = drawTextCentered(cr, cs, right - cw, cy + 0.3, MONO, "Medium", 8.2, .{ 0.60, 0.67, 0.77, 0.55 }, 0, 0);
         right -= cw + 10.0;
 
-        drawSparkline(cr, right - 42, cy - 7, 42, 14);
+        const spark_w = 42.0;
+        drawSparkline(cr, right - spark_w, cy - 7, spark_w, 14);
+        // Reserve the sparkline before the media/tray/status clusters.
+        right -= spark_w + 12.0;
     }
 
     if ((g.media_status == 1 or g.media_status == 2) and W > 1250) {
