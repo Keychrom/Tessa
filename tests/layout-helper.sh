@@ -1,19 +1,19 @@
 #!/bin/sh
-# Verify the external layout-helper protocol, timeout/fallback path, and restart.
-# Requires foot and python3. Run from the repository root after building:
+# Verify the v1-compatible external layout-helper protocol, timeout/fallback
+# path, and restart. Requires cc and python3. Run from the repository root:
 #   sh tests/layout-helper.sh
 set -eu
 
 cd "$(dirname "$0")/.."
 root=$PWD
-bin=$root/zig-out/bin
+bin=${TESSA_BIN:-$root/zig-out/bin}
 
 if [ ! -x "$bin/tessa" ] || [ ! -x "$bin/tessa-ctl" ]; then
     echo "build first: ./scripts/build.sh" >&2
     exit 1
 fi
-if ! command -v foot >/dev/null 2>&1; then
-    echo "foot not found; skipping layout helper test"
+if ! command -v cc >/dev/null 2>&1; then
+    echo "cc not found; skipping layout helper test"
     exit 0
 fi
 if ! command -v python3 >/dev/null 2>&1; then
@@ -23,7 +23,10 @@ fi
 
 runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-helper.XXXXXX")
 tpid=
+pids=
 cleanup() {
+    for pid in ${pids:-}; do kill "$pid" 2>/dev/null || true; done
+    for pid in ${pids:-}; do wait "$pid" 2>/dev/null || true; done
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
     pkill -x tessa-panel 2>/dev/null || true
@@ -64,6 +67,11 @@ EOF
 }
 
 write_config "python3 $runtime/helper.py"
+
+cc -O2 -I"$root/protocol" -o "$runtime/window-test" \
+    "$root/tests/rule-visuals/window.c" \
+    "$root/protocol/xdg-shell-client-protocol.c" \
+    $(pkg-config --cflags --libs wayland-client)
 
 export TESSA_CONFIG="$runtime/config"
 export TESSA_IPC="$runtime/tessa.sock"
@@ -140,9 +148,12 @@ grep -q "layout_helper python3 $runtime/helper.py" "$runtime/config.out"
 grep -q "layout_helper_timeout 500" "$runtime/config.out"
 echo "helper config: ok"
 
-tessa-ctl spawn foot -T HelperA
-tessa-ctl spawn foot -T HelperB
-tessa-ctl spawn foot -T HelperC
+"$runtime/window-test" helper-a HelperA >"$runtime/a.log" 2>&1 &
+pids="$pids $!"
+"$runtime/window-test" helper-b HelperB >"$runtime/b.log" 2>&1 &
+pids="$pids $!"
+"$runtime/window-test" helper-c HelperC >"$runtime/c.log" 2>&1 &
+pids="$pids $!"
 wait_state "OCC 1 3"
 wait_custom_rects
 echo "custom layout protocol: ok"

@@ -30,6 +30,8 @@ pub const MAX_TABLET_TOOLS = 16;
 pub const MAX_TABLET_PADS = 8;
 pub const MAX_CONSTRAINTS = 32;
 pub const MAX_EFFECTS = 4;
+pub const MAX_LAYOUT_RECTS = 64;
+pub const LAYOUT_HELPER_BUFFER = 64 * 1024;
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -258,6 +260,41 @@ pub const CurveDef = struct {
     name: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
     name_len: usize = 0,
     curve: Curve = .{},
+};
+
+pub const LayoutRect = struct {
+    id: u64,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+};
+
+pub const LayoutHelperState = struct {
+    fd: c_int = -1,
+    pid: c.pid_t = 0,
+    hash: u64 = 0,
+    fail_until: i64 = 0,
+    source: ?*c.wl_event_source = null,
+    timer: ?*c.wl_event_source = null,
+    waiting: bool = false,
+    hello_sent: bool = false,
+    version: u8 = 0,
+    version_logged: bool = false,
+    request_sig: u64 = 0,
+    request_count: usize = 0,
+    request_ids: [MAX_LAYOUT_RECTS]u64 = [_]u64{0} ** MAX_LAYOUT_RECTS,
+    cache_sig: u64 = 0,
+    cache_count: usize = 0,
+    rects: [MAX_LAYOUT_RECTS]LayoutRect = [_]LayoutRect{.{
+        .id = 0,
+        .x = 0,
+        .y = 0,
+        .w = 0,
+        .h = 0,
+    }} ** MAX_LAYOUT_RECTS,
+    read_len: usize = 0,
+    read_buf: [LAYOUT_HELPER_BUFFER]u8 = undefined,
 };
 
 pub const WorkspaceRule = struct {
@@ -498,6 +535,7 @@ pub const Output = struct {
     runtime_ratio: [WS_COUNT]f32,
     runtime_ratio_set: [WS_COUNT]bool,
     last_focused: [WS_COUNT + 1]?*Client,
+    helper: LayoutHelperState,
 
     last_scale: f32,
     frame: c.wl_listener,
@@ -522,6 +560,7 @@ pub const Client = struct {
     announced: bool,
     floating: bool,
     fullscreen: bool,
+    urgent: bool,
 
     anim_off_x: i32,
     anim_off_y: i32,
@@ -876,10 +915,7 @@ pub const Server = struct {
     config_watch_fd: c_int,
     config_watch_source: ?*c.wl_event_source,
     config_reload_timer: ?*c.wl_event_source,
-    layout_helper_fd: c_int,
-    layout_helper_pid: c.pid_t,
-    layout_helper_hash: u64,
-    layout_helper_fail_until: i64,
+    layout_refresh: ?*const fn (*Server) void,
     ipc_fd: c_int,
     ipc_source: ?*c.wl_event_source,
     ipc_idle: ?*c.wl_event_source,

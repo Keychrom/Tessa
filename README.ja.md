@@ -155,8 +155,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   サイズ、位置、ウィンドウ別ボーダー色、不透明度、角丸、ブラー、影、
   ボーダー幅を指定可能。namespace/出力/レイヤーでマッチするレイヤーシェル
   ルールにも対応
-- 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
-  タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
+- 独自タイルアルゴリズム向けの外部レイアウトヘルパー v2。出力ごとの非同期
+  プロセス、リクエスト合流、フォーカス／緊急度メタデータ、バージョン
+  ネゴシエーション、タイムアウト、再起動、内蔵レイアウトへのフォールバック
 - 行番号付きの設定診断、設定のアトミック保存時の自動リロード、失敗時に
   旧設定を維持するトランザクショナルなリロード、外部ツール向けの
   バージョン付き JSON 状態/設定スナップショット。ワークスペース別・出力別の
@@ -246,7 +247,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、フラクショナルな出力スケール変更、再起動後の出力
 モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
-`tests/customization.sh`、`tests/layout-helper.sh`、`tests/config-validation.sh`、
+`tests/customization.sh`、`tests/layout-helper.sh`、
+`tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
 `tests/panel-theme.sh`、
 `tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
@@ -722,7 +724,7 @@ cp config/config.example ~/.config/tessa/config
 | `mosaic_ratio` | モザイクのスライス比率（0.25–0.85） |
 | `mosaic_min_size` | グリッドへ切り替える前の最小モザイクタイル |
 | `grid_columns` | グリッドの固定列数。`0` は `ceil(sqrt(n))` |
-| `layout_helper` | 常駐外部レイアウトヘルパーのコマンド |
+| `layout_helper` | 出力ごとに 1 つ起動する非同期レイアウトヘルパーのコマンド |
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
@@ -856,10 +858,10 @@ bind = SUPER+SHIFT+r enter-mode resize
 workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 ```
 
-`layout = custom` でカスタムタイルを選べます。Tessa は設定されたヘルパーを
-1 回起動して保持し、アクティブなタイルウィンドウと使用可能領域を送り、
-フレーム矩形を受け取ります。`Super+T` の巡回には含まれないため、使う場合は
-明示的にバインドしてください。
+`layout = custom` でカスタムタイルを選べます。Tessa は出力ごとに非同期
+ヘルパーを 1 つ起動し、アクティブなタイルウィンドウ、使用可能領域、
+フォーカス／緊急度を送り、フレーム矩形を受け取ります。`Super+T` の巡回には
+含まれないため、使う場合は明示的にバインドしてください。
 
 ```ini
 layout = custom
@@ -1016,9 +1018,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   サンドボックスはありません。状態/設定スナップショットはバージョン付き
   JSON で、JSON-RPC の読み取りメソッドと JSON イベント購読も利用できますが、
   変更操作は引き続き行コマンドを使います。ステータスは短い文字列 8 件までです。
-- **レイアウトヘルパーは同期実行で全出力共有のまま。** 出力別インスタンス、
-  非同期/差分更新、ヘルパー v2 メタデータ、差分プレビュー付き設定エディタは
-  今後の予定です。
+- **レイアウトヘルパーの応答は完成したスナップショットです。** 出力別の
+  非同期ヘルパー、フォーカス／緊急度メタデータ、バージョンネゴシエーションは
+  実装済みですが、矩形の部分ストリーミング更新と、差分プレビュー付き設定
+  エディタは今後の予定です。
 - layer-shell とキーボードフォーカスは wlroots 0.19 の unstable API を
   使っています。パッケージング時は wlroots のバージョンを固定してください。
 - ランチャーは `.desktop` ファイルを走査します。インストールされている

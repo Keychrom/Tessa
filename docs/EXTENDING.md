@@ -108,11 +108,13 @@ State JSON includes the active `mode`; config JSON includes a `modes` array.
 `schema` is currently `1`; consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
-`app_id`, `title`, `output`, `x`, `y`, `width`, `height`, and the effective
+`urgent`, `app_id`, `title`, `output`, `x`, `y`, `width`, `height`, and the effective
 decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
 `shadow`. The `layers` array contains `namespace`, `output`, `layer`, `opacity`,
 `corner_radius`, and `blur` for mapped layer-shell surfaces. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
+`tessa-ctl dispatch urgent <id> on|off` toggles the urgency flag sent to layout
+helpers.
 Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
 `layer_rules`, and the corresponding counts. Each `curves` entry has a `kind`
 of `bezier` or `spring`; bezier entries include `points`, spring entries
@@ -337,4 +339,5 @@ JSON snapshots are versioned with `schema: 1`. JSON-RPC provides read methods,
 request ids, capability negotiation, and JSON event subscriptions, but mutation
 still uses the line command plane. There is no extension ordering or sandbox,
 and fire-and-forget commands have no acknowledgement. Status entries are
-text-only. The layout helper remains synchronous and shared across outputs.
+text-only. Layout-helper responses are complete snapshots; partial streaming
+rectangle updates are not supported.

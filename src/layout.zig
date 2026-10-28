@@ -139,6 +139,8 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
 
     if (target) |cl| {
         if (!cl.mapped or cl.ws != cl.output.active_ws) return;
+        const was_urgent = cl.urgent;
+        cl.urgent = false;
         if (server.focused == cl) {
             server.focused_output = cl.output;
             server.active_ws = cl.output.active_ws;
@@ -146,6 +148,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
                 c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
             }
             raiseClient(cl);
+            if (was_urgent) layout_helper.focusChanged(server);
             return;
         }
         if (server.focused) |prev| {
@@ -180,6 +183,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
             .title = cl.title[0..cl.title_len],
             .output = core.outputName(cl.output),
         });
+        layout_helper.focusChanged(server);
         core.markDirty(server);
         return;
     }
@@ -205,6 +209,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
             .workspace = cleared_ws,
             .output = cleared_output,
         });
+        layout_helper.focusChanged(server);
     }
     core.markDirty(server);
 }

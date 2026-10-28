@@ -127,7 +127,7 @@ a daily Japanese desktop, then by polish.
 - [x] Named input modes with mode-specific bindings and `enter-mode`.
 - [x] Leader-key/chord sequences and per-mode timeouts.
 - [x] Per-output theme rules and named workspace/output profiles.
-- [ ] Layout-helper v2: per-output instances, asynchronous/incremental updates,
+- [x] Layout-helper v2: per-output instances, asynchronous/coalesced updates,
       focus/urgent metadata, and protocol version negotiation.
 - [x] Config-defined event-to-action rules for policy automation.
 - [x] Theme role system and configurable, reduced-motion-aware animations.
@@ -152,7 +152,7 @@ the interactive config editor/diff preview) before or alongside this work.
       border width; layer-shell rules; reactive decorative re-evaluation on
       title/app-id changes. Structural actions remain map/reload-time.
 - [ ] Workspace/layout v2: named workspaces, special/scratchpad workspaces,
-      window groups, and the completed asynchronous per-output layout helper.
+      and window groups.
 - [ ] Input/output policy: per-device touchpad/mouse rules (tap, natural
       scrolling, acceleration, scroll method, button map), monitor rules by
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.

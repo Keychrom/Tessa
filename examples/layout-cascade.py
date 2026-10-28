@@ -1,24 +1,27 @@
 #!/usr/bin/env python3
 """Minimal Tessa external layout helper.
 
-Tessa starts this process once and keeps it alive. For each layout request it
-writes tab-separated lines to stdin; the helper writes RECT lines to stdout and
-terminates the response with END.
+Tessa starts this process once per output and keeps it alive. For each layout
+request it writes tab-separated lines to stdin; the helper writes RECT lines to
+stdout and terminates the response with END. Replies are asynchronous from the
+compositor's point of view, so the previous rectangles remain visible until the
+new response is complete.
 
 This example is intentionally a cascade, not a practical daily layout. Copy it
 as a starting point for your own tiling algorithm.
 
 Protocol fields:
-  LAYOUT   protocol version
-  OUTPUT   output name
-  AREA     absolute x, y, width, height of the usable output area
+  HELLO     protocol version advertised by the compositor
+  LAYOUT    protocol version
+  OUTPUT    output name
+  AREA      absolute x, y, width, height of the usable output area
   OUTER_GAP
   GAP
   BORDER
   SCALE
   TRANSFORM
   COUNT
-  WINDOW   id, app_id, title (tab/backslash/newline escaped)
+  WINDOW    id, app_id, title, focused, urgent (tab/backslash/newline escaped)
   END
 """
 
@@ -52,7 +55,10 @@ for raw in sys.stdin:
     if not fields:
         continue
     tag = fields[0]
-    if tag == "AREA" and len(fields) >= 5:
+    if tag == "HELLO":
+        # Announce protocol 2 support once. Older compositors ignore this.
+        print("VERSION\t2", flush=True)
+    elif tag == "AREA" and len(fields) >= 5:
         area = tuple(int(value) for value in fields[1:5])
     elif tag == "GAP" and len(fields) >= 2:
         gap = int(fields[1])

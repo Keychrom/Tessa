@@ -252,6 +252,17 @@ working helper to verify restart-after-reload.
 sh tests/layout-helper.sh
 ```
 
+`tests/layout-helper-v2.sh` compiles the xdg-shell test window and starts two
+headless outputs. It moves one window to the second output, verifies that each
+output gets its own helper process, checks protocol-2 negotiation, and measures
+that a 600 ms helper delay does not block an IPC state request. It also verifies
+that focused/urgent metadata reaches the helper after a focus change and
+`tessa-ctl dispatch urgent`.
+
+```sh
+sh tests/layout-helper-v2.sh
+```
+
 ### Config validation and JSON test
 
 `tests/config-validation.sh` writes an invalid config with unknown keys, bad

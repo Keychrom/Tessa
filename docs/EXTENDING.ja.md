@@ -110,10 +110,12 @@ END
 ください。
 
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
-`fullscreen`、`app_id`、`title`、`output`、`x`、`y`、`width`、`height` と、
-実効装飾値 `opacity`、`border_width`、`corner_radius`、`blur`、`shadow` が
-入ります。`layers` 配列にはマップ済みレイヤーサーフェスの `namespace`、
-`output`、`layer`、`opacity`、`corner_radius`、`blur` が入ります。設定の
+`fullscreen`、`urgent`、`app_id`、`title`、`output`、`x`、`y`、`width`、
+`height` と、実効装飾値 `opacity`、`border_width`、`corner_radius`、`blur`、
+`shadow` が入ります。`layers` 配列にはマップ済みレイヤーサーフェスの
+`namespace`、`output`、`layer`、`opacity`、`corner_radius`、`blur` が
+入ります。`tessa-ctl dispatch urgent <id> on|off` でレイアウトヘルパーへ送る
+緊急度を切り替えられます。設定の
 `diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
 は `event_rules`、`profiles`、`theme_roles`、`layer_rules` と各件数も
 出力します。`curves` の各要素は `kind`（`bezier` または `spring`）を持ち、
@@ -341,4 +343,5 @@ JSON スナップショットは `schema: 1` でバージョン管理してい�
 読み取り、リクエスト ID、ケイパビリティ交渉、JSON イベント購読を提供します
 が、変更操作は行コマンドを使います。拡張間の順序制御、サンドボックス、
 投げっぱなしコマンドの ACK はありません。ステータスはテキストのみです。
-レイアウトヘルパーは同期実行で全出力共有のままです。
+レイアウトヘルパーの応答は完成したスナップショットで、矩形の部分
+ストリーミング更新には対応していません。

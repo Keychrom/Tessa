@@ -473,7 +473,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `grid_columns` | `0` | grid の固定列数。`0` は自動（最大 8） |
 | `layout` | `master` | 既定レイアウト。`master`、`mosaic`、`grid`、`columns`、`custom` |
 | `layout_1` … `layout_9` | 継承 | 保存済み・実行中の上書きがないワークスペースの初期レイアウト |
-| `layout_helper` | 空 | `custom` 用の常駐ヘルパーコマンド |
+| `layout_helper` | 空 | 出力ごとに 1 つ起動する非同期カスタムレイアウトヘルパー |
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
@@ -865,16 +865,21 @@ layout_helper_timeout = 100
 bind = SUPER+SHIFT+T set-layout custom
 ```
 
-ヘルパーは常駐プロセスです。タブ区切りで `LAYOUT`、`OUTPUT`、`AREA`、
-`OUTER_GAP`、`GAP`、`BORDER`、`SCALE`、`TRANSFORM`、`COUNT`、`WINDOW`、
-`END` を送り、各ウィンドウについて `RECT id x y w h` と `END` を受け取り
-ます。座標は絶対論理座標、幅と高さはボーダーを含むフレームサイズです。
+Tessa は出力ごとに 1 つのヘルパーを起動し、リクエストを非同期で送ります。
+応答待ちでコンポジタが停止することはありません。`HELLO 2` を通知し、
+`LAYOUT 2`、`OUTPUT`、`AREA`、`OUTER_GAP`、`GAP`、`BORDER`、`SCALE`、
+`TRANSFORM`、`COUNT`、`WINDOW` 行を `END` まで送ります。プロトコル 2 の
+ヘルパーは `VERSION 2` を返し、それ以降の `WINDOW` は id、app-id、タイトル、
+focused、urgent を持ちます。最初のリクエストはプロトコル 1 の 3 フィールド
+形式です。応答は任意の `VERSION 2`、`RECT id x y w h` 行、`END` です。座標は
+絶対論理座標、幅と高さはボーダーを含むフレームサイズです。`HELLO` や
+バージョン行を無視する旧ヘルパーもそのまま動作します。
 
-応答のタイムアウト、クラッシュ、不正応答、ID 不一致、矩形不足時は、その
-配置だけ master へフォールバックします。1 秒後に同じヘルパーを再試行します。
-`stdout` はプロトコル専用なので、診断は `stderr` へ書きます。
-
-完全な例は `examples/layout-cascade.py` と
+応答待ちの間は以前の矩形を維持し、最初の応答までは内蔵レイアウトを使います。
+タイムアウト、クラッシュ、不正応答、ID 不一致、矩形不足時は、その出力だけ
+master へフォールバックし、1 秒後に再試行します。`stdout` はプロトコル専用
+なので、診断は `stderr` へ書きます。緊急度は
+`tessa-ctl dispatch urgent <id> on|off` で設定できます。詳細は
 [CUSTOMIZATION.ja.md](CUSTOMIZATION.ja.md#外部レイアウトヘルパー) を参照して
 ください。
 
@@ -1701,8 +1706,9 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   角丸、ブラー、影、ボーダー幅）はタイトル/app-id 変更で即時再評価されますが、
   `float`、`workspace`、`size`、`position`、`fullscreen` はメタデータ変更では
   再適用されません。
-- **レイアウトヘルパーは同期実行で全出力共有のまま**。出力別インスタンス、
-  非同期/差分更新、ヘルパー v2 メタデータは未実装です。
+- **レイアウトヘルパーの応答は完成したスナップショットです**。出力別の
+  非同期ヘルパー、フォーカス／緊急度メタデータ、バージョンネゴシエーションは
+  実装済みですが、矩形の部分ストリーミング更新は未実装です。
 - **JSON-RPC は読み取りとイベント購読のみ**。変更操作は行コマンドを使います。
 - **差分プレビュー付きの設定エディタは未実装**です。
 - 出力の `enabled` 状態、通知の出力固定、カスタム通知音などは未対応です。

@@ -77,9 +77,10 @@ layout = master
 # output-rule = output=HDMI-A-1; border-active=#8fd3ff; border-inactive=#243040
 # output-rule = output=HDMI-A-1; panel-bg=#111827; bar-height=52; bar-top-margin=8
 
-# External custom tiling. The helper is a long-lived process; it receives
-# tab-separated LAYOUT/AREA/WINDOW/END requests and returns RECT/END responses.
-# See docs/CUSTOMIZATION.md and examples/layout-cascade.py.
+# External custom tiling. One long-lived helper runs per output and receives
+# asynchronous HELLO/LAYOUT/AREA/WINDOW/END requests with focus/urgent metadata,
+# returning VERSION/RECT/END responses. See docs/CUSTOMIZATION.md and
+# examples/layout-cascade.py.
 # layout = custom
 # layout_helper = python3 ~/.config/tessa/layout.py
 # layout_helper_timeout = 100

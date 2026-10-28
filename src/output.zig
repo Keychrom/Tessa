@@ -8,6 +8,7 @@ const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
 const rules = @import("rules.zig");
+const layout_helper = @import("layout_helper.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -519,6 +520,7 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     const out: *Output = @fieldParentPtr("destroy", listener.?);
     const server = out.server;
 
+    layout_helper.destroyOutput(out);
     c.wl_list_remove(&out.frame.link);
     c.wl_list_remove(&out.request_state.link);
     c.wl_list_remove(&out.commit.link);
@@ -629,6 +631,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.server = server;
     out.wlr = wlr_out;
     out.active_ws = 1;
+    layout_helper.initOutput(out);
     rules.applyOutputTheme(server, out);
     rules.seedOutputLayouts(server, out);
     applySavedLayouts(server, out);

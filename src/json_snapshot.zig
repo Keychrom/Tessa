@@ -116,6 +116,8 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, cl.floating);
         addRaw(buf, &off, ",\"fullscreen\":");
         addBool(buf, &off, cl.fullscreen);
+        addRaw(buf, &off, ",\"urgent\":");
+        addBool(buf, &off, cl.urgent);
         addRaw(buf, &off, ",\"app_id\":");
         addString(buf, &off, cl.app_id[0..cl.app_id_len]);
         addRaw(buf, &off, ",\"title\":");

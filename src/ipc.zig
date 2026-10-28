@@ -475,6 +475,22 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
             if (findClient(server, id)) |target| effects.requestClose(server, target);
         }
+    } else if (std.mem.eql(u8, cmd, "urgent")) {
+        if (start + 1 < n) {
+            const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
+            if (findClient(server, id)) |target| {
+                var on = true;
+                if (start + 2 < n) {
+                    const value = toks[start + 2];
+                    on = !(std.ascii.eqlIgnoreCase(value, "off") or
+                        std.ascii.eqlIgnoreCase(value, "false") or
+                        std.mem.eql(u8, value, "0"));
+                }
+                target.urgent = on;
+                layout.arrangeAll(server);
+                broadcastState(server);
+            }
+        }
     } else if (std.mem.eql(u8, cmd, "float")) {
         if (start + 1 < n) {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;

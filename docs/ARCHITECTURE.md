@@ -445,12 +445,15 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   reload. Runtime ratio changes live in `Output.runtime_ratio[]`; config reload
   clears them. `arrangeOutput()` and the provisional configure size consume the
   same `Tuning` result, so gaps and layout cannot disagree.
-- `layout_helper.zig` owns an optional long-lived child process connected by a
-  `socketpair`. The `custom` layout sends a tab-separated request
-  (`LAYOUT`, `AREA`, `WINDOW`, `END`) and reads `RECT` lines. Requests use a
-  bounded poll timeout; a crash, timeout, malformed reply, or id mismatch stops
-  the child and falls back to master for that arrangement. The helper is
-  restarted when its command changes and terminated during shutdown.
+- `layout_helper.zig` owns one optional long-lived child process per output,
+  connected by a `socketpair`. The `custom` layout sends an asynchronous
+  `HELLO`/`LAYOUT` request (`OUTPUT`, `AREA`, `WINDOW` with focus/urgent flags,
+  `END`) and consumes `VERSION`/`RECT`/`END` replies from the Wayland event
+  loop. Previous rectangles stay in place while a reply is pending; requests
+  coalesce, and the first reply falls back to master until it arrives. A crash,
+  timeout, malformed reply, or id mismatch stops that output's child and falls
+  back to master. Helpers are restarted when their command changes and stopped
+  during output destruction and shutdown.
 - `rules.zig` evaluates declarative window rules after metadata is known at
   map time, and re-evaluates them for existing windows on config reload. Match
   fields are app-id, title, and output using a small `*`/`?` wildcard matcher;

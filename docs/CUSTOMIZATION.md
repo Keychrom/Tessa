@@ -215,9 +215,9 @@ producing unusable slivers.
 
 ## External layout helper
 
-Custom tiling lives in a long-lived helper process. Select it with
-`layout = custom`, point `layout_helper` at a command, and bind it if you want
-it outside the `Super+T` cycle:
+Custom tiling lives in long-lived helper processes, one per output. Select it
+with `layout = custom`, point `layout_helper` at a command, and bind it if you
+want it outside the `Super+T` cycle:
 
 ```ini
 layout = custom
@@ -226,12 +226,14 @@ layout_helper_timeout = 100
 bind = SUPER+SHIFT+T set-layout custom
 ```
 
-Tessa sends one tab-separated request describing the usable area and the tiled
-windows, then reads a response with one rectangle per window. `	` below means
-a literal tab:
+Tessa sends `HELLO<TAB>2` once, then asynchronous requests describing the
+usable area and the tiled windows. It never blocks the compositor waiting for
+the reply. After a helper announces `VERSION<TAB>2`, requests look like this
+(`	` means a literal tab):
 
 ```text
-LAYOUT	1
+HELLO	2
+LAYOUT	2
 OUTPUT	HEADLESS-1
 AREA	0	0	1920	1080
 OUTER_GAP	16
@@ -240,36 +242,48 @@ BORDER	2
 SCALE	1.000
 TRANSFORM	0
 COUNT	2
-WINDOW	7	foot	notes
-WINDOW	8	kitty	shell
+WINDOW	7	foot	notes	1	0
+WINDOW	8	kitty	shell	0	1
 END
 ```
 
-The helper replies:
+The last two `WINDOW` fields are `focused` and `urgent` (`1` or `0`). Urgency
+can be set from a script with `tessa-ctl dispatch urgent <id> on` (or `off`);
+focusing a window clears it. State JSON exposes it as `"urgent"`.
+
+The helper replies with one rectangle per requested window:
 
 ```text
+VERSION	2
 RECT	7	16	16	940	1048
 RECT	8	966	16	938	1048
 END
 ```
 
-Coordinates are absolute logical compositor coordinates. Rectangle width and
-height are frame sizes including the border. Floating and fullscreen windows are
-not sent. A response must contain exactly one rectangle for every request window
-and may not contain unknown ids. Return `ERR` instead of rectangles to reject
-the frame.
+`VERSION	2` is optional. Without it the helper is treated as protocol 1;
+old helpers that ignore unknown lines keep working. The first request uses the
+protocol-1 three-field `WINDOW` form; focused/urgent fields are added once the
+helper has announced `VERSION	2`. Coordinates are absolute logical compositor
+coordinates. Rectangle width and
+height are frame sizes including the border. Floating and fullscreen windows
+are not sent. A response must contain exactly one rectangle for every request
+window and may not contain unknown ids. Return `ERR` instead of rectangles to
+reject the frame.
 
-The helper is started lazily, kept across layout changes, and shared by all
-outputs. It is restarted when `layout_helper` changes or after a failure. A
-missing command, timeout, crash, malformed response, or rectangle mismatch
-falls back to the master layout for that arrangement; after a failure the same
-command is retried after one second. The request is limited to 64 tiled windows.
-The default timeout is 100 ms and the allowed range is 10–1000 ms.
+Each output gets its own process and rectangle cache. Requests are sent when the
+layout, focus, or urgency changes. While a reply is outstanding, the previous
+rectangles stay in place and further changes coalesce into the next request.
+Until the first successful reply, Tessa uses the built-in layout. A missing
+command, timeout, crash, malformed response, or rectangle mismatch falls back
+to the master layout for that output and retries the same command after one
+second. Restarting or changing `layout_helper` restarts the helpers; a config
+reload with the same command keeps them alive.
 
-`stdout` is reserved for the protocol. Write diagnostics to `stderr`. The
-command runs as your user through `/bin/sh`, like a hook. See
-[`examples/layout-cascade.py`](../examples/layout-cascade.py) for a minimal
-working helper.
+The request is limited to 64 tiled windows. The default timeout is 100 ms and
+the allowed range is 10–1000 ms. `stdout` is reserved for the protocol; write
+diagnostics to `stderr`. The command runs as your user through `/bin/sh`, like
+a hook. See [`examples/layout-cascade.py`](../examples/layout-cascade.py) for a
+minimal working helper.
 
 ## Input modes
 
@@ -772,9 +786,6 @@ available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 
 ## Planned customization work
 
-- Per-output helper instances, asynchronous/incremental updates, and protocol
-  version negotiation (the current helper is one process with a bounded
-  request/response per arrangement).
 - Shader/effect hooks for window movement, workspace changes, borders, and the
   shell.
 - Interactive config editor/check with diff preview, built on the existing

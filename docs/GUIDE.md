@@ -460,7 +460,7 @@ edits are rejected and keep the previous configuration.
 | `grid_columns` | `0` | Fixed grid columns; `0` is automatic (max 8) |
 | `layout` | `master` | Default: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | inherited | Initial layout for a workspace without a saved/runtime override |
-| `layout_helper` | empty | Long-lived custom layout helper command |
+| `layout_helper` | empty | One asynchronous custom layout helper per output |
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
@@ -845,15 +845,22 @@ layout_helper_timeout = 100
 bind = SUPER+SHIFT+T set-layout custom
 ```
 
-Tessa sends a tab-separated request (`LAYOUT`, `OUTPUT`, `AREA`, `OUTER_GAP`,
-`GAP`, `BORDER`, `SCALE`, `TRANSFORM`, `COUNT`, `WINDOW`, `END`) and expects
-`RECT id x y w h` lines followed by `END`. Coordinates are absolute logical
-coordinates; rectangles include the border.
+Tessa starts one helper per output and sends requests asynchronously; the
+compositor never blocks waiting for a reply. It advertises `HELLO 2` and sends
+`LAYOUT 2`, `OUTPUT`, `AREA`, `OUTER_GAP`, `GAP`, `BORDER`, `SCALE`,
+`TRANSFORM`, `COUNT`, and `WINDOW` lines ending in `END`. A protocol-2 helper
+announces `VERSION 2`; after that each `WINDOW` carries `id`, app-id, title,
+focused, and urgent fields. The first request uses the three-field protocol-1
+form. Replies contain an optional `VERSION 2`, `RECT id x y w h` lines, and
+`END`. Coordinates are absolute logical coordinates; rectangles include the
+border. A helper that ignores the `HELLO` and version lines remains compatible.
 
-Timeout, crash, malformed reply, ID mismatch, or missing rectangles fall back
-to master for that arrangement. The helper is retried after one second.
-`stdout` is reserved for the protocol; diagnostics go to `stderr`. See
-`examples/layout-cascade.py` and
+The previous rectangles stay visible while a reply is pending; the first reply
+falls back to the built-in layout until it arrives. Timeout, crash, malformed
+reply, ID mismatch, or missing rectangles fall back to master for that output.
+Helpers are retried after one second. `stdout` is reserved for the protocol;
+diagnostics go to `stderr`. `tessa-ctl dispatch urgent <id> on|off` updates the
+urgent flag sent to helpers. See
 [CUSTOMIZATION.md](CUSTOMIZATION.md#external-layout-helper).
 
 ### 8.7 Workspace pins
@@ -1638,9 +1645,9 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   (colors, opacity, rounding, blur, shadow, border width) react immediately to
   title/app-id changes, but `float`, `workspace`, `size`, `position`, and
   `fullscreen` are not re-applied on metadata changes.
-- **The layout helper is synchronous and shared across outputs.** Per-output
-  helper instances, asynchronous/incremental updates, and helper v2 metadata
-  are still pending.
+- **Layout-helper replies are complete snapshots.** Per-output asynchronous
+  helpers, focus/urgent metadata, and version negotiation are implemented;
+  partial streaming rectangle updates are not.
 - **JSON-RPC is read-only plus event subscriptions.** Mutation still uses the
   line commands.
 - **There is no graphical config editor/diff preview yet.**

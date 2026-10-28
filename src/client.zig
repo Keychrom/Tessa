@@ -449,6 +449,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.announced = false;
     client.floating = false;
     client.fullscreen = false;
+    client.urgent = false;
     client.opacity = 1.0;
     client.corner_radius = -1;
     client.blur = .unset;

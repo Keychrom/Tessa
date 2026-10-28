@@ -155,8 +155,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   POSIX-regex expressions, with floating, workspace, fullscreen, size,
   position, per-window border colors, opacity, rounding, blur, shadow, and
   border width; layer-shell rules by namespace, output, and layer
-- external layout-helper protocol for custom tiling algorithms, with a timeout,
-  process restart, and built-in fallback
+- external layout-helper v2 for custom tiling algorithms: one asynchronous
+  process per output, coalesced requests, focus/urgent metadata, version
+  negotiation, timeout, restart, and built-in fallback
 - file/line config diagnostics, automatic reload on atomic config saves,
   transactional reload, and versioned JSON state/config snapshots for external
   tools; per-workspace and per-output layout/gap/master rules; animation
@@ -237,7 +238,8 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, fractional output
 scale changes, and output mode/position/scale and layout persistence across
 restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
-`tests/customization.sh`, `tests/layout-helper.sh`, `tests/config-validation.sh`,
+`tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
+`tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
 `tests/panel-theme.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
@@ -697,7 +699,7 @@ diagnostics. Selected keys:
 | `mosaic_ratio` | slice ratio for mosaic (0.25–0.85) |
 | `mosaic_min_size` | minimum mosaic tile before falling back to grid |
 | `grid_columns` | fixed grid columns; `0` chooses `ceil(sqrt(n))` |
-| `layout_helper` | command for the long-lived external layout helper |
+| `layout_helper` | command for one long-lived asynchronous helper per output |
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
@@ -830,10 +832,10 @@ Per-workspace tuning uses the same `key=value; ...` style:
 workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 ```
 
-Custom tiling is selectable with `layout = custom`. Tessa starts the configured
-helper once and sends it the active tiled windows and usable area; the helper
-returns frame rectangles. The helper is not part of the `Super+T` cycle, so bind
-it explicitly if wanted:
+Custom tiling is selectable with `layout = custom`. Tessa starts one
+asynchronous helper per output and sends it the active tiled windows, usable
+area, focus, and urgency state; the helper returns frame rectangles. The helper
+is not part of the `Super+T` cycle, so bind it explicitly if wanted:
 
 ```ini
 layout = custom
@@ -985,9 +987,10 @@ These are real and important:
   JSON, and JSON-RPC read methods plus JSON event subscriptions are available,
   but mutation still uses the line command plane. Status entries are limited to
   eight short strings.
-- **The layout helper remains synchronous and shared.** Per-output helper
-  instances, asynchronous/incremental updates, helper v2 metadata, and an
-  interactive config diff editor are still planned.
+- **Layout-helper responses are complete snapshots.** Per-output asynchronous
+  helpers, focus/urgent metadata, and version negotiation are implemented, but
+  partial streaming rectangle updates are not; an interactive config diff
+  editor is still planned.
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the
