@@ -180,7 +180,9 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   fades, and soft layered shadows; opt-in scenefx rounded
   corners and backdrop blur for windows and shell surfaces; configurable
   wallpaper gradient colors and an art on/off switch
-- nine workspaces per output, floating windows, fullscreen, click-to-focus
+- nine workspaces per output, floating windows, fullscreen, click-to-focus;
+  optional global workspace names for bar labels, bindings, IPC, and window
+  rules
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; workspace-to-output pins;
   output management via `wlr-randr`, persisted across restarts; fractional
@@ -714,6 +716,7 @@ diagnostics. Selected keys:
 | `event-rule` | conditional event-to-command rule |
 | `theme-role` | semantic color role shared by compositor and panel |
 | `workspace_pin` | bind a workspace to an output: `workspace_pin = eDP-1 3` (repeatable) |
+| `workspace-name` | global workspace name: `workspace-name = 2 Code` (repeatable) |
 | `corner_radius` | rounded window radius, 0–64 (scenefx builds) |
 | `blur` | backdrop blur for translucent surfaces (scenefx builds) |
 | `blur_radius` | blur radius, 1–32 |
@@ -898,6 +901,7 @@ WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
+CMD workspace Code
 CMD move-workspace 3
 CMD focus 4
 CMD close 4

@@ -342,6 +342,17 @@ sh tests/output-rules.sh
 sh tests/workspace-pinning.sh
 ```
 
+### 名前付きワークスペースのテスト
+
+`tests/workspace-names.sh` は bind とウィンドウルールの名前解決が設定全体の
+読み込み後に行われること、テキスト/JSON 設定スナップショット、状態の
+`WORKSPACE` 行、`tessa-ctl workspace <name>` を検証します。存在しない名前を
+参照した場合にリロードが拒否され、以前の設定が維持されることも確認します。
+
+```sh
+sh tests/workspace-names.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

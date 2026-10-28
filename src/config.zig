@@ -180,6 +180,64 @@ fn addWorkspacePin(
     p.ws = ws;
 }
 
+fn addWorkspaceName(
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) void {
+    var it = std.mem.tokenizeAny(u8, value, " \t");
+    const ws_text = it.next() orelse {
+        addIssue(server, path, line, "expected WORKSPACE NAME for {s}", .{key});
+        return;
+    };
+    const name = it.next() orelse {
+        addIssue(server, path, line, "expected WORKSPACE NAME for {s}", .{key});
+        return;
+    };
+    if (it.next() != null) {
+        addIssue(server, path, line, "workspace names cannot contain spaces", .{});
+        return;
+    }
+    const ws = std.fmt.parseInt(usize, ws_text, 10) catch {
+        addIssue(server, path, line, "invalid workspace for {s}: '{s}'", .{ key, ws_text });
+        return;
+    };
+    if (ws < 1 or ws > types.WS_COUNT) {
+        addIssue(server, path, line, "workspace out of range for {s}: '{s}'", .{ key, ws_text });
+        return;
+    }
+    if (name.len >= types.MAX_WORKSPACE_NAME) {
+        addIssue(server, path, line, "workspace name too long for {s}", .{key});
+        return;
+    }
+    if (std.fmt.parseInt(u32, name, 10)) |_| {
+        addIssue(server, path, line, "numeric workspace names are reserved for {s}", .{key});
+        return;
+    } else |_| {}
+    for (name) |ch| {
+        if (ch < 0x20 or ch == 0x7f) {
+            addIssue(server, path, line, "workspace name contains a control character", .{});
+            return;
+        }
+    }
+    var i: usize = 0;
+    while (i < types.WS_COUNT) : (i += 1) {
+        if (server.config.workspace_name_lens[i] == 0) continue;
+        if (std.mem.eql(
+            u8,
+            server.config.workspace_names[i][0..server.config.workspace_name_lens[i]],
+            name,
+        )) {
+            addIssue(server, path, line, "duplicate workspace name '{s}'", .{name});
+            return;
+        }
+    }
+    const index = ws - 1;
+    core.copyString(&server.config.workspace_names[index], &server.config.workspace_name_lens[index], name);
+}
+
 fn parseBoolValue(
     server: *Server,
     path: []const u8,
@@ -341,13 +399,26 @@ pub fn addBindingInMode(
 
     switch (action) {
         .workspace, .move_to_workspace => {
-            binding.num = std.fmt.parseInt(i32, arg, 10) catch {
-                core.logInfo("config: invalid workspace for bind '{s}'", .{arg});
+            if (arg.len == 0) {
+                core.logInfo("config: workspace bind needs a workspace", .{});
                 return false;
-            };
-            if (binding.num < 1 or binding.num > types.WS_COUNT) {
-                core.logInfo("config: bind workspace out of range: {d}", .{binding.num});
-                return false;
+            }
+            if (std.fmt.parseInt(i32, arg, 10)) |num| {
+                if (num < 1 or num > types.WS_COUNT) {
+                    core.logInfo("config: bind workspace out of range: {d}", .{num});
+                    return false;
+                }
+                binding.num = num;
+            } else |_| {
+                for (arg) |ch| {
+                    if (ch == ' ' or ch == '\t') {
+                        core.logInfo("config: workspace names cannot contain spaces", .{});
+                        return false;
+                    }
+                }
+                // Resolve names after the whole file has been parsed, so a
+                // workspace-name line may appear after its bindings.
+                binding.num = 0;
             }
         },
         .ratio => {
@@ -668,15 +739,26 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
         } else if (std.ascii.eqlIgnoreCase(key, "workspace") or
             std.ascii.eqlIgnoreCase(key, "ws"))
         {
-            const ws = std.fmt.parseInt(usize, val, 10) catch {
-                core.logInfo("config: invalid rule workspace '{s}'", .{val});
-                return false;
-            };
-            if (ws < 1 or ws > types.WS_COUNT) {
-                core.logInfo("config: rule workspace out of range: {d}", .{ws});
-                return false;
+            if (std.fmt.parseInt(usize, val, 10)) |ws| {
+                if (ws < 1 or ws > types.WS_COUNT) {
+                    core.logInfo("config: rule workspace out of range: {d}", .{ws});
+                    return false;
+                }
+                rule.workspace = ws;
+                rule.workspace_name_len = 0;
+            } else |_| {
+                if (val.len == 0 or val.len >= types.MAX_WORKSPACE_NAME) {
+                    core.logInfo("config: invalid rule workspace '{s}'", .{val});
+                    return false;
+                }
+                for (val) |ch| {
+                    if (ch == ' ' or ch == '\t') {
+                        core.logInfo("config: workspace names cannot contain spaces", .{});
+                        return false;
+                    }
+                }
+                core.copyString(&rule.workspace_name, &rule.workspace_name_len, val);
             }
-            rule.workspace = ws;
         } else if (std.ascii.eqlIgnoreCase(key, "float") or
             std.ascii.eqlIgnoreCase(key, "floating"))
         {
@@ -1351,6 +1433,37 @@ fn addSpring(cfg: *Config, value: []const u8) bool {
     cfg.curves[cfg.curve_count] = curve;
     cfg.curve_count += 1;
     return true;
+}
+
+fn resolveWorkspaceReferences(server: *Server) void {
+    const cfg = &server.config;
+
+    var i: usize = 0;
+    while (i < cfg.rule_count) : (i += 1) {
+        const rule = &cfg.rules[i];
+        if (rule.workspace_name_len == 0) continue;
+        if (types.workspaceIndexByName(cfg, rule.workspace_name[0..rule.workspace_name_len])) |ws| {
+            rule.workspace = ws;
+        } else {
+            addIssue(server, "<config>", 0, "window-rule references unknown workspace '{s}'", .{
+                rule.workspace_name[0..rule.workspace_name_len],
+            });
+        }
+    }
+
+    i = 0;
+    while (i < cfg.binding_count) : (i += 1) {
+        const binding = &cfg.bindings[i];
+        if (binding.action != .workspace and binding.action != .move_to_workspace) continue;
+        if (binding.num >= 1 and binding.num <= types.WS_COUNT) continue;
+        if (types.workspaceIndexByName(cfg, binding.arg[0..binding.arg_len])) |ws| {
+            binding.num = @intCast(ws);
+        } else {
+            addIssue(server, "<config>", 0, "bind references unknown workspace '{s}'", .{
+                binding.arg[0..binding.arg_len],
+            });
+        }
+    }
 }
 
 fn validateAnimationCurves(server: *Server) void {
@@ -2029,6 +2142,8 @@ fn loadPath(
             }
         } else if (std.mem.eql(u8, key, "workspace_pin") or std.mem.eql(u8, key, "workspace-pin")) {
             addWorkspacePin(server, path, line_no, key, value);
+        } else if (std.mem.eql(u8, key, "workspace_name") or std.mem.eql(u8, key, "workspace-name")) {
+            addWorkspaceName(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
         } else if (std.mem.eql(u8, key, "animations")) {
@@ -2333,6 +2448,7 @@ pub fn load(server: *Server) void {
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
     resolveProfileReferences(server);
+    resolveWorkspaceReferences(server);
     validateAnimationCurves(server);
 
     if (server.config.gaps < 0) server.config.gaps = 0;

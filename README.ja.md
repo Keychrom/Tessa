@@ -182,7 +182,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   角丸と背景ブラー（ウィンドウとシェルサーフェス）、壁紙グラデーション色と
   アート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
-  フォーカス
+  フォーカス。任意のグローバル名をバー表示、バインド、IPC、ウィンドウルールで
+  利用可能
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
   持ち、パネルも出力ごとに自動起動。ワークスペースの出力固定、`wlr-randr`
   による出力管理、設定の永続化、`wp_fractional_scale_v1` による
@@ -739,6 +740,7 @@ cp config/config.example ~/.config/tessa/config
 | `event-rule` | 条件付きイベント→コマンドルール |
 | `theme-role` | コンポジタとパネルで共有する意味論的カラー |
 | `workspace_pin` | ワークスペースを出力に固定: `workspace_pin = eDP-1 3`（繰り返し可） |
+| `workspace-name` | ワークスペースのグローバル名: `workspace-name = 2 Code`（繰り返し可） |
 | `corner_radius` | ウィンドウの角丸半径（0〜64。scenefx ビルド） |
 | `blur` | 半透明サーフェスの背景ブラー（scenefx ビルド） |
 | `blur_radius` | ブラー半径（1〜32） |
@@ -927,6 +929,7 @@ WIN\t1\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
 END
 
 CMD workspace 3 eDP-1
+CMD workspace Code
 CMD move-workspace 3
 CMD focus 4
 CMD close 4

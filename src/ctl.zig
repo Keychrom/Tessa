@@ -20,7 +20,7 @@ fn usage() void {
         "  events [topic]                stream extension events (default: all)\n" ++
         "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
-        "  workspace <1-9> [output]      switch workspace\n" ++
+        "  workspace <1-9|name> [output] switch workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
         "  panel <calendar|power|clipboard|screenshot|media|tray|audio> [out]\n" ++

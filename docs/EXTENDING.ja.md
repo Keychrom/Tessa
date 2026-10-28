@@ -105,9 +105,11 @@ END
 
 `tessa-ctl state --json` と `tessa-ctl config --json` は JSON 行だけを出力
 します。`STATE_JSON` と `CONFIG_JSON` はフレーミング用マーカーで、JSON 本体
-ではありません。状態 JSON はアクティブな `mode` を、設定 JSON は `modes`
-配列を含みます。`schema` は現在 `1` です。未知のバージョンは拒否して
-ください。
+ではありません。状態 JSON はアクティブな `mode`、`active_workspace_name`、
+9 要素の `workspace_names` 配列を、設定 JSON は `modes` 配列と同じ
+`workspace_names` 配列を含みます。行プロトコルには名前付きワークスペースの
+`WORKSPACE <n> <name>` 行が追加されます。`schema` は現在 `1` です。未知の
+バージョンは拒否してください。
 
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
 `fullscreen`、`urgent`、`app_id`、`title`、`output`、`x`、`y`、`width`、
@@ -115,7 +117,8 @@ END
 `shadow` が入ります。`layers` 配列にはマップ済みレイヤーサーフェスの
 `namespace`、`output`、`layer`、`opacity`、`corner_radius`、`blur` が
 入ります。`tessa-ctl dispatch urgent <id> on|off` でレイアウトヘルパーへ送る
-緊急度を切り替えられます。設定の
+緊急度を切り替えられます。`CMD workspace` と `CMD move-workspace` は数値の
+ほかにワークスペース名も受け付けます。設定の
 `diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
 は `event_rules`、`profiles`、`theme_roles`、`output_rules`、`layer_rules`、
 `input_rules`、各件数、`cursor_theme`、`cursor_size` も出力します。ルール配列

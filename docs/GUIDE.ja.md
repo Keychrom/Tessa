@@ -477,6 +477,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
+| `workspace-name` | — | `WORKSPACE NAME` の表示名／コマンド別名。複数行可 |
 | `workspace-rule` | — | ワークスペース別のレイアウト／間隔ルール |
 | `output-rule` | — | コネクタ名または EDID で一致させる出力別レイアウト／間隔／テーマ／VRR ルール |
 | `input` / `input-rule` | — | デバイス別 libinput ポリシー。複数行可 |
@@ -815,7 +816,7 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `float=true/false` | フローティング／タイル |
 | `tile=true/false` | `float` の反対 |
 | `fullscreen=true/false` | フルスクリーン |
-| `workspace=1..9` | ワークスペース指定 |
+| `workspace=1..9\|name` | ワークスペース指定 |
 | `size=WxH` | フローティングサイズ |
 | `width=N`、`height=N` | 片軸のみ |
 | `position=X,Y` | フローティング位置 |
@@ -920,6 +921,26 @@ workspace_pin = HDMI-A-1 3
   移動できます
 - 出力が存在しない間はピンが無視されます
 - 同じワークスペースに複数のピンを書いた場合、後の設定が優先されます
+
+#### 名前付きワークスペース
+
+ワークスペース 1〜9 にグローバルな名前を付けられます:
+
+```ini
+workspace-name = 2 Code
+workspace-name = 3 Chat
+bind = SUPER+2 workspace Code
+bind = SUPER+SHIFT+2 move-to-workspace Code
+window-rule = app-id=org.mozilla.firefox; workspace=Chat
+```
+
+名前は空白を含まない 1 トークンで、数字だけの名前は使えず、重複もできません。
+設定全体を読み終えてから解決するため、`workspace-name` を参照する bind や
+ルールより後に書いてもかまいません。バーのピルには名前が表示され（長い名前は
+短縮）、`tessa-ctl workspace Code`、`CMD move-workspace Code`、ウィンドウルールの
+`workspace=` が名前を受け付けます。数値インデックスも引き続き使えます。名前は
+表示とコマンドの別名で、内部的には従来どおり数値ワークスペースに所属し、すべての
+出力で同じ番号に対応します。
 
 ### 8.8 イベントルール
 
@@ -1419,8 +1440,8 @@ CMD state
 CMD state-json
 CMD config
 CMD config-json
-CMD workspace <1..9> [output]
-CMD move-workspace <1..9>
+CMD workspace <1..9|name> [output]
+CMD move-workspace <1..9|name>
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

@@ -51,7 +51,15 @@ fn addBool(buf: []u8, off: *usize, value: bool) void {
 
 pub fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
-    add(buf, &off, "{{\"schema\":1,\"active_workspace\":{d},\"mode\":", .{server.active_ws});
+    add(buf, &off, "{{\"schema\":1,\"active_workspace\":{d},\"active_workspace_name\":", .{server.active_ws});
+    addString(buf, &off, types.workspaceName(&server.config, server.active_ws));
+    addRaw(buf, &off, ",\"workspace_names\":[");
+    var wn: usize = 0;
+    while (wn < types.WS_COUNT) : (wn += 1) {
+        if (wn > 0) addRaw(buf, &off, ",");
+        addString(buf, &off, server.config.workspace_names[wn][0..server.config.workspace_name_lens[wn]]);
+    }
+    addRaw(buf, &off, "],\"mode\":");
     addString(buf, &off, modes.currentName(server));
     addRaw(buf, &off, ",\"outputs\":[");
     var first = true;
@@ -241,6 +249,13 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         add(buf, &off, ",\"workspace\":{d}}}", .{pin.ws});
     }
 
+    addRaw(buf, &off, "],\"workspace_names\":[");
+    wi = 0;
+    while (wi < types.WS_COUNT) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        addString(buf, &off, cfg.workspace_names[wi][0..cfg.workspace_name_lens[wi]]);
+    }
+
     addRaw(buf, &off, "],\"panel\":");
     addBool(buf, &off, cfg.autostart_panel);
     addRaw(buf, &off, ",\"xwayland\":");
@@ -338,6 +353,9 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addRaw(buf, &off, ",\"kb_rules\":");
     addString(buf, &off, cfg.kb_rules[0..cfg.kb_rules_len]);
     add(buf, &off, ",\"repeat_rate\":{d},\"repeat_delay\":{d}", .{ cfg.repeat_rate, cfg.repeat_delay });
+    addRaw(buf, &off, ",\"cursor_theme\":");
+    addString(buf, &off, cfg.cursor_theme[0..cfg.cursor_theme_len]);
+    add(buf, &off, ",\"cursor_size\":{d}", .{cfg.cursor_size});
     addRaw(buf, &off, ",\"font\":");
     addString(buf, &off, cfg.font[0..cfg.font_len]);
     addRaw(buf, &off, ",\"accent\":");
@@ -346,7 +364,7 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.bg[0..cfg.bg_len]);
     addRaw(buf, &off, ",\"output_config\":");
     addString(buf, &off, cfg.output_config[0..cfg.output_config_len]);
-    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"event_rule_count\":{d},\"profile_count\":{d},\"workspace_rule_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d},\"layer_rule_count\":{d}", .{
+    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"event_rule_count\":{d},\"profile_count\":{d},\"workspace_rule_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d},\"layer_rule_count\":{d},\"input_rule_count\":{d}", .{
         cfg.binding_count,
         cfg.hook_count,
         cfg.event_rule_count,
@@ -355,6 +373,7 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         cfg.rule_count,
         cfg.output_rule_count,
         cfg.layer_rule_count,
+        cfg.input_rule_count,
     });
 
     addRaw(buf, &off, ",\"rules\":[");
@@ -380,6 +399,15 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     while (i < cfg.layer_rule_count) : (i += 1) {
         if (i > 0) addRaw(buf, &off, ",");
         const rule = &cfg.layer_rules[i];
+        addRaw(buf, &off, "{\"raw\":");
+        addString(buf, &off, rule.raw[0..rule.raw_len]);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"input_rules\":[");
+    i = 0;
+    while (i < cfg.input_rule_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const rule = &cfg.input_rules[i];
         addRaw(buf, &off, "{\"raw\":");
         addString(buf, &off, rule.raw[0..rule.raw_len]);
         addRaw(buf, &off, "}");

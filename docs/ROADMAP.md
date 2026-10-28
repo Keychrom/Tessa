@@ -151,8 +151,10 @@ the interactive config editor/diff preview) before or alongside this work.
 - [x] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
       border width; layer-shell rules; reactive decorative re-evaluation on
       title/app-id changes. Structural actions remain map/reload-time.
-- [ ] Workspace/layout v2: named workspaces, special/scratchpad workspaces,
-      and window groups.
+- [x] Named workspaces: global non-numeric names used by bar pills, bindings,
+      IPC commands, and window-rule `workspace=`, with deferred resolution.
+- [ ] Special/scratchpad workspaces.
+- [ ] Window groups.
 - [x] Input/output policy: per-device touchpad/mouse rules (tap, natural
       scrolling, acceleration, scroll method, button map), monitor rules by
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.

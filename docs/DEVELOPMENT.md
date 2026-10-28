@@ -426,6 +426,17 @@ still redirected, and that an unpinned workspace stays on the requested output.
 sh tests/workspace-pinning.sh
 ```
 
+### Named workspace test
+
+`tests/workspace-names.sh` verifies deferred name resolution for bindings and
+window rules, the text/JSON config snapshots, `WORKSPACE` state lines, and the
+`tessa-ctl workspace <name>` command. It also checks that a rule referencing an
+unknown workspace name rejects the reload and keeps the previous config.
+
+```sh
+sh tests/workspace-names.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

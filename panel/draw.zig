@@ -108,6 +108,31 @@ fn textWidth(cr: *c.cairo_t, text: []const u8, family: []const u8, style: []cons
     return c.tessa_text_measure(cr, text.ptr, @intCast(text.len), fam, sty, size, spacing, &h);
 }
 
+/// Keep workspace pills compact: at most seven UTF-8 characters plus "..".
+fn workspaceLabel(wi: usize, buf: *[32]u8) []const u8 {
+    const name = g.ws_names[wi][0..g.ws_name_lens[wi]];
+    if (name.len == 0) {
+        return std.fmt.bufPrint(buf, "{d}", .{wi + 1}) catch "?";
+    }
+    var i: usize = 0;
+    var chars: usize = 0;
+    while (i < name.len and chars < 7) {
+        const seq = std.unicode.utf8ByteSequenceLength(name[i]) catch 1;
+        const n: usize = @intCast(seq);
+        if (i + n > name.len) break;
+        i += n;
+        chars += 1;
+    }
+    if (i == name.len) {
+        @memcpy(buf[0..i], name[0..i]);
+        return buf[0..i];
+    }
+    @memcpy(buf[0..i], name[0..i]);
+    buf[i] = '.';
+    buf[i + 1] = '.';
+    return buf[0 .. i + 2];
+}
+
 fn drawPetal(cr: *c.cairo_t, cx: f64, cy: f64, r: f64, col: [4]f64) void {
     c.cairo_save(cr);
     c.cairo_translate(cr, cx, cy);
@@ -785,37 +810,69 @@ pub fn drawBar(s: *m.Surface) void {
     c.cairo_stroke(cr);
 
     // workspace pills
-    const pill_w = 22.0;
     const pill_h = 20.0;
     const pill_gap = 4.0;
-    const ws_total = 9.0 * pill_w + 8.0 * pill_gap;
+    var label_storage: [m.WS_COUNT][32]u8 = undefined;
+    var labels: [m.WS_COUNT][]const u8 = undefined;
+    var pill_widths: [m.WS_COUNT]f64 = undefined;
+    var ws_total: f64 = 0;
+    var wi: usize = 0;
+    while (wi < m.WS_COUNT) : (wi += 1) {
+        labels[wi] = workspaceLabel(wi, &label_storage[wi]);
+        const named = g.ws_name_lens[wi] > 0;
+        const tw = textWidth(
+            cr,
+            labels[wi],
+            if (named) g.font[0..g.font_len] else MONO,
+            "Medium",
+            if (named) 8.2 else 9.0,
+            0,
+        );
+        pill_widths[wi] = std.math.clamp(tw + 12.0, 22.0, 56.0);
+        ws_total += pill_widths[wi];
+        if (wi + 1 < m.WS_COUNT) ws_total += pill_gap;
+    }
     const ws_x0 = W / 2.0 - ws_total / 2.0;
     const ws_y = cy - pill_h / 2.0;
 
-    var wi: usize = 0;
-    while (wi < 9) : (wi += 1) {
+    var pill_x = ws_x0;
+    wi = 0;
+    while (wi < m.WS_COUNT) : (wi += 1) {
         const ws = wi + 1;
+        const pill_w = pill_widths[wi];
         const active = ws == g.active_ws;
         const occupied = g.occ[ws] > 0;
         const hovered = g.hover.kind == .workspace and g.hover.value == ws;
-        const x = ws_x0 + @as(f64, @floatFromInt(wi)) * (pill_w + pill_gap);
+        const named = g.ws_name_lens[wi] > 0;
 
         if (active) {
-            fillRound(cr, x, ws_y, pill_w, pill_h, 10, .{ accent[0], accent[1], accent[2], 1.0 });
+            fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{ accent[0], accent[1], accent[2], 1.0 });
         } else {
-            fillRound(cr, x, ws_y, pill_w, pill_h, 10, .{
+            fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{
                 1, 1, 1, if (hovered) 0.115 else if (occupied) 0.070 else 0.030,
             });
-            strokeRound(cr, x + 0.5, ws_y + 0.5, pill_w - 1, pill_h - 1, 9.5, .{ 1, 1, 1, 0.045 }, 1.0);
+            strokeRound(cr, pill_x + 0.5, ws_y + 0.5, pill_w - 1, pill_h - 1, 9.5, .{ 1, 1, 1, 0.045 }, 1.0);
         }
-        var nbuf: [2]u8 = undefined;
-        const ns = std.fmt.bufPrint(&nbuf, "{d}", .{ws}) catch "?";
         const text_col: [4]f64 = if (active)
             .{ 0.055, 0.08, 0.11, 1.0 }
         else
             .{ 0.70, 0.76, 0.86, if (occupied) 0.95 else 0.55 };
-        _ = drawTextCentered(cr, ns, x + pill_w / 2.0 - 3.2, cy + 0.5, MONO, "Medium", 9.0, text_col, 0, 0);
-        addBarHit(x, ws_y - 2, pill_w, pill_h + 4, .{ .kind = .workspace, .value = ws });
+        const family = if (named) g.font[0..g.font_len] else MONO;
+        const tw = textWidth(cr, labels[wi], family, "Medium", if (named) 8.2 else 9.0, 0);
+        _ = drawTextCentered(
+            cr,
+            labels[wi],
+            pill_x + (pill_w - tw) / 2.0,
+            cy + 0.5,
+            family,
+            "Medium",
+            if (named) 8.2 else 9.0,
+            text_col,
+            0,
+            0,
+        );
+        addBarHit(pill_x, ws_y - 2, pill_w, pill_h + 4, .{ .kind = .workspace, .value = ws });
+        pill_x += pill_w + pill_gap;
     }
 
     // window chips

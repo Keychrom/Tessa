@@ -226,6 +226,23 @@ its output when the workspace is pinned elsewhere. A missing output releases the
 pin until that output appears. `tessa-ctl workspace <n> <output>` still names the
 requested monitor, but a pin takes precedence.
 
+Workspaces can also have names for the bar and for commands:
+
+```ini
+workspace-name = 2 Code
+workspace-name = 3 Chat
+bind = SUPER+2 workspace Code
+bind = SUPER+SHIFT+2 move-to-workspace Code
+window-rule = app-id=org.mozilla.firefox; workspace=Chat
+```
+
+Names are global, unique, single tokens, and cannot be numeric. They resolve
+after the full config is parsed, so declaration order is flexible. The bar pill
+shows the name (long names are shortened), while `tessa-ctl workspace Code` and
+`tessa-ctl dispatch move-workspace Code` use the same alias. Windows still
+store a numeric workspace internally; modes, pins, gestures, and persistence
+keep working by number. Window-rule `workspace=` accepts either form.
+
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.

@@ -104,8 +104,11 @@ END
 
 `tessa-ctl state --json` and `tessa-ctl config --json` print only the JSON line.
 `STATE_JSON` and `CONFIG_JSON` are framing markers, not part of the JSON.
-State JSON includes the active `mode`; config JSON includes a `modes` array.
-`schema` is currently `1`; consumers should reject unknown versions.
+State JSON includes the active `mode`, `active_workspace_name`, and a
+nine-element `workspace_names` array; the line protocol adds
+`WORKSPACE <n> <name>` lines for named workspaces. Config JSON includes a
+`modes` array and the same `workspace_names` array. `schema` is currently `1`;
+consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
 `urgent`, `app_id`, `title`, `output`, `x`, `y`, `width`, `height`, and the effective
@@ -114,7 +117,8 @@ decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
 `corner_radius`, and `blur` for mapped layer-shell surfaces. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
 `tessa-ctl dispatch urgent <id> on|off` toggles the urgency flag sent to layout
-helpers.
+helpers. `CMD workspace` and `CMD move-workspace` accept a workspace name as
+well as a number.
 Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
 `output_rules`, `layer_rules`, `input_rules`, the corresponding counts, and
 `cursor_theme` / `cursor_size`. Rule arrays currently contain each rule's

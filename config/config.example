@@ -68,6 +68,14 @@ layout = master
 # profile = grid3; layout=grid; grid-columns=3; gaps=6; outer-gaps=2
 # workspace-rule = ws=2; profile=grid3
 
+# Named workspaces. Names are single tokens (no spaces), cannot be numeric, and
+# can be used by workspace bindings, window-rule workspace=, and IPC commands.
+# workspace-name = 2 Code
+# workspace-name = 3 Chat
+# bind = SUPER+2 workspace Code
+# bind = SUPER+SHIFT+2 move-to-workspace Code
+# window-rule = app-id=org.mozilla.firefox; workspace=Chat
+
 # Per-output tuning. Add ws= to apply a layout rule to one workspace on that
 # output. Theme keys apply to all workspaces and are re-read by the panel.
 # Match by connector name, EDID make/model/serial, or any combination. All

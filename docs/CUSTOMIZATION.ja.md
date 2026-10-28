@@ -228,6 +228,23 @@ workspace_pin = HDMI-A-1 3
 ウィンドウの出力も変更します。出力が存在しない間はピンが無視されます。
 `tessa-ctl workspace <n> <output>` で出力を指定してもピンが優先されます。
 
+ワークスペースにはバー表示とコマンド用の名前も付けられます:
+
+```ini
+workspace-name = 2 Code
+workspace-name = 3 Chat
+bind = SUPER+2 workspace Code
+bind = SUPER+SHIFT+2 move-to-workspace Code
+window-rule = app-id=org.mozilla.firefox; workspace=Chat
+```
+
+名前はグローバルで一意な 1 トークン（空白なし、数字のみ不可）です。設定全体を
+読み終えてから解決するため、宣言順は自由です。バーのピルには名前が表示され
+（長い名前は短縮）、`tessa-ctl workspace Code` と
+`tessa-ctl dispatch move-workspace Code` が同じ別名を使えます。ウィンドウの
+内部表現は従来どおり数値なので、モード、ピン、ジェスチャ、永続化はそのまま
+動きます。ウィンドウルールの `workspace=` は数値と名前のどちらも受け付けます。
+
 モザイクは設定された最小タイルを維持できない場合、重なりや極端に細い
 タイルを作らず、ワークスペース全体をグリッドに切り替えます。
 

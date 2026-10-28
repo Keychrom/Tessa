@@ -446,7 +446,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         }
     } else if (std.mem.eql(u8, cmd, "workspace")) {
         if (start + 1 < n) {
-            const ws = std.fmt.parseInt(usize, toks[start + 1], 10) catch return;
+            const ws = types.resolveWorkspace(&server.config, toks[start + 1]) orelse return;
             if (start + 2 < n) {
                 if (core.outputByName(server, toks[start + 2])) |out| {
                     layout.switchWorkspaceOnOutput(server, out, ws);
@@ -458,7 +458,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         }
     } else if (std.mem.eql(u8, cmd, "move-workspace")) {
         if (start + 1 < n) {
-            const ws = std.fmt.parseInt(usize, toks[start + 1], 10) catch return;
+            const ws = types.resolveWorkspace(&server.config, toks[start + 1]) orelse return;
             layout.moveToWorkspace(server, ws);
             broadcastState(server);
         }
@@ -639,6 +639,11 @@ fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     append(buf, &off, "STATE\n", .{});
     append(buf, &off, "ACTIVE {d}\n", .{server.active_ws});
+    var nws: usize = 1;
+    while (nws <= types.WS_COUNT) : (nws += 1) {
+        const name = types.workspaceName(&server.config, nws);
+        if (name.len > 0) append(buf, &off, "WORKSPACE {d} {s}\n", .{ nws, name });
+    }
     append(buf, &off, "MODE {s}\n", .{modes.currentName(server)});
     var oi: usize = 0;
     while (oi < server.outputs.len) : (oi += 1) {
@@ -764,6 +769,14 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     while (pi < cfg.workspace_pin_count) : (pi += 1) {
         const pin = &cfg.workspace_pins[pi];
         append(&buf, &off, "workspace_pin {s} {d}\n", .{ pin.output_name[0..pin.output_len], pin.ws });
+    }
+    var wn: usize = 0;
+    while (wn < types.WS_COUNT) : (wn += 1) {
+        if (cfg.workspace_name_lens[wn] == 0) continue;
+        append(&buf, &off, "workspace_name {d} {s}\n", .{
+            wn + 1,
+            cfg.workspace_names[wn][0..cfg.workspace_name_lens[wn]],
+        });
     }
     append(&buf, &off, "active_mode {s}\n", .{modes.currentName(server)});
     var mi: usize = 0;

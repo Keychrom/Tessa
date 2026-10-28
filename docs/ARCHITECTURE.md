@@ -441,6 +441,11 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 - Per-workspace `workspace-rule` entries supply gaps, outer gaps, and the
   master ratio to `arrangeOutput`; runtime `Super+Ctrl+H/L` updates the active
   workspace's ratio for the current session.
+- `workspace-name` entries are config-time aliases for the fixed 1–9 workspace
+  slots. `config.resolveWorkspaceReferences()` resolves names in bindings and
+  window rules after the whole file is parsed, so declaration order is free.
+  Layout state, pins, gestures, and persistence keep using numeric indices;
+  text/JSON state and the panel expose the names for display.
 - Per-output `output-rule` entries can set layout, gaps, outer gaps, master
   ratio/count, mosaic ratio/minimum, and grid columns. `rules.tuningFor()`
   resolves them per output/workspace in precedence order: global defaults,

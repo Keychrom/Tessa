@@ -25,6 +25,7 @@ pub const MAX_OUTPUT_RULES = 64;
 pub const MAX_LAYER_RULES = 64;
 pub const MAX_INPUT_RULES = 32;
 pub const MAX_INPUT_DEVICES = 32;
+pub const MAX_WORKSPACE_NAME = 32;
 pub const MAX_CONFIG_ISSUES = 64;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
@@ -235,6 +236,8 @@ pub const WindowRule = struct {
     expr: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
     expr_len: usize = 0,
     workspace: usize = 0,
+    workspace_name: [MAX_WORKSPACE_NAME]u8 = [_]u8{0} ** MAX_WORKSPACE_NAME,
+    workspace_name_len: usize = 0,
     has_border_active: bool = false,
     border_active_rgb: [3]f32 = .{ 0, 0, 0 },
     has_border_inactive: bool = false,
@@ -468,6 +471,8 @@ pub const Config = struct {
     layout_overrides: [WS_COUNT]bool,
     workspace_pins: [MAX_WORKSPACE_PINS]WorkspacePin,
     workspace_pin_count: usize,
+    workspace_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8,
+    workspace_name_lens: [WS_COUNT]usize,
     animations: bool,
     reduce_motion: bool,
     reduce_motion_animations: ReducedMotionAnimations,
@@ -1064,3 +1069,29 @@ pub const Server = struct {
     sigint: ?*c.wl_event_source,
     sigterm: ?*c.wl_event_source,
 };
+
+pub fn workspaceName(cfg: *const Config, ws: usize) []const u8 {
+    if (ws < 1 or ws > WS_COUNT) return "";
+    const index = ws - 1;
+    return cfg.workspace_names[index][0..cfg.workspace_name_lens[index]];
+}
+
+pub fn workspaceIndexByName(cfg: *const Config, name: []const u8) ?usize {
+    if (name.len == 0) return null;
+    var i: usize = 0;
+    while (i < WS_COUNT) : (i += 1) {
+        if (cfg.workspace_name_lens[i] == 0) continue;
+        if (std.mem.eql(u8, cfg.workspace_names[i][0..cfg.workspace_name_lens[i]], name)) {
+            return i + 1;
+        }
+    }
+    return null;
+}
+
+pub fn resolveWorkspace(cfg: *const Config, text: []const u8) ?usize {
+    if (std.fmt.parseInt(usize, text, 10)) |n| {
+        if (n >= 1 and n <= WS_COUNT) return n;
+        return null;
+    } else |_| {}
+    return workspaceIndexByName(cfg, text);
+}

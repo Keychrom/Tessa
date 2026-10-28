@@ -43,6 +43,8 @@ panel_fg = #f0f4ff
 bg_top = #162038
 bg_bottom = #070a12
 wallpaper_art = true
+workspace-name = 2 Code
+workspace-name = 3 Chat
 $extra
 EOF
 }

@@ -464,6 +464,7 @@ edits are rejected and keep the previous configuration.
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
+| `workspace-name` | — | `WORKSPACE NAME` display/command alias; repeatable |
 | `workspace-rule` | — | Per-workspace layout/spacing rule |
 | `output-rule` | — | Per-output layout, spacing, theme, and VRR rule matched by connector or EDID |
 | `input` / `input-rule` | — | Per-device libinput policy; repeatable |
@@ -798,7 +799,7 @@ Actions:
 | `float=true/false` | Floating or tiled |
 | `tile=true/false` | Inverse of `float` |
 | `fullscreen=true/false` | Fullscreen |
-| `workspace=1..9` | Assign workspace |
+| `workspace=1..9\|name` | Assign workspace |
 | `size=WxH` | Floating size |
 | `width=N`, `height=N` | One floating axis |
 | `position=X,Y` | Floating position |
@@ -900,6 +901,27 @@ Keyboard, gesture, IPC, bar, and foreign-activation switches redirect to the
 pinned output. `Super+Shift+<n>` and `CMD move-workspace <n>` move a window to
 that output. A missing output ignores the pin. A later pin for the same
 workspace wins.
+
+#### Named workspaces
+
+Workspaces 1–9 can have global names:
+
+```ini
+workspace-name = 2 Code
+workspace-name = 3 Chat
+bind = SUPER+2 workspace Code
+bind = SUPER+SHIFT+2 move-to-workspace Code
+window-rule = app-id=org.mozilla.firefox; workspace=Chat
+```
+
+Names are single tokens (no spaces), cannot be numeric, and must be unique.
+They are resolved after the whole config is parsed, so a `workspace-name` line
+may appear after the bindings and rules that use it. The bar uses the name as
+the workspace pill label (very long names are shortened); `tessa-ctl workspace
+Code`, `CMD move-workspace Code`, and window-rule `workspace=` all accept the
+name. Numeric indices continue to work. Names are presentation and command
+aliases: windows remain assigned to the numeric workspace internally, and
+names apply to that number on every output.
 
 ### 8.8 Event rules
 
@@ -1374,8 +1396,8 @@ CMD state
 CMD state-json
 CMD config
 CMD config-json
-CMD workspace <1..9> [output]
-CMD move-workspace <1..9>
+CMD workspace <1..9|name> [output]
+CMD move-workspace <1..9|name>
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

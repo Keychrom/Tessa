@@ -4,6 +4,8 @@ const apps = @import("apps.zig");
 
 pub const MAX_WINDOWS = 64;
 pub const MAX_OUTPUTS = 8;
+pub const WS_COUNT = 9;
+pub const MAX_WORKSPACE_NAME = 32;
 pub const MAX_RESULTS = 256;
 pub const MAX_STATUS = 8;
 pub const MAX_CUSTOM_APPS = 16;
@@ -259,6 +261,8 @@ pub const Panel = struct {
     scale: i32 = 1,
 
     active_ws: usize = 1,
+    ws_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8 = undefined,
+    ws_name_lens: [WS_COUNT]usize = [_]usize{0} ** WS_COUNT,
     occ: [10]u32 = [_]u32{0} ** 10,
     focused_id: u64 = 0,
     windows: [MAX_WINDOWS]WindowInfo = undefined,
@@ -718,6 +722,18 @@ fn parseOutputTheme(value: []const u8) void {
     if (theme.bar_side_margin) |v| output_theme.bar_side_margin = v;
 }
 
+fn parseWorkspaceName(value: []const u8) void {
+    var it = std.mem.tokenizeAny(u8, value, " \t");
+    const ws_text = it.next() orelse return;
+    const name = it.next() orelse return;
+    if (it.next() != null) return;
+    const ws = std.fmt.parseInt(usize, ws_text, 10) catch return;
+    if (ws < 1 or ws > WS_COUNT) return;
+    if (name.len == 0 or name.len >= MAX_WORKSPACE_NAME) return;
+    const index = ws - 1;
+    copyTrunc(&g.ws_names[index], &g.ws_name_lens[index], name);
+}
+
 fn parsePanelBool(value: []const u8) ?bool {
     if (std.ascii.eqlIgnoreCase(value, "true") or
         std.ascii.eqlIgnoreCase(value, "on") or
@@ -784,6 +800,8 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             if (include_path.len > 0) loadConfigFile(include_path, depth + 1);
         } else if (std.mem.eql(u8, key, "output-rule") or std.mem.eql(u8, key, "output_rule")) {
             parseOutputTheme(val);
+        } else if (std.mem.eql(u8, key, "workspace-name") or std.mem.eql(u8, key, "workspace_name")) {
+            parseWorkspaceName(val);
         } else if (std.mem.eql(u8, key, "theme-role") or std.mem.eql(u8, key, "theme_role")) {
             parseThemeRole(val);
         } else if (std.mem.eql(u8, key, "terminal")) {
@@ -859,6 +877,8 @@ pub fn loadConfig() void {
     g.custom_count = 0;
     output_theme = .{};
     theme_role_count = 0;
+    var wsn: usize = 0;
+    while (wsn < WS_COUNT) : (wsn += 1) g.ws_name_lens[wsn] = 0;
 
     var path_buf: [512]u8 = undefined;
     var path: []const u8 = "";
