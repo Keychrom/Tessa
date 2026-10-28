@@ -415,6 +415,9 @@ fn onSetTitle(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const client: *Client = @fieldParentPtr("set_title", listener.?);
     copyMeta(client);
+    if (client.mapped and rules.applyVisualToClient(client)) {
+        layout.arrangeAll(client.server);
+    }
     core.markDirty(client.server);
 }
 
@@ -422,6 +425,9 @@ fn onSetAppId(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const client: *Client = @fieldParentPtr("set_app_id", listener.?);
     copyMeta(client);
+    if (client.mapped and rules.applyVisualToClient(client)) {
+        layout.arrangeAll(client.server);
+    }
     core.markDirty(client.server);
 }
 
@@ -443,6 +449,11 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.announced = false;
     client.floating = false;
     client.fullscreen = false;
+    client.opacity = 1.0;
+    client.corner_radius = -1;
+    client.blur = .unset;
+    client.shadow = .unset;
+    client.border_width = -1;
     client.id = server.next_client_id;
     server.next_client_id += 1;
 

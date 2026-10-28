@@ -468,6 +468,7 @@ edits are rejected and keep the previous configuration.
 | `output-rule` | — | Per-output (optionally per-workspace) layout, spacing, and theme rule |
 | `profile` | — | Named layout/tuning profile referenced by output/workspace rules |
 | `window-rule` | — | Declarative window rule |
+| `layer-rule` | — | Declarative layer-shell rule |
 | `theme-role` | — | Semantic color role (`accent`, borders, wallpaper, panel) |
 | `mode` | `default` | Start a named input-mode section for following `bind` lines |
 | `bind` | — | Add or override a key binding |
@@ -575,7 +576,7 @@ zone.
 | --- | --- |
 | `startup` | Command run once at startup |
 | `hook` | `<event> <command>` lifecycle hook; repeatable |
-| `event-rule` | Conditional event command; see section 8.7 |
+| `event-rule` | Conditional event command; see section 8.8 |
 | `include` | Split configuration across files |
 
 See the event table in section 13.
@@ -744,6 +745,8 @@ window-rule = app-id=org.example.*; fullscreen=true
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = match=(class == "foot" || class == "Alacritty") && output ~ "^DP-"; float=true
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; corner-radius=0; border-width=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
 Match keys:
@@ -774,15 +777,59 @@ Actions:
 | `position=X,Y` | Floating position |
 | `border-active=#RRGGBB` | Per-window focused border |
 | `border-inactive=#RRGGBB` | Per-window unfocused border |
+| `opacity=0.0..1.0` | Window and decoration opacity |
+| `corner-radius=0..64` | Per-window rounding (`rounding` is an alias) |
+| `blur=true/false` | Per-window backdrop blur |
+| `shadow=true/false` | Per-window layered shadow |
+| `border-width=0..16` | Per-window border thickness; `0` hides it |
 
 Patterns use `*` and `?`. Simple keys and `match` are combined with AND. Rules
-run in file order and later matches win, including border colors. Invalid
-expressions or regexes are reported with file/line diagnostics and reject the
-reload. Rules run at map time and on config reload; a title change after
-mapping does not retrigger them until the next reload. Per-rule border colors
-are also used by the close snapshot effect.
+run in file order and later matches win, including border colors and visual
+effects. Invalid expressions or regexes are reported with file/line diagnostics
+and reject the reload. Structural actions (`float`, `workspace`, `size`,
+`position`, `fullscreen`) run at map time and on config reload. Decorative
+actions (`border-*`, `opacity`, `corner-radius`, `blur`, `shadow`,
+`border-width`) also re-evaluate immediately when the title or app-id changes.
+Per-rule colors, border width, opacity, rounding, and shadow state are carried
+into the close snapshot effect. `corner-radius` and `blur` require a
+`-Dscenefx=true` build; opacity, shadows, and border width work in every build.
 
-### 8.5 External layout helper
+### 8.5 `layer-rule`
+
+Layer-shell surfaces (bars, notifications, wallpaper providers, and other
+`zwlr_layer_shell_v1` clients) use a separate rule list:
+
+```ini
+layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
+layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
+```
+
+Match keys:
+
+| Key | Meaning |
+| --- | --- |
+| `namespace`, `ns` | Layer namespace with `*`/`?` patterns |
+| `output`, `monitor` | Output name with `*`/`?` patterns |
+| `layer` | `background`, `bottom`, `top`, `overlay`, or `0..3` |
+
+Actions:
+
+| Key | Meaning |
+| --- | --- |
+| `opacity=0.0..1.0` | Layer surface opacity |
+| `corner-radius=0..64` | Layer surface rounding (`rounding` is an alias) |
+| `blur=true/false` | Backdrop blur override |
+
+Layer rules are evaluated in file order and later matches win. With no rule,
+layer opacity is `1` and blur follows the global `blur` setting for the top and
+overlay layers (background and bottom layers stay unblurred); rounded corners
+default to `0`. The rules re-apply on `Super+R` / config reload. `corner-radius`
+and `blur` require a `-Dscenefx=true` build. `tessa-ctl state` and
+`tessa-ctl state --json` expose the effective layer values, and
+`tessa-ctl config` / `config --json` list the parsed rules.
+
+### 8.6 External layout helper
 
 ```ini
 layout = custom
@@ -802,7 +849,7 @@ to master for that arrangement. The helper is retried after one second.
 `examples/layout-cascade.py` and
 [CUSTOMIZATION.md](CUSTOMIZATION.md#external-layout-helper).
 
-### 8.6 Workspace pins
+### 8.7 Workspace pins
 
 ```ini
 workspace_pin = eDP-1 1
@@ -814,7 +861,7 @@ pinned output. `Super+Shift+<n>` and `CMD move-workspace <n>` move a window to
 that output. A missing output ignores the pin. A later pin for the same
 workspace wins.
 
-### 8.7 Event rules
+### 8.8 Event rules
 
 Event rules run a command when a lifecycle event matches an expression:
 
@@ -1555,7 +1602,10 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   compositor-initiated closes; client self-closes are immediate.
 - **Profiles cover layout/tuning, not theme values.** Use per-output
   `output-rule` theme keys for output-specific colors and panel dimensions.
-- **Window rules do not retrigger on title changes** until config reload.
+- **Structural window rules still need a map or reload.** Decorative rule fields
+  (colors, opacity, rounding, blur, shadow, border width) react immediately to
+  title/app-id changes, but `float`, `workspace`, `size`, `position`, and
+  `fullscreen` are not re-applied on metadata changes.
 - **The layout helper is synchronous and shared across outputs.** Per-output
   helper instances, asynchronous/incremental updates, and helper v2 metadata
   are still pending.

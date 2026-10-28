@@ -40,8 +40,18 @@ layout = master
 # window-rule = app-id=firefox; workspace=2
 # window-rule = title=GIMP*; float=false
 # window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
-# Per-window decoration colors are also used by close snapshots.
+# Per-window decoration colors are also used by close snapshots. Visual actions
+# (opacity, corner-radius, blur, shadow, border-width) re-evaluate when the
+# title or app-id changes; layout actions wait for map or config reload.
 # window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+# window-rule = app-id=mpv; opacity=0.92; corner-radius=0; border-width=0; shadow=false
+# window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
+
+# Layer-shell rules match namespace/output and optionally layer
+# (background, bottom, top, overlay). Later matches win. Opacity works in every
+# build; corner-radius and blur require -Dscenefx=true.
+# layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
+# layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
 
 # Per-workspace layout/spacing overrides. Runtime layout choices still win over
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.

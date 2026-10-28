@@ -153,7 +153,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   without a runtime override
 - declarative window rules matched by app-id/title/output or boolean
   POSIX-regex expressions, with floating, workspace, fullscreen, size,
-  position, and per-window border colors
+  position, per-window border colors, opacity, rounding, blur, shadow, and
+  border width; layer-shell rules by namespace, output, and layer
 - external layout-helper protocol for custom tiling algorithms, with a timeout,
   process restart, and built-in fallback
 - file/line config diagnostics, automatic reload on atomic config saves,
@@ -241,8 +242,9 @@ restarts were exercised by
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
-`tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/effects.sh`,
-`tests/input.sh`, `tests/pointer-constraints.sh`, `tests/xim.sh`,
+`tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
+`tests/effects.sh`, `tests/rule-visuals.sh`, `tests/input.sh`,
+`tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/workspace-pinning.sh`,
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
@@ -748,6 +750,7 @@ diagnostics. Selected keys:
 | `border_active` | focused border color (defaults to `accent`) |
 | `border_inactive` | unfocused border color |
 | `window-rule` | declarative rule; see the customization guide |
+| `layer-rule` | layer-shell rule; see the customization guide |
 | `workspace-rule` | per-workspace layout, gaps, and master ratio |
 | `mode` | start a named input-mode section for following `bind` lines |
 | `leader` | leader chord that enters the `leader` mode |
@@ -787,10 +790,17 @@ window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; border-width=0; corner-radius=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
-Rules are applied when a window maps and re-evaluated on config reload. Run
-`tessa-ctl config` to inspect the effective values and parsed rules. See
+Rules are applied when a window maps and re-evaluated on config reload.
+Decorative actions (colors, opacity, rounding, blur, shadow, border width) also
+re-apply immediately when the title or app-id changes; structural actions wait
+for the next map or reload. Layer-shell clients use `layer-rule` with
+`namespace`, `output`, `layer`, `opacity`, `corner-radius`, and `blur` clauses.
+Run `tessa-ctl config` to inspect the parsed rules and `tessa-ctl state` for
+effective window/layer values. See
 [docs/CUSTOMIZATION.md](docs/CUSTOMIZATION.md) for the complete reference.
 
 Input modes group bindings and activate them with `enter-mode`:
@@ -926,7 +936,9 @@ These are real and important:
   Compositor-initiated closes capture the window surface and scale/fade that
   snapshot with a configurable curve, scale, and fade; a client that closes
   itself is removed immediately because its buffer is already gone at unmap. Shadows
-  are fixed layered rectangles. Rounded corners and backdrop blur require a
+  are fixed layered rectangles. Window and layer rules can override opacity,
+  border width, shadows, and, in a scenefx build, rounding and blur per surface.
+  Rounded corners and backdrop blur require a
   `-Dscenefx=true` build; that build uses scenefx's GLES2 renderer and cannot
   use the pixman software renderer. Blur is only visible for translucent
   clients and shell layers. Set `animations = false` or `reduce_motion = true`

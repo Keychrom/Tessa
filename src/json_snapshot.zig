@@ -122,7 +122,67 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addString(buf, &off, cl.title[0..cl.title_len]);
         addRaw(buf, &off, ",\"output\":");
         addString(buf, &off, core.outputName(cl.output));
-        add(buf, &off, ",\"x\":{d},\"y\":{d},\"width\":{d},\"height\":{d}}}", .{ cl.x, cl.y, cl.w, cl.h });
+        const bw = if (cl.fullscreen)
+            0
+        else if (cl.border_width >= 0)
+            cl.border_width
+        else
+            server.config.border_width;
+        const radius = if (cl.fullscreen)
+            0
+        else if (cl.corner_radius >= 0)
+            cl.corner_radius
+        else
+            server.config.corner_radius;
+        const blur = switch (cl.blur) {
+            .on => true,
+            .off => false,
+            .unset => server.config.blur,
+        };
+        const shadow = !cl.fullscreen and switch (cl.shadow) {
+            .on => true,
+            .off => false,
+            .unset => server.config.shadows,
+        };
+        add(buf, &off, ",\"x\":{d},\"y\":{d},\"width\":{d},\"height\":{d},\"opacity\":{d:.3},\"border_width\":{d},\"corner_radius\":{d},\"blur\":", .{
+            cl.x,
+            cl.y,
+            cl.w,
+            cl.h,
+            cl.opacity,
+            bw,
+            radius,
+        });
+        addBool(buf, &off, blur);
+        addRaw(buf, &off, ",\"shadow\":");
+        addBool(buf, &off, shadow);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"layers\":[");
+    var first_layer = true;
+    i = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        if (!layer.mapped) continue;
+        if (!first_layer) addRaw(buf, &off, ",");
+        first_layer = false;
+        const layer_n: u32 = @intCast(layer.wlr.current.layer);
+        const blur = switch (layer.blur) {
+            .on => true,
+            .off => false,
+            .unset => server.config.blur and layer_n >= 2,
+        };
+        addRaw(buf, &off, "{\"namespace\":");
+        addString(buf, &off, core.cstr(layer.wlr.namespace));
+        addRaw(buf, &off, ",\"output\":");
+        addString(buf, &off, core.outputName(layer.output));
+        add(buf, &off, ",\"layer\":{d},\"opacity\":{d:.3},\"corner_radius\":{d},\"blur\":", .{
+            layer_n,
+            layer.opacity,
+            layer.corner_radius,
+        });
+        addBool(buf, &off, blur);
+        addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "]}");
     return off;
@@ -273,7 +333,7 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.bg[0..cfg.bg_len]);
     addRaw(buf, &off, ",\"output_config\":");
     addString(buf, &off, cfg.output_config[0..cfg.output_config_len]);
-    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"event_rule_count\":{d},\"profile_count\":{d},\"workspace_rule_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d}", .{
+    add(buf, &off, ",\"binding_count\":{d},\"hook_count\":{d},\"event_rule_count\":{d},\"profile_count\":{d},\"workspace_rule_count\":{d},\"rule_count\":{d},\"output_rule_count\":{d},\"layer_rule_count\":{d}", .{
         cfg.binding_count,
         cfg.hook_count,
         cfg.event_rule_count,
@@ -281,6 +341,7 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         cfg.workspace_rule_count,
         cfg.rule_count,
         cfg.output_rule_count,
+        cfg.layer_rule_count,
     });
 
     addRaw(buf, &off, ",\"rules\":[");
@@ -297,6 +358,15 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     while (i < cfg.output_rule_count) : (i += 1) {
         if (i > 0) addRaw(buf, &off, ",");
         const rule = &cfg.output_rules[i];
+        addRaw(buf, &off, "{\"raw\":");
+        addString(buf, &off, rule.raw[0..rule.raw_len]);
+        addRaw(buf, &off, "}");
+    }
+    addRaw(buf, &off, "],\"layer_rules\":[");
+    i = 0;
+    while (i < cfg.layer_rule_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const rule = &cfg.layer_rules[i];
         addRaw(buf, &off, "{\"raw\":");
         addString(buf, &off, rule.raw[0..rule.raw_len]);
         addRaw(buf, &off, "}");

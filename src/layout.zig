@@ -54,8 +54,13 @@ fn keyboardClear(server: *Server) void {
     constraints.deactivate(server);
 }
 
+pub fn borderWidth(cl: *Client) i32 {
+    if (cl.fullscreen) return 0;
+    return if (cl.border_width >= 0) cl.border_width else cl.server.config.border_width;
+}
+
 fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
-    const border: i32 = if (cl.fullscreen) 0 else cl.server.config.border_width;
+    const border = borderWidth(cl);
     // wlr_scene_xdg_surface_create() already anchors the scene node at the
     // xdg window geometry, so do not subtract geometry.x/y a second time.
     return .{
@@ -103,8 +108,10 @@ pub fn updateBorders(server: *Server) void {
         const output_active = cl.output.theme_border_active orelse
             cl.output.theme_accent orelse active;
         const output_inactive = cl.output.theme_border_inactive orelse inactive;
-        const active_color = cl.border_active_override orelse output_active;
-        const inactive_color = cl.border_inactive_override orelse output_inactive;
+        var active_color = cl.border_active_override orelse output_active;
+        var inactive_color = cl.border_inactive_override orelse output_inactive;
+        active_color[3] *= cl.opacity;
+        inactive_color[3] *= cl.opacity;
         c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active_color else &inactive_color);
     }
 }
@@ -399,8 +406,17 @@ pub fn clearAnimations(server: *Server) void {
     }
 }
 
+fn shadowsEnabled(client: *Client) bool {
+    return switch (client.shadow) {
+        .on => true,
+        .off => false,
+        .unset => client.server.config.shadows,
+    };
+}
+
 fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
-    const show = enabled and client.server.config.shadows;
+    const show = enabled and shadowsEnabled(client);
+    const alphas = [3]f32{ 0.045, 0.055, 0.070 };
     const offsets = [3][4]i32{
         .{ -12, -9, 24, 22 },
         .{ -7, -5, 14, 14 },
@@ -413,6 +429,8 @@ fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
             c.wlr_scene_node_set_enabled(&rect.node, false);
             continue;
         }
+        const color = [4]f32{ 0, 0, 0, alphas[i] * client.opacity };
+        c.wlr_scene_rect_set_color(rect, &color);
         c.wlr_scene_node_set_enabled(&rect.node, true);
         c.wlr_scene_node_set_position(&rect.node, offsets[i][0], offsets[i][1]);
         c.wlr_scene_rect_set_size(rect, @max(1, w + offsets[i][2]), @max(1, h + offsets[i][3]));
@@ -420,6 +438,8 @@ fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
 }
 
 fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enabled_border: bool) void {
+    _ = border;
+    const b = if (enabled_border) borderWidth(client) else 0;
     client.x = x;
     client.y = y;
     client.w = @max(1, w);
@@ -428,7 +448,7 @@ fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enab
     c.wlr_scene_node_set_position(&client.frame.node, x + client.anim_off_x, y + client.anim_off_y);
     updateShadows(client, enabled_border, client.w, client.h);
 
-    if (enabled_border and border > 0) {
+    if (enabled_border and b > 0) {
         c.wlr_scene_node_set_enabled(&client.border_rect.node, true);
         c.wlr_scene_node_set_position(&client.border_rect.node, 0, 0);
         c.wlr_scene_rect_set_size(client.border_rect, client.w, client.h);
@@ -436,7 +456,6 @@ fn applyFrame(client: *Client, x: i32, y: i32, w: i32, h: i32, border: i32, enab
         c.wlr_scene_node_set_enabled(&client.border_rect.node, false);
     }
 
-    const b = if (enabled_border) border else 0;
     c.wlr_scene_node_set_position(&client.surface_tree.node, b, b);
 
     const cw = @max(1, client.w - b * 2);
@@ -461,7 +480,7 @@ fn initFloatRect(client: *Client, out: *Output) void {
 
 fn applyFloating(client: *Client, out: *Output) void {
     if (client.float_w <= 0 or client.float_h <= 0) initFloatRect(client, out);
-    const border = client.server.config.border_width;
+    const border = borderWidth(client);
 
     const full = out.full;
     if (full.width > 0 and full.height > 0) {
@@ -845,8 +864,7 @@ pub fn setProvisionalSize(client: *Client) void {
     const out = client.output;
     var area = out.usable;
     if (area.width < 50 or area.height < 50) area = out.full;
-    const cfg = &client.server.config;
-    const b = cfg.border_width;
+    const b = borderWidth(client);
     const outer = rules.tuningFor(client.server, out, client.ws).outer_gaps;
     const w = @max(1, area.width - outer * 2 - b * 2);
     const h = @max(1, area.height - outer * 2 - b * 2);
@@ -1269,7 +1287,7 @@ pub fn keyboardResize(server: *Server, dx: i32, dy: i32) void {
     if (dx == 0 and dy == 0) return;
     if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, cl.output);
 
-    const border = server.config.border_width;
+    const border = borderWidth(cl);
     const min_w = @max(160, border * 2 + cl.xdg.current.min_width);
     const min_h = @max(120, border * 2 + cl.xdg.current.min_height);
 
@@ -1313,7 +1331,7 @@ pub fn beginInteractive(client: *Client, mode: types.CursorMode, edges: u32) voi
         s.grab_y = s.cursor.y - @as(f64, @floatFromInt(client.frame.node.y));
     } else {
         const g = tBase(client.xdg).geometry;
-        const border = s.config.border_width;
+        const border = borderWidth(client);
         const bx = @as(f64, @floatFromInt(client.x + border)) +
             (if (edges & c.WLR_EDGE_RIGHT != 0) @as(f64, @floatFromInt(g.width)) else 0);
         const by = @as(f64, @floatFromInt(client.y + border)) +
@@ -1388,5 +1406,5 @@ pub fn updateInteractiveResize(server: *Server) void {
     cl.float_y = top;
     cl.float_w = right - left;
     cl.float_h = bottom - top;
-    applyFrame(cl, cl.float_x, cl.float_y, cl.float_w, cl.float_h, server.config.border_width, true);
+    applyFrame(cl, cl.float_x, cl.float_y, cl.float_w, cl.float_h, borderWidth(cl), true);
 }

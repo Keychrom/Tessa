@@ -696,6 +696,27 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     core.markDirty(server);
 }
 
+fn applyLayerVisuals(ls: *LayerSurface) void {
+    const server = ls.server;
+    rules.applyLayerVisuals(server, ls);
+    window_effects.applyLayer(server, ls);
+    ls.visual_layer = @intCast(ls.wlr.current.layer);
+}
+
+fn onLayerVisualIdle(data: ?*anyopaque) callconv(.c) void {
+    const ls: *LayerSurface = @ptrCast(@alignCast(data.?));
+    ls.visual_idle = null;
+    if (ls.mapped) applyLayerVisuals(ls);
+}
+
+// The scene surface's buffer is attached by its own commit listener, which can
+// run after the map event. Re-apply once the current event batch has drained.
+fn scheduleLayerVisuals(ls: *LayerSurface) void {
+    if (ls.visual_idle != null) return;
+    const loop = c.wl_display_get_event_loop(ls.server.display);
+    ls.visual_idle = c.wl_event_loop_add_idle(loop, onLayerVisualIdle, ls);
+}
+
 fn onLayerCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const ls: *LayerSurface = @fieldParentPtr("commit", listener.?);
@@ -709,6 +730,14 @@ fn onLayerCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
             null;
         if (parent != target) {
             c.wlr_scene_node_reparent(&tree.node, target);
+        }
+    }
+
+    if (ls.mapped) {
+        const layer_n: i32 = @intCast(ls.wlr.current.layer);
+        if (ls.visual_layer != layer_n) {
+            applyLayerVisuals(ls);
+            scheduleLayerVisuals(ls);
         }
     }
 
@@ -735,7 +764,10 @@ fn onLayerMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         layout.focusLayer(ls.server, ls);
     }
 
-    window_effects.applyLayers(ls.server);
+    rules.applyLayerVisuals(ls.server, ls);
+    window_effects.applyLayer(ls.server, ls);
+    ls.visual_layer = @intCast(layer_n);
+    scheduleLayerVisuals(ls);
     arrangeLayers(ls.output);
     core.markDirty(ls.server);
 }
@@ -769,6 +801,10 @@ fn onLayerDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     c.wl_list_remove(&ls.unmap.link);
     c.wl_list_remove(&ls.new_popup.link);
     c.wl_list_remove(&ls.destroy.link);
+    if (ls.visual_idle) |idle| {
+        _ = c.wl_event_source_remove(idle);
+        ls.visual_idle = null;
+    }
 
     if (server.focused_layer == ls) {
         server.focused_layer = null;
@@ -818,6 +854,11 @@ fn onNewLayerSurface(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     ls.scene_layer = scene_layer;
     ls.output = out.?;
     ls.mapped = false;
+    ls.opacity = 1.0;
+    ls.corner_radius = 0;
+    ls.blur = .unset;
+    ls.visual_layer = -1;
+    ls.visual_idle = null;
 
     ls.commit.notify = onLayerCommit;
     c.wl_signal_add(&lSurface(wlr_ls).events.commit, &ls.commit);

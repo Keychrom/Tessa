@@ -310,6 +310,45 @@ waits for the `open`/`workspace` and `close` phases there. It finishes with
 sh tests/animations.sh
 ```
 
+### Config reload test
+
+`tests/config-watch.sh` starts a headless session and replaces the config with
+an atomic `mv`. It waits for the debounced inotify reload to change `gaps`, then
+writes an invalid value and verifies that the previous configuration survives
+and the rejection is logged.
+
+```sh
+sh tests/config-watch.sh
+```
+
+### Motion configuration test
+
+`tests/motion.sh` parses named cubic-bezier curves, per-kind curves, open and
+workspace offsets, close scale/fade, and custom `bezier` definitions. It reads
+the values through `tessa-ctl config`, then appends an unknown curve and checks
+that the transactional reload keeps the previous settings while reporting the
+diagnostic.
+
+```sh
+sh tests/motion.sh
+```
+
+### Rule visual test
+
+`tests/rule-visuals.sh` compiles a small xdg-shell client and a layer-shell
+client with the checked-in protocol code. It verifies per-window opacity,
+border width, corner radius, blur, and shadow state through
+`tessa-ctl state --json`, plus layer-rule namespace/layer matching and effective
+layer opacity. The window client changes its title and app-id through
+`SIGUSR1`; the test checks that decorative rules re-evaluate immediately while
+structural rules stay put. When `grim` is available, it samples the screenshot
+through `tests/png-pixel.py` to verify the layer opacity, the black 8 px border,
+the dimmed content, and the opaque content after the retitle.
+
+```sh
+sh tests/rule-visuals.sh
+```
+
 ### Fractional-scale test
 
 `tests/fractional-scale.sh` compiles a small xdg-shell client that binds

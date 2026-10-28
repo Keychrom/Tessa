@@ -22,6 +22,7 @@ pub const ReducedMotionAnimations = enum { none, fade };
 pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
 pub const MAX_OUTPUT_RULES = 64;
+pub const MAX_LAYER_RULES = 64;
 pub const MAX_CONFIG_ISSUES = 64;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
@@ -174,6 +175,30 @@ pub const WindowRule = struct {
     has_position: bool = false,
     x: i32 = 0,
     y: i32 = 0,
+    has_opacity: bool = false,
+    opacity: f32 = 1.0,
+    has_corner_radius: bool = false,
+    corner_radius: i32 = 0,
+    blur: RuleBool = .unset,
+    shadow: RuleBool = .unset,
+    has_border_width: bool = false,
+    border_width: i32 = 0,
+};
+
+pub const LayerRule = struct {
+    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw_len: usize = 0,
+    namespace: [64]u8 = [_]u8{0} ** 64,
+    namespace_len: usize = 0,
+    output: [64]u8 = [_]u8{0} ** 64,
+    output_len: usize = 0,
+    /// zwlr_layer_shell_v1 layer (0 background .. 3 overlay), or -1 for any.
+    layer: i32 = -1,
+    has_opacity: bool = false,
+    opacity: f32 = 1.0,
+    has_corner_radius: bool = false,
+    corner_radius: i32 = 0,
+    blur: RuleBool = .unset,
 };
 
 pub const LayoutTuning = struct {
@@ -424,6 +449,8 @@ pub const Config = struct {
     rule_count: usize,
     output_rules: [MAX_OUTPUT_RULES]OutputRule,
     output_rule_count: usize,
+    layer_rules: [MAX_LAYER_RULES]LayerRule,
+    layer_rule_count: usize,
 };
 
 pub const Output = struct {
@@ -485,6 +512,11 @@ pub const Client = struct {
     close_snapshot_h: i32,
     border_active_override: ?[4]f32,
     border_inactive_override: ?[4]f32,
+    opacity: f32,
+    corner_radius: i32,
+    blur: RuleBool,
+    shadow: RuleBool,
+    border_width: i32,
 
     x: i32,
     y: i32,
@@ -530,6 +562,11 @@ pub const LayerSurface = struct {
     scene_layer: *c.wlr_scene_layer_surface_v1,
     output: *Output,
     mapped: bool,
+    opacity: f32,
+    corner_radius: i32,
+    blur: RuleBool,
+    visual_layer: i32,
+    visual_idle: ?*c.wl_event_source,
 
     commit: c.wl_listener,
     map: c.wl_listener,
@@ -673,6 +710,8 @@ pub const CloseEffect = struct {
     start_ms: i64,
     ms: i32,
     fade_only: bool,
+    base_opacity: f32,
+    shadow_enabled: bool,
     curve: [4]f32,
     close_scale: f64,
     close_fade: bool,

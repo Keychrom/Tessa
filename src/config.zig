@@ -734,6 +734,58 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
             rule.has_position = true;
             rule.x = x;
             rule.y = y;
+        } else if (std.ascii.eqlIgnoreCase(key, "opacity")) {
+            const opacity = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid rule opacity '{s}'", .{val});
+                return false;
+            };
+            if (std.math.isNan(opacity) or opacity < 0.0 or opacity > 1.0) {
+                core.logInfo("config: rule opacity out of range (0-1): '{s}'", .{val});
+                return false;
+            }
+            rule.has_opacity = true;
+            rule.opacity = opacity;
+        } else if (std.ascii.eqlIgnoreCase(key, "corner-radius") or
+            std.ascii.eqlIgnoreCase(key, "corner_radius") or
+            std.ascii.eqlIgnoreCase(key, "rounding"))
+        {
+            const radius = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid rule corner-radius '{s}'", .{val});
+                return false;
+            };
+            if (radius < 0 or radius > 64) {
+                core.logInfo("config: rule corner-radius out of range (0-64): {d}", .{radius});
+                return false;
+            }
+            rule.has_corner_radius = true;
+            rule.corner_radius = radius;
+        } else if (std.ascii.eqlIgnoreCase(key, "blur")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule blur value '{s}'", .{val});
+                return false;
+            };
+            rule.blur = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "shadow") or
+            std.ascii.eqlIgnoreCase(key, "shadows"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule shadow value '{s}'", .{val});
+                return false;
+            };
+            rule.shadow = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "border-width") or
+            std.ascii.eqlIgnoreCase(key, "border_width"))
+        {
+            const width = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid rule border-width '{s}'", .{val});
+                return false;
+            };
+            if (width < 0 or width > 16) {
+                core.logInfo("config: rule border-width out of range (0-16): {d}", .{width});
+                return false;
+            }
+            rule.has_border_width = true;
+            rule.border_width = width;
         } else {
             core.logInfo("config: unknown window-rule key '{s}'", .{key});
             return false;
@@ -744,6 +796,103 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
     core.copyString(&rule.raw, &rule.raw_len, value);
     cfg.rules[cfg.rule_count] = rule;
     cfg.rule_count += 1;
+    return true;
+}
+
+fn parseLayerNumber(value: []const u8) ?i32 {
+    if (std.ascii.eqlIgnoreCase(value, "background")) return 0;
+    if (std.ascii.eqlIgnoreCase(value, "bottom")) return 1;
+    if (std.ascii.eqlIgnoreCase(value, "top")) return 2;
+    if (std.ascii.eqlIgnoreCase(value, "overlay")) return 3;
+    const n = std.fmt.parseInt(i32, value, 10) catch return null;
+    if (n < 0 or n > 3) return null;
+    return n;
+}
+
+pub fn addLayerRule(cfg: *Config, value: []const u8) bool {
+    if (cfg.layer_rule_count >= cfg.layer_rules.len) {
+        core.logInfo("config: too many layer rules (max {d})", .{cfg.layer_rules.len});
+        return false;
+    }
+
+    var rule = types.LayerRule{};
+    var clauses_seen: usize = 0;
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            core.logInfo("config: layer-rule clause needs '=': '{s}'", .{clause});
+            return false;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid layer-rule clause '{s}'", .{clause});
+            return false;
+        }
+        clauses_seen += 1;
+
+        if (std.ascii.eqlIgnoreCase(key, "namespace") or
+            std.ascii.eqlIgnoreCase(key, "ns"))
+        {
+            core.copyString(&rule.namespace, &rule.namespace_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "output") or
+            std.ascii.eqlIgnoreCase(key, "monitor"))
+        {
+            core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "layer")) {
+            rule.layer = parseLayerNumber(val) orelse {
+                core.logInfo("config: invalid layer-rule layer '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "opacity")) {
+            const opacity = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid layer-rule opacity '{s}'", .{val});
+                return false;
+            };
+            if (std.math.isNan(opacity) or opacity < 0.0 or opacity > 1.0) {
+                core.logInfo("config: layer-rule opacity out of range (0-1): '{s}'", .{val});
+                return false;
+            }
+            rule.has_opacity = true;
+            rule.opacity = opacity;
+        } else if (std.ascii.eqlIgnoreCase(key, "corner-radius") or
+            std.ascii.eqlIgnoreCase(key, "corner_radius") or
+            std.ascii.eqlIgnoreCase(key, "rounding"))
+        {
+            const radius = std.fmt.parseInt(i32, val, 10) catch {
+                core.logInfo("config: invalid layer-rule corner-radius '{s}'", .{val});
+                return false;
+            };
+            if (radius < 0 or radius > 64) {
+                core.logInfo("config: layer-rule corner-radius out of range (0-64): {d}", .{radius});
+                return false;
+            }
+            rule.has_corner_radius = true;
+            rule.corner_radius = radius;
+        } else if (std.ascii.eqlIgnoreCase(key, "blur")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid layer-rule blur value '{s}'", .{val});
+                return false;
+            };
+            rule.blur = if (on) .on else .off;
+        } else {
+            core.logInfo("config: unknown layer-rule key '{s}'", .{key});
+            return false;
+        }
+    }
+
+    if (clauses_seen == 0) return false;
+    core.copyString(&rule.raw, &rule.raw_len, value);
+    cfg.layer_rules[cfg.layer_rule_count] = rule;
+    cfg.layer_rule_count += 1;
     return true;
 }
 
@@ -856,6 +1005,7 @@ fn addBezier(cfg: *Config, value: []const u8) bool {
     while (i < points.len) : (i += 1) {
         const token = std.mem.trim(u8, it.next() orelse return false, " \t");
         const n = std.fmt.parseFloat(f32, token) catch return false;
+        if (std.math.isNan(n)) return false;
         if ((i == 0 or i == 2) and (n < 0.0 or n > 1.0)) return false;
         if ((i == 1 or i == 3) and (n < -1.0 or n > 2.0)) return false;
         points[i] = n;
@@ -1699,6 +1849,10 @@ fn loadPath(
             if (!addOutputRule(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid output-rule: '{s}'", .{value});
             }
+        } else if (std.mem.eql(u8, key, "layer-rule") or std.mem.eql(u8, key, "layer_rule")) {
+            if (!addLayerRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid layer-rule: '{s}'", .{value});
+            }
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
         } else if (std.mem.eql(u8, key, "output_config")) {
@@ -1901,12 +2055,13 @@ pub fn load(server: *Server) void {
         }
     }
 
-    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d}, output_rules={d})", .{
+    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d}, output_rules={d}, layer_rules={d})", .{
         if (path.len > 0) path else "defaults",
         server.config.terminal[0..server.config.terminal_len],
         server.config.binding_count,
         server.config.hook_count,
         server.config.rule_count,
         server.config.output_rule_count,
+        server.config.layer_rule_count,
     });
 }

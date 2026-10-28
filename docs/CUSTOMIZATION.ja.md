@@ -28,6 +28,8 @@ window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; border-width=0; corner-radius=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
 マッチ条件:
@@ -65,16 +67,54 @@ window-rule = app-id=org.example.*; workspace=3
 | `position=X,Y` | フローティング位置 |
 | `border-active=#RRGGBB` | ウィンドウ別フォーカスボーダー |
 | `border-inactive=#RRGGBB` | ウィンドウ別非フォーカスボーダー |
+| `opacity=0.0..1.0` | ウィンドウと装飾の不透明度 |
+| `corner-radius=0..64` | ウィンドウ別の角丸（`rounding` も可） |
+| `blur=true/false` | ウィンドウ別の背景ブラー |
+| `shadow=true/false` | ウィンドウ別の影 |
+| `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
 
 同じルールで `float=false` を指定しない限り、`size` と `position` は
-フローティングを暗黙に有効にします。ルールはファイル順に評価され、後の
-ルールが前のルールを上書きできます。ウィンドウのマップ時と、`Super+R` /
-`tessa-ctl dispatch reload` による再読み込み時に、既存ウィンドウにも
-再適用されます。マップ後のタイトル変更だけでは、次の再読み込みまで
-ルールは再評価されません。
+フローティングを暗黙に有効にします。不正な式や正規表現はファイル名／行番号
+付きの設定エラーになります。ボーダー色、不透明度、角丸、ボーダー幅、影の
+状態は閉じるスナップショットにも使われます。`corner-radius` と `blur` は
+`-Dscenefx=true` ビルドが必要で、それ以外は全ビルドで動作します。
+
+ルールはファイル順に評価され、後のルールが前のルールを上書きできます。
+構造アクション（`float`、`workspace`、`size`、`position`、`fullscreen`）は
+ウィンドウのマップ時と、`Super+R` / `tessa-ctl dispatch reload` による
+再読み込み時に評価されます。装飾アクション（`border-*`、`opacity`、
+`corner-radius`、`blur`、`shadow`、`border-width`）は、タイトルまたは
+app-id が変わった時点でも即座に再評価されます。
 
 値に空白を含める場合は引用符で囲めます。フラット形式では値の中の `;` は
 使えません。
+
+## レイヤールール
+
+バー、通知デーモン、壁紙プロバイダなどのレイヤーシェルクライアントは
+`layer-rule` で設定します。
+
+```ini
+layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
+layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
+```
+
+| 節 | 意味 |
+| --- | --- |
+| `namespace=` / `ns=` | レイヤー namespace のパターン |
+| `output=` / `monitor=` | 出力名のパターン |
+| `layer=` | `background`、`bottom`、`top`、`overlay`、または `0..3` |
+| `opacity=0.0..1.0` | レイヤーサーフェスの不透明度 |
+| `corner-radius=0..64` | レイヤーサーフェスの角丸 |
+| `blur=true/false` | 背景ブラーの上書き |
+
+後の一致が優先されます。ルールがない場合の不透明度は `1`、角丸は `0`、
+ブラーは top／overlay レイヤーだけグローバル設定に従います。レイヤールールは
+map 時と設定リロード時に適用されます。実効値は `tessa-ctl state` /
+`state --json`、解析済みルールは `tessa-ctl config` / `config --json` で
+確認できます。不透明度は全ビルド、角丸とブラーは `-Dscenefx=true` ビルドで
+有効です。
 
 ## レイアウト調整
 

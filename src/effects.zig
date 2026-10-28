@@ -80,16 +80,36 @@ fn inactiveBorderColor(server: *Server) [4]f32 {
     return .{ 0.16, 0.20, 0.28, 1.0 };
 }
 
+fn clientBorderWidth(client: *Client) i32 {
+    if (client.fullscreen) return 0;
+    return if (client.border_width >= 0) client.border_width else client.server.config.border_width;
+}
+
+fn clientCornerRadius(client: *Client) i32 {
+    if (client.fullscreen) return 0;
+    return if (client.corner_radius >= 0) client.corner_radius else client.server.config.corner_radius;
+}
+
+fn clientShadowEnabled(client: *Client) bool {
+    if (client.fullscreen) return false;
+    return switch (client.shadow) {
+        .on => true,
+        .off => false,
+        .unset => client.server.config.shadows,
+    };
+}
+
 fn apply(effect: *CloseEffect, eased: f64) void {
     const scale = if (effect.fade_only)
         1.0
     else
         1.0 - (1.0 - effect.close_scale) * eased;
-    const opacity = std.math.clamp(
+    const fade = std.math.clamp(
         if (effect.fade_only or effect.close_fade) 1.0 - eased else 1.0,
         0.0,
         1.0,
     );
+    const opacity = fade * effect.base_opacity;
 
     const frame_cx = effect.frame_x + effect.frame_w / 2.0;
     const frame_cy = effect.frame_y + effect.frame_h / 2.0;
@@ -142,6 +162,7 @@ fn apply(effect: *CloseEffect, eased: f64) void {
         @intFromFloat(@max(1.0, frame_h - border_w * 2.0)),
     );
 
+    c.wlr_scene_node_set_enabled(&effect.shadow.node, effect.shadow_enabled);
     c.wlr_scene_node_set_position(&effect.shadow.node, @intFromFloat(@round(frame_x - 12.0)), @intFromFloat(@round(frame_y - 9.0)));
     c.wlr_scene_rect_set_size(
         effect.shadow,
@@ -204,7 +225,8 @@ fn start(
         client.border_active_override orelse output_active
     else
         client.border_inactive_override orelse output_inactive;
-    if (client.fullscreen) border_color[3] = 0;
+    const border_width = clientBorderWidth(client);
+    if (border_width <= 0) border_color[3] = 0;
     var border: [4]*c.wlr_scene_rect = undefined;
     for (&border) |*rect| rect.* = c.wlr_scene_rect_create(tree, 1, 1, &border_color);
     const content = c.wlr_scene_buffer_create(tree, buffer);
@@ -213,10 +235,9 @@ fn start(
     c.wlr_scene_buffer_set_transform(content, content_transform);
     if (!client.fullscreen) {
         const max_radius = @divTrunc(@max(1, @min(content_w, content_h)), 2);
-        window_effects.applyCloseContent(content, @min(server.config.corner_radius, max_radius));
+        window_effects.applyCloseContent(content, @min(clientCornerRadius(client), max_radius));
     }
 
-    const border_width: i32 = if (client.fullscreen) 0 else server.config.border_width;
     const frame_x: f64 = @floatFromInt(client.x);
     const frame_y: f64 = @floatFromInt(client.y);
     const frame_w: f64 = @floatFromInt(@max(1, client.w));
@@ -234,7 +255,7 @@ fn start(
     effect.content = @ptrCast(@alignCast(content));
     effect.border = border;
     effect.shadow = @ptrCast(@alignCast(shadow));
-    effect.border_width = if (client.fullscreen) 0 else @floatFromInt(server.config.border_width);
+    effect.border_width = @floatFromInt(border_width);
     effect.frame_x = frame_x;
     effect.frame_y = frame_y;
     effect.frame_w = frame_w;
@@ -246,6 +267,8 @@ fn start(
     effect.start_ms = core.timeNowMs();
     effect.ms = closeAnimationMs(server);
     effect.fade_only = server.config.reduce_motion;
+    effect.base_opacity = client.opacity;
+    effect.shadow_enabled = clientShadowEnabled(client);
     effect.curve = motion.close(&server.config);
     effect.close_scale = if (server.config.reduce_motion)
         1.0

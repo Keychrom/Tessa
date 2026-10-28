@@ -152,7 +152,9 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   設定の再読み込みは上書きしていないワークスペースだけを更新
 - app-id/タイトル/出力、または真偽値と POSIX 正規表現の式でマッチする
   宣言的ウィンドウルール。フローティング、ワークスペース、フルスクリーン、
-  サイズ、位置、ウィンドウ別ボーダー色を指定可能
+  サイズ、位置、ウィンドウ別ボーダー色、不透明度、角丸、ブラー、影、
+  ボーダー幅を指定可能。namespace/出力/レイヤーでマッチするレイヤーシェル
+  ルールにも対応
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパープロトコル。
   タイムアウト、プロセス再起動、内蔵レイアウトへのフォールバック付き
 - 行番号付きの設定診断、設定のアトミック保存時の自動リロード、失敗時に
@@ -250,7 +252,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
-`tests/effects.sh`、`tests/input.sh`、`tests/pointer-constraints.sh`、
+`tests/motion.sh`、`tests/effects.sh`、`tests/rule-visuals.sh`、
+`tests/input.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
@@ -772,6 +775,7 @@ cp config/config.example ~/.config/tessa/config
 | `border_active` | フォーカス中ボーダー色（既定は `accent`） |
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `window-rule` | 宣言的ルール。詳細はカスタマイズガイド参照 |
+| `layer-rule` | レイヤーシェルルール。詳細はカスタマイズガイド参照 |
 | `workspace-rule` | ワークスペース別のレイアウト、隙間、マスター比率 |
 | `mode` | 後続の `bind` が属する名前付き入力モードを開始 |
 | `leader` | `leader` モードへ入るリーダーキーコード |
@@ -812,11 +816,18 @@ window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; border-width=0; corner-radius=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
-ルールはウィンドウのマップ時と設定再読み込み時に評価されます。
-`tessa-ctl config` で実効設定と解析済みルールを確認できます。完全な
-リファレンスは [docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) にあります。
+ルールはウィンドウのマップ時と設定再読み込み時に評価されます。装飾系
+アクション（色、不透明度、角丸、ブラー、影、ボーダー幅）はタイトルまたは
+app-id の変更時にも即座に再適用され、構造系アクションは次回のマップ/
+リロードまで待ちます。レイヤーシェルは `layer-rule` の `namespace`、
+`output`、`layer`、`opacity`、`corner-radius`、`blur` で設定できます。
+`tessa-ctl config` で解析済みルール、`tessa-ctl state` で実効値を確認でき
+ます。完全なリファレンスは
+[docs/CUSTOMIZATION.ja.md](docs/CUSTOMIZATION.ja.md) にあります。
 
 入力モードはバインドをまとめ、`enter-mode` で有効化します。
 
@@ -956,6 +967,8 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   キャプチャし、設定可能なカーブ、スケール、フェードでスナップショットを
   変化させます。クライアント自身が閉じた場合は unmap 時点でバッファが
   消えているため即時に消えます。シャドウは固定のレイヤー矩形です。
+  ウィンドウ/レイヤールールでサーフェスごとの不透明度、ボーダー幅、影、
+  および scenefx ビルドでは角丸とブラーも上書きできます。
   角丸と背景ブラーは `-Dscenefx=true` ビルドが必要です。そのビルドは
   scenefx の GLES2 レンダラーを使うため、pixman のソフトウェア
   レンダリングは利用できません。ブラーは半透明のクライアントとシェル

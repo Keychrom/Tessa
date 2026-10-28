@@ -65,8 +65,8 @@ CMD state               # 購読せずスナップショットを要求
 スナップショットは行指向で、`END` で終わります。`STATE` から新しい
 スナップショットが始まり、パネルは毎回バー全体を再構築します。`CONFIG` は
 `tessa-ctl config` が使う別の要求/応答スナップショットで、実効設定、各
-ワークスペースの `layout_ws`/`workspace_tuning` 行、`rule <raw>` 行を
-含みます。主な状態行:
+ワークスペースの `layout_ws`/`workspace_tuning` 行、`rule <raw>` 行、
+`layer_rule <raw>` 行を含みます。主な状態行:
 
 ```text
 MODE default
@@ -74,6 +74,7 @@ OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
+LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
 `MODE` はアクティブな入力モードです。`OUT` は
@@ -81,6 +82,8 @@ WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
 された app_id、タイトル、出力名、x、y、幅、高さです。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
+`LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
+overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。
 `STATUS` は後述します。
 
 ## JSON スナップショット
@@ -107,9 +110,12 @@ END
 ください。
 
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
-`fullscreen`、`app_id`、`title`、`output`、`x`、`y`、`width`、`height` が
-入ります。設定の `diagnostics` は `severity`、`path`、`line`、`message` を
-持ちます。設定 JSON は `event_rules`、`profiles`、`theme_roles` と各件数も
+`fullscreen`、`app_id`、`title`、`output`、`x`、`y`、`width`、`height` と、
+実効装飾値 `opacity`、`border_width`、`corner_radius`、`blur`、`shadow` が
+入ります。`layers` 配列にはマップ済みレイヤーサーフェスの `namespace`、
+`output`、`layer`、`opacity`、`corner_radius`、`blur` が入ります。設定の
+`diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
+は `event_rules`、`profiles`、`theme_roles`、`layer_rules` と各件数も
 公開します。
 
 ## JSON-RPC

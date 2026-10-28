@@ -29,6 +29,8 @@ window-rule = app-id=firefox; workspace=2
 window-rule = title=GIMP*; float=false
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; border-width=0; corner-radius=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
 Match clauses:
@@ -66,17 +68,53 @@ Action clauses:
 | `position=X,Y` | floating position |
 | `border-active=#RRGGBB` | per-window focused border |
 | `border-inactive=#RRGGBB` | per-window unfocused border |
+| `opacity=0.0..1.0` | window and decoration opacity |
+| `corner-radius=0..64` | per-window rounding (`rounding` alias) |
+| `blur=true/false` | per-window backdrop blur |
+| `shadow=true/false` | per-window layered shadow |
+| `border-width=0..16` | per-window border thickness; `0` hides it |
 
 `size` and `position` imply floating unless the same rule says `float=false`.
 Invalid expressions or regular expressions are config errors with file/line
-diagnostics. Border overrides are also used by close snapshots.
+diagnostics. Border overrides, opacity, rounding, border width, and shadow state
+are also used by close snapshots. `corner-radius` and `blur` require a
+`-Dscenefx=true` build; the other effects work everywhere.
+
 Rules are evaluated in file order; a later matching rule can override an earlier
-one. They run when a window maps and are re-evaluated for existing windows on
-`Super+R` / `tessa-ctl dispatch reload`. A title change after mapping does not
-retrigger rules until the next reload.
+one. Structural actions (`float`, `workspace`, `size`, `position`,
+`fullscreen`) run when a window maps and are re-evaluated for existing windows
+on `Super+R` / `tessa-ctl dispatch reload`. Decorative actions (`border-*`,
+`opacity`, `corner-radius`, `blur`, `shadow`, `border-width`) also react
+immediately when the title or app-id changes.
 
 Values may be quoted when they contain spaces. A `;` inside a value is not
 supported in the flat format.
+
+## Layer-shell rules
+
+Layer-shell clients such as bars, notification daemons, and wallpaper providers
+are configured with `layer-rule`:
+
+```ini
+layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
+layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
+```
+
+| Clause | Meaning |
+| --- | --- |
+| `namespace=` / `ns=` | layer namespace pattern |
+| `output=` / `monitor=` | output name pattern |
+| `layer=` | `background`, `bottom`, `top`, `overlay`, or `0..3` |
+| `opacity=0.0..1.0` | layer surface opacity |
+| `corner-radius=0..64` | layer surface rounding |
+| `blur=true/false` | backdrop blur override |
+
+Later matches win. Without a rule, opacity is `1`, corners are square, and blur
+follows the global setting for top/overlay layers only. Layer rules apply on map
+and on config reload. Effective values are visible in `tessa-ctl state` /
+`state --json`; parsed rules are listed by `tessa-ctl config` / `config --json`.
+Opacity works in every build; rounding and blur require `-Dscenefx=true`.
 
 ## Layout tuning
 

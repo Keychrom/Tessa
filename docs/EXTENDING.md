@@ -65,8 +65,8 @@ CMD state               # request one snapshot without subscribing
 Snapshots are line-oriented and end with `END`. `STATE` begins a new snapshot;
 the panel reconstructs its entire bar from each snapshot. `CONFIG` is a separate
 request/response snapshot used by `tessa-ctl config`; it contains effective
-settings, `layout_ws`/`workspace_tuning` lines for each workspace, and
-`rule <raw>` lines. The most useful state lines are:
+settings, `layout_ws`/`workspace_tuning` lines for each workspace, `rule <raw>`
+and `layer_rule <raw>` lines. The most useful state lines are:
 
 ```text
 MODE default
@@ -74,13 +74,16 @@ OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
+LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
 `MODE` is the active input mode. `OUT` is `name workspace focused layout`.
 `WIN` fields are tab-separated: id,
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height. Geometry is in logical compositor coordinates and is
-included for tooling that tracks windows. `STATUS` is covered below.
+included for tooling that tracks windows. `LAYER` is `namespace`, output,
+layer number (`0` background … `3` overlay), effective opacity, effective
+corner radius, and effective blur (`0`/`1`). `STATUS` is covered below.
 
 ## JSON snapshots
 
@@ -105,10 +108,13 @@ State JSON includes the active `mode`; config JSON includes a `modes` array.
 `schema` is currently `1`; consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
-`app_id`, `title`, `output`, `x`, `y`, `width`, and `height`. Config
+`app_id`, `title`, `output`, `x`, `y`, `width`, `height`, and the effective
+decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
+`shadow`. The `layers` array contains `namespace`, `output`, `layer`, `opacity`,
+`corner_radius`, and `blur` for mapped layer-shell surfaces. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
-Config JSON also exposes `event_rules`, `profiles`, `theme_roles`, and the
-corresponding counts.
+Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
+`layer_rules`, and the corresponding counts.
 
 ## JSON-RPC
 

@@ -688,6 +688,29 @@ fn buildState(server: *Server, buf: []u8) usize {
         if (off > buf.len - 2048) break;
     }
 
+    i = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        if (!layer.mapped) continue;
+        const layer_n: u32 = @intCast(layer.wlr.current.layer);
+        const blur = switch (layer.blur) {
+            .on => true,
+            .off => false,
+            .unset => server.config.blur and layer_n >= 2,
+        };
+        var ns_buf: [512]u8 = undefined;
+        const ns = escape(&ns_buf, core.cstr(layer.wlr.namespace));
+        append(buf, &off, "LAYER\t{s}\t{s}\t{d}\t{d:.3}\t{d}\t{d}\n", .{
+            ns,
+            core.outputName(layer.output),
+            layer_n,
+            layer.opacity,
+            layer.corner_radius,
+            @as(u8, if (blur) 1 else 0),
+        });
+        if (off > buf.len - 1024) break;
+    }
+
     append(buf, &off, "END\n", .{});
     return off;
 }
@@ -863,6 +886,13 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
         append(&buf, &off, "output_rule {s}\n", .{raw});
+    }
+    i = 0;
+    while (i < cfg.layer_rule_count) : (i += 1) {
+        const rule = &cfg.layer_rules[i];
+        var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
+        append(&buf, &off, "layer_rule {s}\n", .{raw});
     }
     i = 0;
     while (i < server.config_issue_count) : (i += 1) {

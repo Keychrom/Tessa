@@ -481,6 +481,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `output-rule` | — | 出力別（任意でワークスペース別）のレイアウト／間隔／テーマルール |
 | `profile` | — | 出力／ワークスペースルールから参照する名前付きプロファイル |
 | `window-rule` | — | ウィンドウのマッチルール |
+| `layer-rule` | — | レイヤーシェルのマッチルール |
 | `theme-role` | — | アクセント、ボーダー、壁紙、パネル用の意味論的カラー |
 | `mode` | `default` | 以降の `bind` を入れる名前付き入力モード |
 | `bind` | — | キーバインドを追加・上書き |
@@ -588,7 +589,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | --- | --- |
 | `startup` | 起動時に 1 回実行するコマンド |
 | `hook` | `<event> <command>` 形式のイベントフック。複数可 |
-| `event-rule` | 条件付きイベント→コマンドルール。8.7 節参照 |
+| `event-rule` | 条件付きイベント→コマンドルール。8.8 節参照 |
 | `include` | 設定の分割 |
 
 利用可能なイベントは「13. 拡張 API」の表を参照してください。
@@ -764,6 +765,8 @@ window-rule = app-id=org.example.*; fullscreen=true
 window-rule = match=app ~ "^firefox$" && title !~ "Private|Incognito"; workspace=2
 window-rule = match=(class == "foot" || class == "Alacritty") && output ~ "^DP-"; float=true
 window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
+window-rule = app-id=mpv; opacity=0.9; corner-radius=0; border-width=0
+window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 ```
 
 マッチ:
@@ -793,15 +796,60 @@ window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 | `position=X,Y` | フローティング位置 |
 | `border-active=#RRGGBB` | ウィンドウ別フォーカスボーダー |
 | `border-inactive=#RRGGBB` | ウィンドウ別非フォーカスボーダー |
+| `opacity=0.0..1.0` | ウィンドウと装飾の不透明度 |
+| `corner-radius=0..64` | ウィンドウ別の角丸（`rounding` も可） |
+| `blur=true/false` | ウィンドウ別の背景ブラー |
+| `shadow=true/false` | ウィンドウ別の影 |
+| `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
 
 パターンは `*`／`?`、大文字小文字は区別されます。単純キーと `match` は
 AND で結合されます。ルールはファイル順で、後のルールが優先され、ボーダー
-色も同じ規則です。不正な式や正規表現はファイル名／行番号付きで報告され、
-リロードは拒否されます。マップ時と設定リロード時に評価されますが、マップ
-後のタイトル変更だけでは再評価されません。ボーダー色は閉じるスナップ
-ショットにも使われます。
+色や表示効果も同じ規則です。不正な式や正規表現はファイル名／行番号付きで
+報告され、リロードは拒否されます。構造アクション（`float`、
+`workspace`、`size`、`position`、`fullscreen`）はマップ時と設定リロード
+時に評価されます。装飾アクション（`border-*`、`opacity`、
+`corner-radius`、`blur`、`shadow`、`border-width`）は、タイトルまたは
+app-id が変わった時点でも即座に再評価されます。色、ボーダー幅、不透明度、
+角丸、影の状態は閉じるスナップショットにも引き継がれます。
+`corner-radius` と `blur` は `-Dscenefx=true` ビルドが必要です。不透明度、
+影、ボーダー幅は全ビルドで動作します。
 
-### 8.5 外部レイアウトヘルパー
+### 8.5 `layer-rule`
+
+レイヤーシェル（バー、通知、壁紙プロバイダなど `zwlr_layer_shell_v1` を
+使うクライアント）は専用のルール一覧で設定します。
+
+```ini
+layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
+layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
+```
+
+マッチ:
+
+| キー | 内容 |
+| --- | --- |
+| `namespace`、`ns` | レイヤーの namespace（`*`／`?` 可） |
+| `output`、`monitor` | 出力名（`*`／`?` 可） |
+| `layer` | `background`、`bottom`、`top`、`overlay`、または `0..3` |
+
+アクション:
+
+| キー | 内容 |
+| --- | --- |
+| `opacity=0.0..1.0` | レイヤーサーフェスの不透明度 |
+| `corner-radius=0..64` | レイヤーサーフェスの角丸（`rounding` も可） |
+| `blur=true/false` | 背景ブラーの上書き |
+
+レイヤールールはファイル順で評価され、後の一致が優先されます。ルールが
+ない場合の不透明度は `1`、ブラーは top／overlay レイヤーでグローバルの
+`blur` に従います（background／bottom はブラーなし）。角丸の既定値は `0`
+です。`Super+R`／設定リロードで再適用されます。`corner-radius` と `blur`
+は `-Dscenefx=true` ビルドが必要です。`tessa-ctl state` と
+`tessa-ctl state --json` で実効値、`tessa-ctl config`／`config --json` で
+解析済みルールを確認できます。
+
+### 8.6 外部レイアウトヘルパー
 
 ```ini
 layout = custom
@@ -823,7 +871,7 @@ bind = SUPER+SHIFT+T set-layout custom
 [CUSTOMIZATION.ja.md](CUSTOMIZATION.ja.md#外部レイアウトヘルパー) を参照して
 ください。
 
-### 8.6 ワークスペース固定
+### 8.7 ワークスペース固定
 
 ```ini
 workspace_pin = eDP-1 1
@@ -837,7 +885,7 @@ workspace_pin = HDMI-A-1 3
 - 出力が存在しない間はピンが無視されます
 - 同じワークスペースに複数のピンを書いた場合、後の設定が優先されます
 
-### 8.7 イベントルール
+### 8.8 イベントルール
 
 ライフサイクルイベントが式に一致したときコマンドを実行します:
 
@@ -1617,8 +1665,10 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   即時です。
 - **プロファイルはレイアウト／チューニングのみ**。出力別の色やパネル寸法は
   `output-rule` のテーマキーを直接使います。
-- **ウィンドウルールはタイトル変更で再評価されません**。次回の設定リロード
-  まで反映されません。
+- **構造系のウィンドウルールは map か再読込が必要**。装飾系（色、不透明度、
+  角丸、ブラー、影、ボーダー幅）はタイトル/app-id 変更で即時再評価されますが、
+  `float`、`workspace`、`size`、`position`、`fullscreen` はメタデータ変更では
+  再適用されません。
 - **レイアウトヘルパーは同期実行で全出力共有のまま**。出力別インスタンス、
   非同期/差分更新、ヘルパー v2 メタデータは未実装です。
 - **JSON-RPC は読み取りとイベント購読のみ**。変更操作は行コマンドを使います。

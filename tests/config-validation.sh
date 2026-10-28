@@ -86,6 +86,12 @@ theme-role = unknown = #ffffff
 theme-role = accent = nope
 reduce_motion_animations = spin
 animation_open_ms = nope
+window-rule = title=Bad; opacity=1.5
+window-rule = title=Bad; corner-radius=65
+window-rule = title=Bad; border-width=17
+layer-rule = namespace=x; layer=side
+layer-rule = namespace=x; opacity=nope
+layer-rule = unknown=1
 EOF
 
 tessa-ctl dispatch reload
@@ -110,6 +116,12 @@ grep -q "$runtime/config:19: invalid theme-role" "$runtime/config.out"
 grep -q "$runtime/config:20: invalid theme-role" "$runtime/config.out"
 grep -q "$runtime/config:21: invalid reduce_motion_animations" "$runtime/config.out"
 grep -q "$runtime/config:22: invalid integer for animation_open_ms" "$runtime/config.out"
+grep -q "$runtime/config:23: invalid window-rule" "$runtime/config.out"
+grep -q "$runtime/config:24: invalid window-rule" "$runtime/config.out"
+grep -q "$runtime/config:25: invalid window-rule" "$runtime/config.out"
+grep -q "$runtime/config:26: invalid layer-rule" "$runtime/config.out"
+grep -q "$runtime/config:27: invalid layer-rule" "$runtime/config.out"
+grep -q "$runtime/config:28: invalid layer-rule" "$runtime/config.out"
 echo "line diagnostics + rejected reload: ok"
 
 if tessa-ctl config-check >"$runtime/check.out" 2>&1; then

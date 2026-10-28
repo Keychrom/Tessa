@@ -8,6 +8,7 @@ const Server = types.Server;
 const Client = types.Client;
 const Output = types.Output;
 const WindowRule = types.WindowRule;
+const LayerSurface = types.LayerSurface;
 
 pub const Tuning = struct {
     layout: types.LayoutMode,
@@ -211,9 +212,14 @@ fn matches(rule: *const WindowRule, client: *Client) bool {
 fn resetDecorations(client: *Client) void {
     client.border_active_override = null;
     client.border_inactive_override = null;
+    client.opacity = 1.0;
+    client.corner_radius = -1;
+    client.blur = .unset;
+    client.shadow = .unset;
+    client.border_width = -1;
 }
 
-fn apply(rule: *const WindowRule, client: *Client) void {
+fn applyVisual(rule: *const WindowRule, client: *Client) void {
     if (rule.has_border_active) {
         client.border_active_override = .{
             rule.border_active_rgb[0],
@@ -230,6 +236,15 @@ fn apply(rule: *const WindowRule, client: *Client) void {
             1.0,
         };
     }
+    if (rule.has_opacity) client.opacity = rule.opacity;
+    if (rule.has_corner_radius) client.corner_radius = rule.corner_radius;
+    if (rule.blur != .unset) client.blur = rule.blur;
+    if (rule.shadow != .unset) client.shadow = rule.shadow;
+    if (rule.has_border_width) client.border_width = rule.border_width;
+}
+
+fn apply(rule: *const WindowRule, client: *Client) void {
+    applyVisual(rule, client);
     if (rule.floating != .unset) {
         client.floating = rule.floating == .on;
     }
@@ -271,6 +286,72 @@ pub fn applyToClient(client: *Client) void {
     while (i < cfg.rule_count) : (i += 1) {
         const rule = &cfg.rules[i];
         if (matches(rule, client)) apply(rule, client);
+    }
+}
+
+/// Re-evaluate only decorative fields. Structural rules (floating, workspace,
+/// size, fullscreen) stay at their map/reload values so a title update cannot
+/// move or resize a window behind the user's back. Returns true when a visual
+/// field changed and the layout should be re-applied.
+pub fn applyVisualToClient(client: *Client) bool {
+    const cfg = &client.server.config;
+    const old_opacity = client.opacity;
+    const old_radius = client.corner_radius;
+    const old_blur = client.blur;
+    const old_shadow = client.shadow;
+    const old_border_width = client.border_width;
+    const old_active = client.border_active_override;
+    const old_inactive = client.border_inactive_override;
+    resetDecorations(client);
+    var i: usize = 0;
+    while (i < cfg.rule_count) : (i += 1) {
+        const rule = &cfg.rules[i];
+        if (matches(rule, client)) applyVisual(rule, client);
+    }
+    return old_opacity != client.opacity or
+        old_radius != client.corner_radius or
+        old_blur != client.blur or
+        old_shadow != client.shadow or
+        old_border_width != client.border_width or
+        !std.meta.eql(old_active, client.border_active_override) or
+        !std.meta.eql(old_inactive, client.border_inactive_override);
+}
+
+fn layerMatches(rule: *const types.LayerRule, layer: *LayerSurface) bool {
+    if (rule.namespace_len > 0 and
+        !wildcardMatch(
+            rule.namespace[0..rule.namespace_len],
+            core.cstr(layer.wlr.namespace),
+        )) return false;
+    if (rule.output_len > 0 and
+        !wildcardMatch(
+            rule.output[0..rule.output_len],
+            core.outputName(layer.output),
+        )) return false;
+    if (rule.layer >= 0 and rule.layer != @as(i32, @intCast(layer.wlr.current.layer))) return false;
+    return true;
+}
+
+pub fn applyLayerVisuals(server: *Server, layer: *LayerSurface) void {
+    const cfg = &server.config;
+    layer.opacity = 1.0;
+    layer.corner_radius = 0;
+    layer.blur = .unset;
+    var i: usize = 0;
+    while (i < cfg.layer_rule_count) : (i += 1) {
+        const rule = &cfg.layer_rules[i];
+        if (!layerMatches(rule, layer)) continue;
+        if (rule.has_opacity) layer.opacity = rule.opacity;
+        if (rule.has_corner_radius) layer.corner_radius = rule.corner_radius;
+        if (rule.blur != .unset) layer.blur = rule.blur;
+    }
+}
+
+pub fn applyAllLayers(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        applyLayerVisuals(server, layer);
     }
 }
 

@@ -146,9 +146,9 @@ the interactive config editor/diff preview) before or alongside this work.
 - [x] Motion v2 curves: named cubic-bezier definitions, per-kind curves,
       configurable open/workspace offsets, and close scale/fade.
 - [ ] Motion v2 extensions: spring curves and per-window animation overrides.
-- [ ] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
-      border width; layer-shell rules; reactive re-evaluation on title/app-id
-      changes without a full reload.
+- [x] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
+      border width; layer-shell rules; reactive decorative re-evaluation on
+      title/app-id changes. Structural actions remain map/reload-time.
 - [ ] Workspace/layout v2: named workspaces, special/scratchpad workspaces,
       window groups, and the completed asynchronous per-output layout helper.
 - [ ] Input/output policy: per-device touchpad/mouse rules (tap, natural
