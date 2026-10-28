@@ -78,15 +78,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 Binary package (Ubuntu 26.04)
 
-The recommended install uses the `v0.2.0` amd64 package:
+The recommended install uses the `v0.2.1` amd64 package:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
-grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
+grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.1_amd64.deb
 ```
 
 The package installs:
@@ -1759,19 +1759,50 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.0 resolves a missing default terminal through `foot`, `kitty`,
+Tessa 0.2.1 resolves a missing default terminal through `foot`, `kitty`,
 `alacritty`, `wezterm`, then `xterm`, and logs which command it uses. An
 explicitly configured `terminal = ...` is never replaced. Kitty needs a working
 EGL/GL stack; on virtual machines without GPU acceleration use `foot` or set
 `terminal = foot`. Check the terminal's stderr and Tessa's log before assuming
 the compositor failed to spawn it.
 
+### Kitty appears and then exits
+
+A window that maps and immediately disappears is normally Kitty (or Kitty's
+shell) exiting, not a compositor unmap. Check it from a `foot` terminal inside
+the same session:
+
+```sh
+tessa-ctl spawn foot
+WAYLAND_DEBUG=1 kitty
+```
+
+- **No `new toplevel` line in Tessa's log:** the command never connected. Check
+  `terminal`, `PATH`, and the launcher entry.
+- **`new toplevel` followed by the window closing:** Kitty exited. Look for EGL,
+  GBM, DBus, or shell-startup errors in Kitty's output. On a VM without working
+  3D, use `foot`; forcing software rendering with `LIBGL_ALWAYS_SOFTWARE=1`
+  works only when Mesa's software EGL stack is installed.
+- **A `Terminal=true` desktop entry closes after its command finishes:** this is
+  expected. Tessa runs it as `terminal sh -c '<command>'`, so a short-lived
+  command produces a short-lived terminal. `kitty.desktop` itself is
+  `Terminal=false`.
+
 ### X11 apps do not start
 
 - Is `xwayland-satellite` in `PATH` or set via `TESSA_XWAYLAND_BIN`?
 - Is `xwayland = true`?
-- Is `DISPLAY` inherited by the app?
 - Is `TESSA_NO_XWAYLAND` set?
+- Does the log contain `xwayland: '...' not found; X11 apps disabled`?
+- Does the log contain `xwayland: connected on :N`? Tessa 0.2.1 sets `DISPLAY`
+  only after this point.
+
+Tessa does not invent a `DISPLAY` value when the satellite cannot start, so an
+X11 app should fail clearly rather than connect to a nonexistent server.
+`XMODIFIERS` is also exported only with a ready X display and `xim = true`.
+When XWayland is enabled, `startup` hooks and `TESSA_STARTUP` run after that
+point, so commands such as `fcitx5 -d` see the X environment. Without a
+satellite they run immediately.
 
 ### IME does not work
 
@@ -1779,6 +1810,8 @@ the compositor failed to spawn it.
 - Is `XMODIFIERS=@im=fcitx` exported to X11 clients?
 - Is `xim_start` running after the display appears?
 - Ensure Fcitx5 is not started twice.
+- With XWayland disabled there is no X display, so `XMODIFIERS` is intentionally
+  not exported.
 
 ### Screen sharing fails
 

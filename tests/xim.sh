@@ -25,12 +25,12 @@ if ! command -v fcitx5 >/dev/null 2>&1 || ! command -v xprop >/dev/null 2>&1; th
     echo "fcitx5 or xprop not found; skipping XIM test"
     exit 0
 fi
+if [ -z "${TESSA_XIM_PRIVATE_BUS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
+    exec env TESSA_XIM_PRIVATE_BUS=1 dbus-run-session -- sh "$0" "$@"
+fi
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
-    if ! command -v dbus-run-session >/dev/null 2>&1; then
-        echo "dbus-run-session not found; skipping XIM test"
-        exit 0
-    fi
-    exec dbus-run-session -- sh "$0" "$@"
+    echo "dbus session bus is unavailable; skipping XIM test"
+    exit 0
 fi
 
 runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-xim.XXXXXX")
@@ -75,6 +75,7 @@ export WLR_RENDERER=pixman
 export WLR_HEADLESS_OUTPUTS=1
 export PATH="$bin:$PATH"
 export TESSA_DEBUG=1
+unset DISPLAY XMODIFIERS || true
 
 "$bin/tessa" >"$runtime/tessa.log" 2>&1 &
 tpid=$!

@@ -104,6 +104,23 @@ pub fn outputByName(server: *Server, name: []const u8) ?*Output {
     return null;
 }
 
+/// A compositor may keep SIGINT/SIGTERM blocked through signalfd after starting
+/// its event loop, and ignored dispositions (notably SIGCHLD) survive exec.
+/// Reset both before exec so children start with the same signal state as a
+/// program launched by a normal shell.
+pub fn resetChildSignals() void {
+    var empty: c.sigset_t = undefined;
+    _ = c.sigemptyset(&empty);
+    _ = c.sigprocmask(c.SIG_SETMASK, &empty, null);
+    const signals = [_]c_int{
+        c.SIGHUP,   c.SIGINT,   c.SIGQUIT, c.SIGTERM,
+        c.SIGPIPE,  c.SIGCHLD,  c.SIGUSR1, c.SIGUSR2,
+        c.SIGALRM,  c.SIGWINCH, c.SIGCONT, c.SIGTSTP,
+        c.SIGTTIN,  c.SIGTTOU,
+    };
+    for (signals) |sig| _ = c.signal(sig, c.SIG_DFL);
+}
+
 pub fn spawnPanel(server: *Server, out: *Output) void {
     if (!server.config.autostart_panel) return;
     if (c.getenv("TESSA_NO_PANEL") != null) return;
@@ -120,7 +137,7 @@ pub fn spawnPanel(server: *Server, out: *Output) void {
     server.panel_notify_owner_assigned = true;
     const pid = c.fork();
     if (pid == 0) {
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        resetChildSignals();
         _ = c.setenv("TESSA_PANEL_OUTPUT", &name_buf, 1);
         _ = c.setenv("TESSA_PANEL_OUTPUT_MAKE", &make_buf, 1);
         _ = c.setenv("TESSA_PANEL_OUTPUT_MODEL", &model_buf, 1);
@@ -157,8 +174,8 @@ pub fn spawn(cmd: []const u8) void {
     const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
     const pid = c.fork();
     if (pid == 0) {
+        resetChildSignals();
         _ = c.setsid();
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
         _ = c.execl("/bin/sh", "/bin/sh", "-c", z.ptr, @as(?[*:0]const u8, null));
         c._exit(127);
     }
@@ -174,8 +191,8 @@ pub fn spawnWithEnv(cmd: []const u8, envs: []const EnvVar) void {
     const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
     const pid = c.fork();
     if (pid == 0) {
+        resetChildSignals();
         _ = c.setsid();
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
         for (envs) |env| {
             var value_buf: [1024:0]u8 = undefined;
             copyZ(&value_buf, env.value);
@@ -189,7 +206,7 @@ pub fn spawnWithEnv(cmd: []const u8, envs: []const EnvVar) void {
 pub fn spawnProgram(prog: [*:0]const u8) void {
     const pid = c.fork();
     if (pid == 0) {
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        resetChildSignals();
         _ = c.execlp(prog, prog, @as(?[*:0]const u8, null));
         c._exit(127);
     }
@@ -198,10 +215,20 @@ pub fn spawnProgram(prog: [*:0]const u8) void {
 pub fn spawnProgramArg(prog: [*:0]const u8, arg: [*:0]const u8) void {
     const pid = c.fork();
     if (pid == 0) {
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
+        resetChildSignals();
         _ = c.execlp(prog, prog, arg, @as(?[*:0]const u8, null));
         c._exit(127);
     }
+}
+
+/// Tell a surface the scale of the output it is about to appear on. This must
+/// run after the client has created its fractional-scale object (initial
+/// commit), otherwise the preferred_scale event has nowhere to go and a new
+/// window starts at scale 1 until some unrelated output change occurs.
+pub fn notifySurfaceScale(out: *Output, surface: *c.wlr_surface) void {
+    const scale = out.wlr.scale;
+    c.wlr_fractional_scale_v1_notify_scale(surface, scale);
+    c.wlr_surface_set_preferred_buffer_scale(surface, @intFromFloat(@ceil(scale)));
 }
 
 pub fn outputBox(server: *Server, out: *Output, box: *c.wlr_box) void {

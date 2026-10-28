@@ -161,10 +161,7 @@ fn start(out: *Output, command: []const u8, hash: u64) bool {
         _ = c.dup2(fds[1], 0);
         _ = c.dup2(fds[1], 1);
         if (fds[1] > 2) _ = c.close(fds[1]);
-        _ = c.signal(c.SIGCHLD, c.SIG_DFL);
-        _ = c.signal(c.SIGINT, c.SIG_DFL);
-        _ = c.signal(c.SIGTERM, c.SIG_DFL);
-        _ = c.signal(c.SIGPIPE, c.SIG_DFL);
+        core.resetChildSignals();
         _ = c.setsid();
         _ = c.execl("/bin/sh", "/bin/sh", "-c", command_z.ptr, @as(?[*:0]const u8, null));
         c._exit(127);

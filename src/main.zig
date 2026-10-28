@@ -20,7 +20,7 @@ const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
 
-pub const version = "0.2.0";
+pub const version = "0.2.1";
 
 fn onSignal(sig: c_int, data: ?*anyopaque) callconv(.c) c_int {
     _ = sig;
@@ -39,6 +39,20 @@ fn addSocket(server: *Server) ?[*:0]const u8 {
     return c.wl_display_add_socket_auto(server.display);
 }
 
+fn displayNumber(display: []const u8) ?u8 {
+    if (display.len < 2 or display[0] != ':') return null;
+    var n: u16 = 0;
+    var digits: usize = 0;
+    for (display[1..]) |ch| {
+        if (ch < '0' or ch > '9') break;
+        n = n * 10 + (ch - '0');
+        digits += 1;
+        if (n > 63) return null;
+    }
+    if (digits == 0) return null;
+    return @intCast(n);
+}
+
 fn displaySocketExists(n: u8) bool {
     var path_buf: [64:0]u8 = undefined;
     const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return true;
@@ -48,9 +62,65 @@ fn displaySocketExists(n: u8) bool {
     return c.access(lock_path, c.F_OK) == 0;
 }
 
+fn xDisplayReady(display: []const u8) bool {
+    const n = displayNumber(display) orelse return false;
+    var path_buf: [64:0]u8 = undefined;
+    const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return false;
+    return c.access(path, c.F_OK) == 0;
+}
+
+fn stopXwaylandTimer(server: *Server) void {
+    if (server.xwayland_timer) |src| {
+        _ = c.wl_event_source_remove(src);
+        server.xwayland_timer = null;
+    }
+}
+
+fn finishStartup(server: *Server) void {
+    if (!server.startup_pending) return;
+    server.startup_pending = false;
+    if (c.getenv("TESSA_STARTUP")) |cmd| {
+        core.spawn(core.cstr(cmd));
+    }
+    events.emit(server, .{ .name = event_names.startup });
+    core.markDirty(server);
+}
+
+fn onXwaylandReady(data: ?*anyopaque) callconv(.c) c_int {
+    const server: *Server = @ptrCast(@alignCast(data.?));
+    const display = server.xwayland_display[0..server.xwayland_display_len];
+
+    if (xDisplayReady(display)) {
+        stopXwaylandTimer(server);
+        var display_z: [34:0]u8 = undefined;
+        core.copyZ(&display_z, display);
+        _ = c.setenv("DISPLAY", &display_z, 1);
+        core.logInfo("xwayland: connected on {s}", .{display});
+        xim.init(server, display);
+        finishStartup(server);
+        return 0;
+    }
+
+    server.xwayland_attempts += 1;
+    if (server.xwayland_attempts >= 120) {
+        stopXwaylandTimer(server);
+        core.logInfo("xwayland: X socket did not appear; DISPLAY was not set", .{});
+        finishStartup(server);
+        return 0;
+    }
+    if (server.xwayland_timer) |src| _ = c.wl_event_source_timer_update(src, 25);
+    return 0;
+}
+
 fn startXwayland(server: *Server) void {
     if (!server.config.xwayland) return;
     if (c.getenv("TESSA_NO_XWAYLAND") != null) return;
+
+    const bin: [*:0]const u8 = if (c.getenv("TESSA_XWAYLAND_BIN")) |p| p else "xwayland-satellite";
+    if (!core.commandExists(core.cstr(bin))) {
+        core.logInfo("xwayland: '{s}' not found; X11 apps disabled", .{core.cstr(bin)});
+        return;
+    }
 
     var display_buf: [34:0]u8 = undefined;
     var display = server.config.xwayland_display[0..server.config.xwayland_display_len];
@@ -69,19 +139,31 @@ fn startXwayland(server: *Server) void {
             core.logInfo("xwayland: no free X display, disabled", .{});
             return;
         }
-    } else if (display.len < 2 or display[0] != ':') {
+    } else if (displayNumber(display) == null) {
         core.logInfo("xwayland: invalid display '{s}', disabled", .{display});
         return;
     }
 
+    server.xwayland_display_len = @min(display.len, server.xwayland_display.len);
+    @memcpy(server.xwayland_display[0..server.xwayland_display_len], display[0..server.xwayland_display_len]);
+    server.xwayland_attempts = 0;
+
     var display_z: [34:0]u8 = undefined;
     core.copyZ(&display_z, display);
-    _ = c.setenv("DISPLAY", &display_z, 1);
-    xim.init(server, display);
-
-    const bin: [*:0]const u8 = if (c.getenv("TESSA_XWAYLAND_BIN")) |p| p else "xwayland-satellite";
     core.logInfo("starting XWayland on {s}", .{display});
     core.spawnProgramArg(bin, &display_z);
+
+    // xwayland-satellite needs the compositor event loop to service its Wayland
+    // connection. Do not block here: set DISPLAY from a timer only once the X
+    // socket is actually accepting connections.
+    const loop = c.wl_display_get_event_loop(server.display);
+    server.xwayland_timer = c.wl_event_loop_add_timer(loop, onXwaylandReady, server);
+    if (server.xwayland_timer) |src| {
+        _ = c.wl_event_source_timer_update(src, 25);
+    } else {
+        server.xwayland_display_len = 0;
+        core.logInfo("xwayland: could not create readiness timer; DISPLAY was not set", .{});
+    }
 }
 
 pub fn main() !void {
@@ -141,7 +223,7 @@ pub fn main() !void {
     server.tree_overlay = c.wlr_scene_tree_create(&server.scene.tree);
     window_effects.configure(server);
 
-    _ = c.wlr_compositor_create(server.display, 5, server.renderer);
+    _ = c.wlr_compositor_create(server.display, 6, server.renderer);
     _ = c.wlr_subcompositor_create(server.display);
     _ = c.wlr_data_device_manager_create(server.display);
     if (c.wlr_data_control_manager_v1_create(server.display) != null) {
@@ -215,14 +297,12 @@ pub fn main() !void {
         core.logInfo("panels will be started per output", .{});
     }
 
+    server.startup_pending = true;
     startXwayland(server);
 
-    if (c.getenv("TESSA_STARTUP")) |cmd| {
-        core.spawn(core.cstr(cmd));
-    }
-
-    events.emit(server, .{ .name = event_names.startup });
-    core.markDirty(server);
+    // With XWayland enabled, run startup hooks only after the satellite's X
+    // socket exists so X11-aware startup commands see DISPLAY/XMODIFIERS.
+    if (server.xwayland_timer == null) finishStartup(server);
     c.wl_display_run(server.display);
 
     core.logInfo("shutting down", .{});

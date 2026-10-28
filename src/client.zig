@@ -293,6 +293,7 @@ fn onCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 
     if (tBase(client.xdg).initial_commit) {
         copyMeta(client);
+        core.notifySurfaceScale(client.output, tSurface(client.xdg));
         layout.setProvisionalSize(client);
     }
 

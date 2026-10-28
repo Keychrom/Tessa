@@ -108,9 +108,7 @@ fn notifyNodeScale(out: *Output, node: *c.wlr_scene_node) void {
     const buffer: *c.wlr_scene_buffer = @ptrCast(@alignCast(scene_surface.buffer));
     if (buffer.primary_output != out.scene_output) return;
 
-    const scale = out.wlr.scale;
-    c.wlr_fractional_scale_v1_notify_scale(scene_surface.surface, scale);
-    c.wlr_surface_set_preferred_buffer_scale(scene_surface.surface, @intFromFloat(@ceil(scale)));
+    core.notifySurfaceScale(out, scene_surface.surface);
 }
 
 fn onOutputCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -678,6 +676,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         out.full.y,
     });
 
+    rules.applyOutputPolicy(server, out);
     if (server.focused_output == null) server.focused_output = out;
     core.spawnPanel(server, out);
 
@@ -723,6 +722,10 @@ fn scheduleLayerVisuals(ls: *LayerSurface) void {
 fn onLayerCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const ls: *LayerSurface = @fieldParentPtr("commit", listener.?);
+
+    if (ls.wlr.initial_commit) {
+        core.notifySurfaceScale(ls.output, lSurface(ls.wlr));
+    }
 
     if (ls.wlr.initialized) {
         const target = layerTree(ls.server, ls.wlr.current.layer);

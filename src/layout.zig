@@ -1107,6 +1107,7 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
         cur.ws = out.active_ws;
         out.last_focused[cur.ws] = cur;
         server.focused_output = out;
+        core.notifySurfaceScale(out, tSurface(cur.xdg));
         arrangeOutput(server, old_out);
         arrangeOutput(server, out);
         focusClient(server, cur);
@@ -1231,6 +1232,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
             cl.float_y += target_out.full.y - out.full.y;
         }
         cl.output = target_out;
+        core.notifySurfaceScale(target_out, tSurface(cl.xdg));
     }
     cl.ws = ws;
     detachFromGroup(cl);

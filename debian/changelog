@@ -1,3 +1,20 @@
+tessa (0.2.1) unstable; urgency=medium
+
+  * Reset inherited signal masks and ignored dispositions in every spawned
+    child, including terminals, panels, layout helpers, and XWayland.
+  * Publish DISPLAY only after the xwayland-satellite X socket exists, and
+    leave DISPLAY/XMODIFIERS untouched when the satellite is unavailable.
+  * Advertise wl_compositor v6 and notify new toplevels and layer surfaces of
+    their initial fractional scale, including clients started after startup.
+  * Apply output rules when an output is added, and detach tracked libinput
+    device listeners during shutdown.
+  * Add spawn-signal, XWayland readiness, late fractional-scale, and Kitty
+    startup regression tests.
+  * Expand terminal troubleshooting for Kitty EGL failures and immediate
+    command exits on virtual machines.
+
+ -- Tessa contributors <maintainers@tessa.invalid>  Thu, 29 Oct 2026 03:45:00 +0900
+
 tessa (0.2.0) unstable; urgency=medium
 
   * Set a default cursor at session startup and fall back to the system

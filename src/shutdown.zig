@@ -1,6 +1,7 @@
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const layout_helper = @import("layout_helper.zig");
+const input = @import("input.zig");
 const gestures = @import("gestures.zig");
 const touch = @import("touch.zig");
 const tablet = @import("tablet.zig");
@@ -17,6 +18,7 @@ const Server = types.Server;
 /// are destroyed; client-owned listeners are already gone by this point.
 pub fn cleanupGlobals(server: *Server) void {
     layout_helper.deinit(server);
+    input.cleanupTrackedInputs(server);
     var i: usize = 0;
     while (i < server.outputs.len) : (i += 1) {
         const out = server.outputs[i] orelse continue;
@@ -116,6 +118,10 @@ pub fn cleanupGlobals(server: *Server) void {
     tablet.cleanup(server);
     constraints.cleanup(server);
     effects.cleanup(server);
+    if (server.xwayland_timer) |src| {
+        _ = c.wl_event_source_remove(src);
+        server.xwayland_timer = null;
+    }
     xim.cleanup(server);
     modes.cleanup(server);
     config_watch.deinit(server);

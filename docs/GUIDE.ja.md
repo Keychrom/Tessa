@@ -80,15 +80,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 バイナリパッケージ（Ubuntu 26.04）
 
-推奨は `v0.2.0` の amd64 パッケージです:
+推奨は `v0.2.1` の amd64 パッケージです:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
-grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
+grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.1_amd64.deb
 ```
 
 パッケージが導入するもの:
@@ -1812,23 +1812,52 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.0 は既定ターミナルが見つからない場合、`foot`、`kitty`、
+Tessa 0.2.1 は既定ターミナルが見つからない場合、`foot`、`kitty`、
 `alacritty`、`wezterm`、`xterm` の順で解決し、使用したコマンドをログに
 出します。明示的に設定した `terminal = ...` は置き換えません。Kitty は
 EGL/GL が必要なので、GPU のない VM では `foot` を使うか
 `terminal = foot` を設定してください。コンポジタの起動失敗と決めつけず、
 ターミナル自身のstderrとTessaのログを確認してください。
 
+### Kitty が一瞬表示されて終了する
+
+ウィンドウが map された直後に消える場合、多くの場合は Tessa が unmap
+したのではなく、Kitty 本体または Kitty 内のシェルが終了しています。同じ
+セッション内の `foot` から確認してください:
+
+```sh
+tessa-ctl spawn foot
+WAYLAND_DEBUG=1 kitty
+```
+
+- **Tessa のログに `new toplevel` が無い:** コマンドが接続していません。
+  `terminal`、`PATH`、ランチャー項目を確認してください。
+- **`new toplevel` の後にウィンドウが消える:** Kitty が終了しています。
+  Kitty の出力で EGL、GBM、DBus、シェル起動のエラーを確認してください。
+  3D の動かない VM では `foot` を使ってください。
+  `LIBGL_ALWAYS_SOFTWARE=1` は Mesa のソフトウェア EGL が入っている場合だけ
+  有効です。
+- **`Terminal=true` のデスクトップエントリがコマンド終了直後に閉じる:**
+  これは仕様です。Tessa は `terminal sh -c '<command>'` として起動するため、
+  一瞬で終わるコマンドはターミナルも一瞬で終了します。`kitty.desktop` は
+  `Terminal=false` です。
+
 ### X11 アプリが起動しない
 
 - `xwayland-satellite` が `PATH` にあるか
 - `TESSA_XWAYLAND_BIN` のパス
 - `xwayland = true`
-- `DISPLAY` が Tessa の子プロセスへ渡っているか
 - `TESSA_NO_XWAYLAND` が設定されていないか
+- ログに `xwayland: '...' not found; X11 apps disabled` が出ていないか
+- ログに `xwayland: connected on :N` が出ているか。Tessa 0.2.1 はこの後に
+  初めて `DISPLAY` を設定します
 
-`xwayland-satellite` が見つからない場合でも Wayland クライアントと
-パネルは動作します。
+サテライトを起動できない場合に架空の `DISPLAY` を設定しないため、X11
+アプリは存在しないサーバーへ接続するのではなく、明確に失敗します。
+`XMODIFIERS` も X ディスプレイが準備できて `xim = true` の場合だけ設定します。
+XWayland が有効な場合、`startup` フックと `TESSA_STARTUP` は準備後に実行される
+ため、`fcitx5 -d` などは X 環境を受け取ります。サテライトが無い場合は即座に
+実行されます。
 
 ### IME が効かない
 
@@ -1836,6 +1865,8 @@ EGL/GL が必要なので、GPU のない VM では `foot` を使うか
 - `XMODIFIERS=@im=fcitx` が X11 クライアントへ渡っているか
 - `xim_start` を使う場合、X ディスプレイの出現後に起動しているか
 - Fcitx5 を二重起動していないか
+- XWayland を無効にしている場合、X ディスプレイが無いため `XMODIFIERS` は
+  意図的に設定されません
 
 ### 画面共有できない
 

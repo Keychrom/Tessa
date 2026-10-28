@@ -78,7 +78,7 @@ a machine with the development packages in `debian/control`:
 ```sh
 sudo apt install debhelper dpkg-dev fakeroot
 ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
-sudo apt install ./dist/tessa_0.2.0_amd64.deb
+sudo apt install ./dist/tessa_0.2.1_amd64.deb
 ```
 
 The script runs `dpkg-buildpackage -b -us -uc -d`, collects the `.deb`,

@@ -30,10 +30,13 @@ fi
 runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-fractional.XXXXXX")
 tpid=
 cpid=
+cpid2=
 cleanup() {
     [ -n "${cpid:-}" ] && kill "$cpid" 2>/dev/null || true
+    [ -n "${cpid2:-}" ] && kill "$cpid2" 2>/dev/null || true
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "$cpid" 2>/dev/null || true
+    wait "$cpid2" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
     pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
@@ -93,33 +96,42 @@ fi
 cpid=$!
 
 wait_client() {
-    pattern=$1
+    log=$1
+    pattern=$2
     i=0
     while [ "$i" -lt 80 ]; do
-        if grep -qF "$pattern" "$runtime/client.log" 2>/dev/null; then
+        if grep -qF "$pattern" "$log" 2>/dev/null; then
             return 0
         fi
         i=$((i + 1))
         sleep 0.1
     done
     echo "client did not report: $pattern" >&2
-    cat "$runtime/client.log" >&2
+    cat "$log" >&2
     cat "$runtime/tessa.log" >&2
     exit 1
 }
 
-wait_client "scale 120"
-wait_client "ready"
+wait_client "$runtime/client.log" "scale 120"
+wait_client "$runtime/client.log" "ready"
 echo "fractional scale advertised: ok"
 
 wlr-randr --output "$name" --scale 1.5
-wait_client "scale 180"
+wait_client "$runtime/client.log" "scale 180"
 wlr-randr | grep -q 'Scale: 1.500000'
 grep -q "output scale: $name 1.50" "$runtime/tessa.log"
 echo "1.5x fractional scale: ok"
 
+# A toplevel created after the output scale last changed must still receive
+# the initial preferred scale before its first buffer is configured.
+"$runtime/build/fractional-scale" >"$runtime/client-late.log" 2>&1 &
+cpid2=$!
+wait_client "$runtime/client-late.log" "scale 180"
+wait_client "$runtime/client-late.log" "ready"
+echo "late toplevel initial scale: ok"
+
 wlr-randr --output "$name" --scale 2
-wait_client "scale 240"
+wait_client "$runtime/client.log" "scale 240"
 echo "2x integer scale: ok"
 
 tessa-ctl quit

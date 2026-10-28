@@ -976,6 +976,11 @@ pub const Server = struct {
     xim_display_len: usize,
     xim_attempts: u32,
     xim_started: bool,
+    xwayland_timer: ?*c.wl_event_source,
+    xwayland_display: [34]u8,
+    xwayland_display_len: usize,
+    xwayland_attempts: u32,
+    startup_pending: bool,
 
     active_ws: usize,
     focused: ?*Client,

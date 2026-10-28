@@ -22,17 +22,17 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 
 ## Ubuntu 26.04 へのインストール
 
-[v0.2.0 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.0)
+[v0.2.1 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.1)
 に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
 バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
-grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
+grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.1_amd64.deb
 ```
 
 `apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
@@ -138,7 +138,7 @@ Arch で **Debug** ビルドを行うと
 
 ## 状態
 
-MVP（`0.2.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
+MVP（`0.2.1`）ですが、日常的に使えるレベルまで中核機能は実装されています。
 
 - Zig による wlroots 0.19 コンポジタ（DRM / headless / ネストした Wayland
   バックエンドを wlroots が自動判定）
@@ -265,13 +265,18 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、
-`tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
+`tests/xim.sh`、`tests/fractional-scale.sh`、`tests/spawn-signals.sh`、
+`tests/xwayland-ready.sh`、`tests/kitty-startup.sh`、
+`tests/xwayland-kitty.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh` で
 検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
-検査し、それ以外ではスキップします。ポータルのテストはポータルと PipeWire がインストール
+検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
+Kitty、`wlr-randr`、`xwayland-satellite` が無い場合にスキップします。
+`tests/xwayland-ready.sh` は偽のサテライトを使うため、`DISPLAY` の準備待ちは
+どの環境でも検証されます。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
 **DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
 [既知の制限](#既知の制限)も参照してください。
