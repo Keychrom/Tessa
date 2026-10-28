@@ -387,6 +387,17 @@ sh tests/window-groups.sh
 sh tests/wallpaper-image.sh
 ```
 
+### ターミナルフォールバックのテスト
+
+`tests/terminal-fallback.sh` は `PATH` から `kitty` を隠し、偽の `foot` を
+用意して、既定ターミナルが `foot` に解決されること、起動時のカーソルログが
+出ること、明示的に指定した存在しない `terminal = ...` は置き換えずに保持する
+ことを確認します。
+
+```sh
+sh tests/terminal-fallback.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

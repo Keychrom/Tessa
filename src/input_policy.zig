@@ -84,7 +84,13 @@ fn applyPointer(handle: *c.libinput_device, rule: *const Rule) void {
         .two_finger => _ = c.libinput_device_config_scroll_set_method(handle, @intCast(c.LIBINPUT_CONFIG_SCROLL_2FG)),
         .edge => _ = c.libinput_device_config_scroll_set_method(handle, @intCast(c.LIBINPUT_CONFIG_SCROLL_EDGE)),
         .button => _ = c.libinput_device_config_scroll_set_method(handle, @intCast(c.LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN)),
-        .circular => _ = c.libinput_device_config_scroll_set_method(handle, @intCast(c.LIBINPUT_CONFIG_SCROLL_CIRCULAR)),
+        .circular => {
+            // libinput 1.32 added circular scrolling; older distributions
+            // compile the option but leave it unsupported at runtime.
+            if (@hasDecl(c, "LIBINPUT_CONFIG_SCROLL_CIRCULAR")) {
+                _ = c.libinput_device_config_scroll_set_method(handle, @intCast(c.LIBINPUT_CONFIG_SCROLL_CIRCULAR));
+            }
+        },
     }
     if (rule.has_scroll_button) {
         _ = c.libinput_device_config_scroll_set_button(handle, rule.scroll_button);

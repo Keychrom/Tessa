@@ -87,11 +87,21 @@ pub fn init(server: *Server) void {
                 core.logInfo("failed to create fallback xcursor manager", .{});
                 return;
             };
-            _ = loadCursor(server.cursor_mgr);
+            if (!loadCursor(server.cursor_mgr)) {
+                core.logInfo("failed to load fallback cursor theme; install an Xcursor theme", .{});
+            }
         } else {
-            core.logInfo("failed to load default cursor theme", .{});
+            core.logInfo("failed to load default cursor theme; install an Xcursor theme", .{});
         }
     }
+    // Layer surfaces such as the wallpaper do not request a cursor shape, so
+    // without an initial default the pointer stays invisible until a client
+    // asks for one.
+    c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+    core.logInfo("cursor theme: {s} size {d}", .{
+        if (server.config.cursor_theme_len > 0) server.config.cursor_theme[0..server.config.cursor_theme_len] else "default",
+        server.config.cursor_size,
+    });
 
     server.seat = c.wlr_seat_create(server.display, "seat0") orelse {
         core.logInfo("failed to create seat", .{});

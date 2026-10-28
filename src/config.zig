@@ -1483,6 +1483,29 @@ fn resolveWorkspaceReferences(server: *Server) void {
     }
 }
 
+fn resolveTerminal(server: *Server) void {
+    const cfg = &server.config;
+    var first = cfg.terminal[0..cfg.terminal_len];
+    if (std.mem.indexOfAny(u8, first, " \t")) |space| first = first[0..space];
+    var first_buf: [128]u8 = undefined;
+    const requested = core.utf8Truncate(first, first_buf.len - 1);
+    @memcpy(first_buf[0..requested.len], requested);
+    const requested_text = first_buf[0..requested.len];
+    if (core.commandExists(requested_text)) return;
+    if (cfg.terminal_explicit) {
+        core.logInfo("terminal: configured command '{s}' was not found in PATH", .{requested_text});
+        return;
+    }
+    const fallbacks = [_][]const u8{ "foot", "kitty", "alacritty", "wezterm", "xterm" };
+    for (fallbacks) |candidate| {
+        if (!core.commandExists(candidate)) continue;
+        core.copyString(&cfg.terminal, &cfg.terminal_len, candidate);
+        core.logInfo("terminal: '{s}' not found; using '{s}'", .{ requested_text, candidate });
+        return;
+    }
+    core.logInfo("terminal: no terminal found; install kitty, foot, alacritty, or xterm", .{});
+}
+
 fn validateAnimationCurves(server: *Server) void {
     const cfg = &server.config;
     const names = [4][]const u8{
@@ -2130,6 +2153,7 @@ fn loadPath(
             }
         } else if (std.mem.eql(u8, key, "terminal")) {
             core.copyString(&server.config.terminal, &server.config.terminal_len, value);
+            server.config.terminal_explicit = true;
         } else if (std.mem.eql(u8, key, "gaps")) {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.gaps = v;
         } else if (std.mem.eql(u8, key, "outer_gaps")) {
@@ -2477,6 +2501,7 @@ pub fn load(server: *Server) void {
 
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
+    resolveTerminal(server);
     resolveProfileReferences(server);
     resolveWorkspaceReferences(server);
     validateAnimationCurves(server);

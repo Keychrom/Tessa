@@ -22,17 +22,17 @@ key, rules, effects, IPC, events, and hooks, see the
 ## Install on Ubuntu 26.04
 
 A prebuilt amd64 package is available on the
-[v0.1.0 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.1.0).
+[v0.2.0 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.2.0).
 This is the recommended install path; Zig and the wlroots development headers
 are not needed for the binary package.
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
-grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
+grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.0_amd64.deb
 ```
 
 `apt` installs the runtime libraries, the compositor, panel, CLI, session
@@ -139,7 +139,7 @@ LLVM/LLD, so update the tree; an older tree can use
 
 ## Status
 
-This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
+This is an MVP (`0.2.0`), but it is usable and the core pieces are implemented:
 
 - wlroots 0.19 compositor in Zig (DRM, headless, and nested backends via
   wlroots' autodetection)
@@ -936,6 +936,10 @@ These are real and important:
   the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
   pointer behavior, per-device libinput tuning, VRR/adaptive-sync, and DRM mode
   setting still need a physical test pass.
+- **Kitty needs working EGL/GL.** On virtual machines without GPU acceleration,
+  Kitty may fail to create a window even when Tessa runs. Use `foot`, software
+  Mesa, or `terminal = foot`. Tessa falls back to foot only when Kitty is not
+  installed.
 - **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
   the exact output scale, including runtime changes. The panel still uses an
   integer Cairo buffer scale, so fractional scales are downsampled there, and

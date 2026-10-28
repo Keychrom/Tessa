@@ -78,15 +78,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 Binary package (Ubuntu 26.04)
 
-The recommended install uses the `v0.1.0` amd64 package:
+The recommended install uses the `v0.2.0` amd64 package:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
-grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
+grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.0_amd64.deb
 ```
 
 The package installs:
@@ -1733,6 +1733,38 @@ Manual start:
 ```sh
 TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 ```
+
+### Cursor is missing
+
+Tessa 0.1.0 did not set a default cursor before a client requested a shape,
+so the pointer could stay invisible over the wallpaper or bar. 0.2.0 sets the
+default cursor at startup. Also install an Xcursor theme on minimal systems:
+
+```sh
+sudo apt install xcursor-themes
+```
+
+The `tessa` package now depends on `xcursor-themes`. If a configured
+`cursor_theme` cannot be loaded, Tessa logs a warning and falls back to the
+system cursor; check `~/.local/state/tessa/tessa.log` or the compositor output.
+
+### Terminal does not start
+
+The default terminal is `kitty`, but older packages only suggested it and did
+not install it. Install a terminal:
+
+```sh
+sudo apt install kitty
+# or, especially on a VM without working 3D acceleration:
+sudo apt install foot
+```
+
+Tessa 0.2.0 resolves a missing default terminal through `foot`, `kitty`,
+`alacritty`, `wezterm`, then `xterm`, and logs which command it uses. An
+explicitly configured `terminal = ...` is never replaced. Kitty needs a working
+EGL/GL stack; on virtual machines without GPU acceleration use `foot` or set
+`terminal = foot`. Check the terminal's stderr and Tessa's log before assuming
+the compositor failed to spawn it.
 
 ### X11 apps do not start
 

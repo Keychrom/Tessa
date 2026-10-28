@@ -470,6 +470,17 @@ pixels. It skips when `grim` is unavailable.
 sh tests/wallpaper-image.sh
 ```
 
+### Terminal fallback test
+
+`tests/terminal-fallback.sh` hides `kitty` from `PATH`, provides a fake `foot`,
+and verifies that the default terminal resolves to `foot`, that the startup
+cursor log is emitted, and that an explicit missing `terminal = ...` is kept
+instead of being replaced.
+
+```sh
+sh tests/terminal-fallback.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

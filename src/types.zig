@@ -449,6 +449,7 @@ pub const StatusEntry = struct {
 pub const Config = struct {
     terminal: [128]u8,
     terminal_len: usize,
+    terminal_explicit: bool,
     gaps: i32,
     outer_gaps: i32,
     border_width: i32,

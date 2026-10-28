@@ -459,6 +459,7 @@ pub const Panel = struct {
     font_len: usize = 0,
     terminal: [128]u8 = undefined,
     terminal_len: usize = 0,
+    terminal_explicit: bool = false,
 };
 
 pub var g: Panel = undefined;
@@ -813,6 +814,7 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             parseThemeRole(val);
         } else if (std.mem.eql(u8, key, "terminal")) {
             copyTrunc(&g.terminal, &g.terminal_len, val);
+            g.terminal_explicit = true;
         } else if (std.mem.eql(u8, key, "font")) {
             copyTrunc(&g.font, &g.font_len, val);
         } else if (std.mem.eql(u8, key, "accent")) {
@@ -908,8 +910,52 @@ fn loadWallpaperImage() void {
     });
 }
 
+fn panelCommandExists(cmd: []const u8) bool {
+    if (cmd.len == 0) return false;
+    if (std.mem.indexOfScalar(u8, cmd, '/') != null) {
+        var z: [512:0]u8 = undefined;
+        if (cmd.len >= z.len) return false;
+        @memcpy(z[0..cmd.len], cmd);
+        z[cmd.len] = 0;
+        return c.access(&z, c.X_OK) == 0;
+    }
+    const path = c.getenv("PATH") orelse return false;
+    var it = std.mem.splitScalar(u8, std.mem.span(path), ':');
+    while (it.next()) |dir| {
+        if (dir.len == 0) continue;
+        var z: [1024:0]u8 = undefined;
+        const line = std.fmt.bufPrint(&z, "{s}/{s}", .{ dir, cmd }) catch continue;
+        z[line.len] = 0;
+        if (c.access(&z, c.X_OK) == 0) return true;
+    }
+    return false;
+}
+
+fn resolveTerminal() void {
+    var first = g.terminal[0..g.terminal_len];
+    if (std.mem.indexOfAny(u8, first, " \t")) |space| first = first[0..space];
+    var first_buf: [128]u8 = undefined;
+    const requested = first[0..@min(first.len, first_buf.len)];
+    @memcpy(first_buf[0..requested.len], requested);
+    const requested_text = first_buf[0..requested.len];
+    if (panelCommandExists(requested_text)) return;
+    if (g.terminal_explicit) {
+        std.debug.print("tessa-panel: configured terminal '{s}' was not found in PATH\n", .{requested_text});
+        return;
+    }
+    const fallbacks = [_][]const u8{ "foot", "kitty", "alacritty", "wezterm", "xterm" };
+    for (fallbacks) |candidate| {
+        if (!panelCommandExists(candidate)) continue;
+        copyTrunc(&g.terminal, &g.terminal_len, candidate);
+        std.debug.print("tessa-panel: terminal '{s}' not found; using '{s}'\n", .{ requested_text, candidate });
+        return;
+    }
+    std.debug.print("tessa-panel: no terminal found; launcher Terminal apps will not start\n", .{});
+}
+
 pub fn loadConfig() void {
     copyTrunc(&g.terminal, &g.terminal_len, "kitty");
+    g.terminal_explicit = false;
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.accent = .{ 0.886, 0.408, 0.31 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
@@ -950,6 +996,7 @@ pub fn loadConfig() void {
         path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
     }
     if (path.len > 0) loadConfigFile(path, 0);
+    resolveTerminal();
     applyThemeRoles();
     applyOutputTheme();
     loadWallpaperImage();

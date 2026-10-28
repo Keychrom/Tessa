@@ -6,7 +6,7 @@ pkgdesc="A quiet tiled Wayland compositor and desktop shell written in Zig"
 arch=('x86_64')
 url="https://github.com/Keychrom/Tessa"
 license=('MIT')
-depends=('wlroots0.19' 'wayland' 'libxkbcommon' 'pixman' 'cairo' 'pango' 'glib2')
+depends=('wlroots0.19' 'wayland' 'libinput' 'libxkbcommon' 'pixman' 'cairo' 'pango' 'glib2' 'xcursor-themes')
 makedepends=('git' 'zig0.16')
 optdepends=(
     'xwayland-satellite-git: run X11 applications'

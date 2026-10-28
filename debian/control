@@ -27,9 +27,9 @@ Homepage: https://github.com/Keychrom/Tessa
 
 Package: tessa
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Recommends: xwayland-satellite
-Suggests: foot | kitty, swaylock, swayidle, wlopm, dbus,
+Depends: ${shlibs:Depends}, ${misc:Depends}, xcursor-themes
+Recommends: xwayland-satellite, foot | kitty
+Suggests: kitty, swaylock, swayidle, wlopm, dbus,
           xdg-desktop-portal, xdg-desktop-portal-wlr, pipewire
 Description: quiet tiled Wayland compositor and desktop shell
  Tessa is a wlroots-based tiled Wayland compositor written in Zig. It includes

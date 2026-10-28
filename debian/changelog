@@ -1,5 +1,15 @@
-tessa (0.1.0) unstable; urgency=medium
+tessa (0.2.0) unstable; urgency=medium
 
-  * Initial packaging for Tessa 0.1.0.
+  * Set a default cursor at session startup and fall back to the system
+    theme when a configured Xcursor theme is unavailable.
+  * Add per-device libinput rules, cursor theme/size, monitor EDID matching,
+    and VRR/adaptive-sync output policy.
+  * Add named workspaces, a per-output scratchpad, tabbed window groups, and
+    PNG wallpaper images.
+  * Resolve a missing default terminal to foot/kitty/alacritty/wezterm/xterm
+    instead of silently failing, and recommend a terminal in the package.
+  * Depend on xcursor-themes so minimal systems have a visible pointer.
+  * Include the current window-rule, layer-rule, motion, layout-helper v2,
+    shell, documentation, and test updates from 0.2.
 
- -- Tessa contributors <maintainers@tessa.invalid>  Mon, 26 Oct 2026 00:00:00 +0000
+ -- Tessa contributors <maintainers@tessa.invalid>  Thu, 29 Oct 2026 00:00:00 +0000

@@ -20,7 +20,7 @@ const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
 
-pub const version = "0.1.0";
+pub const version = "0.2.0";
 
 fn onSignal(sig: c_int, data: ?*anyopaque) callconv(.c) c_int {
     _ = sig;

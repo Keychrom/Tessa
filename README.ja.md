@@ -22,17 +22,17 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 
 ## Ubuntu 26.04 へのインストール
 
-[v0.1.0 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.1.0)
+[v0.2.0 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.0)
 に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
 バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
-grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
+grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.0_amd64.deb
 ```
 
 `apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
@@ -138,7 +138,7 @@ Arch で **Debug** ビルドを行うと
 
 ## 状態
 
-MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
+MVP（`0.2.0`）ですが、日常的に使えるレベルまで中核機能は実装されています。
 
 - Zig による wlroots 0.19 コンポジタ（DRM / headless / ネストした Wayland
   バックエンドを wlroots が自動判定）
@@ -963,6 +963,10 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   `wtype` / Fcitx5 とソフトウェアレンダリングを使って行っています。実際の
   ポインタ操作、デバイス別 libinput 設定、VRR/Adaptive Sync、DRM モード設定は
   物理環境でのテストが必要です。
+- **Kitty は EGL/GL が必要。** GPU アクセラレーションのない VM では、Tessa が
+  動作していても Kitty がウィンドウを作れないことがあります。`foot`、
+  ソフトウェア Mesa、または `terminal = foot` を使ってください。Tessa が
+  foot へ自動フォールバックするのは Kitty が見つからない場合だけです。
 - **フラクショナルスケーリングは部分的。** フラクショナル対応の Wayland
   クライアントには実行中の変更を含めて正確な出力スケールが通知されます。
   パネルは Cairo の整数バッファスケールを使うため、フラクショナルでは

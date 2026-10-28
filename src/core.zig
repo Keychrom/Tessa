@@ -132,6 +132,26 @@ pub fn spawnPanel(server: *Server, out: *Output) void {
     logInfo("starting panel for {s}", .{outputName(out)});
 }
 
+pub fn commandExists(cmd: []const u8) bool {
+    if (cmd.len == 0) return false;
+    if (std.mem.indexOfScalar(u8, cmd, '/') != null) {
+        var z: [512:0]u8 = undefined;
+        if (cmd.len >= z.len) return false;
+        copyZ(&z, cmd);
+        return c.access(&z, c.X_OK) == 0;
+    }
+    const path = c.getenv("PATH") orelse return false;
+    var it = std.mem.splitScalar(u8, cstr(path), ':');
+    while (it.next()) |dir| {
+        if (dir.len == 0) continue;
+        var z: [1024:0]u8 = undefined;
+        const line = std.fmt.bufPrint(&z, "{s}/{s}", .{ dir, cmd }) catch continue;
+        z[line.len] = 0;
+        if (c.access(&z, c.X_OK) == 0) return true;
+    }
+    return false;
+}
+
 pub fn spawn(cmd: []const u8) void {
     var buf: [2048]u8 = undefined;
     const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;

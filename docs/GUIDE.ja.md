@@ -80,15 +80,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 バイナリパッケージ（Ubuntu 26.04）
 
-推奨は `v0.1.0` の amd64 パッケージです:
+推奨は `v0.2.0` の amd64 パッケージです:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/tessa_0.1.0_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.1.0/SHA256SUMS
-grep ' tessa_0.1.0_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.1.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/tessa_0.2.0_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.0/SHA256SUMS
+grep ' tessa_0.2.0_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.0_amd64.deb
 ```
 
 パッケージが導入するもの:
@@ -1784,6 +1784,40 @@ Zig 0.16 のセルフホストリンカーは、Arch の glibc 2.43 / GCC 16 が
 ```sh
 TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 ```
+
+### カーソルが見えない
+
+Tessa 0.1.0 はクライアントがカーソル形状を要求するまでデフォルトカーソルを
+設定していなかったため、壁紙やバーの上でポインタが見えないことがありました。
+0.2.0 は起動時にデフォルトカーソルを設定します。最小構成ではXcursorテーマも
+導入してください:
+
+```sh
+sudo apt install xcursor-themes
+```
+
+`tessa` パッケージは `xcursor-themes` に依存するようになりました。設定した
+`cursor_theme` を読み込めない場合は警告をログに出し、システムカーソルへ
+フォールバックします。`~/.local/state/tessa/tessa.log` またはコンポジタの
+出力を確認してください。
+
+### ターミナルが起動しない
+
+既定のターミナルは `kitty` ですが、旧パッケージでは `Suggests` 扱いで自動
+インストールされませんでした。ターミナルを導入してください:
+
+```sh
+sudo apt install kitty
+# 3D アクセラレーションのない VM では foot が確実です
+sudo apt install foot
+```
+
+Tessa 0.2.0 は既定ターミナルが見つからない場合、`foot`、`kitty`、
+`alacritty`、`wezterm`、`xterm` の順で解決し、使用したコマンドをログに
+出します。明示的に設定した `terminal = ...` は置き換えません。Kitty は
+EGL/GL が必要なので、GPU のない VM では `foot` を使うか
+`terminal = foot` を設定してください。コンポジタの起動失敗と決めつけず、
+ターミナル自身のstderrとTessaのログを確認してください。
 
 ### X11 アプリが起動しない
 
