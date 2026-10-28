@@ -40,6 +40,35 @@ fn loadCursor(manager: *c.wlr_xcursor_manager) bool {
     return c.wlr_xcursor_manager_load(manager, 1);
 }
 
+/// wlroots falls back from "default" to "left_ptr", but themes and older
+/// wlroots revisions are not consistent about that alias. Pick a name that is
+/// actually present so a theme cannot leave the cursor image empty.
+fn defaultCursorName(manager: *c.wlr_xcursor_manager) [*:0]const u8 {
+    const candidates = [_][*:0]const u8{ "default", "left_ptr", "arrow" };
+    for (candidates) |name| {
+        if (c.wlr_xcursor_manager_get_xcursor(manager, name, 1) != null) {
+            return name;
+        }
+    }
+    return "default";
+}
+
+fn setDefaultCursor(server: *Server) void {
+    const manager = server.cursor_mgr;
+    c.wlr_cursor_set_xcursor(server.cursor, manager, defaultCursorName(manager));
+}
+
+fn logCursorSelection(server: *Server, manager: *c.wlr_xcursor_manager) void {
+    core.logInfo("cursor theme: {s} size {d}", .{
+        if (server.config.cursor_theme_len > 0) server.config.cursor_theme[0..server.config.cursor_theme_len] else "default",
+        server.config.cursor_size,
+    });
+    const name = defaultCursorName(manager);
+    if (!std.mem.eql(u8, core.cstr(name), "default")) {
+        core.logInfo("cursor: theme has no 'default' cursor; using '{s}'", .{core.cstr(name)});
+    }
+}
+
 fn reloadCursor(server: *Server) void {
     const manager = createCursorManager(server) orelse {
         core.logInfo("cursor theme: failed to create manager for '{s}'", .{
@@ -55,14 +84,11 @@ fn reloadCursor(server: *Server) void {
         });
         return;
     }
-    c.wlr_cursor_set_xcursor(server.cursor, manager, "default");
+    c.wlr_cursor_set_xcursor(server.cursor, manager, defaultCursorName(manager));
     const old = server.cursor_mgr;
     server.cursor_mgr = manager;
     c.wlr_xcursor_manager_destroy(old);
-    core.logInfo("cursor theme: {s} size {d}", .{
-        if (server.config.cursor_theme_len > 0) server.config.cursor_theme[0..server.config.cursor_theme_len] else "default",
-        server.config.cursor_size,
-    });
+    logCursorSelection(server, manager);
 }
 
 pub fn init(server: *Server) void {
@@ -97,11 +123,8 @@ pub fn init(server: *Server) void {
     // Layer surfaces such as the wallpaper do not request a cursor shape, so
     // without an initial default the pointer stays invisible until a client
     // asks for one.
-    c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
-    core.logInfo("cursor theme: {s} size {d}", .{
-        if (server.config.cursor_theme_len > 0) server.config.cursor_theme[0..server.config.cursor_theme_len] else "default",
-        server.config.cursor_size,
-    });
+    setDefaultCursor(server);
+    logCursorSelection(server, server.cursor_mgr);
 
     server.seat = c.wlr_seat_create(server.display, "seat0") orelse {
         core.logInfo("failed to create seat", .{});
@@ -713,11 +736,21 @@ fn processMotion(server: *Server, time_msec: u32) void {
     var sy: f64 = 0;
     const surface = sceneSurfaceAt(server, server.cursor.x, server.cursor.y, &sx, &sy);
     if (surface) |surf| {
+        // A client can leave its cursor surface unset (or clear it while
+        // leaving) before the pointer enters a layer surface such as the panel.
+        // Restore the compositor's cursor when entering a layer surface so the
+        // panel and desktop never inherit an invisible cursor.
+        if (server.seat.pointer_state.focused_surface != surf and
+            c.wlr_layer_surface_v1_try_from_wlr_surface(surf) != null)
+        {
+            core.logDebug("cursor: restored default on layer focus", .{});
+            setDefaultCursor(server);
+        }
         c.wlr_seat_pointer_notify_enter(server.seat, surf, sx, sy);
         c.wlr_seat_pointer_notify_motion(server.seat, time_msec, sx, sy);
     } else {
         c.wlr_seat_pointer_clear_focus(server.seat);
-        c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+        setDefaultCursor(server);
     }
 }
 

@@ -78,15 +78,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 Binary package (Ubuntu 26.04)
 
-The recommended install uses the `v0.2.1` amd64 package:
+The recommended install uses the `v0.2.2` amd64 package:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
-grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
+grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.2_amd64.deb
 ```
 
 The package installs:
@@ -1738,15 +1738,32 @@ TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 
 Tessa 0.1.0 did not set a default cursor before a client requested a shape,
 so the pointer could stay invisible over the wallpaper or bar. 0.2.0 sets the
-default cursor at startup. Also install an Xcursor theme on minimal systems:
+default cursor at startup. 0.2.2 also restores it when the pointer enters a
+layer surface such as the panel or wallpaper after a client has cleared its
+cursor. No `wlr_cursor_warp_closest` or manual output-init refresh is needed;
+wlroots applies the cursor image when an output is added.
+
+Install an Xcursor theme on minimal systems:
 
 ```sh
 sudo apt install xcursor-themes
+# Optional modern theme:
+sudo apt install adwaita-icon-theme
 ```
 
-The `tessa` package now depends on `xcursor-themes`. If a configured
-`cursor_theme` cannot be loaded, Tessa logs a warning and falls back to the
-system cursor; check `~/.local/state/tessa/tessa.log` or the compositor output.
+The `tessa` package depends on `xcursor-themes`. Some legacy themes only provide
+`left_ptr`; Tessa 0.2.2 checks `default`, `left_ptr`, and `arrow` and logs which
+name it selected. If a configured `cursor_theme` cannot be loaded, Tessa logs a
+warning and falls back to the system cursor; check
+`~/.local/state/tessa/tessa.log` or the compositor output.
+
+On a virtual machine, a broken DRM cursor plane can hide a correctly loaded
+cursor. `tessa-session` sets `WLR_NO_HARDWARE_CURSORS=1` automatically when
+`systemd-detect-virt` reports a VM. When launching Tessa directly, use:
+
+```sh
+WLR_NO_HARDWARE_CURSORS=1 tessa
+```
 
 ### Terminal does not start
 
@@ -1759,7 +1776,7 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.1 resolves a missing default terminal through `foot`, `kitty`,
+Tessa 0.2.2 resolves a missing default terminal through `foot`, `kitty`,
 `alacritty`, `wezterm`, then `xterm`, and logs which command it uses. An
 explicitly configured `terminal = ...` is never replaced. Kitty needs a working
 EGL/GL stack; on virtual machines without GPU acceleration use `foot` or set
@@ -1794,7 +1811,7 @@ WAYLAND_DEBUG=1 kitty
 - Is `xwayland = true`?
 - Is `TESSA_NO_XWAYLAND` set?
 - Does the log contain `xwayland: '...' not found; X11 apps disabled`?
-- Does the log contain `xwayland: connected on :N`? Tessa 0.2.1 sets `DISPLAY`
+- Does the log contain `xwayland: connected on :N`? Tessa 0.2.2 sets `DISPLAY`
   only after this point.
 
 Tessa does not invent a `DISPLAY` value when the satellite cannot start, so an

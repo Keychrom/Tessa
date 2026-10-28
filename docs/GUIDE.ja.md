@@ -80,15 +80,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 バイナリパッケージ（Ubuntu 26.04）
 
-推奨は `v0.2.1` の amd64 パッケージです:
+推奨は `v0.2.2` の amd64 パッケージです:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
-grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
+grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.2_amd64.deb
 ```
 
 パッケージが導入するもの:
@@ -1789,17 +1789,34 @@ TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 
 Tessa 0.1.0 はクライアントがカーソル形状を要求するまでデフォルトカーソルを
 設定していなかったため、壁紙やバーの上でポインタが見えないことがありました。
-0.2.0 は起動時にデフォルトカーソルを設定します。最小構成ではXcursorテーマも
-導入してください:
+0.2.0 は起動時にデフォルトカーソルを設定します。0.2.2 はさらに、クライアントが
+カーソルをクリアした後にパネルや壁紙などの layer surface へポインタが入った
+時点で既定カーソルを復元します。wlroots は出力追加時にカーソル画像を適用する
+ため、`wlr_cursor_warp_closest` や出力初期化後の手動再設定は不要です。
+
+最小構成ではXcursorテーマも導入してください:
 
 ```sh
 sudo apt install xcursor-themes
+# モダンなテーマを使う場合
+sudo apt install adwaita-icon-theme
 ```
 
-`tessa` パッケージは `xcursor-themes` に依存するようになりました。設定した
-`cursor_theme` を読み込めない場合は警告をログに出し、システムカーソルへ
-フォールバックします。`~/.local/state/tessa/tessa.log` またはコンポジタの
+`tessa` パッケージは `xcursor-themes` に依存するようになりました。古いテーマに
+は `default` が無く `left_ptr` だけのものがありますが、Tessa 0.2.2 は
+`default`、`left_ptr`、`arrow` の順で利用可能な名前を選び、ログに出します。
+設定した `cursor_theme` を読み込めない場合は警告をログに出し、システムカーソル
+へフォールバックします。`~/.local/state/tessa/tessa.log` またはコンポジタの
 出力を確認してください。
+
+仮想マシンでは DRM のハードウェアカーソルプレーンが透明になることがあります。
+`tessa-session` は `systemd-detect-virt` が VM を検出した場合、
+`WLR_NO_HARDWARE_CURSORS=1` を自動設定します。直接起動する場合は次を使って
+ください:
+
+```sh
+WLR_NO_HARDWARE_CURSORS=1 tessa
+```
 
 ### ターミナルが起動しない
 
@@ -1812,7 +1829,7 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.1 は既定ターミナルが見つからない場合、`foot`、`kitty`、
+Tessa 0.2.2 は既定ターミナルが見つからない場合、`foot`、`kitty`、
 `alacritty`、`wezterm`、`xterm` の順で解決し、使用したコマンドをログに
 出します。明示的に設定した `terminal = ...` は置き換えません。Kitty は
 EGL/GL が必要なので、GPU のない VM では `foot` を使うか
@@ -1849,7 +1866,7 @@ WAYLAND_DEBUG=1 kitty
 - `xwayland = true`
 - `TESSA_NO_XWAYLAND` が設定されていないか
 - ログに `xwayland: '...' not found; X11 apps disabled` が出ていないか
-- ログに `xwayland: connected on :N` が出ているか。Tessa 0.2.1 はこの後に
+- ログに `xwayland: connected on :N` が出ているか。Tessa 0.2.2 はこの後に
   初めて `DISPLAY` を設定します
 
 サテライトを起動できない場合に架空の `DISPLAY` を設定しないため、X11

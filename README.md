@@ -22,17 +22,17 @@ key, rules, effects, IPC, events, and hooks, see the
 ## Install on Ubuntu 26.04
 
 A prebuilt amd64 package is available on the
-[v0.2.1 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.2.1).
+[v0.2.2 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.2.2).
 This is the recommended install path; Zig and the wlroots development headers
 are not needed for the binary package.
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
-grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
+grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.2_amd64.deb
 ```
 
 `apt` installs the runtime libraries, the compositor, panel, CLI, session
@@ -139,7 +139,7 @@ LLVM/LLD, so update the tree; an older tree can use
 
 ## Status
 
-This is an MVP (`0.2.1`), but it is usable and the core pieces are implemented:
+This is an MVP (`0.2.2`), but it is usable and the core pieces are implemented:
 
 - wlroots 0.19 compositor in Zig (DRM, headless, and nested backends via
   wlroots' autodetection)
@@ -258,8 +258,8 @@ restarts were exercised by
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
 `tests/input.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`,
-`tests/fractional-scale.sh`, `tests/spawn-signals.sh`,
-`tests/xwayland-ready.sh`, `tests/kitty-startup.sh`,
+`tests/fractional-scale.sh`, `tests/cursor-theme.sh`,
+`tests/spawn-signals.sh`, `tests/xwayland-ready.sh`, `tests/kitty-startup.sh`,
 `tests/xwayland-kitty.sh`, `tests/workspace-pinning.sh`,
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,

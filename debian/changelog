@@ -1,3 +1,16 @@
+tessa (0.2.2) unstable; urgency=medium
+
+  * Restore the compositor default cursor when pointer focus moves to a new
+    layer surface, so clients that clear their cursor cannot leave the panel
+    or desktop with an invisible pointer.
+  * Select an available cursor name (default, left_ptr, arrow) instead of
+    assuming every Xcursor theme provides "default".
+  * Force software cursors in VM sessions when WLR_NO_HARDWARE_CURSORS is not
+    already set, avoiding broken DRM cursor planes.
+  * Add a cursor-theme fallback regression test.
+
+ -- Tessa contributors <maintainers@tessa.invalid>  Thu, 29 Oct 2026 05:00:00 +0900
+
 tessa (0.2.1) unstable; urgency=medium
 
   * Reset inherited signal masks and ignored dispositions in every spawned

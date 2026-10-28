@@ -9,4 +9,14 @@ fi
 export XDG_CURRENT_DESKTOP=Tessa
 export XDG_SESSION_DESKTOP=tessa
 export XDG_SESSION_TYPE=wayland
+
+# Some virtualized DRM drivers expose a cursor plane that produces no visible
+# image. Software cursors are reliable there; keep hardware cursors on physical
+# machines and honor an explicit user override.
+if [ -z "${WLR_NO_HARDWARE_CURSORS:-}" ] &&
+    command -v systemd-detect-virt >/dev/null 2>&1 &&
+    systemd-detect-virt -q; then
+    export WLR_NO_HARDWARE_CURSORS=1
+fi
+
 exec "$dir/tessa"

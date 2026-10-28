@@ -22,17 +22,17 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 
 ## Ubuntu 26.04 へのインストール
 
-[v0.2.1 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.1)
+[v0.2.2 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.2)
 に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
 バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/tessa_0.2.1_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.1/SHA256SUMS
-grep ' tessa_0.2.1_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.1_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
+grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.2_amd64.deb
 ```
 
 `apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
@@ -138,7 +138,7 @@ Arch で **Debug** ビルドを行うと
 
 ## 状態
 
-MVP（`0.2.1`）ですが、日常的に使えるレベルまで中核機能は実装されています。
+MVP（`0.2.2`）ですが、日常的に使えるレベルまで中核機能は実装されています。
 
 - Zig による wlroots 0.19 コンポジタ（DRM / headless / ネストした Wayland
   バックエンドを wlroots が自動判定）
@@ -265,8 +265,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、
-`tests/xim.sh`、`tests/fractional-scale.sh`、`tests/spawn-signals.sh`、
-`tests/xwayland-ready.sh`、`tests/kitty-startup.sh`、
+`tests/xim.sh`、`tests/fractional-scale.sh`、`tests/cursor-theme.sh`、
+`tests/spawn-signals.sh`、`tests/xwayland-ready.sh`、`tests/kitty-startup.sh`、
 `tests/xwayland-kitty.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
