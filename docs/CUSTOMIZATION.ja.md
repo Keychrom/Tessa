@@ -497,17 +497,31 @@ theme-role = wallpaper.bottom = #070a12
 
 ウィンドウは map 時に設定可能なオフセットからスライドインし、ワークスペース
 切り替えでは新しいワークスペースが横方向から入ります。どちらも名前付き
-cubic-bezier カーブ（組み込み、または `bezier = name, x1, y1, x2, y2`）を
-使い、種類別の再生時間（`animation_open_ms` / `animation_workspace_ms`、
-未指定は `animation_ms`）で再生します。キーバインド、バーのチップ、IPC、
-他のクライアントなどコンポジタ経由で閉じたウィンドウは、サーフェスを
-キャプチャして `animation_close_curve` と `animation_close_ms` で
-スナップショットをスケール/フェードします。クライアント自身が閉じた場合は
-バッファが既に消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
+cubic-bezier またはスプリングカーブ（組み込み、`bezier = name, x1, y1, x2, y2`、
+`spring = name, damping, frequency`）を使い、種類別の再生時間
+（`animation_open_ms` / `animation_workspace_ms`、未指定は `animation_ms`）で
+再生します。キーバインド、バーのチップ、IPC、他のクライアントなど
+コンポジタ経由で閉じたウィンドウは、サーフェスをキャプチャして
+`animation_close_curve` と `animation_close_ms` でスナップショットを
+スケール/フェードします。クライアント自身が閉じた場合はバッファが既に
+消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
 無効化します。`animation_ms = 0` と `animations = false` は全体を無効化
 します。視差効果低減時は `reduce_motion_animations = fade` で縮小/移動なしの
 閉じるフェードだけを残し、`none` で close エフェクトも無効にします。
 ポップオーバーのアニメーションはパネル側で別に制御します。
+
+ウィンドウルールで個別のウィンドウだけ無効化したり、時間やカーブを
+上書きできます。
+
+```ini
+spring = bounce, 0.35, 1.4
+window-rule = app-id=kitty; animation=false
+window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
+```
+
+`animation-curve` は開く／ワークスペース、`animation-close-curve` は閉じる
+遷移に使います。スプリングの減衰は 0.05〜2、振動数は 0.25〜4 で、減衰が
+小さいほどオーバーシュートし、終端は必ず 1 になります。
 
 シャドウは各クライアントフレーム背後の半透明シーン矩形 3 枚です。
 ボーダーのジオメトリに追従し、`shadows = false` で無効になります。

@@ -145,7 +145,9 @@ the interactive config editor/diff preview) before or alongside this work.
       validation. A failed edit keeps the previous configuration.
 - [x] Motion v2 curves: named cubic-bezier definitions, per-kind curves,
       configurable open/workspace offsets, and close scale/fade.
-- [ ] Motion v2 extensions: spring curves and per-window animation overrides.
+- [x] Motion v2 extensions: normalized spring curves (`spring = name, damping,
+      frequency`) and per-window animation enable, duration, and curve
+      overrides.
 - [x] Window and layer rule v3: per-window opacity, rounding, blur, shadow, and
       border width; layer-shell rules; reactive decorative re-evaluation on
       title/app-id changes. Structural actions remain map/reload-time.

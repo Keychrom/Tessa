@@ -114,7 +114,9 @@ decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
 `corner_radius`, and `blur` for mapped layer-shell surfaces. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
 Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
-`layer_rules`, and the corresponding counts.
+`layer_rules`, and the corresponding counts. Each `curves` entry has a `kind`
+of `bezier` or `spring`; bezier entries include `points`, spring entries
+include `damping` and `frequency`.
 
 ## JSON-RPC
 

@@ -151,6 +151,33 @@ pub const RuleBool = enum { unset, on, off };
 
 pub const AnimationKind = enum { none, open, workspace };
 
+pub const CurveKind = enum { bezier, spring };
+
+pub const Curve = struct {
+    kind: CurveKind = .bezier,
+    /// Cubic-bezier control points x1, y1, x2, y2.
+    points: [4]f32 = .{ 0.33, 1.0, 0.68, 1.0 },
+    /// Normalized spring damping ratio and oscillation count.
+    damping: f32 = 0.55,
+    frequency: f32 = 1.6,
+};
+
+pub const AnimationOverride = struct {
+    enabled: RuleBool = .unset,
+    animation_ms: i32 = -1,
+    open_ms: i32 = -1,
+    workspace_ms: i32 = -1,
+    close_ms: i32 = -1,
+    curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    curve_len: usize = 0,
+    open_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    open_curve_len: usize = 0,
+    workspace_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    workspace_curve_len: usize = 0,
+    close_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    close_curve_len: usize = 0,
+};
+
 pub const WindowRule = struct {
     raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
     raw_len: usize = 0,
@@ -183,6 +210,7 @@ pub const WindowRule = struct {
     shadow: RuleBool = .unset,
     has_border_width: bool = false,
     border_width: i32 = 0,
+    anim: AnimationOverride = .{},
 };
 
 pub const LayerRule = struct {
@@ -229,8 +257,7 @@ pub const Profile = struct {
 pub const CurveDef = struct {
     name: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
     name_len: usize = 0,
-    /// Cubic-bezier control points x1, y1, x2, y2.
-    points: [4]f32 = .{ 0.33, 1.0, 0.68, 1.0 },
+    curve: Curve = .{},
 };
 
 pub const WorkspaceRule = struct {
@@ -502,7 +529,7 @@ pub const Client = struct {
     anim_from_y: i32,
     anim_start_ms: i64,
     anim_ms: i32,
-    anim_curve: [4]f32,
+    anim_curve: Curve,
     animating: bool,
     anim_kind: AnimationKind,
     close_snapshot: ?*c.wlr_buffer,
@@ -517,6 +544,7 @@ pub const Client = struct {
     blur: RuleBool,
     shadow: RuleBool,
     border_width: i32,
+    anim: AnimationOverride,
 
     x: i32,
     y: i32,
@@ -712,7 +740,7 @@ pub const CloseEffect = struct {
     fade_only: bool,
     base_opacity: f32,
     shadow_enabled: bool,
-    curve: [4]f32,
+    curve: Curve,
     close_scale: f64,
     close_fade: bool,
     border_color: [4]f32,

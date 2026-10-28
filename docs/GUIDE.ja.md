@@ -512,6 +512,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `animation_workspace_curve` | 継承 | ワークスペース遷移のカーブ |
 | `animation_close_curve` | `smoothstep` | 閉じるエフェクトのカーブ |
 | `bezier` | — | 名前付き cubic-bezier: `name, x1, y1, x2, y2` |
+| `spring` | — | 名前付きスプリング: `name, damping, frequency` |
 | `animation_open_x` / `_y` | `0` / `18` | 開くアニメーションの開始オフセット px |
 | `animation_workspace_offset` | `54` | ワークスペース遷移の開始オフセット px |
 | `animation_close_scale` | `0.92` | 閉じるスナップショットの最終スケール（0〜1） |
@@ -801,6 +802,11 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `blur=true/false` | ウィンドウ別の背景ブラー |
 | `shadow=true/false` | ウィンドウ別の影 |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
+| `animation=true/false` | そのウィンドウのモーションを有効／無効化 |
+| `animation-ms=N` | 基本アニメーション時間の上書き（0〜1000） |
+| `animation-open-ms`、`animation-workspace-ms`、`animation-close-ms` | 種類別の時間上書き |
+| `animation-curve=NAME` | 開く／ワークスペースのカーブ上書き |
+| `animation-open-curve`、`animation-workspace-curve`、`animation-close-curve` | 種類別のカーブ上書き |
 
 パターンは `*`／`?`、大文字小文字は区別されます。単純キーと `match` は
 AND で結合されます。ルールはファイル順で、後のルールが優先され、ボーダー
@@ -809,10 +815,11 @@ AND で結合されます。ルールはファイル順で、後のルールが�
 `workspace`、`size`、`position`、`fullscreen`）はマップ時と設定リロード
 時に評価されます。装飾アクション（`border-*`、`opacity`、
 `corner-radius`、`blur`、`shadow`、`border-width`）は、タイトルまたは
-app-id が変わった時点でも即座に再評価されます。色、ボーダー幅、不透明度、
-角丸、影の状態は閉じるスナップショットにも引き継がれます。
-`corner-radius` と `blur` は `-Dscenefx=true` ビルドが必要です。不透明度、
-影、ボーダー幅は全ビルドで動作します。
+app-id が変わった時点でも即座に再評価されます。モーション系キー
+（`animation*`）も同じパスで再評価され、次回の遷移から適用されます。
+色、ボーダー幅、不透明度、角丸、影の状態は閉じるスナップショットにも
+引き継がれます。`corner-radius` と `blur` は `-Dscenefx=true` ビルドが
+必要です。不透明度、影、ボーダー幅は全ビルドで動作します。
 
 ### 8.5 `layer-rule`
 
@@ -1021,6 +1028,7 @@ animation_open_curve = ease-out-quint
 animation_workspace_curve = ease-in-out-cubic
 animation_close_curve = smoothstep
 bezier = snap, 0.16, 1.0, 0.3, 1.0
+spring = bounce, 0.35, 1.4
 animation_open_x = 0
 animation_open_y = 18
 animation_workspace_offset = 54
@@ -1032,8 +1040,12 @@ reduce_motion_fade_ms = 120
 ```
 
 - 組み込みカーブ: `linear`、`ease-out-cubic`、`ease-in-out-cubic`、
-  `ease-out-quint`、`ease-in-out-quint`、`smoothstep`、`overshoot`
+  `ease-out-quint`、`ease-in-out-quint`、`smoothstep`、`overshoot`、
+  `spring`、`spring-soft`、`spring-bouncy`
 - `bezier = name, x1, y1, x2, y2` で独自 cubic-bezier を定義
+- `spring = name, damping, frequency` で正規化スプリングを定義。
+  `damping` は 0.05〜2、`frequency` は 0.25〜4（アニメーション中の振動数）。
+  減衰が小さいほどオーバーシュートし、終端は必ず 1 になります
 - 開く: 設定した x/y オフセット（既定 0/18 px）から開くカーブで移動
 - ワークスペース: 設定した ±オフセット（既定 54 px）から遷移
 - 閉じる: バッファを保持して `animation_close_scale` まで縮小し、
@@ -1045,6 +1057,26 @@ reduce_motion_fade_ms = 120
   `reduce_motion_fade_ms` の間実行
 - `reduce_motion_animations = none`（既定）は close エフェクトも無効
 - 時間は 0〜1000 ms で、`0` はそのアニメーションを無効化
+
+ウィンドウルールでウィンドウ単位のモーションを上書きできます。
+
+```ini
+window-rule = app-id=kitty; animation=false
+window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
+```
+
+| ルールキー | 内容 |
+| --- | --- |
+| `animation=true/false` | そのウィンドウの全モーションを有効／無効化 |
+| `animation-ms=N` | 基本時間の上書き（0〜1000） |
+| `animation-open-ms`、`animation-workspace-ms`、`animation-close-ms` | 種類別の時間上書き |
+| `animation-curve=NAME` | 開く／ワークスペースのカーブ上書き |
+| `animation-open-curve`、`animation-workspace-curve`、`animation-close-curve` | 種類別のカーブ上書き |
+
+`animation-curve` は開く／ワークスペースに適用され、閉じる場合は
+`animation-close-curve`（未指定ならグローバルの閉じるカーブ）を使います。
+これらの上書きは他の装飾系ウィンドウルールと同じパスで再評価されます。
+グローバルの `animations = false` と `reduce_motion = true` が常に優先です。
 
 アニメーションの開始／完了は `animation-start`、`animation-done`、
 `close-animation-start`、`close-animation-done` イベントで取得できます。

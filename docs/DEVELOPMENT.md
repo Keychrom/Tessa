@@ -323,14 +323,28 @@ sh tests/config-watch.sh
 
 ### Motion configuration test
 
-`tests/motion.sh` parses named cubic-bezier curves, per-kind curves, open and
-workspace offsets, close scale/fade, and custom `bezier` definitions. It reads
-the values through `tessa-ctl config`, then appends an unknown curve and checks
-that the transactional reload keeps the previous settings while reporting the
+`tests/motion.sh` parses named cubic-bezier and spring curves, per-kind curves,
+open and workspace offsets, close scale/fade, custom `bezier`/`spring`
+definitions, and per-window animation overrides. It reads the values through
+`tessa-ctl config`, then appends unknown/invalid curves and checks that the
+transactional reload keeps the previous settings while reporting the
 diagnostic.
 
 ```sh
 sh tests/motion.sh
+```
+
+### Motion override test
+
+`tests/motion-overrides.sh` compiles the xdg-shell test window and starts three
+clients with different app ids. One rule disables motion, one sets a 600 ms
+base duration, and one selects a custom spring plus separate open/close
+durations. The test maps, switches workspaces, and closes the clients, checking
+the debug log for the expected `ms=` and `curve=spring` values and verifying
+that the disabled window never starts an animation.
+
+```sh
+sh tests/motion-overrides.sh
 ```
 
 ### Rule visual test

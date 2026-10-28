@@ -454,6 +454,8 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.blur = .unset;
     client.shadow = .unset;
     client.border_width = -1;
+    client.anim = .{};
+    client.anim_curve = .{};
     client.id = server.next_client_id;
     server.next_client_id += 1;
 

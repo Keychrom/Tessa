@@ -15,16 +15,19 @@ fn tBase(xdg: *c.wlr_xdg_toplevel) *c.wlr_xdg_surface {
     return @ptrCast(@alignCast(xdg.base));
 }
 
-fn closeAnimationMs(server: *Server) i32 {
+fn closeAnimationMs(server: *Server, client: *Client) i32 {
     const cfg = &server.config;
     if (cfg.reduce_motion) {
         return if (cfg.reduce_motion_animations == .fade) cfg.reduce_motion_fade_ms else 0;
     }
+    if (client.anim.close_ms >= 0) return client.anim.close_ms;
+    if (client.anim.animation_ms >= 0) return client.anim.animation_ms;
     return if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms;
 }
 
-fn closeEffectsEnabled(server: *Server) bool {
-    return server.config.animations and closeAnimationMs(server) > 0;
+fn closeEffectsEnabled(server: *Server, client: *Client) bool {
+    if (!server.config.animations or client.anim.enabled == .off) return false;
+    return closeAnimationMs(server, client) > 0;
 }
 
 fn capture(client: *Client) bool {
@@ -49,7 +52,7 @@ fn capture(client: *Client) bool {
 }
 
 pub fn requestClose(server: *Server, client: *Client) void {
-    if (closeEffectsEnabled(server) and client.mapped and
+    if (closeEffectsEnabled(server, client) and client.mapped and
         client.ws == client.output.active_ws and client.close_snapshot == null)
     {
         _ = capture(client);
@@ -103,7 +106,7 @@ fn apply(effect: *CloseEffect, eased: f64) void {
     const scale = if (effect.fade_only)
         1.0
     else
-        1.0 - (1.0 - effect.close_scale) * eased;
+        @max(0.0, 1.0 - (1.0 - effect.close_scale) * eased);
     const fade = std.math.clamp(
         if (effect.fade_only or effect.close_fade) 1.0 - eased else 1.0,
         0.0,
@@ -265,11 +268,11 @@ fn start(
     effect.content_w = @floatFromInt(content_w);
     effect.content_h = @floatFromInt(content_h);
     effect.start_ms = core.timeNowMs();
-    effect.ms = closeAnimationMs(server);
+    effect.ms = closeAnimationMs(server, client);
     effect.fade_only = server.config.reduce_motion;
     effect.base_opacity = client.opacity;
     effect.shadow_enabled = clientShadowEnabled(client);
-    effect.curve = motion.close(&server.config);
+    effect.curve = motion.closeFor(&server.config, client.anim);
     effect.close_scale = if (server.config.reduce_motion)
         1.0
     else
@@ -290,7 +293,13 @@ fn start(
         .output = output_name,
         .arg = "close",
     });
-    core.logDebug("close animation: start id={d} {d}x{d}", .{ client.id, content_w, content_h });
+    core.logDebug("close animation: start id={d} {d}x{d} ms={d} curve={s}", .{
+        client.id,
+        content_w,
+        content_h,
+        effect.ms,
+        motion.kindName(effect.curve),
+    });
 }
 
 pub fn clientUnmapped(client: *Client) void {
@@ -304,7 +313,7 @@ pub fn clientUnmapped(client: *Client) void {
     client.close_snapshot = null;
     client.close_snapshot_w = 0;
     client.close_snapshot_h = 0;
-    if (!closeEffectsEnabled(server) or client.ws != client.output.active_ws) {
+    if (!closeEffectsEnabled(server, client) or client.ws != client.output.active_ws) {
         c.wlr_buffer_unlock(buffer);
         return;
     }

@@ -169,7 +169,8 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
 - アクセント、ボーダー、壁紙、パネル向けの意味論的テーマロール
 - バーの高さ、上下左右のマージン、バー背景色/前景色を設定可能
 - ウィンドウを開く/ワークスペース切り替え時のスライドアニメーション
-  （種類別の再生時間と名前付き cubic-bezier カーブ、開始オフセット）、
+  （種類別の再生時間、名前付き cubic-bezier/スプリングカーブ、ウィンドウ別の
+  有効化・時間・カーブ上書き、開始オフセット）、
   閉じる際のスケール/フェードスナップショット、視差効果低減時のフェード、
   レイヤー化したソフトなウィンドウシャドウ、任意で有効にできる scenefx の
   角丸と背景ブラー（ウィンドウとシェルサーフェス）、壁紙グラデーション色と
@@ -252,7 +253,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/notifications.sh`、`tests/notification-routing.sh`、
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
-`tests/motion.sh`、`tests/effects.sh`、`tests/rule-visuals.sh`、
+`tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
+`tests/rule-visuals.sh`、
 `tests/input.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
@@ -821,8 +823,10 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 ```
 
 ルールはウィンドウのマップ時と設定再読み込み時に評価されます。装飾系
-アクション（色、不透明度、角丸、ブラー、影、ボーダー幅）はタイトルまたは
-app-id の変更時にも即座に再適用され、構造系アクションは次回のマップ/
+アクション（色、不透明度、角丸、ブラー、影、ボーダー幅）とウィンドウ別
+モーション上書き（`animation`、`animation-ms`、`animation-curve`、
+種類別キー）はタイトルまたは
+app-id の変更時にも再適用され、構造系アクションは次回のマップ/
 リロードまで待ちます。レイヤーシェルは `layer-rule` の `namespace`、
 `output`、`layer`、`opacity`、`corner-radius`、`blur` で設定できます。
 `tessa-ctl config` で解析済みルール、`tessa-ctl state` で実効値を確認でき
@@ -962,7 +966,8 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   期限切れに対応します。トーストはフォーカス中の出力へルーティングされます。
   Pango が扱えない HTML、通知音、通知ごとの出力固定は未対応です。
 - **ウィンドウ効果はまだシンプルです。** 開く/ワークスペース切り替えは
-  設定可能な名前付き cubic-bezier カーブとオフセットでウィンドウフレームを
+  設定可能な名前付き cubic-bezier／スプリングカーブ、ウィンドウ別上書き、
+  オフセットでウィンドウフレームを
   スライドさせます。コンポジタ起点の閉じる操作ではウィンドウのサーフェスを
   キャプチャし、設定可能なカーブ、スケール、フェードでスナップショットを
   変化させます。クライアント自身が閉じた場合は unmap 時点でバッファが

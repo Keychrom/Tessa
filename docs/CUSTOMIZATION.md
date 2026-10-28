@@ -493,9 +493,10 @@ theme rule still wins for that output. The panel reads the same roles.
 
 Windows slide in from a configurable offset when mapped, and workspace
 switches slide the incoming workspace horizontally. Both use named
-cubic-bezier curves (built-ins or `bezier = name, x1, y1, x2, y2`) over their
-per-kind duration (`animation_open_ms` / `animation_workspace_ms`, falling back
-to `animation_ms`). A window closed through the compositor (a key binding, bar
+cubic-bezier or spring curves (built-ins, `bezier = name, x1, y1, x2, y2`, or
+`spring = name, damping, frequency`) over their per-kind duration
+(`animation_open_ms` / `animation_workspace_ms`, falling back to
+`animation_ms`). A window closed through the compositor (a key binding, bar
 chip, IPC, or another client) captures its surface and scales/fades that
 snapshot with `animation_close_curve` over `animation_close_ms`. A client that
 closes itself disappears immediately because its buffer is already gone.
@@ -504,6 +505,20 @@ settings intact; `animation_ms = 0` and `animations = false` disable everything.
 With reduced motion, `reduce_motion_animations = fade` keeps only a close fade
 without scale or slide, and `none` disables close effects. Popover animation is
 controlled separately by the panel.
+
+Window rules can opt individual windows in or out and override the duration or
+curve:
+
+```ini
+spring = bounce, 0.35, 1.4
+window-rule = app-id=kitty; animation=false
+window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
+```
+
+`animation-curve` covers open and workspace transitions; close uses
+`animation-close-curve`. A spring's damping is 0.05–2 and its frequency is
+0.25–4 oscillations over the animation; lower damping overshoots more, and the
+curve always ends at 1.
 
 Shadows are three translucent scene rectangles behind each client frame. They
 follow the border geometry and are disabled with `shadows = false`.

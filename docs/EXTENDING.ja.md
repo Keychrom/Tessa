@@ -116,7 +116,8 @@ END
 `output`、`layer`、`opacity`、`corner_radius`、`blur` が入ります。設定の
 `diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
 は `event_rules`、`profiles`、`theme_roles`、`layer_rules` と各件数も
-公開します。
+出力します。`curves` の各要素は `kind`（`bezier` または `spring`）を持ち、
+bezier は `points`、spring は `damping` と `frequency` を含みます。
 
 ## JSON-RPC
 

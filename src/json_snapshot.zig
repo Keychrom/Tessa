@@ -273,12 +273,23 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         const curve = &cfg.curves[ci];
         addRaw(buf, &off, "{\"name\":");
         addString(buf, &off, curve.name[0..curve.name_len]);
-        add(buf, &off, ",\"points\":[{d:.3},{d:.3},{d:.3},{d:.3}]}}", .{
-            curve.points[0],
-            curve.points[1],
-            curve.points[2],
-            curve.points[3],
+        addRaw(buf, &off, ",\"kind\":");
+        addString(buf, &off, switch (curve.curve.kind) {
+            .bezier => "bezier",
+            .spring => "spring",
         });
+        switch (curve.curve.kind) {
+            .bezier => add(buf, &off, ",\"points\":[{d:.3},{d:.3},{d:.3},{d:.3}]}}", .{
+                curve.curve.points[0],
+                curve.curve.points[1],
+                curve.curve.points[2],
+                curve.curve.points[3],
+            }),
+            .spring => add(buf, &off, ",\"damping\":{d:.3},\"frequency\":{d:.3}}}", .{
+                curve.curve.damping,
+                curve.curve.frequency,
+            }),
+        }
     }
     addRaw(buf, &off, "],\"reduce_motion\":");
     addBool(buf, &off, cfg.reduce_motion);

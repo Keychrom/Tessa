@@ -168,9 +168,10 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   and per-mode timeouts
 - semantic theme roles for accent, borders, wallpaper, and the panel
 - configurable bar height, top/side margins, and bar background/foreground colors
-- window open/workspace slide animations with per-kind durations and named
-  cubic-bezier curves, configurable offsets, close scale/fade snapshots,
-  reduced-motion close fades, and soft layered shadows; opt-in scenefx rounded
+- window open/workspace slide animations with per-kind durations, named
+  cubic-bezier and spring curves, per-window enable/duration/curve overrides,
+  configurable offsets, close scale/fade snapshots, reduced-motion close
+  fades, and soft layered shadows; opt-in scenefx rounded
   corners and backdrop blur for windows and shell surfaces; configurable
   wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus
@@ -243,7 +244,8 @@ restarts were exercised by
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
-`tests/effects.sh`, `tests/rule-visuals.sh`, `tests/input.sh`,
+`tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
+`tests/input.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/workspace-pinning.sh`,
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
@@ -795,9 +797,11 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 ```
 
 Rules are applied when a window maps and re-evaluated on config reload.
-Decorative actions (colors, opacity, rounding, blur, shadow, border width) also
-re-apply immediately when the title or app-id changes; structural actions wait
-for the next map or reload. Layer-shell clients use `layer-rule` with
+Decorative actions (colors, opacity, rounding, blur, shadow, border width) and
+per-window motion overrides (`animation`, `animation-ms`, `animation-curve`,
+and per-kind variants) also re-apply when the title or app-id changes;
+structural actions wait for the next map or reload. Layer-shell clients use
+`layer-rule` with
 `namespace`, `output`, `layer`, `opacity`, `corner-radius`, and `blur` clauses.
 Run `tessa-ctl config` to inspect the parsed rules and `tessa-ctl state` for
 effective window/layer values. See
@@ -932,7 +936,8 @@ These are real and important:
   focused output. Rich HTML markup beyond Pango's subset, notification sounds,
   and per-notification output pinning are not implemented.
 - **Window effects depend on the build.** Open and workspace transitions slide
-  the window frame with configurable named cubic-bezier curves and offsets.
+  the window frame with configurable named cubic-bezier or spring curves,
+  per-window overrides, and offsets.
   Compositor-initiated closes capture the window surface and scale/fade that
   snapshot with a configurable curve, scale, and fade; a client that closes
   itself is removed immediately because its buffer is already gone at unmap. Shadows

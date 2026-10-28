@@ -499,6 +499,7 @@ edits are rejected and keep the previous configuration.
 | `animation_workspace_curve` | inherited | Workspace timing curve |
 | `animation_close_curve` | `smoothstep` | Close timing curve |
 | `bezier` | — | Named cubic-bezier: `name, x1, y1, x2, y2` |
+| `spring` | — | Named spring: `name, damping, frequency` |
 | `animation_open_x` / `_y` | `0` / `18` | Open-animation start offset in px |
 | `animation_workspace_offset` | `54` | Workspace-slide start offset in px |
 | `animation_close_scale` | `0.92` | Close snapshot final scale (0–1) |
@@ -782,6 +783,11 @@ Actions:
 | `blur=true/false` | Per-window backdrop blur |
 | `shadow=true/false` | Per-window layered shadow |
 | `border-width=0..16` | Per-window border thickness; `0` hides it |
+| `animation=true/false` | Enable or disable motion for this window |
+| `animation-ms=N` | Base animation duration override (0–1000) |
+| `animation-open-ms`, `animation-workspace-ms`, `animation-close-ms` | Per-kind duration override |
+| `animation-curve=NAME` | Open/workspace curve override |
+| `animation-open-curve`, `animation-workspace-curve`, `animation-close-curve` | Per-kind curve override |
 
 Patterns use `*` and `?`. Simple keys and `match` are combined with AND. Rules
 run in file order and later matches win, including border colors and visual
@@ -790,8 +796,9 @@ and reject the reload. Structural actions (`float`, `workspace`, `size`,
 `position`, `fullscreen`) run at map time and on config reload. Decorative
 actions (`border-*`, `opacity`, `corner-radius`, `blur`, `shadow`,
 `border-width`) also re-evaluate immediately when the title or app-id changes.
-Per-rule colors, border width, opacity, rounding, and shadow state are carried
-into the close snapshot effect. `corner-radius` and `blur` require a
+Motion rule keys (`animation*`) use the same pass and apply to the next
+transition. Per-rule colors, border width, opacity, rounding, and shadow state
+are carried into the close snapshot effect. `corner-radius` and `blur` require a
 `-Dscenefx=true` build; opacity, shadows, and border width work in every build.
 
 ### 8.5 `layer-rule`
@@ -996,6 +1003,7 @@ animation_open_curve = ease-out-quint
 animation_workspace_curve = ease-in-out-cubic
 animation_close_curve = smoothstep
 bezier = snap, 0.16, 1.0, 0.3, 1.0
+spring = bounce, 0.35, 1.4
 animation_open_x = 0
 animation_open_y = 18
 animation_workspace_offset = 54
@@ -1007,8 +1015,12 @@ reduce_motion_fade_ms = 120
 ```
 
 - Built-in curves: `linear`, `ease-out-cubic`, `ease-in-out-cubic`,
-  `ease-out-quint`, `ease-in-out-quint`, `smoothstep`, and `overshoot`
+  `ease-out-quint`, `ease-in-out-quint`, `smoothstep`, `overshoot`, `spring`,
+  `spring-soft`, and `spring-bouncy`
 - `bezier = name, x1, y1, x2, y2` defines a custom cubic-bezier curve
+- `spring = name, damping, frequency` defines a normalized spring curve.
+  `damping` is 0.05–2 and `frequency` is 0.25–4 oscillations over the
+  animation; lower damping overshoots more, and the curve always ends at 1
 - Open: configurable x/y offset (default 0/18 px) with the open curve
 - Workspace: configurable ±offset (default 54 px) with the workspace curve
 - Close: compositor-initiated closes keep the surface buffer, scale to
@@ -1020,6 +1032,26 @@ reduce_motion_fade_ms = 120
   slide, for `reduce_motion_fade_ms`
 - `reduce_motion_animations = none` (default) disables close effects too
 - Durations are 0–1000 ms; `0` disables that animation
+
+Window rules can override motion per window:
+
+```ini
+window-rule = app-id=kitty; animation=false
+window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
+```
+
+| Rule key | Meaning |
+| --- | --- |
+| `animation=true/false` | Enable or disable all motion for the window |
+| `animation-ms=N` | Base duration override (0–1000) |
+| `animation-open-ms`, `animation-workspace-ms`, `animation-close-ms` | Per-kind duration override |
+| `animation-curve=NAME` | Open/workspace curve override |
+| `animation-open-curve`, `animation-workspace-curve`, `animation-close-curve` | Per-kind curve override |
+
+`animation-curve` applies to open and workspace transitions; close uses
+`animation-close-curve` (or the global close curve). These overrides are
+re-evaluated with the other decorative window-rule fields. The global
+`animations = false` and `reduce_motion = true` switches still take precedence.
 
 Lifecycle hooks: `animation-start`, `animation-done`,
 `close-animation-start`, and `close-animation-done`.

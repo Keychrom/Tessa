@@ -585,6 +585,18 @@ fn parseRuleBool(value: []const u8) ?bool {
     return null;
 }
 
+fn parseRuleMs(value: []const u8) ?i32 {
+    const n = std.fmt.parseInt(i32, value, 10) catch return null;
+    if (n < 0 or n > 1000) return null;
+    return n;
+}
+
+fn setRuleCurve(dest: *[types.MAX_CURVE_NAME]u8, dest_len: *usize, value: []const u8) bool {
+    if (value.len >= dest.len) return false;
+    core.copyString(dest, dest_len, value);
+    return true;
+}
+
 pub fn addRule(cfg: *Config, value: []const u8) bool {
     if (cfg.rule_count >= cfg.rules.len) {
         core.logInfo("config: too many window rules (max {d})", .{cfg.rules.len});
@@ -786,6 +798,70 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
             }
             rule.has_border_width = true;
             rule.border_width = width;
+        } else if (std.ascii.eqlIgnoreCase(key, "animation") or
+            std.ascii.eqlIgnoreCase(key, "animations"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule animation value '{s}'", .{val});
+                return false;
+            };
+            rule.anim.enabled = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-ms") or
+            std.ascii.eqlIgnoreCase(key, "animation_ms"))
+        {
+            rule.anim.animation_ms = parseRuleMs(val) orelse {
+                core.logInfo("config: invalid rule animation-ms '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-open-ms") or
+            std.ascii.eqlIgnoreCase(key, "animation_open_ms"))
+        {
+            rule.anim.open_ms = parseRuleMs(val) orelse {
+                core.logInfo("config: invalid rule animation-open-ms '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-workspace-ms") or
+            std.ascii.eqlIgnoreCase(key, "animation_workspace_ms"))
+        {
+            rule.anim.workspace_ms = parseRuleMs(val) orelse {
+                core.logInfo("config: invalid rule animation-workspace-ms '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-close-ms") or
+            std.ascii.eqlIgnoreCase(key, "animation_close_ms"))
+        {
+            rule.anim.close_ms = parseRuleMs(val) orelse {
+                core.logInfo("config: invalid rule animation-close-ms '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-curve") or
+            std.ascii.eqlIgnoreCase(key, "animation_curve"))
+        {
+            if (!setRuleCurve(&rule.anim.curve, &rule.anim.curve_len, val)) {
+                core.logInfo("config: rule animation curve name too long", .{});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-open-curve") or
+            std.ascii.eqlIgnoreCase(key, "animation_open_curve"))
+        {
+            if (!setRuleCurve(&rule.anim.open_curve, &rule.anim.open_curve_len, val)) {
+                core.logInfo("config: rule animation-open-curve name too long", .{});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-workspace-curve") or
+            std.ascii.eqlIgnoreCase(key, "animation_workspace_curve"))
+        {
+            if (!setRuleCurve(&rule.anim.workspace_curve, &rule.anim.workspace_curve_len, val)) {
+                core.logInfo("config: rule animation-workspace-curve name too long", .{});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "animation-close-curve") or
+            std.ascii.eqlIgnoreCase(key, "animation_close_curve"))
+        {
+            if (!setRuleCurve(&rule.anim.close_curve, &rule.anim.close_curve_len, val)) {
+                core.logInfo("config: rule animation-close-curve name too long", .{});
+                return false;
+            }
         } else {
             core.logInfo("config: unknown window-rule key '{s}'", .{key});
             return false;
@@ -993,7 +1069,7 @@ fn findCurve(cfg: *const Config, name: []const u8) ?*const types.CurveDef {
 
 fn addBezier(cfg: *Config, value: []const u8) bool {
     if (cfg.curve_count >= cfg.curves.len) {
-        core.logInfo("config: too many bezier curves (max {d})", .{cfg.curves.len});
+        core.logInfo("config: too many animation curves (max {d})", .{cfg.curves.len});
         return false;
     }
     var it = std.mem.splitScalar(u8, value, ',');
@@ -1014,7 +1090,39 @@ fn addBezier(cfg: *Config, value: []const u8) bool {
 
     var curve = types.CurveDef{};
     core.copyString(&curve.name, &curve.name_len, name);
-    curve.points = points;
+    curve.curve = .{ .kind = .bezier, .points = points };
+    cfg.curves[cfg.curve_count] = curve;
+    cfg.curve_count += 1;
+    return true;
+}
+
+fn addSpring(cfg: *Config, value: []const u8) bool {
+    if (cfg.curve_count >= cfg.curves.len) {
+        core.logInfo("config: too many animation curves (max {d})", .{cfg.curves.len});
+        return false;
+    }
+    var it = std.mem.splitScalar(u8, value, ',');
+    const name = std.mem.trim(u8, it.next() orelse return false, " \t");
+    if (!validProfileName(name) or findCurve(cfg, name) != null) return false;
+
+    const damping_text = std.mem.trim(u8, it.next() orelse return false, " \t");
+    const frequency_text = std.mem.trim(u8, it.next() orelse return false, " \t");
+    if (it.next() != null) return false;
+    const damping = std.fmt.parseFloat(f32, damping_text) catch return false;
+    const frequency = std.fmt.parseFloat(f32, frequency_text) catch return false;
+    if (std.math.isNan(damping) or std.math.isNan(frequency)) return false;
+    if (damping < 0.05 or damping > 2.0) {
+        core.logInfo("config: spring damping out of range (0.05-2.0): '{s}'", .{damping_text});
+        return false;
+    }
+    if (frequency < 0.25 or frequency > 4.0) {
+        core.logInfo("config: spring frequency out of range (0.25-4.0): '{s}'", .{frequency_text});
+        return false;
+    }
+
+    var curve = types.CurveDef{};
+    core.copyString(&curve.name, &curve.name_len, name);
+    curve.curve = .{ .kind = .spring, .damping = damping, .frequency = frequency };
     cfg.curves[cfg.curve_count] = curve;
     cfg.curve_count += 1;
     return true;
@@ -1031,6 +1139,22 @@ fn validateAnimationCurves(server: *Server) void {
     for (names) |name| {
         if (name.len > 0 and !motion.isKnown(cfg, name)) {
             addIssue(server, "<config>", 0, "unknown animation curve '{s}'", .{name});
+        }
+    }
+
+    var i: usize = 0;
+    while (i < cfg.rule_count) : (i += 1) {
+        const anim = &cfg.rules[i].anim;
+        const rule_names = [4][]const u8{
+            anim.curve[0..anim.curve_len],
+            anim.open_curve[0..anim.open_curve_len],
+            anim.workspace_curve[0..anim.workspace_curve_len],
+            anim.close_curve[0..anim.close_curve_len],
+        };
+        for (rule_names) |name| {
+            if (name.len > 0 and !motion.isKnown(cfg, name)) {
+                addIssue(server, "<config>", 0, "unknown window-rule animation curve '{s}'", .{name});
+            }
         }
     }
 }
@@ -1706,6 +1830,10 @@ fn loadPath(
         } else if (std.mem.eql(u8, key, "bezier") or std.mem.eql(u8, key, "curve")) {
             if (!addBezier(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid bezier: '{s}' (expected name,x1,y1,x2,y2)", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "spring")) {
+            if (!addSpring(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid spring: '{s}' (expected name,damping,frequency)", .{value});
             }
         } else if (std.mem.eql(u8, key, "reduce_motion_animations") or
             std.mem.eql(u8, key, "reduce-motion-animations"))

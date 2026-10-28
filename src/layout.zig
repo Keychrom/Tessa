@@ -276,12 +276,26 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
     core.markDirty(server);
 }
 
-fn animationsEnabled(server: *Server) bool {
-    return server.config.animations and !server.config.reduce_motion;
+fn animationsEnabledFor(server: *Server, client: *Client) bool {
+    if (!server.config.animations or server.config.reduce_motion) return false;
+    return client.anim.enabled != .off;
 }
 
-fn animationMs(server: *Server, specific: i32) i32 {
-    return if (specific >= 0) specific else server.config.animation_ms;
+fn animationMsFor(client: *Client, kind: types.AnimationKind) i32 {
+    const cfg = &client.server.config;
+    const global_ms = switch (kind) {
+        .open => cfg.animation_open_ms,
+        .workspace => cfg.animation_workspace_ms,
+        .none => -1,
+    };
+    const override_ms = switch (kind) {
+        .open => client.anim.open_ms,
+        .workspace => client.anim.workspace_ms,
+        .none => -1,
+    };
+    if (override_ms >= 0) return override_ms;
+    if (client.anim.animation_ms >= 0) return client.anim.animation_ms;
+    return if (global_ms >= 0) global_ms else cfg.animation_ms;
 }
 
 fn scheduleAnimationFrames(server: *Server) void {
@@ -302,7 +316,7 @@ fn animationKindName(kind: types.AnimationKind) []const u8 {
 
 fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.AnimationKind, duration_ms: i32) void {
     const server = client.server;
-    if (!animationsEnabled(server) or duration_ms <= 0) return;
+    if (!animationsEnabledFor(server, client) or duration_ms <= 0) return;
     client.anim_from_x = from_x;
     client.anim_from_y = from_y;
     client.anim_off_x = from_x;
@@ -310,8 +324,8 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
     client.anim_start_ms = core.timeNowMs();
     client.anim_ms = duration_ms;
     client.anim_curve = switch (kind) {
-        .open => motion.open(&server.config),
-        .workspace => motion.workspace(&server.config),
+        .open => motion.openFor(&server.config, client.anim),
+        .workspace => motion.workspaceFor(&server.config, client.anim),
         .none => motion.DEFAULT_OPEN,
     };
     client.animating = true;
@@ -324,30 +338,36 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
         .output = core.outputName(client.output),
         .arg = animationKindName(kind),
     });
-    core.logDebug("animation: start id={d} from={d},{d}", .{ client.id, from_x, from_y });
+    core.logDebug("animation: start id={d} from={d},{d} ms={d} curve={s}", .{
+        client.id,
+        from_x,
+        from_y,
+        duration_ms,
+        motion.kindName(client.anim_curve),
+    });
 }
 
 pub fn startOpenAnimation(client: *Client) void {
     if (!client.mapped or client.ws != client.output.active_ws) return;
+    if (!animationsEnabledFor(client.server, client)) return;
     beginAnimation(
         client,
         client.server.config.animation_open_x,
         client.server.config.animation_open_y,
         .open,
-        animationMs(client.server, client.server.config.animation_open_ms),
+        animationMsFor(client, .open),
     );
 }
 
 pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize, ws: usize) void {
-    if (!animationsEnabled(server) or previous_ws == ws) return;
+    if (server.config.reduce_motion or !server.config.animations or previous_ws == ws) return;
     const offset = server.config.animation_workspace_offset;
     const dir: i32 = if (ws > previous_ws) offset else -offset;
-    const duration_ms = animationMs(server, server.config.animation_workspace_ms);
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
         if (cl.output == out and cl.ws == ws and cl.mapped) {
-            beginAnimation(cl, dir, 0, .workspace, duration_ms);
+            beginAnimation(cl, dir, 0, .workspace, animationMsFor(cl, .workspace));
         }
     }
 }

@@ -217,6 +217,24 @@ fn resetDecorations(client: *Client) void {
     client.blur = .unset;
     client.shadow = .unset;
     client.border_width = -1;
+    client.anim = .{};
+}
+
+fn mergeCurve(dest: *[types.MAX_CURVE_NAME]u8, dest_len: *usize, src: []const u8) void {
+    if (src.len == 0) return;
+    core.copyString(dest, dest_len, src);
+}
+
+fn mergeAnimation(dest: *types.AnimationOverride, src: *const types.AnimationOverride) void {
+    if (src.enabled != .unset) dest.enabled = src.enabled;
+    if (src.animation_ms >= 0) dest.animation_ms = src.animation_ms;
+    if (src.open_ms >= 0) dest.open_ms = src.open_ms;
+    if (src.workspace_ms >= 0) dest.workspace_ms = src.workspace_ms;
+    if (src.close_ms >= 0) dest.close_ms = src.close_ms;
+    mergeCurve(&dest.curve, &dest.curve_len, src.curve[0..src.curve_len]);
+    mergeCurve(&dest.open_curve, &dest.open_curve_len, src.open_curve[0..src.open_curve_len]);
+    mergeCurve(&dest.workspace_curve, &dest.workspace_curve_len, src.workspace_curve[0..src.workspace_curve_len]);
+    mergeCurve(&dest.close_curve, &dest.close_curve_len, src.close_curve[0..src.close_curve_len]);
 }
 
 fn applyVisual(rule: *const WindowRule, client: *Client) void {
@@ -241,6 +259,7 @@ fn applyVisual(rule: *const WindowRule, client: *Client) void {
     if (rule.blur != .unset) client.blur = rule.blur;
     if (rule.shadow != .unset) client.shadow = rule.shadow;
     if (rule.has_border_width) client.border_width = rule.border_width;
+    mergeAnimation(&client.anim, &rule.anim);
 }
 
 fn apply(rule: *const WindowRule, client: *Client) void {

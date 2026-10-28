@@ -1,6 +1,7 @@
 #!/bin/sh
-# Verify Motion v2 config parsing: named curves, per-kind curves, offsets,
-# close scale/fade, and rejection of an unknown curve on reload.
+# Verify Motion v2 config parsing: named curves, springs, per-kind curves,
+# offsets, close scale/fade, per-window overrides, and rejection of invalid
+# curves on reload.
 #   sh tests/motion.sh
 set -eu
 
@@ -44,6 +45,8 @@ animation_workspace_offset = 80
 animation_close_scale = 0.5
 animation_close_fade = false
 bezier = snap, 0.1, 0.9, 0.2, 1.0
+spring = bounce, 0.35, 1.4
+window-rule = app-id=tessa-motion-rule; animation=false; animation-ms=500; animation-open-ms=300; animation-workspace-ms=400; animation-close-ms=200; animation-curve=spring-bouncy; animation-open-curve=linear; animation-workspace-curve=snap; animation-close-curve=bounce
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -82,6 +85,10 @@ grep -qx "animation_workspace_offset 80" "$runtime/config.out"
 grep -qx "animation_close_scale 0.500" "$runtime/config.out"
 grep -qx "animation_close_fade 0" "$runtime/config.out"
 grep -qx "bezier snap 0.100 0.900 0.200 1.000" "$runtime/config.out"
+grep -qx "spring bounce 0.350 1.400" "$runtime/config.out"
+grep -qx "rule app-id=tessa-motion-rule; animation=false; animation-ms=500; animation-open-ms=300; animation-workspace-ms=400; animation-close-ms=200; animation-curve=spring-bouncy; animation-open-curve=linear; animation-workspace-curve=snap; animation-close-curve=bounce" "$runtime/config.out"
+tessa-ctl config --json >"$runtime/config.json"
+grep -q '"name":"bounce","kind":"spring","damping":0.350,"frequency":1.400' "$runtime/config.json"
 echo "motion config parsing: ok"
 
 cat >> "$runtime/config" <<'EOF'
@@ -93,6 +100,25 @@ tessa-ctl config >"$runtime/config.out"
 grep -qx "animation_close_curve snap" "$runtime/config.out"
 grep -q "unknown animation curve 'missing-curve'" "$runtime/config.out"
 echo "unknown curve rejection: ok"
+
+cat >> "$runtime/config" <<'EOF'
+spring = broken, 0.0, 9.0
+EOF
+tessa-ctl dispatch reload
+sleep 0.2
+tessa-ctl config >"$runtime/config.out"
+grep -qx "spring bounce 0.350 1.400" "$runtime/config.out"
+grep -q "invalid spring" "$runtime/config.out"
+echo "invalid spring rejection: ok"
+
+cat >> "$runtime/config" <<'EOF'
+window-rule = title=BadMotion; animation-curve=missing-rule-curve
+EOF
+tessa-ctl dispatch reload
+sleep 0.2
+tessa-ctl config >"$runtime/config.out"
+grep -q "unknown window-rule animation curve 'missing-rule-curve'" "$runtime/config.out"
+echo "unknown per-window curve rejection: ok"
 
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true

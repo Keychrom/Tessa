@@ -46,6 +46,11 @@ layout = master
 # window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
 # window-rule = app-id=mpv; opacity=0.92; corner-radius=0; border-width=0; shadow=false
 # window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
+# Per-window motion: animation=false disables all motion for matching windows.
+# animation-ms sets the base duration; open/workspace/close durations and curves
+# can be overridden independently.
+# window-rule = app-id=kitty; animation=false
+# window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
 
 # Layer-shell rules match namespace/output and optionally layer
 # (background, bottom, top, overlay). Later matches win. Opacity works in every
@@ -83,8 +88,10 @@ layout = master
 # durations override animation_ms; -1 inherits it. reduce_motion disables
 # movement, while reduce_motion_animations=fade keeps only a close fade.
 # Built-in curves: linear, ease-out-cubic, ease-in-out-cubic, ease-out-quint,
-# ease-in-out-quint, smoothstep, overshoot. Define a named cubic-bezier with
-# `bezier = name, x1, y1, x2, y2` and reference it by name.
+# ease-in-out-quint, smoothstep, overshoot, spring, spring-soft, spring-bouncy.
+# Define a named cubic-bezier with `bezier = name, x1, y1, x2, y2`, or a
+# normalized spring with `spring = name, damping, frequency` (damping 0.05-2,
+# frequency 0.25-4 oscillations over the animation), then reference it by name.
 animations = true
 animation_ms = 160
 # animation_open_ms = 160
@@ -95,6 +102,7 @@ animation_ms = 160
 # animation_workspace_curve = ease-in-out-cubic
 # animation_close_curve = smoothstep
 # bezier = snap, 0.16, 1.0, 0.3, 1.0
+# spring = bounce, 0.35, 1.4
 # animation_open_x = 0
 # animation_open_y = 18
 # animation_workspace_offset = 54

@@ -139,7 +139,11 @@ static void on_retitle(int signal_number) {
     retitle_requested = 1;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    const char *initial_app_id = argc > 1 ? argv[1] : "tessa-rule-test";
+    const char *initial_title = argc > 2 ? argv[2] : "RuleBefore";
+    const char *next_app_id = argc > 3 ? argv[3] : "tessa-rule-after";
+    const char *next_title = argc > 4 ? argv[4] : "RuleAfter";
     setvbuf(stdout, NULL, _IOLBF, 0);
     struct sigaction sa = {0};
     sa.sa_handler = on_retitle;
@@ -164,8 +168,8 @@ int main(void) {
     xdg_surface_add_listener(xdg_surface, &xdg_listener, NULL);
     toplevel = xdg_surface_get_toplevel(xdg_surface);
     xdg_toplevel_add_listener(toplevel, &toplevel_listener, NULL);
-    xdg_toplevel_set_title(toplevel, "RuleBefore");
-    xdg_toplevel_set_app_id(toplevel, "tessa-rule-test");
+    xdg_toplevel_set_title(toplevel, initial_title);
+    xdg_toplevel_set_app_id(toplevel, initial_app_id);
     wl_surface_commit(surface);
 
     struct pollfd pfd = { .fd = wl_display_get_fd(display), .events = POLLIN };
@@ -174,8 +178,8 @@ int main(void) {
         if (wl_display_flush(display) < 0) break;
         if (retitle_requested) {
             retitle_requested = 0;
-            xdg_toplevel_set_title(toplevel, "RuleAfter");
-            xdg_toplevel_set_app_id(toplevel, "tessa-rule-after");
+            xdg_toplevel_set_title(toplevel, next_title);
+            xdg_toplevel_set_app_id(toplevel, next_app_id);
             printf("window-retitled\n");
             fflush(stdout);
         }

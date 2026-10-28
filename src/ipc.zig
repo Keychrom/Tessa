@@ -781,13 +781,20 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     var ci: usize = 0;
     while (ci < cfg.curve_count) : (ci += 1) {
         const curve = &cfg.curves[ci];
-        append(&buf, &off, "bezier {s} {d:.3} {d:.3} {d:.3} {d:.3}\n", .{
-            curve.name[0..curve.name_len],
-            curve.points[0],
-            curve.points[1],
-            curve.points[2],
-            curve.points[3],
-        });
+        switch (curve.curve.kind) {
+            .bezier => append(&buf, &off, "bezier {s} {d:.3} {d:.3} {d:.3} {d:.3}\n", .{
+                curve.name[0..curve.name_len],
+                curve.curve.points[0],
+                curve.curve.points[1],
+                curve.curve.points[2],
+                curve.curve.points[3],
+            }),
+            .spring => append(&buf, &off, "spring {s} {d:.3} {d:.3}\n", .{
+                curve.name[0..curve.name_len],
+                curve.curve.damping,
+                curve.curve.frequency,
+            }),
+        }
     }
     append(&buf, &off, "reduce_motion {d}\n", .{@as(u8, if (cfg.reduce_motion) 1 else 0)});
     append(&buf, &off, "reduce_motion_animations {s}\n", .{switch (cfg.reduce_motion_animations) {
