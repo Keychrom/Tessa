@@ -116,9 +116,11 @@ decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
 `tessa-ctl dispatch urgent <id> on|off` toggles the urgency flag sent to layout
 helpers.
 Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
-`layer_rules`, and the corresponding counts. Each `curves` entry has a `kind`
-of `bezier` or `spring`; bezier entries include `points`, spring entries
-include `damping` and `frequency`.
+`output_rules`, `layer_rules`, `input_rules`, the corresponding counts, and
+`cursor_theme` / `cursor_size`. Rule arrays currently contain each rule's
+validated `raw` text. Each `curves` entry has a `kind` of `bezier` or `spring`;
+bezier entries include `points`, spring entries include `damping` and
+`frequency`.
 
 ## JSON-RPC
 

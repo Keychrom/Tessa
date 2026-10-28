@@ -164,6 +164,11 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   lifecycle hooks
 - named layout profiles shared by output and workspace rules, plus per-output
   theme rules for backgrounds, borders, wallpaper, and panel dimensions
+- per-device libinput policy for touchpads, mice, and other pointers: tap and
+  drag, natural scrolling, acceleration, scroll/click methods, button maps,
+  and disable-while-typing, with live reload and original-state restoration;
+  monitor rules matched by connector, EDID make/model/serial, or both, plus
+  VRR/adaptive-sync policy and cursor theme/size
 - config-defined event rules with expression filtering and command actions
 - named input modes with mode-specific key bindings, leader keys, `enter-mode`,
   and per-mode timeouts
@@ -704,7 +709,7 @@ diagnostics. Selected keys:
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `workspace-rule` | per-workspace layout/gap/master overrides and profiles |
-| `output-rule` | per-output layout/tuning/theme overrides |
+| `output-rule` | per-output layout/tuning/theme/VRR overrides matched by connector or EDID |
 | `profile` | named layout/tuning profile referenced by rules |
 | `event-rule` | conditional event-to-command rule |
 | `theme-role` | semantic color role shared by compositor and panel |
@@ -726,6 +731,9 @@ diagnostics. Selected keys:
 | `touch` | accept touch input devices |
 | `tablet` | enable tablet-v2 tools and pads |
 | `pointer_constraints` | enable pointer-constraints-v1 |
+| `cursor_theme` | Xcursor theme name; empty uses the system default |
+| `cursor_size` | cursor size in logical pixels (16–96) |
+| `input` / `input-rule` | per-device libinput policy; repeatable |
 | `kb_layout` | XKB layout, for example `us` or `us,de` |
 | `kb_variant` | XKB variant (optional) |
 | `kb_options` | XKB options, for example `grp:alt_shift_toggle` |
@@ -909,7 +917,8 @@ These are real and important:
 
 - **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
   the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
-  pointer behavior and DRM mode setting still need a physical test pass.
+  pointer behavior, per-device libinput tuning, VRR/adaptive-sync, and DRM mode
+  setting still need a physical test pass.
 - **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
   the exact output scale, including runtime changes. The panel still uses an
   integer Cairo buffer scale, so fractional scales are downsampled there, and

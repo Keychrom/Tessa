@@ -70,12 +70,18 @@ layout = master
 
 # Per-output tuning. Add ws= to apply a layout rule to one workspace on that
 # output. Theme keys apply to all workspaces and are re-read by the panel.
+# Match by connector name, EDID make/model/serial, or any combination. All
+# match fields that are present must match; values support shell-style * and ?.
 # output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 # output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 # output-rule = output=HDMI-A-1; profile=compact; gaps=4
 # output-rule = output=HDMI-A-1; accent=#8fd3ff; bg=#0c1118
 # output-rule = output=HDMI-A-1; border-active=#8fd3ff; border-inactive=#243040
 # output-rule = output=HDMI-A-1; panel-bg=#111827; bar-height=52; bar-top-margin=8
+# Match the same monitor after a connector rename. adaptive-sync=on enables
+# VRR when the output supports it; adaptive-sync=off forces it off.
+# output-rule = make=Dell Inc.; model=DELL U2723QE; adaptive-sync=on
+# output-rule = serial=ABC123; adaptive-sync=off
 
 # External custom tiling. One long-lived helper runs per output and receives
 # asynchronous HELLO/LAYOUT/AREA/WINDOW/END requests with focus/urgent metadata,
@@ -177,6 +183,22 @@ gesture_launcher_threshold = 300
 touch = true
 tablet = true
 pointer_constraints = true
+
+# Per-device libinput policy. Rules are evaluated in file order and merged, so
+# later rules can override earlier ones. `type` is any, keyboard, pointer,
+# touchpad, mouse, touch, tablet, tablet-pad, or switch. `name` matches the
+# libinput device name with * and ?. Settings apply on hotplug and on config
+# reload; removing a rule restores the device's original libinput state.
+# input = type=touchpad; tap=true; tap-drag=true; natural-scroll=true
+# input = type=touchpad; name=*Precision*; accel-profile=flat; accel-speed=-0.3
+# input = type=mouse; name=*Mouse*; natural-scroll=false; scroll-method=button; scroll-button=275
+# input = type=touchpad; dwt=false; click-method=clickfinger
+# input = type=pointer; left-handed=true
+
+# Xcursor theme and size. Leave the theme empty for the system default. Changes
+# apply immediately on config reload; an unknown theme keeps the previous cursor.
+# cursor_theme = Adwaita
+cursor_size = 24
 
 # Where wlr-randr changes are persisted. The default is
 # $XDG_CONFIG_HOME/tessa/outputs.conf (or ~/.config/tessa/outputs.conf).

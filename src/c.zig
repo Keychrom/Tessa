@@ -10,6 +10,8 @@ pub const c = @cImport({
     @cInclude("wayland-server-core.h");
     @cInclude("wlr/backend.h");
     @cInclude("wlr/backend/headless.h");
+    @cInclude("wlr/backend/libinput.h");
+    @cInclude("libinput.h");
     @cInclude("wlr/render/allocator.h");
     @cInclude("wlr/render/wlr_renderer.h");
     @cInclude("wlr/types/wlr_buffer.h");

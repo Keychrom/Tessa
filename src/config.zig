@@ -74,6 +74,7 @@ pub fn initDefaults(cfg: *Config) void {
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
     cfg.repeat_rate = 25;
     cfg.repeat_delay = 600;
+    cfg.cursor_size = 24;
     cfg.leader_timeout = 1000;
     core.parseHexColor(cfg.accent[0..cfg.accent_len], &cfg.accent_rgb);
 
@@ -972,6 +973,230 @@ pub fn addLayerRule(cfg: *Config, value: []const u8) bool {
     return true;
 }
 
+fn parseInputType(value: []const u8) ?types.InputDeviceType {
+    if (std.ascii.eqlIgnoreCase(value, "any") or std.ascii.eqlIgnoreCase(value, "all")) return .any;
+    if (std.ascii.eqlIgnoreCase(value, "keyboard")) return .keyboard;
+    if (std.ascii.eqlIgnoreCase(value, "pointer")) return .pointer;
+    if (std.ascii.eqlIgnoreCase(value, "touchpad") or std.ascii.eqlIgnoreCase(value, "trackpad")) return .touchpad;
+    if (std.ascii.eqlIgnoreCase(value, "mouse") or std.ascii.eqlIgnoreCase(value, "mice")) return .mouse;
+    if (std.ascii.eqlIgnoreCase(value, "touch")) return .touch;
+    if (std.ascii.eqlIgnoreCase(value, "tablet")) return .tablet;
+    if (std.ascii.eqlIgnoreCase(value, "tablet-pad") or
+        std.ascii.eqlIgnoreCase(value, "tablet_pad") or
+        std.ascii.eqlIgnoreCase(value, "tabletpad")) return .tablet_pad;
+    if (std.ascii.eqlIgnoreCase(value, "switch")) return .switch_device;
+    return null;
+}
+
+fn parseInputButtonMap(value: []const u8) ?types.InputButtonMap {
+    if (std.ascii.eqlIgnoreCase(value, "lrm") or
+        std.ascii.eqlIgnoreCase(value, "left-right-middle")) return .lrm;
+    if (std.ascii.eqlIgnoreCase(value, "lmr") or
+        std.ascii.eqlIgnoreCase(value, "left-middle-right")) return .lmr;
+    return null;
+}
+
+pub fn addInputRule(cfg: *Config, value: []const u8) bool {
+    if (cfg.input_rule_count >= cfg.input_rules.len) {
+        core.logInfo("config: too many input rules (max {d})", .{cfg.input_rules.len});
+        return false;
+    }
+
+    var rule = types.InputRule{};
+    var clauses_seen: usize = 0;
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            core.logInfo("config: input-rule clause needs '=': '{s}'", .{clause});
+            return false;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            core.logInfo("config: invalid input-rule clause '{s}'", .{clause});
+            return false;
+        }
+        clauses_seen += 1;
+
+        if (std.ascii.eqlIgnoreCase(key, "type") or
+            std.ascii.eqlIgnoreCase(key, "device-type") or
+            std.ascii.eqlIgnoreCase(key, "kind"))
+        {
+            rule.device_type = parseInputType(val) orelse {
+                core.logInfo("config: invalid input-rule type '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "name") or
+            std.ascii.eqlIgnoreCase(key, "device"))
+        {
+            if (val.len >= rule.name.len) {
+                core.logInfo("config: input-rule name too long", .{});
+                return false;
+            }
+            core.copyString(&rule.name, &rule.name_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "tap")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule tap value '{s}'", .{val});
+                return false;
+            };
+            rule.tap = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "tap-drag") or
+            std.ascii.eqlIgnoreCase(key, "tap_drag"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule tap-drag value '{s}'", .{val});
+                return false;
+            };
+            rule.tap_drag = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "tap-drag-lock") or
+            std.ascii.eqlIgnoreCase(key, "tap_drag_lock"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule tap-drag-lock value '{s}'", .{val});
+                return false;
+            };
+            rule.tap_drag_lock = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "natural-scroll") or
+            std.ascii.eqlIgnoreCase(key, "natural_scroll"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule natural-scroll value '{s}'", .{val});
+                return false;
+            };
+            rule.natural_scroll = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "left-handed") or
+            std.ascii.eqlIgnoreCase(key, "left_handed"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule left-handed value '{s}'", .{val});
+                return false;
+            };
+            rule.left_handed = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "middle-emulation") or
+            std.ascii.eqlIgnoreCase(key, "middle_emulation"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule middle-emulation value '{s}'", .{val});
+                return false;
+            };
+            rule.middle_emulation = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "dwt") or
+            std.ascii.eqlIgnoreCase(key, "disable-while-typing"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid input-rule dwt value '{s}'", .{val});
+                return false;
+            };
+            rule.dwt = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "accel-profile") or
+            std.ascii.eqlIgnoreCase(key, "accel_profile"))
+        {
+            if (std.ascii.eqlIgnoreCase(val, "adaptive")) {
+                rule.accel_profile = .adaptive;
+            } else if (std.ascii.eqlIgnoreCase(val, "flat")) {
+                rule.accel_profile = .flat;
+            } else {
+                core.logInfo("config: invalid input-rule accel-profile '{s}'", .{val});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "accel-speed") or
+            std.ascii.eqlIgnoreCase(key, "accel_speed"))
+        {
+            const speed = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid input-rule accel-speed '{s}'", .{val});
+                return false;
+            };
+            if (std.math.isNan(speed) or speed < -1.0 or speed > 1.0) {
+                core.logInfo("config: input-rule accel-speed out of range (-1..1): '{s}'", .{val});
+                return false;
+            }
+            rule.has_accel_speed = true;
+            rule.accel_speed = speed;
+        } else if (std.ascii.eqlIgnoreCase(key, "scroll-method") or
+            std.ascii.eqlIgnoreCase(key, "scroll_method"))
+        {
+            if (std.ascii.eqlIgnoreCase(val, "none")) {
+                rule.scroll_method = .none;
+            } else if (std.ascii.eqlIgnoreCase(val, "two-finger") or
+                std.ascii.eqlIgnoreCase(val, "two_finger") or
+                std.ascii.eqlIgnoreCase(val, "2fg"))
+            {
+                rule.scroll_method = .two_finger;
+            } else if (std.ascii.eqlIgnoreCase(val, "edge")) {
+                rule.scroll_method = .edge;
+            } else if (std.ascii.eqlIgnoreCase(val, "button") or
+                std.ascii.eqlIgnoreCase(val, "on-button-down"))
+            {
+                rule.scroll_method = .button;
+            } else if (std.ascii.eqlIgnoreCase(val, "circular")) {
+                rule.scroll_method = .circular;
+            } else {
+                core.logInfo("config: invalid input-rule scroll-method '{s}'", .{val});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "scroll-button") or
+            std.ascii.eqlIgnoreCase(key, "scroll_button"))
+        {
+            const button = std.fmt.parseInt(u32, val, 10) catch {
+                core.logInfo("config: invalid input-rule scroll-button '{s}'", .{val});
+                return false;
+            };
+            if (button == 0 or button > 0x2ff) {
+                core.logInfo("config: input-rule scroll-button out of range: {d}", .{button});
+                return false;
+            }
+            rule.has_scroll_button = true;
+            rule.scroll_button = button;
+        } else if (std.ascii.eqlIgnoreCase(key, "click-method") or
+            std.ascii.eqlIgnoreCase(key, "click_method"))
+        {
+            if (std.ascii.eqlIgnoreCase(val, "none")) {
+                rule.click_method = .none;
+            } else if (std.ascii.eqlIgnoreCase(val, "button-areas") or
+                std.ascii.eqlIgnoreCase(val, "button_areas"))
+            {
+                rule.click_method = .button_areas;
+            } else if (std.ascii.eqlIgnoreCase(val, "clickfinger")) {
+                rule.click_method = .clickfinger;
+            } else {
+                core.logInfo("config: invalid input-rule click-method '{s}'", .{val});
+                return false;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "tap-button-map") or
+            std.ascii.eqlIgnoreCase(key, "tap_button_map"))
+        {
+            rule.tap_button_map = parseInputButtonMap(val) orelse {
+                core.logInfo("config: invalid input-rule tap-button-map '{s}'", .{val});
+                return false;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "clickfinger-button-map") or
+            std.ascii.eqlIgnoreCase(key, "clickfinger_button_map"))
+        {
+            rule.clickfinger_button_map = parseInputButtonMap(val) orelse {
+                core.logInfo("config: invalid input-rule clickfinger-button-map '{s}'", .{val});
+                return false;
+            };
+        } else {
+            core.logInfo("config: unknown input-rule key '{s}'", .{key});
+            return false;
+        }
+    }
+
+    if (clauses_seen == 0) return false;
+    core.copyString(&rule.raw, &rule.raw_len, value);
+    cfg.input_rules[cfg.input_rule_count] = rule;
+    cfg.input_rule_count += 1;
+    return true;
+}
+
 fn clampTuning(tuning: *types.LayoutTuning) void {
     if (tuning.has_gaps and tuning.gaps < 0) tuning.gaps = 0;
     if (tuning.has_outer_gaps and tuning.outer_gaps < 0) tuning.outer_gaps = 0;
@@ -1386,6 +1611,37 @@ pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
                 return false;
             }
             core.copyString(&rule.output, &rule.output_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "make") or
+            std.ascii.eqlIgnoreCase(key, "vendor"))
+        {
+            if (val.len >= rule.make.len) {
+                core.logInfo("config: output-rule make too long", .{});
+                return false;
+            }
+            core.copyString(&rule.make, &rule.make_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "model")) {
+            if (val.len >= rule.model.len) {
+                core.logInfo("config: output-rule model too long", .{});
+                return false;
+            }
+            core.copyString(&rule.model, &rule.model_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "serial") or
+            std.ascii.eqlIgnoreCase(key, "edid-serial"))
+        {
+            if (val.len >= rule.serial.len) {
+                core.logInfo("config: output-rule serial too long", .{});
+                return false;
+            }
+            core.copyString(&rule.serial, &rule.serial_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "adaptive-sync") or
+            std.ascii.eqlIgnoreCase(key, "adaptive_sync") or
+            std.ascii.eqlIgnoreCase(key, "vrr"))
+        {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid output-rule adaptive-sync value '{s}'", .{val});
+                return false;
+            };
+            rule.adaptive_sync = if (on) .on else .off;
         } else if (std.ascii.eqlIgnoreCase(key, "profile")) {
             if (!validProfileName(val)) {
                 core.logInfo("config: invalid output-rule profile '{s}'", .{val});
@@ -1595,8 +1851,10 @@ pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
         }
     }
 
-    if (clauses_seen == 0 or rule.output_len == 0) {
-        core.logInfo("config: output-rule needs output=<name>", .{});
+    if (clauses_seen == 0 or
+        (rule.output_len == 0 and rule.make_len == 0 and rule.model_len == 0 and rule.serial_len == 0))
+    {
+        core.logInfo("config: output-rule needs output=, make=, model=, or serial=", .{});
         return false;
     }
     core.copyString(&rule.raw, &rule.raw_len, value);
@@ -1900,6 +2158,10 @@ fn loadPath(
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.repeat_rate = v;
         } else if (std.mem.eql(u8, key, "repeat_delay")) {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.repeat_delay = v;
+        } else if (std.mem.eql(u8, key, "cursor_theme") or std.mem.eql(u8, key, "cursor-theme")) {
+            core.copyString(&server.config.cursor_theme, &server.config.cursor_theme_len, value);
+        } else if (std.mem.eql(u8, key, "cursor_size") or std.mem.eql(u8, key, "cursor-size")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.cursor_size = v;
         } else if (std.mem.eql(u8, key, "accent")) {
             if (validHexColor(value)) {
                 core.copyString(&server.config.accent, &server.config.accent_len, value);
@@ -1980,6 +2242,13 @@ fn loadPath(
         } else if (std.mem.eql(u8, key, "layer-rule") or std.mem.eql(u8, key, "layer_rule")) {
             if (!addLayerRule(&server.config, value)) {
                 addIssue(server, path, line_no, "invalid layer-rule: '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "input") or
+            std.mem.eql(u8, key, "input-rule") or
+            std.mem.eql(u8, key, "input_rule"))
+        {
+            if (!addInputRule(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid input-rule: '{s}'", .{value});
             }
         } else if (std.mem.eql(u8, key, "font")) {
             core.copyString(&server.config.font, &server.config.font_len, value);
@@ -2114,6 +2383,8 @@ pub fn load(server: *Server) void {
     if (server.config.repeat_rate < 1) server.config.repeat_rate = 25;
     if (server.config.repeat_rate > 2000) server.config.repeat_rate = 2000;
     if (server.config.repeat_delay < 1) server.config.repeat_delay = 600;
+    if (server.config.cursor_size < 16) server.config.cursor_size = 16;
+    if (server.config.cursor_size > 96) server.config.cursor_size = 96;
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
         if (!server.config.ws_gaps_set[wi]) server.config.ws_gaps[wi] = server.config.gaps;
@@ -2183,7 +2454,7 @@ pub fn load(server: *Server) void {
         }
     }
 
-    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d}, output_rules={d}, layer_rules={d})", .{
+    core.logInfo("config: {s} (terminal={s}, bindings={d}, hooks={d}, rules={d}, output_rules={d}, layer_rules={d}, input_rules={d})", .{
         if (path.len > 0) path else "defaults",
         server.config.terminal[0..server.config.terminal_len],
         server.config.binding_count,
@@ -2191,5 +2462,6 @@ pub fn load(server: *Server) void {
         server.config.rule_count,
         server.config.output_rule_count,
         server.config.layer_rule_count,
+        server.config.input_rule_count,
     });
 }

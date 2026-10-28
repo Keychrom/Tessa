@@ -31,6 +31,7 @@ write_config() {
     top=$2
     side=$3
     bg=$4
+    extra=${5:-}
     cat > "$runtime/config" <<EOF
 panel = true
 xwayland = false
@@ -42,10 +43,19 @@ panel_fg = #f0f4ff
 bg_top = #162038
 bg_bottom = #070a12
 wallpaper_art = true
+$extra
 EOF
 }
 
-write_config 56 8 20 "#102030"
+write_config 56 8 20 "#102030" "output-rule = make=*; model=*; serial=*; bar-height=64; bar-top-margin=6; bar-side-margin=10"
+
+cat > "$runtime/panel-wrapper" <<EOF
+#!/bin/sh
+env | grep '^TESSA_PANEL_OUTPUT' | sort > "$runtime/panel-env"
+exec "$bin/tessa-panel"
+EOF
+chmod +x "$runtime/panel-wrapper"
+export TESSA_PANEL_BIN="$runtime/panel-wrapper"
 
 export TESSA_CONFIG="$runtime/config"
 export TESSA_IPC="$runtime/tessa.sock"
@@ -84,7 +94,14 @@ wait_log() {
     exit 1
 }
 
-wait_log "tessa-panel: bar: 56px top=8 side=20"
+wait_log "tessa-panel: bar: 64px top=6 side=10"
+for var in TESSA_PANEL_OUTPUT_MAKE TESSA_PANEL_OUTPUT_MODEL TESSA_PANEL_OUTPUT_SERIAL; do
+    if ! grep -q "^$var=" "$runtime/panel-env"; then
+        echo "panel did not receive $var" >&2
+        cat "$runtime/panel-env" >&2
+        exit 1
+    fi
+done
 tessa-ctl config-check >"$runtime/check.out"
 grep -q "config: ok" "$runtime/check.out"
 echo "panel theme initial: ok"

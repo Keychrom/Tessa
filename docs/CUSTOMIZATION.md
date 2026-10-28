@@ -148,17 +148,22 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | `outer-gaps=N` | outer gap on this workspace |
 | `master-ratio=0.15..0.9` | master-column width on this workspace |
 
-`output-rule` overrides layout tuning for one monitor, optionally narrowed to a
-single workspace:
+`output-rule` overrides layout tuning for one monitor, identified by connector
+name or EDID metadata, optionally narrowed to a single workspace:
 
 ```ini
 output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
+output-rule = serial=ABC123; adaptive-sync=off
 ```
 
 | Clause | Meaning |
 | --- | --- |
-| `output=` / `monitor=` | output name pattern (required; `*` and `?` work) |
+| `output=` / `monitor=` | connector name pattern |
+| `make=` / `vendor=` | EDID manufacturer pattern |
+| `model=` | EDID model pattern |
+| `serial=` / `edid-serial=` | EDID serial pattern |
 | `ws=1..9` | optional workspace; omitted means every workspace |
 | `layout=master/mosaic/grid/columns/custom` | layout seed |
 | `gaps=N`, `outer-gaps=N` | tile and outer spacing |
@@ -166,12 +171,24 @@ output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 | `mosaic-ratio=0.25..0.85`, `mosaic-min-size=N` | mosaic tuning |
 | `grid-columns=0..8` | fixed grid columns; `0` is automatic |
 | `profile=NAME` | apply a named tuning profile first |
+| `adaptive-sync=true/false` / `vrr=` | request VRR for this output |
+
+At least one match clause (`output`, `make`, `model`, or `serial`) is required.
+Any number may be combined; every field that is present must match. Patterns
+support `*` and `?`, which is useful when a connector name changes between
+docks or boots.
 
 Output rules also accept theme keys: `accent`, `bg`, `border-active`,
 `border-inactive`, `panel-bg`, `panel-fg`, `bg-top`, `bg-bottom`, `bar-height`,
 `bar-top-margin`, and `bar-side-margin`. The panel applies the rule matching its
 own output, so per-monitor colors and dimensions stay in sync. Use hyphens or
 underscores; both are accepted.
+
+`adaptive-sync` is applied only to rules without `ws=`. Tessa checks whether the
+output advertises adaptive sync and logs the commit result. Removing the rule
+restores the state the output had before Tessa applied a policy. Some monitors
+need a VRR-capable mode and connector; check the Tessa log if enabling VRR has
+no effect.
 
 Rules are applied in file order. Precedence is global defaults < output rule
 (all workspaces) < `workspace-rule` < output rule with `ws=`. A runtime layout
@@ -391,6 +408,52 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
 `request-ids`, protocol version 1). `subscribe` streams lifecycle events as JSON
 notifications with the request id in `params.subscription`. Mutation still uses
 the line commands.
+
+## Per-device input and cursor
+
+libinput settings are configured with repeatable `input` (or `input-rule`)
+lines. Match by device type and/or a wildcard device name; matching rules are
+merged in file order:
+
+```ini
+input = type=touchpad; tap=true; tap-drag=true; natural-scroll=true
+input = type=touchpad; name=*Precision*; accel-profile=flat; accel-speed=-0.3
+input = type=mouse; name=*Mouse*; natural-scroll=false; scroll-method=button; scroll-button=275
+input = type=touchpad; dwt=false; click-method=clickfinger
+input = type=pointer; left-handed=true
+```
+
+| Clause | Meaning |
+| --- | --- |
+| `type=any/keyboard/pointer/touchpad/mouse/touch/tablet/tablet-pad/switch` | device class; default `any` |
+| `name=` / `device=` | libinput device-name pattern; `*` and `?` supported |
+| `tap=`, `tap-drag=`, `tap-drag-lock=` | touchpad tap and tap-drag behavior |
+| `natural-scroll=`, `left-handed=`, `middle-emulation=` | pointer scroll/direction/emulation |
+| `dwt=` / `disable-while-typing=` | disable the touchpad while typing |
+| `accel-profile=adaptive/flat`, `accel-speed=-1.0..1.0` | pointer acceleration |
+| `scroll-method=none/two-finger/edge/button/circular` | pointer/touchpad scrolling |
+| `scroll-button=1..767` | evdev button used by `scroll-method=button` |
+| `click-method=none/button-areas/clickfinger` | touchpad click behavior |
+| `tap-button-map=lrm/lmr`, `clickfinger-button-map=lrm/lmr` | button order |
+
+A pointer that supports tap gestures is classified as a touchpad; other
+pointers are mice. Touchpad-only clauses are ignored on a mouse, and pointer
+clauses that the device does not support are skipped. Every device's original
+libinput state is captured before Tessa applies a rule, so config reload can
+remove an override and return to the original state. Device names are shown by
+`libinput list-devices`.
+
+Cursor appearance uses two global keys:
+
+```ini
+cursor_theme = Adwaita
+cursor_size = 24
+```
+
+`cursor_theme` is an Xcursor theme name; an empty value uses the system default.
+`cursor_size` is clamped to 16–96 logical pixels. Reload applies both
+immediately. If the named theme fails to load, Tessa logs a warning and keeps the
+previous cursor.
 
 ## Input, gestures, and XIM
 

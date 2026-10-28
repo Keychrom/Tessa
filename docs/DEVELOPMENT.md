@@ -431,8 +431,10 @@ sh tests/workspace-pinning.sh
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config
 keys, the JSON snapshot, startup logs, and the advertised
 `zwp_pointer_gestures_v1`, `zwp_tablet_manager_v2`, and
-`zwp_pointer_constraints_v1` globals. The headless backend has no touch or
-tablet hardware, so device events themselves need a physical test pass.
+`zwp_pointer_constraints_v1` globals. It also parses input/cursor rules and
+checks connector/EDID output rules plus the cursor-manager reload log. The
+headless backend has no touch, touchpad, or VRR-capable hardware, so libinput
+behavior and adaptive-sync commits need a physical test pass.
 
 `tests/pointer-constraints.sh` compiles a small xdg-shell client, creates a
 persistent locked pointer, and checks `locked`, `unlocked`, and re-`locked`

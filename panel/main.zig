@@ -3577,6 +3577,15 @@ pub fn main() !void {
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));
     }
+    if (c.getenv("TESSA_PANEL_OUTPUT_MAKE")) |make| {
+        m.copyTrunc(&g.target_make, &g.target_make_len, std.mem.span(make));
+    }
+    if (c.getenv("TESSA_PANEL_OUTPUT_MODEL")) |model| {
+        m.copyTrunc(&g.target_model, &g.target_model_len, std.mem.span(model));
+    }
+    if (c.getenv("TESSA_PANEL_OUTPUT_SERIAL")) |serial| {
+        m.copyTrunc(&g.target_serial, &g.target_serial_len, std.mem.span(serial));
+    }
     if (c.getenv("TESSA_PANEL_NOTIFY_OWNER")) |owner| {
         const value = std.mem.span(owner);
         g.notification_owner = !(value.len > 0 and value[0] == '0');

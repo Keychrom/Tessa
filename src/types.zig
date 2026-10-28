@@ -23,6 +23,8 @@ pub const MAX_STATUS = 8;
 pub const MAX_RULES = 64;
 pub const MAX_OUTPUT_RULES = 64;
 pub const MAX_LAYER_RULES = 64;
+pub const MAX_INPUT_RULES = 32;
+pub const MAX_INPUT_DEVICES = 32;
 pub const MAX_CONFIG_ISSUES = 64;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
@@ -150,6 +152,47 @@ pub const ConfigIssue = struct {
 };
 
 pub const RuleBool = enum { unset, on, off };
+
+pub const InputDeviceType = enum {
+    any,
+    keyboard,
+    pointer,
+    touchpad,
+    mouse,
+    touch,
+    tablet,
+    tablet_pad,
+    switch_device,
+};
+
+pub const InputAccelProfile = enum { unset, adaptive, flat };
+pub const InputScrollMethod = enum { unset, none, two_finger, edge, button, circular };
+pub const InputClickMethod = enum { unset, none, button_areas, clickfinger };
+pub const InputButtonMap = enum { unset, lrm, lmr };
+
+pub const InputRule = struct {
+    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw_len: usize = 0,
+    device_type: InputDeviceType = .any,
+    name: [128]u8 = [_]u8{0} ** 128,
+    name_len: usize = 0,
+    tap: RuleBool = .unset,
+    tap_drag: RuleBool = .unset,
+    tap_drag_lock: RuleBool = .unset,
+    natural_scroll: RuleBool = .unset,
+    left_handed: RuleBool = .unset,
+    middle_emulation: RuleBool = .unset,
+    dwt: RuleBool = .unset,
+    accel_profile: InputAccelProfile = .unset,
+    has_accel_speed: bool = false,
+    accel_speed: f32 = 0.0,
+    scroll_method: InputScrollMethod = .unset,
+    has_scroll_button: bool = false,
+    scroll_button: u32 = 0,
+    click_method: InputClickMethod = .unset,
+    tap_button_map: InputButtonMap = .unset,
+    clickfinger_button_map: InputButtonMap = .unset,
+};
 
 pub const AnimationKind = enum { none, open, workspace };
 
@@ -309,6 +352,13 @@ pub const OutputRule = struct {
     raw_len: usize = 0,
     output: [64]u8 = [_]u8{0} ** 64,
     output_len: usize = 0,
+    make: [64]u8 = [_]u8{0} ** 64,
+    make_len: usize = 0,
+    model: [64]u8 = [_]u8{0} ** 64,
+    model_len: usize = 0,
+    serial: [64]u8 = [_]u8{0} ** 64,
+    serial_len: usize = 0,
+    adaptive_sync: RuleBool = .unset,
     profile: [32]u8 = [_]u8{0} ** 32,
     profile_len: usize = 0,
     ws: u8 = 0,
@@ -474,6 +524,9 @@ pub const Config = struct {
     kb_rules_len: usize,
     repeat_rate: i32,
     repeat_delay: i32,
+    cursor_theme: [64]u8,
+    cursor_theme_len: usize,
+    cursor_size: i32,
     accent: [16]u8,
     accent_len: usize,
     accent_rgb: [3]f32,
@@ -515,6 +568,8 @@ pub const Config = struct {
     output_rule_count: usize,
     layer_rules: [MAX_LAYER_RULES]LayerRule,
     layer_rule_count: usize,
+    input_rules: [MAX_INPUT_RULES]InputRule,
+    input_rule_count: usize,
 };
 
 pub const Output = struct {
@@ -538,6 +593,8 @@ pub const Output = struct {
     helper: LayoutHelperState,
 
     last_scale: f32,
+    adaptive_sync_base: bool,
+    adaptive_sync_policy: bool,
     frame: c.wl_listener,
     request_state: c.wl_listener,
     commit: c.wl_listener,
@@ -621,6 +678,31 @@ pub const Client = struct {
     foreign_fullscreen: c.wl_listener,
     foreign_destroy: c.wl_listener,
     ext_foreign_toplevel: ?*c.wlr_ext_foreign_toplevel_handle_v1,
+};
+
+pub const InputPolicySnapshot = struct {
+    accel_profile: c_uint,
+    accel_speed: f64,
+    natural_scroll: c_int,
+    left_handed: c_int,
+    middle_emulation: c_uint,
+    scroll_method: c_uint,
+    scroll_button: u32,
+    tap_enabled: c_uint,
+    drag_enabled: c_uint,
+    drag_lock_enabled: c_uint,
+    tap_button_map: c_uint,
+    click_method: c_uint,
+    clickfinger_button_map: c_uint,
+    dwt_enabled: c_uint,
+};
+
+pub const TrackedInput = struct {
+    server: *Server,
+    device: *c.wlr_input_device,
+    destroy: c.wl_listener,
+    has_policy_snapshot: bool,
+    policy_snapshot: InputPolicySnapshot,
 };
 
 pub const LayerSurface = struct {
@@ -852,6 +934,8 @@ pub const Server = struct {
     pointer_constraints_manager: ?*c.wlr_pointer_constraints_v1,
     touch_devices: [MAX_TOUCH_DEVICES]?*TouchDevice,
     touch_device_count: usize,
+    tracked_inputs: [MAX_INPUT_DEVICES]?*TrackedInput,
+    tracked_input_count: usize,
     tablets: [MAX_TABLETS]?*Tablet,
     tablet_count: usize,
     tablet_tools: [MAX_TABLET_TOOLS]?*TabletTool,

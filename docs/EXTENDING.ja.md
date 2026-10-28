@@ -117,9 +117,11 @@ END
 入ります。`tessa-ctl dispatch urgent <id> on|off` でレイアウトヘルパーへ送る
 緊急度を切り替えられます。設定の
 `diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
-は `event_rules`、`profiles`、`theme_roles`、`layer_rules` と各件数も
-出力します。`curves` の各要素は `kind`（`bezier` または `spring`）を持ち、
-bezier は `points`、spring は `damping` と `frequency` を含みます。
+は `event_rules`、`profiles`、`theme_roles`、`output_rules`、`layer_rules`、
+`input_rules`、各件数、`cursor_theme`、`cursor_size` も出力します。ルール配列
+の各要素は現在、検証済みの `raw` 文字列を含みます。`curves` の各要素は
+`kind`（`bezier` または `spring`）を持ち、bezier は `points`、spring は
+`damping` と `frequency` を含みます。
 
 ## JSON-RPC
 

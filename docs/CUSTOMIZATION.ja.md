@@ -151,17 +151,22 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | `master-count=1..8`、`mosaic-ratio`、`mosaic-min-size`、`grid-columns` | 追加の調整 |
 | `profile=NAME` | 名前付きプロファイルを先に適用 |
 
-`output-rule` は 1 つのモニタのレイアウト調整を上書きします。`ws=` を付けると
-そのワークスペースだけに限定できます:
+`output-rule` は 1 つのモニタのレイアウト調整を上書きします。コネクタ名または
+EDID 情報でモニタを指定し、`ws=` を付けるとそのワークスペースだけに限定できます:
 
 ```ini
 output-rule = output=HDMI-A-1; layout=grid; gaps=8; outer-gaps=12
 output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
+output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
+output-rule = serial=ABC123; adaptive-sync=off
 ```
 
 | 句 | 意味 |
 | --- | --- |
-| `output=` / `monitor=` | 出力名パターン（必須。`*` と `?` が使える） |
+| `output=` / `monitor=` | コネクタ名パターン |
+| `make=` / `vendor=` | EDID メーカーパターン |
+| `model=` | EDID モデルパターン |
+| `serial=` / `edid-serial=` | EDID シリアルパターン |
 | `ws=1..9` | 任意。省略すると全ワークスペース |
 | `layout=master/mosaic/grid/columns/custom` | レイアウトのシード |
 | `gaps=N`、`outer-gaps=N` | タイル間隔と外周間隔 |
@@ -169,12 +174,24 @@ output-rule = output=HDMI-A-1; ws=2; layout=master; master-ratio=0.62
 | `mosaic-ratio=0.25..0.85`、`mosaic-min-size=N` | モザイク調整 |
 | `grid-columns=0..8` | グリッド固定列数。`0` は自動 |
 | `profile=NAME` | 名前付きプロファイルを先に適用 |
+| `adaptive-sync=true/false` / `vrr=` | この出力で VRR を要求 |
+
+`output`、`make`、`model`、`serial` のうち少なくとも 1 つのマッチ条件が
+必要です。複数指定した場合は、指定した項目がすべて一致しなければなりません。
+`*` と `?` が使えるため、ドック接続や再起動でコネクタ名が変わっても同じ
+モニタにルールを適用できます。
 
 出力ルールはテーマキーも受け付けます: `accent`、`bg`、`border-active`、
 `border-inactive`、`panel-bg`、`panel-fg`、`bg-top`、`bg-bottom`、
 `bar-height`、`bar-top-margin`、`bar-side-margin`。パネルも自分の出力に
 一致するルールを読むため、モニタ別の色と寸法が一致します。ハイフンと
 アンダースコアはどちらも使えます。
+
+`adaptive-sync` は `ws=` のないルールにのみ適用されます。Tessa は出力が
+adaptive sync に対応しているか確認し、コミット結果をログに出力します。
+ルールを削除すると、Tessa がポリシーを適用する前の状態に戻します。VRR に
+対応したモードやコネクタが必要なモニタもあるため、有効化しても効果がない
+場合は Tessa のログを確認してください。
 
 ルールはファイル順に適用されます。優先順位は、グローバル既定 <
 出力ルール（全ワークスペース） < `workspace-rule` < `ws=` 付き出力ルール
@@ -393,6 +410,49 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
 `request-ids`、プロトコルバージョン 1）を返します。`subscribe` は
 `params.subscription` にリクエスト ID を持つ JSON 通知としてイベントを
 配信します。変更操作は行コマンドを使います。
+
+## デバイス別入力とカーソル
+
+libinput 設定は繰り返し可能な `input`（または `input-rule`）行で指定します。
+デバイス種別やワイルドカード名でマッチし、ファイル順にマージされます:
+
+```ini
+input = type=touchpad; tap=true; tap-drag=true; natural-scroll=true
+input = type=touchpad; name=*Precision*; accel-profile=flat; accel-speed=-0.3
+input = type=mouse; name=*Mouse*; natural-scroll=false; scroll-method=button; scroll-button=275
+input = type=touchpad; dwt=false; click-method=clickfinger
+input = type=pointer; left-handed=true
+```
+
+| 句 | 意味 |
+| --- | --- |
+| `type=any/keyboard/pointer/touchpad/mouse/touch/tablet/tablet-pad/switch` | デバイス種別。既定は `any` |
+| `name=` / `device=` | libinput デバイス名パターン。`*` と `?` が使える |
+| `tap=`、`tap-drag=`、`tap-drag-lock=` | タッチパッドのタップ動作 |
+| `natural-scroll=`、`left-handed=`、`middle-emulation=` | スクロール方向・左右・中ボタンエミュレーション |
+| `dwt=` / `disable-while-typing=` | キー入力中のタッチパッド無効化 |
+| `accel-profile=adaptive/flat`、`accel-speed=-1.0..1.0` | ポインタ加速 |
+| `scroll-method=none/two-finger/edge/button/circular` | スクロール方式 |
+| `scroll-button=1..767` | `scroll-method=button` で使う evdev ボタン |
+| `click-method=none/button-areas/clickfinger` | タッチパッドのクリック方式 |
+| `tap-button-map=lrm/lmr`、`clickfinger-button-map=lrm/lmr` | ボタン順 |
+
+タップに対応するポインタはタッチパッド、それ以外はマウスとして分類します。
+タッチパッド専用の句はマウスでは無視され、デバイスが対応しないポインタ句も
+スキップされます。Tessa はルールを適用する前にデバイスの元の libinput 状態を
+記録するため、設定リロードで上書きを削除すると元の状態に戻ります。デバイス名は
+`libinput list-devices` で確認できます。
+
+カーソルの見た目は 2 つのグローバルキーで指定します:
+
+```ini
+cursor_theme = Adwaita
+cursor_size = 24
+```
+
+`cursor_theme` は Xcursor テーマ名で、空ならシステム既定です。`cursor_size` は
+16〜96 論理 px に丸められます。リロードで両方即座に反映されます。テーマの
+読み込みに失敗した場合は警告をログに出し、以前のカーソルを維持します。
 
 ## 入力、ジェスチャ、XIM
 

@@ -194,7 +194,12 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 
 `input.zig`:
 
-- seat、cursor、xcursor manager を作成する
+- seat、cursor、xcursor manager を作成する。manager は
+  `cursor_theme`/`cursor_size` を使い、設定リロードで作り直す。テーマを
+  読み込めない場合はシステムカーソルへフォールバックする
+- `input_policy.zig` でデバイス別 libinput ルールを適用する。ポインタ/
+  タッチパッド設定と Tessa 適用前のスナップショットを保持し、リロード時に
+  元のデバイス状態へ戻せるようにする
 - すべてのポインタを `wlr_cursor` にアタッチする
 - ユーザー環境と設定（`kb_layout`、`kb_variant`、`kb_options`、`kb_model`、
   `kb_rules`、`repeat_rate`、`repeat_delay`）から XKB キーマップを作成する。
@@ -468,6 +473,12 @@ inhibitor が存在する間またはセッションロック中は
   します。実行中の比率変更は `Output.runtime_ratio[]` に保持し、設定
   再読み込みで消去します。`arrangeOutput()` と初期 configure サイズは同じ
   `Tuning` 結果を使うため、gaps とレイアウトが食い違いません。
+- `output-rule` はコネクタ名または EDID の `make`/`model`/`serial` で
+  マッチできます。`rules.applyOutputPolicy()` は `adaptive-sync` を解決し、
+  出力が対応していれば再構成を許可して
+  `WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED` をコミットします。
+  `Output.adaptive_sync_base/policy` により、ルールを削除したとき VRR を
+  有効なまま残さず、ポリシー適用前の状態へ戻せます。
 - `layout_helper.zig` は出力ごとに最大 1 つの常駐子プロセスを `socketpair`
   で管理します。`custom` レイアウトは非同期の `HELLO`/`LAYOUT` リクエスト
   （`OUTPUT`、`AREA`、フォーカス/緊急度付き `WINDOW`、`END`）を送り、

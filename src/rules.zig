@@ -93,6 +93,18 @@ fn applyWorkspaceOverrides(cfg: *const types.Config, index: usize, tuning: *Tuni
     if (cfg.layout_overrides[index]) tuning.layout = cfg.layout_by_ws[index];
 }
 
+fn outputMatches(rule: *const types.OutputRule, out: *Output) bool {
+    if (rule.output_len > 0 and
+        !wildcardMatch(rule.output[0..rule.output_len], core.outputName(out))) return false;
+    if (rule.make_len > 0 and
+        !wildcardMatch(rule.make[0..rule.make_len], core.cstr(out.wlr.make))) return false;
+    if (rule.model_len > 0 and
+        !wildcardMatch(rule.model[0..rule.model_len], core.cstr(out.wlr.model))) return false;
+    if (rule.serial_len > 0 and
+        !wildcardMatch(rule.serial[0..rule.serial_len], core.cstr(out.wlr.serial))) return false;
+    return true;
+}
+
 pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
     const cfg = &server.config;
     const index = @min(@max(ws, 1), types.WS_COUNT) - 1;
@@ -112,12 +124,11 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
         return tuning;
     }
 
-    const name = core.outputName(out);
     var i: usize = 0;
     while (i < cfg.output_rule_count) : (i += 1) {
         const rule = &cfg.output_rules[i];
         if (rule.ws != 0) continue;
-        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        if (!outputMatches(rule, out)) continue;
         applyOutputRule(cfg, rule, &tuning);
     }
     applyWorkspaceOverrides(cfg, index, &tuning);
@@ -126,7 +137,7 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
     while (i < cfg.output_rule_count) : (i += 1) {
         const rule = &cfg.output_rules[i];
         if (rule.ws == 0 or rule.ws != index + 1) continue;
-        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        if (!outputMatches(rule, out)) continue;
         applyOutputRule(cfg, rule, &tuning);
     }
     if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
@@ -169,12 +180,11 @@ pub fn applyOutputTheme(server: *Server, out: *Output) void {
         out.theme_bg = color4(rgb);
     }
 
-    const name = core.outputName(out);
     var i: usize = 0;
     while (i < cfg.output_rule_count) : (i += 1) {
         const rule = &cfg.output_rules[i];
         if (rule.ws != 0) continue;
-        if (!wildcardMatch(rule.output[0..rule.output_len], name)) continue;
+        if (!outputMatches(rule, out)) continue;
         if (rule.has_accent) out.theme_accent = color4(rule.accent_rgb);
         if (rule.has_bg) out.theme_bg = color4(rule.bg_rgb);
         if (rule.has_border_active) out.theme_border_active = color4(rule.border_active_rgb);
@@ -188,6 +198,67 @@ pub fn applyOutputThemes(server: *Server) void {
         const out = server.outputs[i] orelse continue;
         applyOutputTheme(server, out);
         core.updateBackground(out);
+    }
+}
+
+fn adaptiveSyncFor(server: *Server, out: *Output) types.RuleBool {
+    const cfg = &server.config;
+    var result: types.RuleBool = .unset;
+    var i: usize = 0;
+    while (i < cfg.output_rule_count) : (i += 1) {
+        const rule = &cfg.output_rules[i];
+        if (rule.ws != 0 or rule.adaptive_sync == .unset) continue;
+        if (!outputMatches(rule, out)) continue;
+        result = rule.adaptive_sync;
+    }
+    return result;
+}
+
+pub fn applyOutputPolicy(server: *Server, out: *Output) void {
+    const desired = adaptiveSyncFor(server, out);
+    if (!out.wlr.adaptive_sync_supported) return;
+
+    var enabled = false;
+    if (desired == .unset) {
+        if (!out.adaptive_sync_policy) return;
+        enabled = out.adaptive_sync_base;
+    } else {
+        if (!out.adaptive_sync_policy) {
+            out.adaptive_sync_base =
+                out.wlr.adaptive_sync_status == c.WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED;
+            out.adaptive_sync_policy = true;
+        }
+        enabled = desired == .on;
+    }
+
+    const current = out.wlr.adaptive_sync_status == c.WLR_OUTPUT_ADAPTIVE_SYNC_ENABLED;
+    if (enabled == current) {
+        if (desired == .unset) out.adaptive_sync_policy = false;
+        return;
+    }
+
+    var state: c.wlr_output_state = undefined;
+    c.wlr_output_state_init(&state);
+    c.wlr_output_state_set_adaptive_sync_enabled(&state, enabled);
+    state.allow_reconfiguration = true;
+    const ok = c.wlr_output_commit_state(out.wlr, &state);
+    c.wlr_output_state_finish(&state);
+    if (!ok) {
+        core.logInfo("output {s}: adaptive sync commit failed", .{core.outputName(out)});
+    } else {
+        if (desired == .unset) out.adaptive_sync_policy = false;
+        core.logInfo("output {s}: adaptive sync {s}", .{
+            core.outputName(out),
+            if (enabled) "enabled" else "disabled",
+        });
+    }
+}
+
+pub fn applyOutputPolicies(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        applyOutputPolicy(server, out);
     }
 }
 

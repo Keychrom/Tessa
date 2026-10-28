@@ -465,7 +465,8 @@ edits are rejected and keep the previous configuration.
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
 | `workspace-rule` | — | Per-workspace layout/spacing rule |
-| `output-rule` | — | Per-output (optionally per-workspace) layout, spacing, and theme rule |
+| `output-rule` | — | Per-output layout, spacing, theme, and VRR rule matched by connector or EDID |
+| `input` / `input-rule` | — | Per-device libinput policy; repeatable |
 | `profile` | — | Named layout/tuning profile referenced by output/workspace rules |
 | `window-rule` | — | Declarative window rule |
 | `layer-rule` | — | Declarative layer-shell rule |
@@ -558,6 +559,12 @@ zone.
 | `touch` | `true` | Accept touch devices |
 | `tablet` | `true` | tablet-v2 tools and pads |
 | `pointer_constraints` | `true` | `pointer-constraints-v1` |
+| `cursor_theme` | system default | Xcursor theme name; empty uses the system default |
+| `cursor_size` | `24` | Cursor size in logical pixels (16–96) |
+| `input` / `input-rule` | — | Per-device libinput rule; repeatable |
+
+`input` rules are described in section 11. Cursor theme and size reload live;
+an unknown theme leaves the previous cursor active.
 
 `Super+R` also rebuilds keymaps.
 
@@ -682,11 +689,21 @@ output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
 output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
 output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
 output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
+output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
+output-rule = serial=ABC123; adaptive-sync=off
 ```
 
-Layout/tuning keys:
+Match clauses:
 
-- `output=` / `monitor=`: required; supports `*` and `?`
+- `output=` / `monitor=`: connector name, for example `HDMI-A-1`
+- `make=` / `vendor=`: EDID manufacturer string
+- `model=`: EDID model string
+- `serial=` / `edid-serial=`: EDID serial number
+- Any combination of the above; at least one is required. Every field that is
+  present must match. `*` and `?` wildcards are supported.
+
+Layout/tuning keys (optionally narrowed with `ws=`):
+
 - `ws=1..9`: optional; omitted means all workspaces
 - `layout=...`
 - `gaps=N`, `outer-gaps=N`
@@ -703,9 +720,18 @@ Theme keys (all workspaces only):
 - `bg-top=#RRGGBB`, `bg-bottom=#RRGGBB`
 - `bar-height=32..96`, `bar-top-margin=0..64`, `bar-side-margin=0..128`
 
+Output policy keys (all workspaces only):
+
+- `adaptive-sync=on|off` / `vrr=on|off`: request VRR on the matched output.
+  Tessa commits the change immediately and logs whether it succeeded. Outputs
+  that do not advertise adaptive-sync support ignore the request. Removing the
+  rule restores the output's state from before Tessa applied a policy; startup
+  defaults are normally off.
+
 The compositor applies the output background and border colors. The panel
 re-reads the same rule for its own output, so bar height, margins, wallpaper,
-and panel colors stay in sync. Theme fields are ignored when `ws=` is present.
+and panel colors stay in sync. Theme and adaptive-sync fields are ignored when
+`ws=` is present.
 
 #### Named profiles
 
@@ -1095,6 +1121,72 @@ repeat_delay = 600
 ```
 
 `Super+R` rebuilds keymaps. Empty `kb_*` values use the environment defaults.
+
+### Cursor theme
+
+```ini
+cursor_theme = Adwaita
+cursor_size = 24
+```
+
+The theme is an Xcursor name resolved through the usual `XCURSOR_THEME`,
+`XCURSOR_PATH`, `$XDG_DATA_HOME/icons`, and `/usr/share/icons` search path.
+Leave `cursor_theme` empty to use the system default. `cursor_size` is clamped
+to 16–96 logical pixels. Config reload recreates the cursor manager immediately;
+if the new theme cannot be loaded, Tessa logs a warning and keeps the previous
+cursor instead of leaving the pointer invisible.
+
+### Per-device input policy
+
+Tessa applies libinput settings with repeatable `input` (or `input-rule`)
+lines. Rules are matched against each physical libinput device, merged in file
+order, and the last value for each field wins:
+
+```ini
+input = type=touchpad; tap=true; tap-drag=true; natural-scroll=true
+input = type=touchpad; name=*Precision*; accel-profile=flat; accel-speed=-0.3
+input = type=mouse; name=*Mouse*; natural-scroll=false; scroll-method=button; scroll-button=275
+input = type=touchpad; dwt=false; click-method=clickfinger
+input = type=pointer; left-handed=true
+```
+
+Match clauses:
+
+| Key | Meaning |
+| --- | --- |
+| `type=` / `device-type=` / `kind=` | `any`, `keyboard`, `pointer`, `touchpad`, `mouse`, `touch`, `tablet`, `tablet-pad`, or `switch`; default `any` |
+| `name=` / `device=` | libinput device name; `*` and `?` wildcards; omitted matches every device |
+
+Settings:
+
+| Key | Applies to | Values |
+| --- | --- | --- |
+| `tap=` | touchpad | `true`/`false` |
+| `tap-drag=` | touchpad | `true`/`false` |
+| `tap-drag-lock=` | touchpad | `true`/`false` |
+| `natural-scroll=` | pointer/touchpad | `true`/`false` |
+| `left-handed=` | pointer | `true`/`false` |
+| `middle-emulation=` | pointer | `true`/`false` |
+| `dwt=` / `disable-while-typing=` | touchpad | `true`/`false` |
+| `accel-profile=` | pointer | `adaptive` or `flat` |
+| `accel-speed=` | pointer | `-1.0` … `1.0` |
+| `scroll-method=` | pointer/touchpad | `none`, `two-finger`, `edge`, `button`, or `circular` |
+| `scroll-button=` | pointer | evdev button code, `1`–`767` |
+| `click-method=` | touchpad | `none`, `button-areas`, or `clickfinger` |
+| `tap-button-map=` | touchpad | `lrm` or `lmr` |
+| `clickfinger-button-map=` | touchpad | `lrm` or `lmr` |
+
+The type classification uses libinput: a pointer with tap-finger support is a
+touchpad, otherwise it is a mouse. Touchpad-specific clauses have no effect on
+a mouse, and vice versa. Settings are applied when a device is added and again
+on every config reload. Tessa snapshots each device's original libinput state,
+so removing a rule restores that state instead of leaving the old override
+behind. Only libinput devices are configurable; virtual devices and devices
+owned by another backend are left alone.
+
+Headless tests can validate parsing and JSON output but cannot exercise tap or
+scroll behavior. Verify touchpad and mouse tuning on real hardware with
+`libinput list-devices` for the exact device name.
 
 ### Input modes
 
@@ -1614,8 +1706,9 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 ## 16. Known Limitations
 
 - **Physical DRM/libinput is not fully validated.** Development uses headless
-  pixman, `wtype`, Fcitx5, and `xwayland-satellite`. Real DRM mode setting and
-  physical keyboard/mouse/touchpad behavior still need a final hardware pass.
+  pixman, `wtype`, Fcitx5, and `xwayland-satellite`. Real DRM mode setting,
+  physical keyboard/mouse/touchpad behavior, and VRR/adaptive-sync commits still
+  need a final hardware pass.
 - **Arch packaging is not yet hardware-tested.** The PKGBUILD targets AUR
   `zig0.16-bin` and `wlroots0.19`; report `makepkg` failures with the compiler
   and pkg-config versions from the troubleshooting section.

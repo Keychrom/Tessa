@@ -247,6 +247,12 @@ pub const Panel = struct {
     target_output: ?*c.wl_output = null,
     target_name: [64]u8 = [_]u8{0} ** 64,
     target_name_len: usize = 0,
+    target_make: [64]u8 = [_]u8{0} ** 64,
+    target_make_len: usize = 0,
+    target_model: [64]u8 = [_]u8{0} ** 64,
+    target_model_len: usize = 0,
+    target_serial: [64]u8 = [_]u8{0} ** 64,
+    target_serial_len: usize = 0,
     focused_output_name: [64]u8 = [_]u8{0} ** 64,
     focused_output_name_len: usize = 0,
     is_focused_output: bool = false,
@@ -628,6 +634,12 @@ fn parseOutputTheme(value: []const u8) void {
     var theme = OutputTheme{};
     var output_buf: [64]u8 = undefined;
     var output_len: usize = 0;
+    var make_buf: [64]u8 = undefined;
+    var make_len: usize = 0;
+    var model_buf: [64]u8 = undefined;
+    var model_len: usize = 0;
+    var serial_buf: [64]u8 = undefined;
+    var serial_len: usize = 0;
     var ws: usize = 0;
 
     var clauses = std.mem.splitScalar(u8, value, ';');
@@ -646,6 +658,15 @@ fn parseOutputTheme(value: []const u8) void {
         if (std.mem.eql(u8, key, "output") or std.mem.eql(u8, key, "monitor")) {
             output_len = @min(val.len, output_buf.len);
             @memcpy(output_buf[0..output_len], val[0..output_len]);
+        } else if (std.mem.eql(u8, key, "make") or std.mem.eql(u8, key, "vendor")) {
+            make_len = @min(val.len, make_buf.len);
+            @memcpy(make_buf[0..make_len], val[0..make_len]);
+        } else if (std.mem.eql(u8, key, "model")) {
+            model_len = @min(val.len, model_buf.len);
+            @memcpy(model_buf[0..model_len], val[0..model_len]);
+        } else if (std.mem.eql(u8, key, "serial") or std.mem.eql(u8, key, "edid-serial")) {
+            serial_len = @min(val.len, serial_buf.len);
+            @memcpy(serial_buf[0..serial_len], val[0..serial_len]);
         } else if (std.mem.eql(u8, key, "ws") or std.mem.eql(u8, key, "workspace")) {
             ws = std.fmt.parseInt(usize, val, 10) catch 0;
         } else if (std.mem.eql(u8, key, "accent")) {
@@ -675,9 +696,16 @@ fn parseOutputTheme(value: []const u8) void {
         }
     }
 
-    if (output_len == 0 or ws != 0) return;
-    if (g.target_name_len > 0 and
+    if (ws != 0) return;
+    if (output_len == 0 and make_len == 0 and model_len == 0 and serial_len == 0) return;
+    if (output_len > 0 and
         !globMatch(output_buf[0..output_len], g.target_name[0..g.target_name_len])) return;
+    if (make_len > 0 and
+        !globMatch(make_buf[0..make_len], g.target_make[0..g.target_make_len])) return;
+    if (model_len > 0 and
+        !globMatch(model_buf[0..model_len], g.target_model[0..g.target_model_len])) return;
+    if (serial_len > 0 and
+        !globMatch(serial_buf[0..serial_len], g.target_serial[0..g.target_serial_len])) return;
     output_theme.matched = true;
     if (theme.accent) |v| output_theme.accent = v;
     if (theme.bg) |v| output_theme.bg = v;

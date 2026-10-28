@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) void {
     server.use_lld = true;
     if (scenefx) server.root_module.linkSystemLibrary("scenefx-0.4", .{});
     server.root_module.linkSystemLibrary("wlroots-0.19", .{});
+    server.root_module.linkSystemLibrary("libinput", .{});
     server.root_module.linkSystemLibrary("wayland-server", .{});
     server.root_module.linkSystemLibrary("xkbcommon", .{});
     server.root_module.linkSystemLibrary("pixman-1", .{});

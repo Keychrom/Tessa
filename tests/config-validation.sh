@@ -92,6 +92,14 @@ window-rule = title=Bad; border-width=17
 layer-rule = namespace=x; layer=side
 layer-rule = namespace=x; opacity=nope
 layer-rule = unknown=1
+input-rule = type=joystick
+input-rule = tap=maybe
+input-rule = accel-speed=2
+input-rule = scroll-method=spin
+input-rule = tap-button-map=xyz
+cursor_size = nope
+output-rule = make=*; adaptive-sync=maybe
+output-rule = adaptive-sync=on
 EOF
 
 tessa-ctl dispatch reload
@@ -122,6 +130,14 @@ grep -q "$runtime/config:25: invalid window-rule" "$runtime/config.out"
 grep -q "$runtime/config:26: invalid layer-rule" "$runtime/config.out"
 grep -q "$runtime/config:27: invalid layer-rule" "$runtime/config.out"
 grep -q "$runtime/config:28: invalid layer-rule" "$runtime/config.out"
+grep -q "$runtime/config:29: invalid input-rule" "$runtime/config.out"
+grep -q "$runtime/config:30: invalid input-rule" "$runtime/config.out"
+grep -q "$runtime/config:31: invalid input-rule" "$runtime/config.out"
+grep -q "$runtime/config:32: invalid input-rule" "$runtime/config.out"
+grep -q "$runtime/config:33: invalid input-rule" "$runtime/config.out"
+grep -q "$runtime/config:34: invalid integer for cursor_size" "$runtime/config.out"
+grep -q "$runtime/config:35: invalid output-rule" "$runtime/config.out"
+grep -q "$runtime/config:36: invalid output-rule" "$runtime/config.out"
 echo "line diagnostics + rejected reload: ok"
 
 if tessa-ctl config-check >"$runtime/check.out" 2>&1; then

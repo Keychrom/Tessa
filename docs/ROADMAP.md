@@ -153,9 +153,11 @@ the interactive config editor/diff preview) before or alongside this work.
       title/app-id changes. Structural actions remain map/reload-time.
 - [ ] Workspace/layout v2: named workspaces, special/scratchpad workspaces,
       and window groups.
-- [ ] Input/output policy: per-device touchpad/mouse rules (tap, natural
+- [x] Input/output policy: per-device touchpad/mouse rules (tap, natural
       scrolling, acceleration, scroll method, button map), monitor rules by
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.
+      Verified through config/JSON tests; physical touchpad and VRR behavior
+      remains part of the hardware validation pass.
 - [ ] Shell v2: composable bar modules/layout, per-surface font and color
       roles, wallpaper image/shader sources, and layer-rule-aware popovers and
       toasts.

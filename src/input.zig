@@ -15,6 +15,7 @@ const touch = @import("touch.zig");
 const tablet = @import("tablet.zig");
 const constraints = @import("constraints.zig");
 const window_effects = @import("window_effects.zig");
+const input_policy = @import("input_policy.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 
@@ -24,6 +25,46 @@ const Keyboard = types.Keyboard;
 const Binding = types.Binding;
 const TouchDevice = types.TouchDevice;
 
+fn createCursorManager(server: *Server) ?*c.wlr_xcursor_manager {
+    var theme_buf: [65:0]u8 = undefined;
+    var theme: ?[*:0]const u8 = null;
+    if (server.config.cursor_theme_len > 0) {
+        core.copyZ(&theme_buf, server.config.cursor_theme[0..server.config.cursor_theme_len]);
+        theme = @ptrCast(&theme_buf);
+    }
+    const size: u32 = @intCast(server.config.cursor_size);
+    return c.wlr_xcursor_manager_create(theme, size);
+}
+
+fn loadCursor(manager: *c.wlr_xcursor_manager) bool {
+    return c.wlr_xcursor_manager_load(manager, 1);
+}
+
+fn reloadCursor(server: *Server) void {
+    const manager = createCursorManager(server) orelse {
+        core.logInfo("cursor theme: failed to create manager for '{s}'", .{
+            server.config.cursor_theme[0..server.config.cursor_theme_len],
+        });
+        return;
+    };
+    if (!loadCursor(manager)) {
+        c.wlr_xcursor_manager_destroy(manager);
+        core.logInfo("cursor theme: failed to load '{s}' size {d}, keeping previous cursor", .{
+            server.config.cursor_theme[0..server.config.cursor_theme_len],
+            server.config.cursor_size,
+        });
+        return;
+    }
+    c.wlr_cursor_set_xcursor(server.cursor, manager, "default");
+    const old = server.cursor_mgr;
+    server.cursor_mgr = manager;
+    c.wlr_xcursor_manager_destroy(old);
+    core.logInfo("cursor theme: {s} size {d}", .{
+        if (server.config.cursor_theme_len > 0) server.config.cursor_theme[0..server.config.cursor_theme_len] else "default",
+        server.config.cursor_size,
+    });
+}
+
 pub fn init(server: *Server) void {
     server.cursor = c.wlr_cursor_create() orelse {
         core.logInfo("failed to create cursor", .{});
@@ -31,11 +72,26 @@ pub fn init(server: *Server) void {
     };
     c.wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
 
-    server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24) orelse {
+    server.cursor_mgr = createCursorManager(server) orelse {
         core.logInfo("failed to create xcursor manager", .{});
         return;
     };
-    _ = c.wlr_xcursor_manager_load(server.cursor_mgr, 1);
+    if (!loadCursor(server.cursor_mgr)) {
+        if (server.config.cursor_theme_len > 0) {
+            core.logInfo("cursor theme: failed to load '{s}', falling back to default", .{
+                server.config.cursor_theme[0..server.config.cursor_theme_len],
+            });
+            c.wlr_xcursor_manager_destroy(server.cursor_mgr);
+            const size: u32 = @intCast(server.config.cursor_size);
+            server.cursor_mgr = c.wlr_xcursor_manager_create(null, size) orelse {
+                core.logInfo("failed to create fallback xcursor manager", .{});
+                return;
+            };
+            _ = loadCursor(server.cursor_mgr);
+        } else {
+            core.logInfo("failed to load default cursor theme", .{});
+        }
+    }
 
     server.seat = c.wlr_seat_create(server.display, "seat0") orelse {
         core.logInfo("failed to create seat", .{});
@@ -196,6 +252,46 @@ fn onTouchDeviceDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.
     updateCapabilities(server);
 }
 
+fn onTrackedInputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const state: *types.TrackedInput = @fieldParentPtr("destroy", listener.?);
+    const server = state.server;
+    var i: usize = 0;
+    while (i < server.tracked_inputs.len) : (i += 1) {
+        if (server.tracked_inputs[i] == state) {
+            if (server.tracked_input_count > 0) server.tracked_input_count -= 1;
+            if (i != server.tracked_input_count) {
+                server.tracked_inputs[i] = server.tracked_inputs[server.tracked_input_count];
+            }
+            server.tracked_inputs[server.tracked_input_count] = null;
+            break;
+        }
+    }
+    c.free(state);
+}
+
+fn trackInput(server: *Server, device: *c.wlr_input_device) void {
+    if (server.tracked_input_count >= server.tracked_inputs.len) return;
+    const state = @as(*types.TrackedInput, @ptrCast(@alignCast(c.calloc(1, @sizeOf(types.TrackedInput)).?)));
+    state.server = server;
+    state.device = device;
+    state.destroy.notify = onTrackedInputDestroy;
+    c.wl_signal_add(&device.events.destroy, &state.destroy);
+    server.tracked_inputs[server.tracked_input_count] = state;
+    server.tracked_input_count += 1;
+}
+
+pub fn cleanupTrackedInputs(server: *Server) void {
+    var i: usize = 0;
+    while (i < server.tracked_inputs.len) : (i += 1) {
+        const state = server.tracked_inputs[i] orelse continue;
+        c.wl_list_remove(&state.destroy.link);
+        c.free(state);
+        server.tracked_inputs[i] = null;
+    }
+    server.tracked_input_count = 0;
+}
+
 fn addTouchDevice(server: *Server, device: *c.wlr_input_device) bool {
     if (!server.config.touch) return false;
     if (server.touch_device_count >= server.touch_devices.len) return false;
@@ -215,6 +311,7 @@ fn onNewInput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *Server = @fieldParentPtr("new_input", listener.?);
     const device: *c.wlr_input_device = @ptrCast(@alignCast(data.?));
 
+    trackInput(server, device);
     if (device.type == c.WLR_INPUT_DEVICE_KEYBOARD) {
         addKeyboard(server, device);
     } else if (device.type == c.WLR_INPUT_DEVICE_POINTER) {
@@ -228,6 +325,7 @@ fn onNewInput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     } else if (device.type == c.WLR_INPUT_DEVICE_TABLET_PAD) {
         _ = tablet.addPad(server, device);
     }
+    input_policy.apply(server, device);
     updateCapabilities(server);
 }
 
@@ -376,9 +474,12 @@ pub fn reloadRuntime(server: *Server) void {
     }
     modes.sync(server);
     reloadKeymaps(server);
+    reloadCursor(server);
+    input_policy.applyAll(server);
     layout_helper.reload(server);
     rules.applyAll(server);
     rules.applyOutputThemes(server);
+    rules.applyOutputPolicies(server);
     constraints.reload(server);
     window_effects.reload(server);
     rules.clearRuntimeRatios(server);

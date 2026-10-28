@@ -347,8 +347,10 @@ sh tests/workspace-pinning.sh
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定
 キー、JSON スナップショット、起動ログ、`zwp_pointer_gestures_v1`、
 `zwp_tablet_manager_v2`、`zwp_pointer_constraints_v1` グローバルの公開を
-確認します。headless バックエンドにはタッチ/タブレットの実デバイスが
-ないため、デバイスイベント自体は実機での検証が必要です。
+確認します。入力/カーソルルールの解析、コネクタ/EDID 出力ルール、カーソル
+マネージャのリロードログも検証します。headless バックエンドにはタッチ、
+タッチパッド、VRR 対応の実デバイスがないため、libinput の実動作と
+adaptive-sync のコミットは実機での検証が必要です。
 
 `tests/pointer-constraints.sh` は小さな xdg-shell クライアントをコンパイルし、
 persistent な locked pointer を作成します。ワークスペース切り替えで

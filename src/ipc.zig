@@ -850,6 +850,8 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "kb_rules {s}\n", .{cfg.kb_rules[0..cfg.kb_rules_len]});
     append(&buf, &off, "repeat_rate {d}\n", .{cfg.repeat_rate});
     append(&buf, &off, "repeat_delay {d}\n", .{cfg.repeat_delay});
+    append(&buf, &off, "cursor_theme {s}\n", .{cfg.cursor_theme[0..cfg.cursor_theme_len]});
+    append(&buf, &off, "cursor_size {d}\n", .{cfg.cursor_size});
     append(&buf, &off, "font {s}\n", .{cfg.font[0..cfg.font_len]});
     append(&buf, &off, "accent {s}\n", .{cfg.accent[0..cfg.accent_len]});
     append(&buf, &off, "bg {s}\n", .{cfg.bg[0..cfg.bg_len]});
@@ -861,6 +863,8 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     append(&buf, &off, "workspace_rule_count {d}\n", .{cfg.workspace_rule_count});
     append(&buf, &off, "rule_count {d}\n", .{cfg.rule_count});
     append(&buf, &off, "output_rule_count {d}\n", .{cfg.output_rule_count});
+    append(&buf, &off, "layer_rule_count {d}\n", .{cfg.layer_rule_count});
+    append(&buf, &off, "input_rule_count {d}\n", .{cfg.input_rule_count});
     var hi: usize = 0;
     while (hi < cfg.hook_count) : (hi += 1) {
         const hook = &cfg.hooks[hi];
@@ -916,6 +920,13 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
         append(&buf, &off, "layer_rule {s}\n", .{raw});
+    }
+    i = 0;
+    while (i < cfg.input_rule_count) : (i += 1) {
+        const rule = &cfg.input_rules[i];
+        var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
+        const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
+        append(&buf, &off, "input_rule {s}\n", .{raw});
     }
     i = 0;
     while (i < server.config_issue_count) : (i += 1) {

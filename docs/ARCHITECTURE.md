@@ -194,7 +194,12 @@ layer surfaces without an explicit output, and keyboard workspace bindings.
 
 `input.zig`:
 
-- creates the seat, cursor, and xcursor manager,
+- creates the seat, cursor, and xcursor manager; the manager uses
+  `cursor_theme`/`cursor_size` and is recreated on config reload, falling back
+  to the system cursor if a theme cannot be loaded,
+- applies per-device libinput rules through `input_policy.zig`, tracking
+  pointer/touchpad settings and a pre-Tessa snapshot so reloads can restore
+  the original device state,
 - attaches every pointer to `wlr_cursor`,
 - creates an XKB keymap from the user's environment and the config
   (`kb_layout`, `kb_variant`, `kb_options`, `kb_model`, `kb_rules`,
@@ -445,6 +450,11 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   reload. Runtime ratio changes live in `Output.runtime_ratio[]`; config reload
   clears them. `arrangeOutput()` and the provisional configure size consume the
   same `Tuning` result, so gaps and layout cannot disagree.
+- `output-rule` can match the connector name or EDID `make`/`model`/`serial`
+  fields. `rules.applyOutputPolicy()` resolves `adaptive-sync` and commits
+  `WLR_OUTPUT_STATE_ADAPTIVE_SYNC_ENABLED` with reconfiguration allowed when
+  the output supports it. `Output.adaptive_sync_base/policy` lets a removed
+  rule restore the pre-policy state instead of leaving VRR enabled.
 - `layout_helper.zig` owns one optional long-lived child process per output,
   connected by a `socketpair`. The `custom` layout sends an asynchronous
   `HELLO`/`LAYOUT` request (`OUTPUT`, `AREA`, `WINDOW` with focus/urgent flags,

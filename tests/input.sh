@@ -41,6 +41,12 @@ touch = true
 tablet = true
 pointer_constraints = true
 xim = false
+cursor_theme = Adwaita
+cursor_size = 32
+input = type=touchpad; name=*Touchpad*; tap=true; tap-drag=true; tap-drag-lock=false; natural-scroll=true; left-handed=false; middle-emulation=true; dwt=true; accel-profile=adaptive; accel-speed=0.25; scroll-method=two-finger; click-method=clickfinger; tap-button-map=lmr; clickfinger-button-map=lmr
+input = type=mouse; name=*Mouse*; natural-scroll=false; accel-profile=flat; accel-speed=-0.5; scroll-method=button; scroll-button=275
+output-rule = output=HEADLESS-*; make=*; model=*; serial=*; adaptive-sync=off
+output-rule = make=HEADLESS-*; model=*; adaptive-sync=on
 EOF
 
 cat > "$runtime/registry.c" <<'EOF'
@@ -95,7 +101,11 @@ while [ ! -S "$runtime/tessa.sock" ]; do
     sleep 0.1
 done
 
-tessa-ctl config-check >"$runtime/check.out"
+if ! tessa-ctl config-check >"$runtime/check.out"; then
+    cat "$runtime/check.out" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+fi
 grep -q "config: ok" "$runtime/check.out"
 tessa-ctl config >"$runtime/config.out"
 grep -q "^gestures 1$" "$runtime/config.out"
@@ -105,11 +115,39 @@ grep -q "^gesture_launcher_threshold 80$" "$runtime/config.out"
 grep -q "^touch 1$" "$runtime/config.out"
 grep -q "^tablet 1$" "$runtime/config.out"
 grep -q "^pointer_constraints 1$" "$runtime/config.out"
+grep -q "^cursor_theme Adwaita$" "$runtime/config.out"
+grep -q "^cursor_size 32$" "$runtime/config.out"
+grep -q "^input_rule type=touchpad; name=\*Touchpad\*" "$runtime/config.out"
+grep -q "^input_rule type=mouse; name=\*Mouse\*" "$runtime/config.out"
+grep -q "^output_rule output=HEADLESS-\*; make=\*; model=\*; serial=\*; adaptive-sync=off$" "$runtime/config.out"
+grep -q "^output_rule make=HEADLESS-\*; model=\*; adaptive-sync=on$" "$runtime/config.out"
 tessa-ctl config --json >"$runtime/config.json"
 grep -q '"gestures":true' "$runtime/config.json"
 grep -q '"gesture_fingers":4' "$runtime/config.json"
 grep -q '"tablet":true' "$runtime/config.json"
+grep -q '"cursor_theme":"Adwaita"' "$runtime/config.json"
+grep -q '"cursor_size":32' "$runtime/config.json"
+grep -q '"input_rule_count":2' "$runtime/config.json"
 echo "input config: ok"
+
+sed 's/cursor_size = 32/cursor_size = 40/' "$runtime/config" >"$runtime/config.new"
+mv "$runtime/config.new" "$runtime/config"
+tessa-ctl dispatch reload
+i=0
+while [ "$i" -lt 50 ]; do
+    if grep -q "cursor theme: Adwaita size 40" "$runtime/tessa.log" 2>/dev/null; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+if [ "$i" -ge 50 ]; then
+    echo "cursor theme reload was not applied" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+fi
+tessa-ctl config | grep -q "^cursor_size 40$"
+echo "cursor theme reload: ok"
 
 grep -q "gestures: 4-finger swipe" "$runtime/tessa.log"
 grep -q "tablet-v2 enabled" "$runtime/tessa.log"

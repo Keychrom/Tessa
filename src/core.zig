@@ -110,12 +110,21 @@ pub fn spawnPanel(server: *Server, out: *Output) void {
     const bin: [*:0]const u8 = if (c.getenv("TESSA_PANEL_BIN")) |p| p else "tessa-panel";
     var name_buf: [128:0]u8 = undefined;
     copyZ(&name_buf, outputName(out));
+    var make_buf: [128:0]u8 = undefined;
+    copyZ(&make_buf, cstr(out.wlr.make));
+    var model_buf: [128:0]u8 = undefined;
+    copyZ(&model_buf, cstr(out.wlr.model));
+    var serial_buf: [128:0]u8 = undefined;
+    copyZ(&serial_buf, cstr(out.wlr.serial));
     const notify_owner = !server.panel_notify_owner_assigned;
     server.panel_notify_owner_assigned = true;
     const pid = c.fork();
     if (pid == 0) {
         _ = c.signal(c.SIGCHLD, c.SIG_DFL);
         _ = c.setenv("TESSA_PANEL_OUTPUT", &name_buf, 1);
+        _ = c.setenv("TESSA_PANEL_OUTPUT_MAKE", &make_buf, 1);
+        _ = c.setenv("TESSA_PANEL_OUTPUT_MODEL", &model_buf, 1);
+        _ = c.setenv("TESSA_PANEL_OUTPUT_SERIAL", &serial_buf, 1);
         _ = c.setenv("TESSA_PANEL_NOTIFY_OWNER", if (notify_owner) "1" else "0", 1);
         _ = c.execlp(bin, bin, @as(?[*:0]const u8, null));
         c._exit(127);

@@ -478,7 +478,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
 | `workspace-rule` | — | ワークスペース別のレイアウト／間隔ルール |
-| `output-rule` | — | 出力別（任意でワークスペース別）のレイアウト／間隔／テーマルール |
+| `output-rule` | — | コネクタ名または EDID で一致させる出力別レイアウト／間隔／テーマ／VRR ルール |
+| `input` / `input-rule` | — | デバイス別 libinput ポリシー。複数行可 |
 | `profile` | — | 出力／ワークスペースルールから参照する名前付きプロファイル |
 | `window-rule` | — | ウィンドウのマッチルール |
 | `layer-rule` | — | レイヤーシェルのマッチルール |
@@ -571,6 +572,12 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `touch` | `true` | タッチ入力を受け付ける |
 | `tablet` | `true` | tablet-v2 のツール／パッド |
 | `pointer_constraints` | `true` | `pointer-constraints-v1` |
+| `cursor_theme` | システム既定 | Xcursor テーマ名。空ならシステム既定 |
+| `cursor_size` | `24` | カーソルサイズ（論理 px、16〜96） |
+| `input` / `input-rule` | — | デバイス別 libinput ルール。複数行可 |
+
+`input` ルールは 11 節で説明します。カーソルテーマとサイズはリロードで即時
+反映され、存在しないテーマを指定した場合は以前のカーソルを維持します。
 
 `Super+R` でキーマップも再構築されます。
 
@@ -702,11 +709,21 @@ output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
 output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
 output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
 output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
+output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
+output-rule = serial=ABC123; adaptive-sync=off
 ```
 
-レイアウト／チューニング:
+マッチ条件:
 
-- `output=` / `monitor=`: 必須。`*` と `?` が使える
+- `output=` / `monitor=`: コネクタ名（例 `HDMI-A-1`）
+- `make=` / `vendor=`: EDID のメーカー文字列
+- `model=`: EDID のモデル文字列
+- `serial=` / `edid-serial=`: EDID のシリアル番号
+- 上記は任意に組み合わせ可能。少なくとも 1 つ必要で、指定した項目は
+  すべて一致しなければなりません。`*` と `?` のワイルドカードが使えます。
+
+レイアウト／チューニング（`ws=` で 1 ワークスペースに限定可能）:
+
 - `ws=1..9`: 省略時は全ワークスペース
 - `layout=...`
 - `gaps=N`、`outer-gaps=N`
@@ -723,9 +740,16 @@ output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margi
 - `bg-top=#RRGGBB`、`bg-bottom=#RRGGBB`
 - `bar-height=32..96`、`bar-top-margin=0..64`、`bar-side-margin=0..128`
 
+出力ポリシー（全ワークスペースのみ）:
+
+- `adaptive-sync=on|off` / `vrr=on|off`: 一致した出力で VRR を要求します。
+  Tessa は即座にコミットし、結果をログに出力します。adaptive sync 非対応の
+  出力では無視されます。ルールを削除すると、Tessa がポリシーを適用する前の
+  状態に戻します（通常の起動時既定はオフ）。
+
 コンポジタが出力の背景とボーダー色を適用し、パネルも同じ出力向けルールを
 読み直すため、バーの高さ、マージン、壁紙、パネル色が一致します。`ws=` を
-指定したルールではテーマ項目を無視します。
+指定したルールではテーマと adaptive sync の項目を無視します。
 
 #### 名前付きプロファイル
 
@@ -1122,7 +1146,72 @@ repeat_delay = 600
 `Super+R` でキーマップを再構築します。`kb_*` が空の場合は環境の XKB
 設定を使います。
 
-### 11.2 入力モード
+### 11.2 カーソル
+
+```ini
+cursor_theme = Adwaita
+cursor_size = 24
+```
+
+テーマは Xcursor 名で、`XCURSOR_THEME`、`XCURSOR_PATH`、
+`$XDG_DATA_HOME/icons`、`/usr/share/icons` の通常の検索パスを使います。
+`cursor_theme` が空ならシステム既定です。`cursor_size` は 16〜96 論理 px
+に丸められます。設定リロードでカーソルマネージャを即座に作り直します。新しい
+テーマを読み込めない場合は警告をログに出し、ポインタが見えなくなるのを避ける
+ため以前のカーソルを維持します。
+
+### 11.3 デバイス別入力ポリシー
+
+libinput の設定は繰り返し可能な `input`（または `input-rule`）行で指定します。
+ルールは実デバイスごとにマッチし、ファイル順にマージされます。同じ項目は
+後のルールが上書きします:
+
+```ini
+input = type=touchpad; tap=true; tap-drag=true; natural-scroll=true
+input = type=touchpad; name=*Precision*; accel-profile=flat; accel-speed=-0.3
+input = type=mouse; name=*Mouse*; natural-scroll=false; scroll-method=button; scroll-button=275
+input = type=touchpad; dwt=false; click-method=clickfinger
+input = type=pointer; left-handed=true
+```
+
+マッチ条件:
+
+| キー | 内容 |
+| --- | --- |
+| `type=` / `device-type=` / `kind=` | `any`、`keyboard`、`pointer`、`touchpad`、`mouse`、`touch`、`tablet`、`tablet-pad`、`switch`。既定は `any` |
+| `name=` / `device=` | libinput のデバイス名。`*` と `?` が使える。省略時は全デバイス |
+
+設定項目:
+
+| キー | 対象 | 値 |
+| --- | --- | --- |
+| `tap=` | タッチパッド | `true`/`false` |
+| `tap-drag=` | タッチパッド | `true`/`false` |
+| `tap-drag-lock=` | タッチパッド | `true`/`false` |
+| `natural-scroll=` | ポインタ／タッチパッド | `true`/`false` |
+| `left-handed=` | ポインタ | `true`/`false` |
+| `middle-emulation=` | ポインタ | `true`/`false` |
+| `dwt=` / `disable-while-typing=` | タッチパッド | `true`/`false` |
+| `accel-profile=` | ポインタ | `adaptive` または `flat` |
+| `accel-speed=` | ポインタ | `-1.0`〜`1.0` |
+| `scroll-method=` | ポインタ／タッチパッド | `none`、`two-finger`、`edge`、`button`、`circular` |
+| `scroll-button=` | ポインタ | evdev ボタンコード `1`〜`767` |
+| `click-method=` | タッチパッド | `none`、`button-areas`、`clickfinger` |
+| `tap-button-map=` | タッチパッド | `lrm` または `lmr` |
+| `clickfinger-button-map=` | タッチパッド | `lrm` または `lmr` |
+
+種別判定には libinput を使います。タップ対応のポインタはタッチパッド、
+それ以外はマウスとして扱います。タッチパッド専用項目はマウスには影響せず、
+その逆も同様です。設定はデバイス追加時と設定リロード時に適用されます。
+Tessa はデバイスの元の libinput 状態を記録するため、ルールを削除すると以前の
+上書きを残さず元の状態へ戻ります。設定できるのは libinput デバイスだけで、
+仮想デバイスや別バックエンドのデバイスには干渉しません。
+
+ヘッドレステストでは設定の解析と JSON 出力を検証できますが、タップやスクロール
+の実動作は検証できません。実機では `libinput list-devices` で正確なデバイス名
+を確認してください。
+
+### 11.4 入力モード
 
 ```ini
 mode = resize
@@ -1156,7 +1245,7 @@ bind = Escape enter-mode default
 戻ります。アクションが別モードへ入る場合はそのモードを維持します。
 `leader_timeout = 0` は明示的に終了するまで維持します。
 
-### 11.3 ジェスチャ
+### 11.5 ジェスチャ
 
 ```ini
 gestures = true
@@ -1168,7 +1257,7 @@ gesture_launcher_threshold = 300
 既定では 3 本指の横スワイプでワークスペース、上スワイプでランチャーです。
 それ以外の指の本数や pinch/hold はフォーカス中のクライアントへ転送されます。
 
-### 11.4 タッチ・タブレット
+### 11.6 タッチ・タブレット
 
 ```ini
 touch = true
@@ -1180,7 +1269,7 @@ pointer_constraints = true
 ツールボタン、リング、ストリップに対応します。pointer-constraints-v1 は
 フォーカスに応じて locked/confined を有効化します。
 
-### 11.5 IME / XIM
+### 11.7 IME / XIM
 
 Wayland IME は `text-input-v3` と `input-method-v2` で中継されます。
 Fcitx5 + Mozc でのランチャー入力が検証済みです。
@@ -1672,7 +1761,8 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 
 - **物理 DRM / libinput は実機検証が未完了**。開発は headless pixman、
   `wtype`、Fcitx5、`xwayland-satellite` が中心です。実際の DRM モード設定、
-  物理キーボード／マウス／タッチパッドの最終確認が必要です。
+  物理キーボード／マウス／タッチパッドの挙動、VRR/Adaptive Sync の
+  コミットは実機で最終確認が必要です。
 - **Arch パッケージは実機未検証**。PKGBUILD は AUR の `zig0.16-bin` と
   `wlroots0.19` を前提にしています。`makepkg` が失敗した場合は、
   トラブルシューティングにあるコンパイラと pkg-config のバージョンを
