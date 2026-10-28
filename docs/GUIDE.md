@@ -615,6 +615,8 @@ See the event table in section 13.
 | `Super+Shift+H/J/K/L` | Swap/move in that direction, or to an adjacent output |
 | `Super+Space` | Toggle floating |
 | `Super+F` | Toggle fullscreen |
+| `Super+grave` | Toggle the scratchpad |
+| `Super+Shift+grave` | Move the focused window to/from the scratchpad |
 | `Super+Escape` | Spawn `swaylock` |
 | `Super+Tab` / `Super+Shift+Tab` | Cycle windows |
 | `Super+Ctrl+H/L` | Shrink/grow master ratio |
@@ -636,6 +638,7 @@ bind = SUPER+SHIFT+r enter-mode resize
 
 Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
+`toggle-scratchpad`, `move-to-scratchpad`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
 `tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
 `resize-width`, `resize-height`, and `enter-mode`.
@@ -800,6 +803,8 @@ Actions:
 | `tile=true/false` | Inverse of `float` |
 | `fullscreen=true/false` | Fullscreen |
 | `workspace=1..9\|name` | Assign workspace |
+| `workspace=special` | Assign to the scratchpad (alias for `scratchpad=true`) |
+| `scratchpad=true/false` | Hidden floating scratchpad assignment |
 | `size=WxH` | Floating size |
 | `width=N`, `height=N` | One floating axis |
 | `position=X,Y` | Floating position |
@@ -922,6 +927,24 @@ Code`, `CMD move-workspace Code`, and window-rule `workspace=` all accept the
 name. Numeric indices continue to work. Names are presentation and command
 aliases: windows remain assigned to the numeric workspace internally, and
 names apply to that number on every output.
+
+#### Scratchpad
+
+A scratchpad is a hidden floating overlay per output:
+
+```ini
+window-rule = app-id=org.example.notes; scratchpad=true
+bind = SUPER+grave toggle-scratchpad
+bind = SUPER+SHIFT+grave move-to-scratchpad
+```
+
+`Super+grave` shows or hides the focused output's scratchpad windows; when
+shown, the first one is focused. `Super+Shift+grave` moves the focused window
+into the scratchpad, or returns a scratchpad window to normal tiling. A window
+rule can use `scratchpad=true` or `workspace=special`. Changing workspaces hides
+the scratchpad. Scratchpad windows are floating, do not count as workspace
+occupancy, and remain hidden from the bar while closed. IPC equivalents are
+`CMD toggle-scratchpad` and `CMD move-to-scratchpad`.
 
 ### 8.8 Event rules
 
@@ -1398,6 +1421,8 @@ CMD config
 CMD config-json
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
+CMD toggle-scratchpad
+CMD move-to-scratchpad
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

@@ -281,6 +281,8 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+t", "toggle-layout", "");
     _ = addBinding(cfg, "super+space", "toggle-float", "");
     _ = addBinding(cfg, "super+f", "toggle-fullscreen", "");
+    _ = addBinding(cfg, "super+grave", "toggle-scratchpad", "");
+    _ = addBinding(cfg, "super+shift+grave", "move-to-scratchpad", "");
     _ = addBinding(cfg, "super+escape", "spawn", "swaylock");
     _ = addBinding(cfg, "super+tab", "focus-next", "");
     _ = addBinding(cfg, "super+shift+tab", "focus-prev", "");
@@ -739,7 +741,14 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
         } else if (std.ascii.eqlIgnoreCase(key, "workspace") or
             std.ascii.eqlIgnoreCase(key, "ws"))
         {
-            if (std.fmt.parseInt(usize, val, 10)) |ws| {
+            if (std.ascii.eqlIgnoreCase(val, "special") or
+                std.ascii.eqlIgnoreCase(val, "scratchpad"))
+            {
+                rule.scratchpad = .on;
+                rule.floating = .on;
+                rule.workspace = 0;
+                rule.workspace_name_len = 0;
+            } else if (std.fmt.parseInt(usize, val, 10)) |ws| {
                 if (ws < 1 or ws > types.WS_COUNT) {
                     core.logInfo("config: rule workspace out of range: {d}", .{ws});
                     return false;
@@ -759,6 +768,13 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
                 }
                 core.copyString(&rule.workspace_name, &rule.workspace_name_len, val);
             }
+        } else if (std.ascii.eqlIgnoreCase(key, "scratchpad")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule scratchpad value '{s}'", .{val});
+                return false;
+            };
+            rule.scratchpad = if (on) .on else .off;
+            if (on) rule.floating = .on;
         } else if (std.ascii.eqlIgnoreCase(key, "float") or
             std.ascii.eqlIgnoreCase(key, "floating"))
         {
@@ -1987,6 +2003,9 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "move")) return .move;
     if (std.ascii.eqlIgnoreCase(name, "toggle-float")) return .toggle_float;
     if (std.ascii.eqlIgnoreCase(name, "toggle-fullscreen")) return .toggle_fullscreen;
+    if (std.ascii.eqlIgnoreCase(name, "toggle-scratchpad") or
+        std.ascii.eqlIgnoreCase(name, "scratchpad")) return .toggle_scratchpad;
+    if (std.ascii.eqlIgnoreCase(name, "move-to-scratchpad")) return .move_to_scratchpad;
     if (std.ascii.eqlIgnoreCase(name, "focus-next")) return .focus_next;
     if (std.ascii.eqlIgnoreCase(name, "focus-prev")) return .focus_prev;
     if (std.ascii.eqlIgnoreCase(name, "launcher")) return .launcher;

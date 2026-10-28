@@ -367,15 +367,26 @@ fn apply(rule: *const WindowRule, client: *Client) void {
         client.ws = rule.workspace;
         out.last_focused[client.ws] = client;
     }
+    if (rule.scratchpad != .unset) {
+        client.scratchpad = rule.scratchpad == .on;
+        if (client.scratchpad) client.floating = true;
+    }
 }
 
 pub fn applyToClient(client: *Client) void {
     const cfg = &client.server.config;
     resetDecorations(client);
+    const was_scratchpad = client.scratchpad;
+    client.scratchpad = false;
     var i: usize = 0;
     while (i < cfg.rule_count) : (i += 1) {
         const rule = &cfg.rules[i];
         if (matches(rule, client)) apply(rule, client);
+    }
+    if (was_scratchpad and !client.scratchpad) {
+        client.floating = false;
+        client.float_w = 0;
+        client.float_h = 0;
     }
 }
 

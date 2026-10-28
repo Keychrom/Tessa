@@ -437,6 +437,17 @@ unknown workspace name rejects the reload and keeps the previous config.
 sh tests/workspace-names.sh
 ```
 
+### Scratchpad test
+
+`tests/scratchpad.sh` assigns a test toplevel to the scratchpad with a window
+rule, verifies that it starts hidden and unfocused, toggles it visible with
+`CMD toggle-scratchpad`, checks focus and visibility state, then moves it back
+to normal tiling and into the scratchpad again with `CMD move-to-scratchpad`.
+
+```sh
+sh tests/scratchpad.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

@@ -53,7 +53,8 @@ fn capture(client: *Client) bool {
 
 pub fn requestClose(server: *Server, client: *Client) void {
     if (closeEffectsEnabled(server, client) and client.mapped and
-        client.ws == client.output.active_ws and client.close_snapshot == null)
+        (if (client.scratchpad) client.output.scratchpad_visible else client.ws == client.output.active_ws) and
+        client.close_snapshot == null)
     {
         _ = capture(client);
     }

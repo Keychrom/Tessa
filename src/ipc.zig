@@ -462,6 +462,12 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             layout.moveToWorkspace(server, ws);
             broadcastState(server);
         }
+    } else if (std.mem.eql(u8, cmd, "toggle-scratchpad")) {
+        layout.toggleScratchpad(server);
+        broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "move-to-scratchpad")) {
+        layout.moveToScratchpad(server);
+        broadcastState(server);
     } else if (std.mem.eql(u8, cmd, "focus")) {
         if (start + 1 < n) {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
@@ -662,7 +668,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.ws == ws) count += 1;
+            if (cl.mapped and !cl.scratchpad and cl.ws == ws) count += 1;
         }
         append(buf, &off, "OCC {d} {d}\n", .{ ws, count });
     }
@@ -692,7 +698,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -705,6 +711,8 @@ fn buildState(server: *Server, buf: []u8) usize {
             cl.y,
             cl.w,
             cl.h,
+            @as(u8, if (cl.scratchpad) 1 else 0),
+            @as(u8, if (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws) 1 else 0),
         });
         if (off > buf.len - 2048) break;
     }

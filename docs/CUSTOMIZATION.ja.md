@@ -245,6 +245,22 @@ window-rule = app-id=org.mozilla.firefox; workspace=Chat
 内部表現は従来どおり数値なので、モード、ピン、ジェスチャ、永続化はそのまま
 動きます。ウィンドウルールの `workspace=` は数値と名前のどちらも受け付けます。
 
+各出力には非表示のフローティングスクラッチパッドがあります:
+
+```ini
+window-rule = app-id=org.example.notes; scratchpad=true
+# window-rule = app-id=org.example.notes; workspace=special
+bind = SUPER+grave toggle-scratchpad
+bind = SUPER+SHIFT+grave move-to-scratchpad
+```
+
+`toggle-scratchpad` はフォーカス中出力のスクラッチパッドを表示／非表示し、
+表示時は最初のウィンドウへフォーカスします。`move-to-scratchpad` は
+フォーカス中ウィンドウをスクラッチパッドへ送り、スクラッチパッド上では通常
+タイルへ戻します。ワークスペース切り替えでスクラッチパッドは隠れます。
+番号付きワークスペースではなくフローティングのオーバーレイなので、
+ワークスペース占有数や `Super+1..9` には影響しません。
+
 モザイクは設定された最小タイルを維持できない場合、重なりや極端に細い
 タイルを作らず、ワークスペース全体をグリッドに切り替えます。
 

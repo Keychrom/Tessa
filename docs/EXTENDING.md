@@ -111,11 +111,13 @@ nine-element `workspace_names` array; the line protocol adds
 consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
-`urgent`, `app_id`, `title`, `output`, `x`, `y`, `width`, `height`, and the effective
-decoration fields `opacity`, `border_width`, `corner_radius`, `blur`, and
-`shadow`. The `layers` array contains `namespace`, `output`, `layer`, `opacity`,
-`corner_radius`, and `blur` for mapped layer-shell surfaces. Config
-`diagnostics` entries contain `severity`, `path`, `line`, and `message`.
+`urgent`, `scratchpad`, `visible`, `app_id`, `title`, `output`, `x`, `y`,
+`width`, `height`, and the effective decoration fields `opacity`,
+`border_width`, `corner_radius`, `blur`, and `shadow`. The text `WIN` line ends
+with the scratchpad and visibility flags. The `layers` array contains
+`namespace`, `output`, `layer`, `opacity`, `corner_radius`, and `blur` for
+mapped layer-shell surfaces. Config `diagnostics` entries contain `severity`,
+`path`, `line`, and `message`.
 `tessa-ctl dispatch urgent <id> on|off` toggles the urgency flag sent to layout
 helpers. `CMD workspace` and `CMD move-workspace` accept a workspace name as
 well as a number.

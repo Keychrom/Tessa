@@ -353,6 +353,18 @@ sh tests/workspace-pinning.sh
 sh tests/workspace-names.sh
 ```
 
+### スクラッチパッドのテスト
+
+`tests/scratchpad.sh` はウィンドウルールでテスト用トップレベルを
+スクラッチパッドへ割り当て、非表示・非フォーカスで開始することを確認します。
+`CMD toggle-scratchpad` で表示し、フォーカスと可視状態を検証した後、
+`CMD move-to-scratchpad` で通常タイルへ戻し、再度スクラッチパッドへ
+移動します。
+
+```sh
+sh tests/scratchpad.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

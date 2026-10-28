@@ -243,6 +243,22 @@ shows the name (long names are shortened), while `tessa-ctl workspace Code` and
 store a numeric workspace internally; modes, pins, gestures, and persistence
 keep working by number. Window-rule `workspace=` accepts either form.
 
+Each output has a hidden floating scratchpad:
+
+```ini
+window-rule = app-id=org.example.notes; scratchpad=true
+# window-rule = app-id=org.example.notes; workspace=special
+bind = SUPER+grave toggle-scratchpad
+bind = SUPER+SHIFT+grave move-to-scratchpad
+```
+
+`toggle-scratchpad` shows or hides the focused output's scratchpad and focuses
+its first window when opening. `move-to-scratchpad` sends the focused window
+into the scratchpad, or returns a scratchpad window to normal tiling. Switching
+workspaces hides the scratchpad. The scratchpad is an overlay of floating
+windows, not an extra numbered workspace, so it does not affect workspace
+occupancy or `Super+1..9`.
+
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.

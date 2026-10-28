@@ -112,14 +112,16 @@ END
 バージョンは拒否してください。
 
 状態のウィンドウには `id`、`workspace`、`focused`、`floating`、
-`fullscreen`、`urgent`、`app_id`、`title`、`output`、`x`、`y`、`width`、
-`height` と、実効装飾値 `opacity`、`border_width`、`corner_radius`、`blur`、
-`shadow` が入ります。`layers` 配列にはマップ済みレイヤーサーフェスの
-`namespace`、`output`、`layer`、`opacity`、`corner_radius`、`blur` が
-入ります。`tessa-ctl dispatch urgent <id> on|off` でレイアウトヘルパーへ送る
-緊急度を切り替えられます。`CMD workspace` と `CMD move-workspace` は数値の
-ほかにワークスペース名も受け付けます。設定の
-`diagnostics` は `severity`、`path`、`line`、`message` を持ちます。設定 JSON
+`fullscreen`、`urgent`、`scratchpad`、`visible`、`app_id`、`title`、
+`output`、`x`、`y`、`width`、`height` と、実効装飾値 `opacity`、
+`border_width`、`corner_radius`、`blur`、`shadow` が入ります。テキストの
+`WIN` 行は末尾にスクラッチパッドと可視状態のフラグを持ちます。`layers` 配列
+にはマップ済みレイヤーサーフェスの `namespace`、`output`、`layer`、
+`opacity`、`corner_radius`、`blur` が入ります。`tessa-ctl dispatch urgent
+<id> on|off` でレイアウトヘルパーへ送る緊急度を切り替えられます。
+`CMD workspace` と `CMD move-workspace` は数値のほかにワークスペース名も
+受け付けます。設定の `diagnostics` は `severity`、`path`、`line`、`message`
+を持ちます。設定 JSON
 は `event_rules`、`profiles`、`theme_roles`、`output_rules`、`layer_rules`、
 `input_rules`、各件数、`cursor_theme`、`cursor_size` も出力します。ルール配列
 の各要素は現在、検証済みの `raw` 文字列を含みます。`curves` の各要素は

@@ -153,7 +153,9 @@ the interactive config editor/diff preview) before or alongside this work.
       title/app-id changes. Structural actions remain map/reload-time.
 - [x] Named workspaces: global non-numeric names used by bar pills, bindings,
       IPC commands, and window-rule `workspace=`, with deferred resolution.
-- [ ] Special/scratchpad workspaces.
+- [x] Scratchpad overlay: per-output hidden floating windows assigned by rule
+      or command, toggled from bindings/IPC, with focus and visibility handling.
+- [ ] Special named workspaces beyond the scratchpad overlay.
 - [ ] Window groups.
 - [x] Input/output policy: per-device touchpad/mouse rules (tap, natural
       scrolling, acceleration, scroll method, button map), monitor rules by

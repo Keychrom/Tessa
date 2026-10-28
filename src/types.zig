@@ -84,6 +84,8 @@ pub const Action = enum {
     move,
     toggle_float,
     toggle_fullscreen,
+    toggle_scratchpad,
+    move_to_scratchpad,
     focus_next,
     focus_prev,
     launcher,
@@ -258,6 +260,7 @@ pub const WindowRule = struct {
     shadow: RuleBool = .unset,
     has_border_width: bool = false,
     border_width: i32 = 0,
+    scratchpad: RuleBool = .unset,
     anim: AnimationOverride = .{},
 };
 
@@ -590,6 +593,7 @@ pub const Output = struct {
     theme_border_active: ?[4]f32,
     theme_border_inactive: ?[4]f32,
     active_ws: usize,
+    scratchpad_visible: bool,
     ws_layouts: [WS_COUNT]LayoutMode,
     layout_overridden: [WS_COUNT]bool,
     runtime_ratio: [WS_COUNT]f32,
@@ -623,6 +627,7 @@ pub const Client = struct {
     floating: bool,
     fullscreen: bool,
     urgent: bool,
+    scratchpad: bool,
 
     anim_off_x: i32,
     anim_off_y: i32,

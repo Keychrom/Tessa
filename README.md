@@ -182,7 +182,7 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus;
   optional global workspace names for bar labels, bindings, IPC, and window
-  rules
+  rules; a per-output floating scratchpad overlay
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; workspace-to-output pins;
   output management via `wlr-randr`, persisted across restarts; fractional
@@ -644,6 +644,8 @@ event schema, hook environment, and status API.
 | `Super+Shift+H/J/K/L` | swap with window in that direction; if there is none, move the window to the adjacent output |
 | `Super+Space` | toggle floating |
 | `Super+F` | toggle fullscreen |
+| `Super+grave` | toggle scratchpad |
+| `Super+Shift+grave` | move focused window to/from scratchpad |
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
 | `Super+Tab` / `Super+Shift+Tab` | cycle windows |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
@@ -785,6 +787,7 @@ bind = SUPER+ctrl+h ratio -0.03
 
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
+`toggle-scratchpad`, `move-to-scratchpad`,
 `focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
 `set-layout`, `resize-width`, `resize-height`, `enter-mode`.
 
@@ -903,6 +906,8 @@ END
 CMD workspace 3 eDP-1
 CMD workspace Code
 CMD move-workspace 3
+CMD toggle-scratchpad
+CMD move-to-scratchpad
 CMD focus 4
 CMD close 4
 CMD spawn kitty

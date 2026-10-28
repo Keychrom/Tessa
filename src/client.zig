@@ -230,7 +230,7 @@ fn nextClientOnWorkspace(server: *Server, exclude: *Client) ?*Client {
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
         if (cl != exclude and cl.mapped and cl.output == exclude.output and
-            cl.ws == cl.output.active_ws) return cl;
+            (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws)) return cl;
     }
     return null;
 }
@@ -366,7 +366,9 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.output == client.output and cl.ws == cl.output.active_ws) {
+            if (cl.mapped and cl.output == client.output and
+                (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws))
+            {
                 next = cl;
                 break;
             }
@@ -450,6 +452,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.floating = false;
     client.fullscreen = false;
     client.urgent = false;
+    client.scratchpad = false;
     client.opacity = 1.0;
     client.corner_radius = -1;
     client.blur = .unset;

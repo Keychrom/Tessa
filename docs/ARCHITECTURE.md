@@ -446,6 +446,12 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   window rules after the whole file is parsed, so declaration order is free.
   Layout state, pins, gestures, and persistence keep using numeric indices;
   text/JSON state and the panel expose the names for display.
+- The scratchpad is a per-output floating overlay, not a tenth workspace.
+  `Client.scratchpad` marks its windows and `Output.scratchpad_visible` controls
+  whether they are shown. `clientVisible()` feeds arrangement, focus, borders,
+  IPC occupancy, and the panel, so hidden scratchpad windows cannot receive
+  focus or appear in the bar. `toggleScratchpad()` and `moveToScratchpad()` are
+  exposed as bindings and IPC commands; workspace changes hide the overlay.
 - Per-output `output-rule` entries can set layout, gaps, outer gaps, master
   ratio/count, mosaic ratio/minimum, and grid columns. `rules.tuningFor()`
   resolves them per output/workspace in precedence order: global defaults,

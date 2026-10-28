@@ -628,6 +628,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `Super+Shift+H/J/K/L` | その方向と入れ替え。なければ隣接出力へ移動 |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
+| `Super+grave` | スクラッチパッド表示切り替え |
+| `Super+Shift+grave` | フォーカス中ウィンドウをスクラッチパッドへ移動／復帰 |
 | `Super+Escape` | `spawn swaylock` |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウ巡回 |
 | `Super+Ctrl+H/L` | master 比率を縮小/拡大 |
@@ -651,7 +653,8 @@ bind = SUPER+SHIFT+r enter-mode resize
 利用可能なアクション:
 
 `terminal`、`spawn`、`close`、`quit`、`workspace`、`move-to-workspace`、
-`focus`、`move`、`toggle-float`、`toggle-fullscreen`、`focus-next`、
+`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
+`toggle-scratchpad`、`move-to-scratchpad`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
 `audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
 `resize-width`、`resize-height`、`enter-mode`。
@@ -817,6 +820,8 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `tile=true/false` | `float` の反対 |
 | `fullscreen=true/false` | フルスクリーン |
 | `workspace=1..9\|name` | ワークスペース指定 |
+| `workspace=special` | スクラッチパッドへ（`scratchpad=true` の別名） |
+| `scratchpad=true/false` | 非表示フローティングのスクラッチパッド割り当て |
 | `size=WxH` | フローティングサイズ |
 | `width=N`、`height=N` | 片軸のみ |
 | `position=X,Y` | フローティング位置 |
@@ -941,6 +946,25 @@ window-rule = app-id=org.mozilla.firefox; workspace=Chat
 `workspace=` が名前を受け付けます。数値インデックスも引き続き使えます。名前は
 表示とコマンドの別名で、内部的には従来どおり数値ワークスペースに所属し、すべての
 出力で同じ番号に対応します。
+
+#### スクラッチパッド
+
+スクラッチパッドは出力ごとの非表示フローティングオーバーレイです:
+
+```ini
+window-rule = app-id=org.example.notes; scratchpad=true
+bind = SUPER+grave toggle-scratchpad
+bind = SUPER+SHIFT+grave move-to-scratchpad
+```
+
+`Super+grave` でフォーカス中出力のスクラッチパッドを表示／非表示し、表示時は
+最初のウィンドウへフォーカスします。`Super+Shift+grave` はフォーカス中の
+ウィンドウをスクラッチパッドへ移動し、スクラッチパッド上では通常タイルへ
+戻します。ウィンドウルールでは `scratchpad=true` または
+`workspace=special` を使えます。ワークスペースを切り替えるとスクラッチパッドは
+隠れます。スクラッチパッドのウィンドウはフローティングで、ワークスペースの
+占有数には数えず、閉じている間はバーにも表示されません。IPC では
+`CMD toggle-scratchpad` と `CMD move-to-scratchpad` が使えます。
 
 ### 8.8 イベントルール
 
@@ -1442,6 +1466,8 @@ CMD config
 CMD config-json
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
+CMD toggle-scratchpad
+CMD move-to-scratchpad
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

@@ -51,6 +51,11 @@ layout = master
 # can be overridden independently.
 # window-rule = app-id=kitty; animation=false
 # window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring-soft; animation-close-ms=180; animation-close-curve=bounce
+# Scratchpad windows stay floating and hidden per output until toggled.
+# `workspace=special` is an alias for scratchpad=true.
+# window-rule = app-id=org.example.notes; scratchpad=true
+# bind = SUPER+grave toggle-scratchpad
+# bind = SUPER+SHIFT+grave move-to-scratchpad
 
 # Layer-shell rules match namespace/output and optionally layer
 # (background, bottom, top, overlay). Later matches win. Opacity works in every

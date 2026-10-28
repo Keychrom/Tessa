@@ -198,7 +198,8 @@ pub fn updateBackground(out: *Output) void {
 
 pub fn activeVisible(server: *Server, client: *types.Client) bool {
     _ = server;
-    return client.mapped and client.ws == client.output.active_ws;
+    if (!client.mapped) return false;
+    return if (client.scratchpad) client.output.scratchpad_visible else client.ws == client.output.active_ws;
 }
 
 pub fn clientIndex(server: *Server, client: *types.Client) ?usize {

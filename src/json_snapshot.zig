@@ -82,7 +82,7 @@ pub fn buildState(server: *Server, buf: []u8) usize {
     var ci: usize = 0;
     while (ci < server.clients.len) : (ci += 1) {
         const cl = server.clients[ci] orelse continue;
-        if (cl.mapped and cl.ws >= 1 and cl.ws <= types.WS_COUNT) counts[cl.ws - 1] += 1;
+        if (cl.mapped and !cl.scratchpad and cl.ws >= 1 and cl.ws <= types.WS_COUNT) counts[cl.ws - 1] += 1;
     }
     var wi: usize = 0;
     while (wi < types.WS_COUNT) : (wi += 1) {
@@ -126,6 +126,10 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, cl.fullscreen);
         addRaw(buf, &off, ",\"urgent\":");
         addBool(buf, &off, cl.urgent);
+        addRaw(buf, &off, ",\"scratchpad\":");
+        addBool(buf, &off, cl.scratchpad);
+        addRaw(buf, &off, ",\"visible\":");
+        addBool(buf, &off, if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws);
         addRaw(buf, &off, ",\"app_id\":");
         addString(buf, &off, cl.app_id[0..cl.app_id_len]);
         addRaw(buf, &off, ",\"title\":");

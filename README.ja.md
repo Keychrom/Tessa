@@ -183,7 +183,7 @@ MVP（`0.1.0`）ですが、日常的に使えるレベルまで中核機能は�
   アート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
   フォーカス。任意のグローバル名をバー表示、バインド、IPC、ウィンドウルールで
-  利用可能
+  利用可能。出力ごとのフローティングスクラッチパッドも使用可能
 - マルチモニタ対応: 各出力にバー/壁紙と独立したアクティブワークスペースを
   持ち、パネルも出力ごとに自動起動。ワークスペースの出力固定、`wlr-randr`
   による出力管理、設定の永続化、`wp_fractional_scale_v1` による
@@ -663,6 +663,8 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+Shift+H/J/K/L` | その方向のウィンドウと入れ替え。ない場合は隣の出力へ移動 |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
+| `Super+grave` | スクラッチパッド表示切り替え |
+| `Super+Shift+grave` | フォーカス中ウィンドウをスクラッチパッドへ移動／復帰 |
 | `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウを巡回 |
 | `Super+Ctrl+H/L` | マスター領域の比率を縮小/拡大 |
@@ -809,6 +811,7 @@ bind = SUPER+ctrl+h ratio -0.03
 
 利用可能なアクション: `terminal`、`spawn`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
+`toggle-scratchpad`、`move-to-scratchpad`、
 `focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
 `set-layout`、`resize-width`、`resize-height`、`enter-mode`。
 
@@ -931,6 +934,8 @@ END
 CMD workspace 3 eDP-1
 CMD workspace Code
 CMD move-workspace 3
+CMD toggle-scratchpad
+CMD move-to-scratchpad
 CMD focus 4
 CMD close 4
 CMD spawn kitty

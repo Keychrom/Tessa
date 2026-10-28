@@ -3190,7 +3190,7 @@ fn handleStateLine(line: []const u8) void {
     }
 
     if (std.mem.startsWith(u8, line, "WIN\t")) {
-        var fields: [9][]const u8 = undefined;
+        var fields: [15][]const u8 = undefined;
         var count: usize = 0;
         var start: usize = 0;
         var i: usize = 0;
@@ -3215,6 +3215,8 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&w.app_id, &w.app_len, fields[6]);
         m.decodeEscapes(&w.title, &w.title_len, fields[7]);
         m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
+        if (count >= 14) w.scratchpad = std.mem.eql(u8, fields[13], "1");
+        if (count >= 15) w.visible = std.mem.eql(u8, fields[14], "1");
         g.window_count += 1;
         return;
     }

@@ -513,6 +513,8 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .move => layout.moveDirection(server, b.arg[0..b.arg_len]),
         .toggle_float => layout.toggleFloat(server),
         .toggle_fullscreen => layout.toggleFullscreen(server),
+        .toggle_scratchpad => layout.toggleScratchpad(server),
+        .move_to_scratchpad => layout.moveToScratchpad(server),
         .focus_next => layout.focusNext(server, 1),
         .focus_prev => layout.focusNext(server, -1),
         .launcher => ipc.emitLauncher(server, ""),

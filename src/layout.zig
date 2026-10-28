@@ -69,6 +69,12 @@ fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
     };
 }
 
+fn clientVisible(cl: *Client, out: *Output) bool {
+    if (!cl.mapped or cl.output != out) return false;
+    if (cl.scratchpad) return out.scratchpad_visible;
+    return cl.ws == out.active_ws;
+}
+
 pub fn raiseClient(client: *Client) void {
     const s = client.server;
     const tree: *c.wlr_scene_tree = if (client.fullscreen)
@@ -102,8 +108,7 @@ pub fn updateBorders(server: *Server) void {
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
         const is_active = (cl == server.focused) and
-            cl.mapped and
-            cl.ws == cl.output.active_ws and
+            clientVisible(cl, cl.output) and
             server.focused_layer == null;
         const output_active = cl.output.theme_border_active orelse
             cl.output.theme_accent orelse active;
@@ -121,7 +126,7 @@ pub fn refreshKeyboardFocus(server: *Server) void {
         c.wlr_seat_keyboard_clear_focus(server.seat);
         keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
     } else if (server.focused) |cl| {
-        if (cl.mapped and cl.ws == cl.output.active_ws) {
+        if (clientVisible(cl, cl.output)) {
             c.wlr_seat_keyboard_clear_focus(server.seat);
             keyboardEnter(server, tSurface(cl.xdg));
         } else {
@@ -138,7 +143,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
     }
 
     if (target) |cl| {
-        if (!cl.mapped or cl.ws != cl.output.active_ws) return;
+        if (!clientVisible(cl, cl.output)) return;
         const was_urgent = cl.urgent;
         cl.urgent = false;
         if (server.focused == cl) {
@@ -216,7 +221,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
 
 pub fn ensureVisibleFocus(server: *Server) void {
     if (server.focused) |cl| {
-        if (cl.mapped and cl.ws == cl.output.active_ws) return;
+        if (clientVisible(cl, cl.output)) return;
     }
     focusClient(server, null);
 
@@ -225,7 +230,7 @@ pub fn ensureVisibleFocus(server: *Server) void {
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
+        if (clientVisible(cl, out)) {
             target = cl;
             break;
         }
@@ -259,7 +264,7 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
     if (server.focused_layer != layer) return;
     server.focused_layer = null;
     if (server.focused) |cl| {
-        if (cl.mapped and cl.ws == cl.output.active_ws) {
+        if (clientVisible(cl, cl.output)) {
             server.focused_output = cl.output;
             server.active_ws = cl.output.active_ws;
             _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
@@ -353,7 +358,7 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
 }
 
 pub fn startOpenAnimation(client: *Client) void {
-    if (!client.mapped or client.ws != client.output.active_ws) return;
+    if (!client.mapped or client.scratchpad or client.ws != client.output.active_ws) return;
     if (!animationsEnabledFor(client.server, client)) return;
     beginAnimation(
         client,
@@ -778,14 +783,14 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         const cl = server.clients[i] orelse continue;
         if (cl.output != out) continue;
 
-        const visible = cl.mapped and cl.ws == out.active_ws;
+        const visible = clientVisible(cl, out);
         c.wlr_scene_node_set_enabled(&cl.frame.node, visible);
         if (!visible) continue;
 
         if (cl.fullscreen) {
             applyFullscreen(cl, out);
             raiseClient(cl);
-        } else if (cl.floating) {
+        } else if (cl.floating or cl.scratchpad) {
             applyFloating(cl, out);
         } else if (tile_count < tiles.len) {
             tiles[tile_count] = cl;
@@ -870,7 +875,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
     }
 
     if (server.focused) |fc| {
-        if (fc.output == out and fc.mapped and fc.ws == out.active_ws) {
+        if (fc.output == out and clientVisible(fc, out)) {
             raiseClient(fc);
         }
     }
@@ -901,7 +906,7 @@ fn visibleClientsOnOutput(server: *Server, out: *Output, out_list: []?*Client) u
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.ws == out.active_ws and cl.output == out) {
+        if (clientVisible(cl, out)) {
             if (n < out_list.len) {
                 out_list[n] = cl;
                 n += 1;
@@ -970,12 +975,12 @@ fn findDirectional(server: *Server, from: *Client, dir: Dir, same_output: bool) 
 
 fn firstClientOnOutput(server: *Server, out: *Output) ?*Client {
     if (out.last_focused[out.active_ws]) |cl| {
-        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) return cl;
+        if (clientVisible(cl, out)) return cl;
     }
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) return cl;
+        if (clientVisible(cl, out)) return cl;
     }
     return null;
 }
@@ -1077,7 +1082,7 @@ pub fn focusNext(server: *Server, step: i32) void {
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
+        if (clientVisible(cl, out)) {
             list[n] = cl;
             n += 1;
         }
@@ -1107,7 +1112,7 @@ pub fn focusFirst(server: *Server) void {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.output == out and cl.ws == out.active_ws) {
+            if (clientVisible(cl, out)) {
                 focusClient(server, cl);
                 return;
             }
@@ -1135,6 +1140,7 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
     const out = pinnedOutputFor(server, ws) orelse requested_out;
     const previous_ws = out.active_ws;
     out.active_ws = ws;
+    out.scratchpad_visible = false;
     server.focused_output = out;
     server.active_ws = ws;
     startWorkspaceAnimation(server, out, previous_ws, ws);
@@ -1182,6 +1188,12 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
         cl.output = target_out;
     }
     cl.ws = ws;
+    if (cl.scratchpad) {
+        cl.scratchpad = false;
+        cl.floating = false;
+        cl.float_w = 0;
+        cl.float_h = 0;
+    }
     if (out.last_focused[old_ws] == cl) out.last_focused[old_ws] = null;
     target_out.last_focused[ws] = cl;
 
@@ -1215,6 +1227,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
 
 pub fn toggleFloat(server: *Server) void {
     const cl = server.focused orelse return;
+    if (cl.scratchpad) return;
     cl.floating = !cl.floating;
     arrangeOutput(server, cl.output);
     focusClient(server, cl);
@@ -1229,6 +1242,53 @@ pub fn toggleFullscreen(server: *Server) void {
         c.wlr_foreign_toplevel_handle_v1_set_fullscreen(handle, cl.fullscreen);
     }
     arrangeOutput(server, cl.output);
+    focusClient(server, cl);
+    core.markDirty(server);
+}
+
+pub fn toggleScratchpad(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    out.scratchpad_visible = !out.scratchpad_visible;
+    arrangeOutput(server, out);
+
+    if (out.scratchpad_visible) {
+        var target: ?*Client = null;
+        var i: usize = 0;
+        while (i < server.clients.len) : (i += 1) {
+            const cl = server.clients[i] orelse continue;
+            if (cl.mapped and cl.scratchpad and cl.output == out) {
+                target = cl;
+                break;
+            }
+        }
+        if (target) |cl| focusClient(server, cl);
+    } else if (server.focused) |focused| {
+        if (focused.scratchpad and focused.output == out) {
+            focusClient(server, firstClientOnOutput(server, out));
+        }
+    }
+    updateBorders(server);
+    core.markDirty(server);
+}
+
+pub fn moveToScratchpad(server: *Server) void {
+    const cl = server.focused orelse return;
+    const out = cl.output;
+    if (cl.scratchpad) {
+        cl.scratchpad = false;
+        cl.ws = out.active_ws;
+        cl.floating = false;
+        cl.float_w = 0;
+        cl.float_h = 0;
+        if (out.last_focused[out.active_ws] == null) out.last_focused[out.active_ws] = cl;
+    } else {
+        cl.scratchpad = true;
+        cl.floating = true;
+        cl.ws = out.active_ws;
+        out.scratchpad_visible = true;
+        if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, out);
+    }
+    arrangeOutput(server, out);
     focusClient(server, cl);
     core.markDirty(server);
 }
