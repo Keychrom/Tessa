@@ -365,6 +365,17 @@ sh tests/workspace-names.sh
 sh tests/scratchpad.sh
 ```
 
+### ウィンドウグループのテスト
+
+`tests/window-groups.sh` は 2 つのテスト用トップレベルを起動し、
+`CMD toggle-group` でグループ化します。表示メンバーが 1 つだけであること、
+両方が同じグループ ID を持つことを確認し、`CMD group-next` でタブを切り替え、
+グループ解除後に `CMD group-remove` / `CMD group-add` を検証します。
+
+```sh
+sh tests/window-groups.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

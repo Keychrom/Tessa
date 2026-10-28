@@ -111,16 +111,17 @@ nine-element `workspace_names` array; the line protocol adds
 consumers should reject unknown versions.
 
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
-`urgent`, `scratchpad`, `visible`, `app_id`, `title`, `output`, `x`, `y`,
-`width`, `height`, and the effective decoration fields `opacity`,
-`border_width`, `corner_radius`, `blur`, and `shadow`. The text `WIN` line ends
-with the scratchpad and visibility flags. The `layers` array contains
-`namespace`, `output`, `layer`, `opacity`, `corner_radius`, and `blur` for
-mapped layer-shell surfaces. Config `diagnostics` entries contain `severity`,
-`path`, `line`, and `message`.
+`urgent`, `scratchpad`, `visible`, `group`, `group_active`, `app_id`, `title`,
+`output`, `x`, `y`, `width`, `height`, and the effective decoration fields
+`opacity`, `border_width`, `corner_radius`, `blur`, and `shadow`. The text
+`WIN` line ends with scratchpad, visibility, group id, and group-active flags.
+The `layers` array contains `namespace`, `output`, `layer`, `opacity`,
+`corner_radius`, and `blur` for mapped layer-shell surfaces. Config
+`diagnostics` entries contain `severity`, `path`, `line`, and `message`.
 `tessa-ctl dispatch urgent <id> on|off` toggles the urgency flag sent to layout
 helpers. `CMD workspace` and `CMD move-workspace` accept a workspace name as
-well as a number.
+well as a number. Group control uses `CMD toggle-group`, `CMD group-next`,
+`CMD group-prev`, `CMD group-add`, and `CMD group-remove`.
 Config JSON also exposes `event_rules`, `profiles`, `theme_roles`,
 `output_rules`, `layer_rules`, `input_rules`, the corresponding counts, and
 `cursor_theme` / `cursor_size`. Rule arrays currently contain each rule's

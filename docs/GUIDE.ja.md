@@ -630,8 +630,9 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `Super+F` | フルスクリーン切り替え |
 | `Super+grave` | スクラッチパッド表示切り替え |
 | `Super+Shift+grave` | フォーカス中ウィンドウをスクラッチパッドへ移動／復帰 |
+| `Super+Shift+G` | ワークスペースのタイルウィンドウをグループ化／解除 |
 | `Super+Escape` | `spawn swaylock` |
-| `Super+Tab` / `Super+Shift+Tab` | ウィンドウ巡回 |
+| `Super+Tab` / `Super+Shift+Tab` | ウィンドウ巡回。グループのフォーカス中はタブ巡回 |
 | `Super+Ctrl+H/L` | master 比率を縮小/拡大 |
 | `Super+Alt+H/L` | フローティング幅を縮小/拡大 |
 | `Super+Alt+J/K` | フローティング高さを増減 |
@@ -654,7 +655,8 @@ bind = SUPER+SHIFT+r enter-mode resize
 
 `terminal`、`spawn`、`close`、`quit`、`workspace`、`move-to-workspace`、
 `focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`toggle-scratchpad`、`move-to-scratchpad`、`focus-next`、
+`toggle-scratchpad`、`move-to-scratchpad`、`toggle-group`、`group-next`、
+`group-prev`、`group-add`、`group-remove`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
 `audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
 `resize-width`、`resize-height`、`enter-mode`。
@@ -965,6 +967,26 @@ bind = SUPER+SHIFT+grave move-to-scratchpad
 隠れます。スクラッチパッドのウィンドウはフローティングで、ワークスペースの
 占有数には数えず、閉じている間はバーにも表示されません。IPC では
 `CMD toggle-scratchpad` と `CMD move-to-scratchpad` が使えます。
+
+#### ウィンドウグループ
+
+`Super+Shift+G` はアクティブワークスペースのタイルウィンドウを 1 つの
+タブ付きタイルにまとめ、フォーカス中のメンバーを表示します。グループの
+フォーカス中は `Super+Tab` / `Super+Shift+Tab` がタブの巡回になります。
+バーには表示中のメンバーだけが出ます。グループ化されたウィンドウで再度
+`Super+Shift+G` を押すとグループ全体を解除します。
+
+```ini
+bind = SUPER+ALT+g group-add
+bind = SUPER+ALT+SHIFT+g group-remove
+```
+
+`group-add` はフォーカス中のタイルウィンドウを同じワークスペースの既存
+グループへ追加し、`group-remove` はグループから外して通常のタイルに戻します。
+別ワークスペースやスクラッチパッドへ移動したメンバーはグループから外れます。
+グループは実行時状態で、再起動をまたいで保存されません。IPC では
+`toggle-group`、`group-next`、`group-prev`、`group-add`、`group-remove` が
+使えます。
 
 ### 8.8 イベントルール
 
@@ -1468,6 +1490,11 @@ CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad
 CMD move-to-scratchpad
+CMD toggle-group
+CMD group-next
+CMD group-prev
+CMD group-add
+CMD group-remove
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

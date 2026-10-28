@@ -199,6 +199,7 @@ pub fn updateBackground(out: *Output) void {
 pub fn activeVisible(server: *Server, client: *types.Client) bool {
     _ = server;
     if (!client.mapped) return false;
+    if (client.group_id != 0 and !client.group_active) return false;
     return if (client.scratchpad) client.output.scratchpad_visible else client.ws == client.output.active_ws;
 }
 

@@ -129,7 +129,10 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addRaw(buf, &off, ",\"scratchpad\":");
         addBool(buf, &off, cl.scratchpad);
         addRaw(buf, &off, ",\"visible\":");
-        addBool(buf, &off, if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws);
+        addBool(buf, &off, (cl.group_id == 0 or cl.group_active) and
+            (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws));
+        add(buf, &off, ",\"group\":{d},\"group_active\":", .{cl.group_id});
+        addBool(buf, &off, cl.group_active);
         addRaw(buf, &off, ",\"app_id\":");
         addString(buf, &off, cl.app_id[0..cl.app_id_len]);
         addRaw(buf, &off, ",\"title\":");

@@ -617,8 +617,9 @@ See the event table in section 13.
 | `Super+F` | Toggle fullscreen |
 | `Super+grave` | Toggle the scratchpad |
 | `Super+Shift+grave` | Move the focused window to/from the scratchpad |
+| `Super+Shift+G` | Group/ungroup tiled windows on the workspace |
 | `Super+Escape` | Spawn `swaylock` |
-| `Super+Tab` / `Super+Shift+Tab` | Cycle windows |
+| `Super+Tab` / `Super+Shift+Tab` | Cycle windows; cycles tabs when a group is focused |
 | `Super+Ctrl+H/L` | Shrink/grow master ratio |
 | `Super+Alt+H/L` | Shrink/grow floating width |
 | `Super+Alt+J/K` | Grow/shrink floating height |
@@ -638,7 +639,8 @@ bind = SUPER+SHIFT+r enter-mode resize
 
 Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`toggle-scratchpad`, `move-to-scratchpad`,
+`toggle-scratchpad`, `move-to-scratchpad`, `toggle-group`, `group-next`,
+`group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
 `tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
 `resize-width`, `resize-height`, and `enter-mode`.
@@ -945,6 +947,25 @@ rule can use `scratchpad=true` or `workspace=special`. Changing workspaces hides
 the scratchpad. Scratchpad windows are floating, do not count as workspace
 occupancy, and remain hidden from the bar while closed. IPC equivalents are
 `CMD toggle-scratchpad` and `CMD move-to-scratchpad`.
+
+#### Window groups
+
+`Super+Shift+G` groups the tiled windows on the active workspace into one
+tabbed tile and shows the focused member. `Super+Tab` and `Super+Shift+Tab`
+cycle the group's tabs while a group member is focused; the bar lists only the
+visible member. Pressing `Super+Shift+G` again on a grouped window ungroups the
+whole group.
+
+```ini
+bind = SUPER+ALT+g group-add
+bind = SUPER+ALT+SHIFT+g group-remove
+```
+
+`group-add` adds the focused tiled window to an existing group on the same
+workspace. `group-remove` detaches it and restores normal tiling. Moving a
+member to another workspace or scratchpad removes it from the group. Groups are
+runtime state and are not persisted across restart. IPC commands are
+`toggle-group`, `group-next`, `group-prev`, `group-add`, and `group-remove`.
 
 ### 8.8 Event rules
 
@@ -1423,6 +1444,11 @@ CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad
 CMD move-to-scratchpad
+CMD toggle-group
+CMD group-next
+CMD group-prev
+CMD group-add
+CMD group-remove
 CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>

@@ -883,7 +883,7 @@ pub fn drawBar(s: *m.Surface) void {
     var index: usize = 0;
     while (index < g.window_count) : (index += 1) {
         const w = &g.windows[index];
-        if (w.scratchpad and !w.visible) continue;
+        if (!w.visible) continue;
         if (w.ws != g.active_ws) continue;
         const label = if (w.title_len > 0)
             w.title[0..w.title_len]

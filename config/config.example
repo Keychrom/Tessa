@@ -57,6 +57,14 @@ layout = master
 # bind = SUPER+grave toggle-scratchpad
 # bind = SUPER+SHIFT+grave move-to-scratchpad
 
+# Tabbed window groups. Super+Shift+G groups the tiled windows on the active
+# workspace; Super+Tab / Super+Shift+Tab cycle tabs while a group is focused.
+# group-add/group-remove are available for custom bindings; IPC commands are
+# toggle-group, group-next, group-prev, group-add, and group-remove.
+# bind = SUPER+SHIFT+g toggle-group
+# bind = SUPER+ALT+g group-add
+# bind = SUPER+ALT+SHIFT+g group-remove
+
 # Layer-shell rules match namespace/output and optionally layer
 # (background, bottom, top, overlay). Later matches win. Opacity works in every
 # build; corner-radius and blur require -Dscenefx=true.

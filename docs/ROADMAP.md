@@ -156,7 +156,9 @@ the interactive config editor/diff preview) before or alongside this work.
 - [x] Scratchpad overlay: per-output hidden floating windows assigned by rule
       or command, toggled from bindings/IPC, with focus and visibility handling.
 - [ ] Special named workspaces beyond the scratchpad overlay.
-- [ ] Window groups.
+- [x] Window groups: tabbed groups of tiled windows on a workspace, tab
+      cycling through `Super+Tab`, group add/remove, and IPC control. Groups are
+      runtime state and are not persisted.
 - [x] Input/output policy: per-device touchpad/mouse rules (tap, natural
       scrolling, acceleration, scroll method, button map), monitor rules by
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.

@@ -261,6 +261,24 @@ bind = SUPER+SHIFT+grave move-to-scratchpad
 番号付きワークスペースではなくフローティングのオーバーレイなので、
 ワークスペース占有数や `Super+1..9` には影響しません。
 
+ウィンドウグループはワークスペースのタイルウィンドウを 1 つのタブ付き
+タイルにまとめます:
+
+```ini
+bind = SUPER+SHIFT+g toggle-group
+bind = SUPER+ALT+g group-add
+bind = SUPER+ALT+SHIFT+g group-remove
+```
+
+`toggle-group` はアクティブワークスペースのタイルウィンドウをグループ化し、
+メンバーにフォーカスがあるときはグループ全体を解除します。グループ中は
+表示中のメンバーだけが見え、`Super+Tab` / `Super+Shift+Tab` は別タイルでは
+なくタブを巡回します。`group-add` はフォーカス中ウィンドウを同じ
+ワークスペースのグループへ追加し、`group-remove` はグループから外します。
+グループは実行時状態で永続化されず、メンバーを別ワークスペースや
+スクラッチパッドへ移動すると外れます。IPC では `toggle-group`、
+`group-next`、`group-prev`、`group-add`、`group-remove` が使えます。
+
 モザイクは設定された最小タイルを維持できない場合、重なりや極端に細い
 タイルを作らず、ワークスペース全体をグリッドに切り替えます。
 

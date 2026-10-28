@@ -71,8 +71,46 @@ fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
 
 fn clientVisible(cl: *Client, out: *Output) bool {
     if (!cl.mapped or cl.output != out) return false;
+    if (cl.group_id != 0 and !cl.group_active) return false;
     if (cl.scratchpad) return out.scratchpad_visible;
     return cl.ws == out.active_ws;
+}
+
+fn activateGroupMember(target: *Client) void {
+    if (target.group_id == 0) return;
+    const server = target.server;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.group_id == target.group_id) cl.group_active = cl == target;
+    }
+}
+
+fn groupActivateNext(group_id: u32, exclude: *Client) void {
+    const server = exclude.server;
+    var next: ?*Client = null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl == exclude or cl.group_id != group_id or !cl.mapped) continue;
+        if (next == null or cl.id < next.?.id) next = cl;
+    }
+    if (next) |cl| {
+        cl.group_active = true;
+    }
+}
+
+fn detachFromGroup(cl: *Client) void {
+    if (cl.group_id == 0) return;
+    const gid = cl.group_id;
+    const active = cl.group_active;
+    cl.group_id = 0;
+    cl.group_active = false;
+    if (active) groupActivateNext(gid, cl);
+}
+
+pub fn clientClosing(cl: *Client) void {
+    detachFromGroup(cl);
 }
 
 pub fn raiseClient(client: *Client) void {
@@ -143,6 +181,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
     }
 
     if (target) |cl| {
+        activateGroupMember(cl);
         if (!clientVisible(cl, cl.output)) return;
         const was_urgent = cl.urgent;
         cl.urgent = false;
@@ -1076,6 +1115,12 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
 }
 
 pub fn focusNext(server: *Server, step: i32) void {
+    if (server.focused) |focused| {
+        if (focused.group_id != 0) {
+            groupNext(server, step);
+            return;
+        }
+    }
     const out = core.focusOutput(server) orelse return;
     var list: [types.MAX_CLIENTS]?*Client = undefined;
     var n: usize = 0;
@@ -1188,6 +1233,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
         cl.output = target_out;
     }
     cl.ws = ws;
+    detachFromGroup(cl);
     if (cl.scratchpad) {
         cl.scratchpad = false;
         cl.floating = false;
@@ -1228,6 +1274,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
 pub fn toggleFloat(server: *Server) void {
     const cl = server.focused orelse return;
     if (cl.scratchpad) return;
+    detachFromGroup(cl);
     cl.floating = !cl.floating;
     arrangeOutput(server, cl.output);
     focusClient(server, cl);
@@ -1274,6 +1321,7 @@ pub fn toggleScratchpad(server: *Server) void {
 pub fn moveToScratchpad(server: *Server) void {
     const cl = server.focused orelse return;
     const out = cl.output;
+    detachFromGroup(cl);
     if (cl.scratchpad) {
         cl.scratchpad = false;
         cl.ws = out.active_ws;
@@ -1289,6 +1337,123 @@ pub fn moveToScratchpad(server: *Server) void {
         if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, out);
     }
     arrangeOutput(server, out);
+    focusClient(server, cl);
+    core.markDirty(server);
+}
+
+pub fn toggleGroup(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    if (server.focused) |focused| {
+        if (focused.group_id != 0) {
+            const gid = focused.group_id;
+            var i: usize = 0;
+            while (i < server.clients.len) : (i += 1) {
+                const cl = server.clients[i] orelse continue;
+                if (cl.group_id != gid) continue;
+                cl.group_id = 0;
+                cl.group_active = true;
+            }
+            arrangeOutput(server, out);
+            focusClient(server, focused);
+            core.markDirty(server);
+            return;
+        }
+    }
+
+    var members: [types.MAX_CLIENTS]?*Client = undefined;
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (!cl.mapped or cl.scratchpad or cl.floating) continue;
+        if (cl.output != out or cl.ws != out.active_ws) continue;
+        if (count < members.len) {
+            members[count] = cl;
+            count += 1;
+        }
+    }
+    if (count == 0) return;
+
+    server.next_group_id +%= 1;
+    if (server.next_group_id == 0) server.next_group_id = 1;
+    const gid = server.next_group_id;
+    var active: *Client = members[0].?;
+    if (server.focused) |focused| {
+        var k: usize = 0;
+        while (k < count) : (k += 1) {
+            if (members[k].? == focused) {
+                active = focused;
+                break;
+            }
+        }
+    }
+    i = 0;
+    while (i < count) : (i += 1) {
+        const cl = members[i].?;
+        cl.group_id = gid;
+        cl.group_active = cl == active;
+    }
+    arrangeOutput(server, out);
+    focusClient(server, active);
+    core.markDirty(server);
+}
+
+pub fn groupNext(server: *Server, step: i32) void {
+    const out = core.focusOutput(server) orelse return;
+    const focused = server.focused orelse return;
+    if (focused.group_id == 0) return;
+    const gid = focused.group_id;
+
+    var members: [types.MAX_CLIENTS]?*Client = undefined;
+    var count: usize = 0;
+    var current: ?usize = null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.group_id != gid or !cl.mapped) continue;
+        if (cl == focused) current = count;
+        if (count < members.len) {
+            members[count] = cl;
+            count += 1;
+        }
+    }
+    if (count <= 1) return;
+    const at = current orelse 0;
+    const next = @mod(@as(i32, @intCast(at)) + step, @as(i32, @intCast(count)));
+    const target = members[@intCast(next)].?;
+    activateGroupMember(target);
+    arrangeOutput(server, out);
+    focusClient(server, target);
+    core.markDirty(server);
+}
+
+pub fn groupAdd(server: *Server) void {
+    const cl = server.focused orelse return;
+    if (cl.group_id != 0 or cl.floating or cl.scratchpad) return;
+    const out = cl.output;
+    var gid: u32 = 0;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const other = server.clients[i] orelse continue;
+        if (other == cl or other.group_id == 0 or !other.mapped) continue;
+        if (other.output != out or other.ws != out.active_ws) continue;
+        gid = other.group_id;
+        break;
+    }
+    if (gid == 0) return;
+    cl.group_id = gid;
+    activateGroupMember(cl);
+    arrangeOutput(server, out);
+    focusClient(server, cl);
+    core.markDirty(server);
+}
+
+pub fn groupRemove(server: *Server) void {
+    const cl = server.focused orelse return;
+    if (cl.group_id == 0) return;
+    detachFromGroup(cl);
+    cl.group_active = true;
+    arrangeOutput(server, cl.output);
     focusClient(server, cl);
     core.markDirty(server);
 }

@@ -448,6 +448,17 @@ to normal tiling and into the scratchpad again with `CMD move-to-scratchpad`.
 sh tests/scratchpad.sh
 ```
 
+### Window group test
+
+`tests/window-groups.sh` launches two test toplevels, groups them with
+`CMD toggle-group`, verifies that only one member is visible and both share a
+group id, switches tabs with `CMD group-next`, ungroups them, and exercises
+`CMD group-remove` / `CMD group-add`.
+
+```sh
+sh tests/window-groups.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

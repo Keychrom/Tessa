@@ -283,6 +283,7 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+f", "toggle-fullscreen", "");
     _ = addBinding(cfg, "super+grave", "toggle-scratchpad", "");
     _ = addBinding(cfg, "super+shift+grave", "move-to-scratchpad", "");
+    _ = addBinding(cfg, "super+shift+g", "toggle-group", "");
     _ = addBinding(cfg, "super+escape", "spawn", "swaylock");
     _ = addBinding(cfg, "super+tab", "focus-next", "");
     _ = addBinding(cfg, "super+shift+tab", "focus-prev", "");
@@ -2006,6 +2007,12 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "toggle-scratchpad") or
         std.ascii.eqlIgnoreCase(name, "scratchpad")) return .toggle_scratchpad;
     if (std.ascii.eqlIgnoreCase(name, "move-to-scratchpad")) return .move_to_scratchpad;
+    if (std.ascii.eqlIgnoreCase(name, "toggle-group") or
+        std.ascii.eqlIgnoreCase(name, "group")) return .toggle_group;
+    if (std.ascii.eqlIgnoreCase(name, "group-next")) return .group_next;
+    if (std.ascii.eqlIgnoreCase(name, "group-prev")) return .group_prev;
+    if (std.ascii.eqlIgnoreCase(name, "group-add")) return .group_add;
+    if (std.ascii.eqlIgnoreCase(name, "group-remove")) return .group_remove;
     if (std.ascii.eqlIgnoreCase(name, "focus-next")) return .focus_next;
     if (std.ascii.eqlIgnoreCase(name, "focus-prev")) return .focus_prev;
     if (std.ascii.eqlIgnoreCase(name, "launcher")) return .launcher;

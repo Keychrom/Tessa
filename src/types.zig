@@ -86,6 +86,11 @@ pub const Action = enum {
     toggle_fullscreen,
     toggle_scratchpad,
     move_to_scratchpad,
+    toggle_group,
+    group_next,
+    group_prev,
+    group_add,
+    group_remove,
     focus_next,
     focus_prev,
     launcher,
@@ -628,6 +633,8 @@ pub const Client = struct {
     fullscreen: bool,
     urgent: bool,
     scratchpad: bool,
+    group_id: u32,
+    group_active: bool,
 
     anim_off_x: i32,
     anim_off_y: i32,
@@ -974,6 +981,7 @@ pub const Server = struct {
     focused_output: ?*Output,
     focused_layer: ?*LayerSurface,
     next_client_id: u64,
+    next_group_id: u32,
     panel_notify_owner_assigned: bool,
 
     session_lock_manager: ?*c.wlr_session_lock_manager_v1,

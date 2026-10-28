@@ -259,6 +259,23 @@ workspaces hides the scratchpad. The scratchpad is an overlay of floating
 windows, not an extra numbered workspace, so it does not affect workspace
 occupancy or `Super+1..9`.
 
+Window groups turn the tiled windows on a workspace into one tabbed tile:
+
+```ini
+bind = SUPER+SHIFT+g toggle-group
+bind = SUPER+ALT+g group-add
+bind = SUPER+ALT+SHIFT+g group-remove
+```
+
+`toggle-group` groups all tiled windows on the active workspace, or ungroups the
+whole group when a member is focused. While grouped, only the active member is
+visible and `Super+Tab` / `Super+Shift+Tab` cycle tabs instead of moving to
+another tile. `group-add` joins the focused window to a group on the same
+workspace; `group-remove` detaches it. Groups are runtime state, are not
+persisted, and are dropped when a member moves to another workspace or the
+scratchpad. IPC commands mirror the actions: `toggle-group`, `group-next`,
+`group-prev`, `group-add`, and `group-remove`.
+
 Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.

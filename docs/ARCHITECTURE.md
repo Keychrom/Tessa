@@ -452,6 +452,12 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   IPC occupancy, and the panel, so hidden scratchpad windows cannot receive
   focus or appear in the bar. `toggleScratchpad()` and `moveToScratchpad()` are
   exposed as bindings and IPC commands; workspace changes hide the overlay.
+- Window groups give tiled clients a shared `group_id` and one active member.
+  `clientVisible()` hides inactive members, so the tiling pass treats a group as
+  a single tile. Focusing a member activates it, `Super+Tab`/`Shift+Tab` route
+  through `groupNext()`, and moving a member to another workspace or the
+  scratchpad detaches it. Groups are runtime-only; closing or moving the active
+  member promotes another member.
 - Per-output `output-rule` entries can set layout, gaps, outer gaps, master
   ratio/count, mosaic ratio/minimum, and grid columns. `rules.tuningFor()`
   resolves them per output/workspace in precedence order: global defaults,

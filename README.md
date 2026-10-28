@@ -182,7 +182,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   wallpaper gradient colors and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus;
   optional global workspace names for bar labels, bindings, IPC, and window
-  rules; a per-output floating scratchpad overlay
+  rules; a per-output floating scratchpad overlay and tabbed workspace window
+  groups
 - multi-monitor support: a bar/background and independent active workspace on
   every output; panels are auto-started per output; workspace-to-output pins;
   output management via `wlr-randr`, persisted across restarts; fractional
@@ -646,8 +647,9 @@ event schema, hook environment, and status API.
 | `Super+F` | toggle fullscreen |
 | `Super+grave` | toggle scratchpad |
 | `Super+Shift+grave` | move focused window to/from scratchpad |
+| `Super+Shift+G` | group/ungroup tiled windows on the workspace |
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
-| `Super+Tab` / `Super+Shift+Tab` | cycle windows |
+| `Super+Tab` / `Super+Shift+Tab` | cycle windows; cycle tabs while a group is focused |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
 | `Super+Alt+H/L` | shrink/grow a floating window horizontally |
 | `Super+Alt+J/K` | grow/shrink a floating window vertically |
@@ -787,7 +789,8 @@ bind = SUPER+ctrl+h ratio -0.03
 
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`toggle-scratchpad`, `move-to-scratchpad`,
+`toggle-scratchpad`, `move-to-scratchpad`, `toggle-group`, `group-next`,
+`group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
 `set-layout`, `resize-width`, `resize-height`, `enter-mode`.
 
@@ -908,6 +911,8 @@ CMD workspace Code
 CMD move-workspace 3
 CMD toggle-scratchpad
 CMD move-to-scratchpad
+CMD toggle-group
+CMD group-next
 CMD focus 4
 CMD close 4
 CMD spawn kitty
