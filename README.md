@@ -179,7 +179,8 @@ This is an MVP (`0.1.0`), but it is usable and the core pieces are implemented:
   configurable offsets, close scale/fade snapshots, reduced-motion close
   fades, and soft layered shadows; opt-in scenefx rounded
   corners and backdrop blur for windows and shell surfaces; configurable
-  wallpaper gradient colors and an art on/off switch
+  wallpaper gradient colors, a PNG wallpaper source with cover/contain/stretch
+  fit, and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus;
   optional global workspace names for bar labels, bindings, IPC, and window
   rules; a per-output floating scratchpad overlay and tabbed workspace window
@@ -750,6 +751,8 @@ diagnostics. Selected keys:
 | `repeat_delay` | delay before key repeat starts, in milliseconds |
 | `accent` | accent color used by borders, bar, launcher |
 | `bg` | base background color for the wallpaper |
+| `wallpaper_image` | PNG wallpaper path; replaces the gradient/art |
+| `wallpaper_fit` | `cover`, `contain`, or `stretch` image fit |
 | `font` | UI family for the panel |
 | `include` | include another config file |
 | `startup` | command run once at startup |

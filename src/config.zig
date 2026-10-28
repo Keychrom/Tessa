@@ -2432,6 +2432,10 @@ fn loadPath(
             std.mem.eql(u8, key, "bg_top") or
             std.mem.eql(u8, key, "bg_bottom") or
             std.mem.eql(u8, key, "wallpaper_art") or
+            std.mem.eql(u8, key, "wallpaper_image") or
+            std.mem.eql(u8, key, "wallpaper-image") or
+            std.mem.eql(u8, key, "wallpaper_fit") or
+            std.mem.eql(u8, key, "wallpaper-fit") or
             std.mem.eql(u8, key, "bar_height") or
             std.mem.eql(u8, key, "bar_top_margin") or
             std.mem.eql(u8, key, "bar_side_margin") or

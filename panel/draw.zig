@@ -375,7 +375,52 @@ const Prng = struct {
     }
 };
 
+fn paintWallpaperImage(cr: *c.cairo_t, surface: *c.cairo_surface_t, w: f64, h: f64) bool {
+    const iw_raw = c.cairo_image_surface_get_width(surface);
+    const ih_raw = c.cairo_image_surface_get_height(surface);
+    if (iw_raw <= 0 or ih_raw <= 0) return false;
+    const iw: f64 = @floatFromInt(iw_raw);
+    const ih: f64 = @floatFromInt(ih_raw);
+
+    // Letterboxing and alpha need an opaque base.
+    c.cairo_set_source_rgb(cr, g.bg_rgb[0], g.bg_rgb[1], g.bg_rgb[2]);
+    c.cairo_paint(cr);
+
+    var scale_x: f64 = w / iw;
+    var scale_y: f64 = h / ih;
+    switch (g.wallpaper_fit) {
+        .cover => {
+            const scale = @max(scale_x, scale_y);
+            scale_x = scale;
+            scale_y = scale;
+        },
+        .contain => {
+            const scale = @min(scale_x, scale_y);
+            scale_x = scale;
+            scale_y = scale;
+        },
+        .stretch => {},
+    }
+    const draw_w = iw * scale_x;
+    const draw_h = ih * scale_y;
+    const x = (w - draw_w) / 2.0;
+    const y = (h - draw_h) / 2.0;
+
+    c.cairo_save(cr);
+    c.cairo_rectangle(cr, 0, 0, w, h);
+    c.cairo_clip(cr);
+    c.cairo_translate(cr, x, y);
+    c.cairo_scale(cr, scale_x, scale_y);
+    c.cairo_set_source_surface(cr, surface, 0, 0);
+    c.cairo_paint(cr);
+    c.cairo_restore(cr);
+    return true;
+}
+
 fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
+    if (g.wallpaper_surface) |surface| {
+        if (paintWallpaperImage(cr, surface, w, h)) return;
+    }
     const bg = g.bg_rgb;
     const top = if (g.bg_top_set)
         [4]f64{ g.bg_top[0], g.bg_top[1], g.bg_top[2], 1.0 }

@@ -576,6 +576,8 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bg_top` | 壁紙グラデーションの上端色。未指定なら `bg` から導出 |
 | `bg_bottom` | 壁紙グラデーションの下端色。未指定なら `bg` から導出 |
 | `wallpaper_art` | 装飾用の壁紙アートを描画（既定 `true`） |
+| `wallpaper_image` | PNG 壁紙パス（絶対または `~/...`）。グラデーション／装飾を置換 |
+| `wallpaper_fit` | `cover`（既定）、`contain`、`stretch` |
 | `animations` | ウィンドウを開く/閉じる/ワークスペース切り替えをアニメーション（既定 `true`） |
 | `animation_ms` | 既定の再生時間（ミリ秒、0〜1000、既定 160） |
 | `animation_open_ms`、`animation_workspace_ms`、`animation_close_ms` | 種類別の再生時間。`-1` で継承（既定 `-1`） |
@@ -600,8 +602,13 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 パネルは `config-reload` を受け取ると配色、ランチャー項目、バーの
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
 バーの layer surface を再作成するため、予約領域も即座に更新されます。
-`bg_top`、`bg_bottom`、`wallpaper_art` は再起動なしで背景を描き直します。
-別ファイルのテーマは今後追加します。
+`bg_top`、`bg_bottom`、`wallpaper_art`、`wallpaper_image` は再起動なしで
+背景を描き直します。別ファイルのテーマは今後追加します。
+
+`wallpaper_image` は Cairo の PNG 読み込みを使います。`cover` は出力を埋めて
+余りを切り抜き、`contain` は `bg` 色のレターボックス、`stretch` は縦横比を
+無視します。画像がない、または読み込めない場合はエラーをログに出して
+グラデーション／装飾へ戻ります。
 
 コンポジタとパネルで共有する意味論的カラー:
 

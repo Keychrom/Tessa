@@ -485,6 +485,8 @@ edits are rejected and keep the previous configuration.
 | `bg_top` | unset | Top wallpaper gradient color; derived from `bg` if omitted |
 | `bg_bottom` | unset | Bottom wallpaper gradient color |
 | `wallpaper_art` | `true` | Draw ink/sun/water decorative art |
+| `wallpaper_image` | empty | PNG wallpaper path (absolute or `~/...`); replaces gradient/art |
+| `wallpaper_fit` | `cover` | Image fit: `cover`, `contain`, or `stretch` |
 | `border_active` | empty | Focused border; empty uses `accent` |
 | `border_inactive` | `#293347` | Unfocused border |
 | `font` | `Inter` | Panel UI font |
@@ -1045,6 +1047,19 @@ wallpaper_art = true
 
 `bg_top` and `bg_bottom` derive from `bg` when omitted. `wallpaper_art = false`
 removes the ink/sun artwork.
+
+A PNG can replace the generated wallpaper:
+
+```ini
+wallpaper_image = ~/Pictures/wallpaper.png
+wallpaper_fit = cover
+```
+
+`wallpaper_image` accepts an absolute path or a leading `~/`. The panel loads
+the PNG through Cairo and reloads it when the config reloads. `wallpaper_fit`
+is `cover` (fill and crop, the default), `contain` (letterbox using `bg`), or
+`stretch`. Without an image, the gradient and art above are used. Image load
+errors are logged and fall back to the gradient.
 
 ### Bar and fonts
 

@@ -376,6 +376,17 @@ sh tests/scratchpad.sh
 sh tests/window-groups.sh
 ```
 
+### 壁紙画像のテスト
+
+`tests/wallpaper-image.sh` は単色 PNG を生成し、`wallpaper_fit = stretch` で
+パネルを起動して `grim` でスクリーンショットを取得します。設定を
+`wallpaper_fit = contain` にリロードし、画像中央と背景のレターボックス画素を
+確認します。`grim` がない場合はスキップします。
+
+```sh
+sh tests/wallpaper-image.sh
+```
+
 ### 入力・ジェスチャ・pointer constraints のテスト
 
 `tests/input.sh` はジェスチャ/タッチ/タブレット/pointer-constraints の設定

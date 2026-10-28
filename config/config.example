@@ -159,9 +159,13 @@ panel_bg = #0e1320
 panel_fg = #eef2f8
 # Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
 # wallpaper_art = false for a clean gradient without ink/sun/water artwork.
+# wallpaper_image replaces the gradient/art with a PNG (absolute path or ~/...);
+# wallpaper_fit is cover, contain, or stretch.
 # bg_top = #162038
 # bg_bottom = #070a12
 # wallpaper_art = true
+# wallpaper_image = ~/Pictures/wallpaper.png
+# wallpaper_fit = cover
 
 # Commands for the power menu (right-click the TESSA mark).
 power_lock = loginctl lock-session

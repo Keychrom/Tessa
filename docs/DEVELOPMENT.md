@@ -459,6 +459,17 @@ group id, switches tabs with `CMD group-next`, ungroups them, and exercises
 sh tests/window-groups.sh
 ```
 
+### Wallpaper image test
+
+`tests/wallpaper-image.sh` generates a solid PNG, starts the panel with
+`wallpaper_fit = stretch`, samples a screenshot with `grim`, then reloads with
+`wallpaper_fit = contain` and checks the image center and background letterbox
+pixels. It skips when `grim` is unavailable.
+
+```sh
+sh tests/wallpaper-image.sh
+```
+
 ### Input, gesture, and pointer-constraint tests
 
 `tests/input.sh` verifies the gesture/touch/tablet/pointer-constraint config

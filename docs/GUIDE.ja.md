@@ -498,6 +498,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bg_top` | 未指定 | 壁紙グラデーション上端。未指定は `bg` から導出 |
 | `bg_bottom` | 未指定 | 壁紙グラデーション下端 |
 | `wallpaper_art` | `true` | インク／太陽／水面などの装飾を描く |
+| `wallpaper_image` | 空 | PNG 壁紙のパス（絶対パスまたは `~/...`）。グラデーション／装飾を置換 |
+| `wallpaper_fit` | `cover` | 画像の合わせ方: `cover`、`contain`、`stretch` |
 | `border_active` | 空 | フォーカス中ボーダー。空なら `accent` |
 | `border_inactive` | `#293347` | 非フォーカスボーダー |
 | `font` | `Inter` | パネルの UI フォント |
@@ -1067,6 +1069,19 @@ wallpaper_art = true
 
 `bg_top`／`bg_bottom` を省略すると `bg` からグラデーションを導出します。
 `wallpaper_art = false` で装飾を消した単純なグラデーションになります。
+
+PNG 画像を壁紙にできます:
+
+```ini
+wallpaper_image = ~/Pictures/wallpaper.png
+wallpaper_fit = cover
+```
+
+`wallpaper_image` は絶対パスまたは先頭が `~/` のパスを受け付けます。パネルは
+Cairo で PNG を読み込み、設定リロード時に再読み込みします。`wallpaper_fit`
+は `cover`（全体を埋めて切り抜き、既定）、`contain`（`bg` 色でレターボックス）、
+`stretch`（縦横比を無視）です。画像がない場合は上のグラデーション／装飾を
+使います。読み込みに失敗した場合はログを出してグラデーションへ戻ります。
 
 ### 10.2 バーとフォント
 

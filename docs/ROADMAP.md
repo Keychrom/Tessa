@@ -164,8 +164,10 @@ the interactive config editor/diff preview) before or alongside this work.
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.
       Verified through config/JSON tests; physical touchpad and VRR behavior
       remains part of the hardware validation pass.
-- [ ] Shell v2: composable bar modules/layout, per-surface font and color
-      roles, wallpaper image/shader sources, and layer-rule-aware popovers and
+- [x] Wallpaper image sources: PNG backgrounds with cover/contain/stretch fit,
+      live reload, and fallback to the generated gradient/art.
+- [ ] Shell v2 remainder: composable bar modules/layout, per-surface font and
+      color roles, wallpaper shader sources, and layer-rule-aware popovers and
       toasts.
 - [ ] Shader/effect hooks through the long-lived process protocol; no
       in-process plugin VM.

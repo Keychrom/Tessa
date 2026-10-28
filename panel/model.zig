@@ -21,6 +21,7 @@ pub const MAX_TRAY_ICON = 32;
 pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio };
+pub const WallpaperFit = enum { cover, contain, stretch };
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -445,6 +446,10 @@ pub const Panel = struct {
     bg_bottom: [3]f64 = .{ 0, 0, 0 },
     bg_bottom_set: bool = false,
     wallpaper_art: bool = true,
+    wallpaper_image: [512]u8 = undefined,
+    wallpaper_image_len: usize = 0,
+    wallpaper_fit: WallpaperFit = .cover,
+    wallpaper_surface: ?*c.cairo_surface_t = null,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
     bar_height: i32 = 44,
@@ -822,6 +827,16 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             g.bg_bottom_set = true;
         } else if (std.mem.eql(u8, key, "wallpaper_art")) {
             g.wallpaper_art = parsePanelBool(val) orelse g.wallpaper_art;
+        } else if (std.mem.eql(u8, key, "wallpaper_image") or std.mem.eql(u8, key, "wallpaper-image")) {
+            copyTrunc(&g.wallpaper_image, &g.wallpaper_image_len, val);
+        } else if (std.mem.eql(u8, key, "wallpaper_fit") or std.mem.eql(u8, key, "wallpaper-fit")) {
+            if (std.mem.eql(u8, val, "cover")) {
+                g.wallpaper_fit = .cover;
+            } else if (std.mem.eql(u8, val, "contain")) {
+                g.wallpaper_fit = .contain;
+            } else if (std.mem.eql(u8, val, "stretch")) {
+                g.wallpaper_fit = .stretch;
+            }
         } else if (std.mem.eql(u8, key, "panel_bg")) {
             hexColor(val, &g.panel_bg);
         } else if (std.mem.eql(u8, key, "panel_fg")) {
@@ -856,6 +871,43 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
     }
 }
 
+fn loadWallpaperImage() void {
+    if (g.wallpaper_surface) |surface| c.cairo_surface_destroy(surface);
+    g.wallpaper_surface = null;
+    if (g.wallpaper_image_len == 0) return;
+
+    var path_buf: [512:0]u8 = undefined;
+    const path = g.wallpaper_image[0..g.wallpaper_image_len];
+    if (path.len >= 2 and path[0] == '~' and path[1] == '/') {
+        const home_ptr = c.getenv("HOME") orelse {
+            std.debug.print("tessa-panel: wallpaper_image cannot expand ~ without HOME\n", .{});
+            return;
+        };
+        const full = std.fmt.bufPrint(path_buf[0..511], "{s}/{s}", .{
+            std.mem.span(home_ptr),
+            path[2..],
+        }) catch return;
+        path_buf[full.len] = 0;
+    } else {
+        if (path.len >= path_buf.len) return;
+        @memcpy(path_buf[0..path.len], path);
+        path_buf[path.len] = 0;
+    }
+
+    const surface = c.cairo_image_surface_create_from_png(&path_buf);
+    if (surface == null or c.cairo_surface_status(surface) != c.CAIRO_STATUS_SUCCESS) {
+        if (surface) |s| c.cairo_surface_destroy(s);
+        std.debug.print("tessa-panel: cannot load wallpaper image {s}\n", .{path});
+        return;
+    }
+    g.wallpaper_surface = surface;
+    std.debug.print("tessa-panel: wallpaper image {s} ({d}x{d})\n", .{
+        path,
+        c.cairo_image_surface_get_width(surface),
+        c.cairo_image_surface_get_height(surface),
+    });
+}
+
 pub fn loadConfig() void {
     copyTrunc(&g.terminal, &g.terminal_len, "kitty");
     copyTrunc(&g.font, &g.font_len, "Inter");
@@ -879,6 +931,12 @@ pub fn loadConfig() void {
     g.custom_count = 0;
     output_theme = .{};
     theme_role_count = 0;
+    g.wallpaper_image_len = 0;
+    g.wallpaper_fit = .cover;
+    if (g.wallpaper_surface) |surface| {
+        c.cairo_surface_destroy(surface);
+        g.wallpaper_surface = null;
+    }
     var wsn: usize = 0;
     while (wsn < WS_COUNT) : (wsn += 1) g.ws_name_lens[wsn] = 0;
 
@@ -894,6 +952,7 @@ pub fn loadConfig() void {
     if (path.len > 0) loadConfigFile(path, 0);
     applyThemeRoles();
     applyOutputTheme();
+    loadWallpaperImage();
     g.bar_height = std.math.clamp(g.bar_height, 32, 96);
     g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
     g.bar_side_margin = std.math.clamp(g.bar_side_margin, 0, 128);

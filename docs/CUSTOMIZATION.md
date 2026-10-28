@@ -573,6 +573,8 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
 | `bg_bottom` | bottom color of the wallpaper gradient; unset derives it from `bg` |
 | `wallpaper_art` | draw the decorative wallpaper art (default `true`) |
+| `wallpaper_image` | PNG wallpaper path (absolute or `~/...`); replaces gradient/art |
+| `wallpaper_fit` | `cover` (default), `contain`, or `stretch` |
 | `animations` | animate window open, close, and workspace transitions (default `true`) |
 | `animation_ms` | default motion duration in milliseconds, 0–1000 (default 160) |
 | `animation_open_ms`, `animation_workspace_ms`, `animation_close_ms` | per-kind duration; `-1` inherits (default `-1`) |
@@ -597,8 +599,13 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
 the bar layer surface, so the reserved area follows immediately. `bg_top`,
-`bg_bottom`, and `wallpaper_art` repaint the panel background without a restart.
-A separately installed theme file is still planned.
+`bg_bottom`, `wallpaper_art`, and `wallpaper_image` repaint the panel background
+without a restart. A separately installed theme file is still planned.
+
+`wallpaper_image` is loaded with Cairo's PNG support. `cover` fills the output
+and crops the excess, `contain` letterboxes onto `bg`, and `stretch` ignores the
+aspect ratio. A missing or invalid image logs an error and falls back to the
+gradient/art.
 
 Semantic roles are available for colors shared by the compositor and panel:
 
