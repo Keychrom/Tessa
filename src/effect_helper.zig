@@ -114,6 +114,7 @@ fn fail(server: *Server, reason: []const u8) void {
     const changed = clearHooks(server);
     if (changed) {
         window_effects.applyAll(server);
+        layout.arrangeAll(server);
         layout.updateBorders(server);
         core.markDirty(server);
     }
@@ -241,6 +242,7 @@ pub fn reload(server: *Server) void {
         stop(server, true);
         if (clearHooks(server)) {
             window_effects.applyAll(server);
+            layout.arrangeAll(server);
             layout.updateBorders(server);
             core.markDirty(server);
         }
@@ -251,6 +253,7 @@ pub fn reload(server: *Server) void {
         stop(server, true);
         if (clearHooks(server)) {
             window_effects.applyAll(server);
+            layout.arrangeAll(server);
             layout.updateBorders(server);
             core.markDirty(server);
         }
