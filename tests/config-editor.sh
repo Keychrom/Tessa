@@ -113,6 +113,16 @@ echo "interactive edit + apply: ok"
 
 cat > "$runtime/editor.sh" <<'EOF'
 #!/bin/sh
+printf 'bar_font = DejaVu Sans\n' >> "$1"
+EOF
+printf 'y\n' | EDITOR="$runtime/editor.sh" tessa-ctl config-edit >"$runtime/panel-edit.out" 2>"$runtime/panel-edit.err"
+grep -qF "applied $runtime/config" "$runtime/panel-edit.out"
+grep -qF "panel-only or comment changes" "$runtime/panel-edit.err"
+grep -qF "bar_font = DejaVu Sans" "$runtime/config"
+echo "panel-only edit: ok"
+
+cat > "$runtime/editor.sh" <<'EOF'
+#!/bin/sh
 printf 'gaps = 48\n' >> "$1"
 EOF
 printf 'n\n' | EDITOR="$runtime/editor.sh" tessa-ctl config-edit >"$runtime/discard.out" 2>"$runtime/discard.err"

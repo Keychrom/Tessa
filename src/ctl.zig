@@ -574,6 +574,32 @@ fn runConfigDiff(args: []const []const u8) !void {
     _ = try showConfigCompare(args[1], true);
 }
 
+fn filesEqual(a: []const u8, b: []const u8) bool {
+    var a_z: [512:0]u8 = undefined;
+    var b_z: [512:0]u8 = undefined;
+    const a_path = pathZ(a, &a_z) orelse return false;
+    const b_path = pathZ(b, &b_z) orelse return false;
+    const a_fd = c.open(a_path, c.O_RDONLY);
+    if (a_fd < 0) return false;
+    defer _ = c.close(a_fd);
+    const b_fd = c.open(b_path, c.O_RDONLY);
+    if (b_fd < 0) return false;
+    defer _ = c.close(b_fd);
+
+    var a_buf: [8192]u8 = undefined;
+    var b_buf: [8192]u8 = undefined;
+    while (true) {
+        const a_n = c.read(a_fd, &a_buf, a_buf.len);
+        if (a_n < 0) return false;
+        const b_n = c.read(b_fd, &b_buf, b_buf.len);
+        if (b_n < 0) return false;
+        if (a_n != b_n) return false;
+        if (a_n == 0) return true;
+        const n: usize = @intCast(a_n);
+        if (!std.mem.eql(u8, a_buf[0..n], b_buf[0..n])) return false;
+    }
+}
+
 fn runConfigEdit(args: []const []const u8) !void {
     var path_buf: [512]u8 = undefined;
     const target = if (args.len > 1)
@@ -594,12 +620,15 @@ fn runConfigEdit(args: []const []const u8) !void {
     };
 
     const result = try showConfigCompare(temp, true);
-    if (result.changes == 0) {
+    const file_changed = !filesEqual(temp, target);
+    if (result.changes == 0 and !file_changed) {
         writeLine("no changes; not saving");
         return;
     }
     const prompt = if (result.errors > 0)
         "config has errors; save anyway? Changes will not apply until fixed. [y/N] "
+    else if (result.changes == 0)
+        "panel-only or comment changes; save and reload? [y/N] "
     else
         "apply changes and reload? [y/N] ";
     if (!confirm(prompt)) {

@@ -1617,9 +1617,11 @@ tessa-ctl quit
 
 `config-check <file>` validates a candidate without applying it. `config-diff`
 loads the candidate transactionally, reports diagnostics, and prints lines from
-the effective configuration that would change. `config-edit` copies the running
-config to a temporary file, opens `$VISUAL`/`$EDITOR`, shows the check/diff, and
-writes it back and reloads only after confirmation.
+the compositor's effective configuration that would change; panel-only settings
+and comments do not appear in that diff. `config-edit` copies the running config
+to a temporary file, opens `$VISUAL`/`$EDITOR`, shows the check/diff, and writes
+it back and reloads only after confirmation. If only panel settings or comments
+changed, it still offers to save and reload.
 
 `perf` reports render-commit timing from the compositor (`avg_us`, `p50_us`,
 `p95_us`, `max_us`, over-budget frames, and whether scenefx is active). The
