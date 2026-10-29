@@ -481,6 +481,18 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   timeout, malformed reply, or id mismatch stops that output's child and falls
   back to master. Helpers are restarted when their command changes and stopped
   during output destruction and shutdown.
+- `effect_helper.zig` owns one optional long-lived child process for all
+  outputs. It sends a complete tab-separated `EFFECT`/`WINDOW` snapshot when
+  window metadata, focus, geometry, or rule visuals change, and applies
+  validated `WINDOW` overrides (opacity, corner radius, blur, shadow, border
+  width). Overrides live separately from rule fields, so removing the helper
+  or a bad reply restores them. Requests are coalesced; timeout or protocol
+  errors stop the child and retry after one second.
+- `ipc.zig` exposes `config-compare` by loading a candidate path into a
+  temporary configuration, building the effective config text for both, and
+  emitting diagnostics plus changed lines. The live config and environment are
+  restored before the reply is sent. `perf` reports samples collected around
+  the scene-output commit in `output.zig`.
 - `rules.zig` evaluates declarative window rules after metadata is known at
   map time, and re-evaluates them for existing windows on config reload. Match
   fields are app-id, title, and output using a small `*`/`?` wildcard matcher;
