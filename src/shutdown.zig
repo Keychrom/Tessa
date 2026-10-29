@@ -1,6 +1,7 @@
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const layout_helper = @import("layout_helper.zig");
+const effect_helper = @import("effect_helper.zig");
 const input = @import("input.zig");
 const gestures = @import("gestures.zig");
 const touch = @import("touch.zig");
@@ -18,6 +19,7 @@ const Server = types.Server;
 /// are destroyed; client-owned listeners are already gone by this point.
 pub fn cleanupGlobals(server: *Server) void {
     layout_helper.deinit(server);
+    effect_helper.deinit(server);
     input.cleanupTrackedInputs(server);
     var i: usize = 0;
     while (i < server.outputs.len) : (i += 1) {

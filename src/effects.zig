@@ -87,17 +87,19 @@ fn inactiveBorderColor(server: *Server) [4]f32 {
 
 fn clientBorderWidth(client: *Client) i32 {
     if (client.fullscreen) return 0;
-    return if (client.border_width >= 0) client.border_width else client.server.config.border_width;
+    const width = types.effectiveClientBorderWidth(client);
+    return if (width >= 0) width else client.server.config.border_width;
 }
 
 fn clientCornerRadius(client: *Client) i32 {
     if (client.fullscreen) return 0;
-    return if (client.corner_radius >= 0) client.corner_radius else client.server.config.corner_radius;
+    const radius = types.effectiveClientRadius(client);
+    return if (radius >= 0) radius else client.server.config.corner_radius;
 }
 
 fn clientShadowEnabled(client: *Client) bool {
     if (client.fullscreen) return false;
-    return switch (client.shadow) {
+    return switch (types.effectiveClientShadow(client)) {
         .on => true,
         .off => false,
         .unset => client.server.config.shadows,
@@ -272,7 +274,7 @@ fn start(
     effect.start_ms = core.timeNowMs();
     effect.ms = closeAnimationMs(server, client);
     effect.fade_only = server.config.reduce_motion;
-    effect.base_opacity = client.opacity;
+    effect.base_opacity = types.effectiveClientOpacity(client);
     effect.shadow_enabled = clientShadowEnabled(client);
     effect.curve = motion.closeFor(&server.config, client.anim);
     effect.close_scale = if (server.config.reduce_motion)

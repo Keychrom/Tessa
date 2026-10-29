@@ -44,7 +44,7 @@ fn configureImpl(server: *Server) void {
 }
 
 fn clientBlur(client: *Client) bool {
-    return switch (client.blur) {
+    return switch (types.effectiveClientBlur(client)) {
         .on => true,
         .off => false,
         .unset => client.server.config.blur,
@@ -62,20 +62,22 @@ fn ensureContentBuffer(client: *Client) ?*c.wlr_scene_buffer {
 
 pub fn applyClient(client: *Client, border_enabled: bool) void {
     if (ensureContentBuffer(client)) |buffer| {
-        c.wlr_scene_buffer_set_opacity(buffer, client.opacity);
+        c.wlr_scene_buffer_set_opacity(buffer, types.effectiveClientOpacity(client));
     }
     if (comptime enabled) applyClientImpl(client, border_enabled);
 }
 
 fn applyClientImpl(client: *Client, border_enabled: bool) void {
     const cfg = &client.server.config;
+    const configured_bw = types.effectiveClientBorderWidth(client);
     const bw: i32 = if (!border_enabled)
         0
-    else if (client.border_width >= 0)
-        client.border_width
+    else if (configured_bw >= 0)
+        configured_bw
     else
         cfg.border_width;
-    const base_radius = if (client.corner_radius >= 0) client.corner_radius else cfg.corner_radius;
+    const configured_radius = types.effectiveClientRadius(client);
+    const base_radius = if (configured_radius >= 0) configured_radius else cfg.corner_radius;
     const max_radius = @divTrunc(@max(1, @min(client.w, client.h)), 2);
     const radius: c_int = if (client.fullscreen or !border_enabled)
         0

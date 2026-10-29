@@ -10,6 +10,7 @@ const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
+const effect_helper = @import("effect_helper.zig");
 const motion = @import("motion.zig");
 
 const Server = types.Server;
@@ -56,7 +57,8 @@ fn keyboardClear(server: *Server) void {
 
 pub fn borderWidth(cl: *Client) i32 {
     if (cl.fullscreen) return 0;
-    return if (cl.border_width >= 0) cl.border_width else cl.server.config.border_width;
+    const width = types.effectiveClientBorderWidth(cl);
+    return if (width >= 0) width else cl.server.config.border_width;
 }
 
 fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
@@ -70,10 +72,7 @@ fn clientSurfaceOrigin(cl: *Client) struct { x: i32, y: i32 } {
 }
 
 fn clientVisible(cl: *Client, out: *Output) bool {
-    if (!cl.mapped or cl.output != out) return false;
-    if (cl.group_id != 0 and !cl.group_active) return false;
-    if (cl.scratchpad) return out.scratchpad_visible;
-    return cl.ws == out.active_ws;
+    return types.clientVisible(cl, out);
 }
 
 fn activateGroupMember(target: *Client) void {
@@ -153,8 +152,9 @@ pub fn updateBorders(server: *Server) void {
         const output_inactive = cl.output.theme_border_inactive orelse inactive;
         var active_color = cl.border_active_override orelse output_active;
         var inactive_color = cl.border_inactive_override orelse output_inactive;
-        active_color[3] *= cl.opacity;
-        inactive_color[3] *= cl.opacity;
+        const opacity = types.effectiveClientOpacity(cl);
+        active_color[3] *= opacity;
+        inactive_color[3] *= opacity;
         c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active_color else &inactive_color);
     }
 }
@@ -193,6 +193,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
             }
             raiseClient(cl);
             if (was_urgent) layout_helper.focusChanged(server);
+            effect_helper.refresh(server);
             return;
         }
         if (server.focused) |prev| {
@@ -228,6 +229,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
             .output = core.outputName(cl.output),
         });
         layout_helper.focusChanged(server);
+        effect_helper.refresh(server);
         core.markDirty(server);
         return;
     }
@@ -255,6 +257,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         });
         layout_helper.focusChanged(server);
     }
+    effect_helper.refresh(server);
     core.markDirty(server);
 }
 
@@ -476,7 +479,7 @@ pub fn clearAnimations(server: *Server) void {
 }
 
 fn shadowsEnabled(client: *Client) bool {
-    return switch (client.shadow) {
+    return switch (types.effectiveClientShadow(client)) {
         .on => true,
         .off => false,
         .unset => client.server.config.shadows,
@@ -498,7 +501,7 @@ fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
             c.wlr_scene_node_set_enabled(&rect.node, false);
             continue;
         }
-        const color = [4]f32{ 0, 0, 0, alphas[i] * client.opacity };
+        const color = [4]f32{ 0, 0, 0, alphas[i] * types.effectiveClientOpacity(client) };
         c.wlr_scene_rect_set_color(rect, &color);
         c.wlr_scene_node_set_enabled(&rect.node, true);
         c.wlr_scene_node_set_position(&rect.node, offsets[i][0], offsets[i][1]);
@@ -829,7 +832,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         if (cl.fullscreen) {
             applyFullscreen(cl, out);
             raiseClient(cl);
-        } else if (cl.floating or cl.scratchpad) {
+        } else if (cl.floating or cl.scratchpad or cl.special_workspace_len > 0) {
             applyFloating(cl, out);
         } else if (tile_count < tiles.len) {
             tiles[tile_count] = cl;
@@ -927,6 +930,7 @@ pub fn arrangeAll(server: *Server) void {
     while (i < server.outputs.len) : (i += 1) {
         if (server.outputs[i]) |out| arrangeOutput(server, out);
     }
+    effect_helper.refresh(server);
 }
 
 pub fn setProvisionalSize(client: *Client) void {
@@ -1187,6 +1191,7 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
     const previous_ws = out.active_ws;
     out.active_ws = ws;
     out.scratchpad_visible = false;
+    out.special_workspace_len = 0;
     server.focused_output = out;
     server.active_ws = ws;
     startWorkspaceAnimation(server, out, previous_ws, ws);
@@ -1202,13 +1207,13 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
 
     var target: ?*Client = null;
     if (out.last_focused[ws]) |cl| {
-        if (cl.mapped and cl.output == out and cl.ws == ws) target = cl;
+        if (types.clientVisible(cl, out) and cl.ws == ws) target = cl;
     }
     if (target == null) {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.output == out and cl.ws == ws) {
+            if (types.clientVisible(cl, out) and cl.ws == ws) {
                 target = cl;
                 break;
             }
@@ -1238,6 +1243,12 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
     detachFromGroup(cl);
     if (cl.scratchpad) {
         cl.scratchpad = false;
+        cl.floating = false;
+        cl.float_w = 0;
+        cl.float_h = 0;
+    }
+    if (cl.special_workspace_len > 0) {
+        cl.special_workspace_len = 0;
         cl.floating = false;
         cl.float_w = 0;
         cl.float_h = 0;
@@ -1297,6 +1308,7 @@ pub fn toggleFullscreen(server: *Server) void {
 
 pub fn toggleScratchpad(server: *Server) void {
     const out = core.focusOutput(server) orelse return;
+    out.special_workspace_len = 0;
     out.scratchpad_visible = !out.scratchpad_visible;
     arrangeOutput(server, out);
 
@@ -1333,13 +1345,112 @@ pub fn moveToScratchpad(server: *Server) void {
         if (out.last_focused[out.active_ws] == null) out.last_focused[out.active_ws] = cl;
     } else {
         cl.scratchpad = true;
+        cl.special_workspace_len = 0;
         cl.floating = true;
         cl.ws = out.active_ws;
+        out.special_workspace_len = 0;
         out.scratchpad_visible = true;
         if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, out);
     }
     arrangeOutput(server, out);
     focusClient(server, cl);
+    core.markDirty(server);
+}
+
+fn specialWorkspaceValid(server: *Server, name: []const u8) bool {
+    if (types.specialWorkspaceIndexByName(&server.config, name) == null) {
+        core.logInfo("special workspace '{s}' is not declared in config", .{name});
+        return false;
+    }
+    return true;
+}
+
+fn firstSpecialOnOutput(server: *Server, out: *Output, name: []const u8) ?*Client {
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (!cl.mapped or cl.output != out or cl.special_workspace_len == 0) continue;
+        if (std.mem.eql(u8, cl.special_workspace[0..cl.special_workspace_len], name)) return cl;
+    }
+    return null;
+}
+
+pub fn toggleSpecial(server: *Server, name: []const u8) void {
+    if (!specialWorkspaceValid(server, name)) return;
+    const out = core.focusOutput(server) orelse return;
+    const showing = out.special_workspace_len > 0 and
+        std.mem.eql(u8, out.special_workspace[0..out.special_workspace_len], name);
+    if (showing) {
+        out.special_workspace_len = 0;
+    } else {
+        out.scratchpad_visible = false;
+        core.copyString(&out.special_workspace, &out.special_workspace_len, name);
+    }
+    server.focused_output = out;
+    arrangeOutput(server, out);
+    if (firstSpecialOnOutput(server, out, name)) |target| {
+        focusClient(server, target);
+    } else if (firstClientOnOutput(server, out)) |target| {
+        focusClient(server, target);
+    } else {
+        focusClient(server, null);
+    }
+    updateBorders(server);
+    events.emit(server, .{
+        .name = event_names.special_change,
+        .workspace = out.active_ws,
+        .output = core.outputName(out),
+        .arg = name,
+    });
+    core.markDirty(server);
+}
+
+pub fn moveToSpecial(server: *Server, name: []const u8) void {
+    if (!specialWorkspaceValid(server, name)) return;
+    const cl = server.focused orelse return;
+    const out = cl.output;
+    if (cl.group_id != 0) detachFromGroup(cl);
+    cl.scratchpad = false;
+    const was_same = cl.special_workspace_len > 0 and
+        std.mem.eql(u8, cl.special_workspace[0..cl.special_workspace_len], name);
+    if (was_same) {
+        // Restore a window that is already on this special workspace.
+        cl.special_workspace_len = 0;
+        cl.floating = false;
+        cl.float_w = 0;
+        cl.float_h = 0;
+        cl.ws = out.active_ws;
+        if (out.special_workspace_len > 0 and
+            std.mem.eql(u8, out.special_workspace[0..out.special_workspace_len], name))
+        {
+            out.special_workspace_len = 0;
+        }
+        arrangeOutput(server, out);
+        focusClient(server, cl);
+        events.emit(server, .{
+            .name = event_names.special_change,
+            .workspace = out.active_ws,
+            .output = core.outputName(out),
+            .arg = "",
+        });
+        core.markDirty(server);
+        return;
+    }
+    core.copyString(&cl.special_workspace, &cl.special_workspace_len, name);
+    cl.floating = true;
+    cl.ws = out.active_ws;
+    out.scratchpad_visible = false;
+    core.copyString(&out.special_workspace, &out.special_workspace_len, name);
+    if (cl.float_w <= 0 or cl.float_h <= 0) initFloatRect(cl, out);
+    arrangeOutput(server, out);
+    focusClient(server, cl);
+    updateBorders(server);
+    events.emit(server, .{
+        .name = event_names.special_change,
+        .workspace = out.active_ws,
+        .output = core.outputName(out),
+        .arg = name,
+    });
     core.markDirty(server);
 }
 

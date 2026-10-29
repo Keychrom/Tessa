@@ -139,24 +139,26 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addString(buf, &off, cl.title[0..cl.title_len]);
         addRaw(buf, &off, ",\"output\":");
         addString(buf, &off, core.outputName(cl.output));
+        const hook_bw = types.effectiveClientBorderWidth(cl);
         const bw = if (cl.fullscreen)
             0
-        else if (cl.border_width >= 0)
-            cl.border_width
+        else if (hook_bw >= 0)
+            hook_bw
         else
             server.config.border_width;
+        const hook_radius = types.effectiveClientRadius(cl);
         const radius = if (cl.fullscreen)
             0
-        else if (cl.corner_radius >= 0)
-            cl.corner_radius
+        else if (hook_radius >= 0)
+            hook_radius
         else
             server.config.corner_radius;
-        const blur = switch (cl.blur) {
+        const blur = switch (types.effectiveClientBlur(cl)) {
             .on => true,
             .off => false,
             .unset => server.config.blur,
         };
-        const shadow = !cl.fullscreen and switch (cl.shadow) {
+        const shadow = !cl.fullscreen and switch (types.effectiveClientShadow(cl)) {
             .on => true,
             .off => false,
             .unset => server.config.shadows,
@@ -166,7 +168,7 @@ pub fn buildState(server: *Server, buf: []u8) usize {
             cl.y,
             cl.w,
             cl.h,
-            cl.opacity,
+            types.effectiveClientOpacity(cl),
             bw,
             radius,
         });
@@ -220,7 +222,11 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     add(buf, &off, ",\"mosaic_ratio\":{d:.3},\"mosaic_min_size\":{d},\"grid_columns\":{d}", .{ cfg.mosaic_ratio, cfg.mosaic_min_size, cfg.grid_columns });
     addRaw(buf, &off, ",\"layout_helper\":");
     addString(buf, &off, cfg.layout_helper[0..cfg.layout_helper_len]);
-    add(buf, &off, ",\"layout_helper_timeout\":{d},\"layout\":", .{cfg.layout_helper_timeout});
+    add(buf, &off, ",\"layout_helper_timeout\":{d}", .{cfg.layout_helper_timeout});
+    addRaw(buf, &off, ",\"effect_helper\":");
+    addString(buf, &off, cfg.effect_helper[0..cfg.effect_helper_len]);
+    add(buf, &off, ",\"effect_helper_timeout\":{d},\"frame_time_budget\":{d}", .{ cfg.effect_helper_timeout, cfg.frame_time_budget });
+    addRaw(buf, &off, ",\"layout\":");
     addString(buf, &off, types.layoutName(cfg.layout_mode));
     addRaw(buf, &off, ",\"layouts\":[");
     var wi: usize = 0;

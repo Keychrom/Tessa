@@ -39,6 +39,7 @@ power_lock = touch $runtime/lock-fired
 power_suspend = touch $runtime/suspend-fired
 power_reboot = touch $runtime/reboot-fired
 power_off = touch $runtime/off-fired
+layer-rule = namespace=tessa-overlay; opacity=0.80; corner-radius=23; blur=false
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -107,6 +108,16 @@ tessa-ctl panel calendar
 wait_log "tessa-panel: calendar open"
 wait_event "EVENT.*panel.*arg=calendar"
 wait_log "layer map: tessa-overlay layer=3 keyboard=1"
+tessa-ctl state | awk -F '\t' '
+    $1 == "LAYER" && $2 == "tessa-overlay" {
+        if ($5 == "0.800" && $6 == "23") found = 1
+    }
+    END { exit(found ? 0 : 1) }
+' || {
+    echo "popover layer rule was not applied" >&2
+    tessa-ctl state | grep -E '^LAYER' >&2 || true
+    exit 1
+}
 sleep 0.2
 
 wtype -k Right

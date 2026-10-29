@@ -3,6 +3,7 @@
 tessa-panel \- Tessa taskbar, launcher, and desktop widgets
 .SH SYNOPSIS
 .B tessa-panel
+.RB [ \-\-check | \-\-print\-config ]
 .SH DESCRIPTION
 .B tessa-panel
 is normally started by
@@ -12,6 +13,14 @@ popovers, and provides the notification service and StatusNotifier tray host.
 .PP
 The panel reads the same configuration file and re-reads it after a compositor
 config-reload event.
+.PP
+With
+.B \-\-check
+or
+.BR \-\-print\-config ,
+the panel loads the configuration, prints the resolved per-surface fonts,
+colors, bar module order/fonts, and wallpaper source, then exits without
+connecting to Wayland.
 .SH ENVIRONMENT
 .TP
 .B TESSA_PANEL_OUTPUT

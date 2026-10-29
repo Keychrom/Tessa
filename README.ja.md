@@ -139,6 +139,10 @@ Arch で **Debug** ビルドを行うと
 ## 状態
 
 MVP（`0.2.3`）ですが、日常的に使えるレベルまで中核機能は実装されています。
+0.7 のカスタマイズ性ロードマップ項目は完了しています
+（[docs/ROADMAP.ja.md](docs/ROADMAP.ja.md)）。
+
+主な機能:
 
 - Zig による wlroots 0.19 コンポジタ（DRM / headless / ネストした Wayland
   バックエンドを wlroots が自動判定）
@@ -158,6 +162,20 @@ MVP（`0.2.3`）ですが、日常的に使えるレベルまで中核機能は�
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパー v2。出力ごとの非同期
   プロセス、リクエスト合流、フォーカス／緊急度メタデータ、バージョン
   ネゴシエーション、タイムアウト、再起動、内蔵レイアウトへのフォールバック
+- 名前付き special ワークスペース: ルールまたはコマンドで割り当てる出力別の
+  非表示オーバーレイ。バインド/IPC による表示切替と移動、フォーカス処理、
+  スクラッチパッドとは独立した可視状態
+- 常駐エフェクトヘルパープロセス: ウィンドウ状態を受け取り、ウィンドウ別の
+  不透明度、角丸、ブラー/影、ボーダー幅の上書きを返す。リクエストは合流され、
+  プロセス内プラグイン VM は使わない
+- 組み合わせ可能なシェル v2 バーモジュール（表示/順序を設定可能）、
+  バー/ランチャー/ポップオーバー/トースト別のフォントと前景/背景色、
+  PNG または PPM シェーダー壁紙、バー・ポップオーバー・トーストへの
+  レイヤールール適用
+- フレームタイム計測（`tessa-ctl perf`）と設定可能な `frame_time_budget`、
+  アニメーション／全エフェクトのヘッドレスベンチマーク
+- 検証と実効設定の差分プレビュー付き対話型設定編集
+  （`tessa-ctl config-check <file>`、`config-diff <file>`、`config-edit`）
 - 行番号付きの設定診断、設定のアトミック保存時の自動リロード、失敗時に
   旧設定を維持するトランザクショナルなリロード、外部ツール向けの
   バージョン付き JSON 状態/設定スナップショット。ワークスペース別・出力別の
@@ -272,7 +290,9 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
-`tests/popups.sh`、`tests/portal.sh` で
+`tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
+`tests/shell-v2.sh`、`tests/effect-helper.sh`、`tests/performance.sh`、
+`tests/config-editor.sh` で
 検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
 Kitty、`wlr-randr`、`xwayland-satellite` が無い場合にスキップします。

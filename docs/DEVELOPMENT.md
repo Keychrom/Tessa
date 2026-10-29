@@ -400,6 +400,62 @@ be red.
 sh tests/effects.sh
 ```
 
+### Shell v2 test
+
+`tests/shell-v2.sh` runs `tessa-panel --check` with per-surface fonts, colors,
+and a `bar_layout` order, then starts a headless session with a PPM-shader
+wallpaper. It samples the wallpaper pixel through `tests/png-pixel.py` and
+checks that layer rules apply to `tessa-bar` and `tessa-overlay` through
+`tessa-ctl state`.
+
+```sh
+sh tests/shell-v2.sh
+```
+
+### Effect helper test
+
+`tests/effect-helper.sh` starts a long-lived Python helper and a kitty window.
+The helper returns opacity 0.4, radius 24, blur/shadow off, and border width 6;
+the test verifies the effective JSON state. Removing `effect_helper` and
+reloading must restore the rule values.
+
+```sh
+sh tests/effect-helper.sh
+```
+
+### Performance test
+
+`tests/performance.sh` measures render-commit timings with `tessa-ctl perf`
+during workspace-switch animations, then reloads a corner-radius/shadow/blur
+config and repeats the workload. It requires at least ten frames and a p95
+within `TESSA_PERF_BUDGET_MS` (default 100 ms for the pixman headless renderer).
+Point `TESSA_BIN_DIR` at `zig-out-scenefx/bin` to benchmark the scenefx build.
+
+```sh
+sh tests/performance.sh
+TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
+```
+
+### Config editor test
+
+`tests/config-editor.sh` validates a candidate config, rejects an unknown key,
+checks the effective-config diff, applies an `$EDITOR` change through
+`tessa-ctl config-edit`, and verifies that a declined change is discarded.
+
+```sh
+sh tests/config-editor.sh
+```
+
+### Special workspace test
+
+`tests/special-workspaces.sh` assigns a kitty window to a declared special
+workspace by rule, then verifies hidden/visible toggling and
+`move-to-special` through `tessa-ctl` and the JSON state.
+
+```sh
+sh tests/special-workspaces.sh
+```
+
 ### Output rules test
 
 `tests/output-rules.sh` starts a two-output headless session and reloads a

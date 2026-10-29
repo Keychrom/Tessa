@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const layout = @import("layout.zig");
 const rules = @import("rules.zig");
 const layout_helper = @import("layout_helper.zig");
+const effect_helper = @import("effect_helper.zig");
 const modes = @import("modes.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
@@ -510,6 +511,7 @@ pub fn reloadRuntime(server: *Server) void {
     reloadCursor(server);
     input_policy.applyAll(server);
     layout_helper.reload(server);
+    effect_helper.reload(server);
     rules.applyAll(server);
     rules.applyOutputThemes(server);
     rules.applyOutputPolicies(server);
@@ -548,6 +550,8 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .toggle_fullscreen => layout.toggleFullscreen(server),
         .toggle_scratchpad => layout.toggleScratchpad(server),
         .move_to_scratchpad => layout.moveToScratchpad(server),
+        .toggle_special => layout.toggleSpecial(server, b.arg[0..b.arg_len]),
+        .move_to_special => layout.moveToSpecial(server, b.arg[0..b.arg_len]),
         .toggle_group => layout.toggleGroup(server),
         .group_next => layout.groupNext(server, 1),
         .group_prev => layout.groupNext(server, -1),

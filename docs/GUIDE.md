@@ -3,8 +3,9 @@
 # Tessa Setup & Customization Guide
 
 This guide collects the setup and customization surface of the current Tessa
-tree. It covers the implementation through the 0.6 roadmap; layout-helper v2
-and the interactive config editor are the remaining 0.6 items.
+tree. It covers the implementation through the 0.7 roadmap, including special
+workspaces, shell v2, the effect helper, performance instrumentation, and the
+interactive config editor.
 
 Tessa is three programs:
 
@@ -462,9 +463,13 @@ edits are rejected and keep the previous configuration.
 | `layout_1` … `layout_9` | inherited | Initial layout for a workspace without a saved/runtime override |
 | `layout_helper` | empty | One asynchronous custom layout helper per output |
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
+| `effect_helper` | empty | Long-lived per-window visual effect helper |
+| `effect_helper_timeout` | `200` | Effect-helper timeout in ms (20–2000) |
+| `frame_time_budget` | `16` | Render-commit budget in ms; frames above it are counted by `tessa-ctl perf` |
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
 | `workspace-name` | — | `WORKSPACE NAME` display/command alias; repeatable |
+| `special-workspace` | — | Declare a named special (hidden overlay) workspace; repeatable |
 | `workspace-rule` | — | Per-workspace layout/spacing rule |
 | `output-rule` | — | Per-output layout, spacing, theme, and VRR rule matched by connector or EDID |
 | `input` / `input-rule` | — | Per-device libinput policy; repeatable |
@@ -486,6 +491,7 @@ edits are rejected and keep the previous configuration.
 | `bg_bottom` | unset | Bottom wallpaper gradient color |
 | `wallpaper_art` | `true` | Draw ink/sun/water decorative art |
 | `wallpaper_image` | empty | PNG wallpaper path (absolute or `~/...`); replaces gradient/art |
+| `wallpaper_shader` | empty | Command that prints a binary PPM (P6) frame; takes precedence over the image |
 | `wallpaper_fit` | `cover` | Image fit: `cover`, `contain`, or `stretch` |
 | `border_active` | empty | Focused border; empty uses `accent` |
 | `border_inactive` | `#293347` | Unfocused border |
@@ -527,6 +533,10 @@ motion.
 | `bar_side_margin` | `16` | Left/right margin (0–128) |
 | `panel_bg` | `#0e1320` | Bar background |
 | `panel_fg` | `#eef2f8` | Bar primary text |
+| `bar_layout` | all modules | Comma/space-separated module list; selects and orders the right cluster |
+| `bar-font`, `launcher-font`, `popover-font`, `toast-font` | `font` | Per-surface fonts |
+| `bar-fg`, `launcher-fg`, `popover-fg`, `toast-fg` | `panel_fg` | Per-surface foreground colors |
+| `bar-bg`, `launcher-bg`, `popover-bg`, `toast-bg` | `panel_bg` | Per-surface background colors |
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
 | `power_lock` | `loginctl lock-session` | Power-menu Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
@@ -808,6 +818,8 @@ Actions:
 | `fullscreen=true/false` | Fullscreen |
 | `workspace=1..9\|name` | Assign workspace |
 | `workspace=special` | Assign to the scratchpad (alias for `scratchpad=true`) |
+| `workspace=special:NAME` | Assign to a declared special workspace |
+| `special=NAME` | Assign to a declared special workspace (shorthand) |
 | `scratchpad=true/false` | Hidden floating scratchpad assignment |
 | `size=WxH` | Floating size |
 | `width=N`, `height=N` | One floating axis |
@@ -844,7 +856,7 @@ Layer-shell surfaces (bars, notifications, wallpaper providers, and other
 
 ```ini
 layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
-layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=tessa-notifications; layer=top; opacity=1; blur=false
 layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 ```
 
@@ -867,10 +879,14 @@ Actions:
 Layer rules are evaluated in file order and later matches win. With no rule,
 layer opacity is `1` and blur follows the global `blur` setting for the top and
 overlay layers (background and bottom layers stay unblurred); rounded corners
-default to `0`. The rules re-apply on `Super+R` / config reload. `corner-radius`
-and `blur` require a `-Dscenefx=true` build. `tessa-ctl state` and
-`tessa-ctl state --json` expose the effective layer values, and
-`tessa-ctl config` / `config --json` list the parsed rules.
+default to `0`. The panel's surfaces use the namespaces `tessa-bar`,
+`tessa-overlay` (launcher, calendar, power, clipboard, media, tray, audio, and
+screenshot popovers), and `tessa-notifications` (toasts). A layer rule with
+`layer=top` styles bar and toasts; popovers are on the overlay layer. Rules
+re-apply on `Super+R` / config reload. `corner-radius` and `blur` require a
+`-Dscenefx=true` build. `tessa-ctl state` and `tessa-ctl state --json` expose
+the effective layer values, and `tessa-ctl config` / `config --json` list the
+parsed rules.
 
 ### 8.6 External layout helper
 
@@ -950,6 +966,27 @@ the scratchpad. Scratchpad windows are floating, do not count as workspace
 occupancy, and remain hidden from the bar while closed. IPC equivalents are
 `CMD toggle-scratchpad` and `CMD move-to-scratchpad`.
 
+#### Special workspaces
+
+Named special workspaces are declared once and act as hidden overlays on each
+output. They are separate from the scratchpad and can hold tiled or floating
+windows:
+
+```ini
+special-workspace = notes
+special-workspace = tools
+window-rule = app-id=org.example.notes; special=notes; size=520x360
+bind = SUPER+ALT+n special notes
+bind = SUPER+ALT+SHIFT+n move-to-special notes
+```
+
+`workspace=special:tools` is accepted as an equivalent rule form. Toggle with
+`tessa-ctl special tools`; move the focused window with `tessa-ctl
+move-to-special tools`. While a special workspace is visible, normal workspace
+windows on that output are hidden. Toggling it off restores the previous
+workspace view and focus. Special clients do not count toward workspace
+occupancy.
+
 #### Window groups
 
 `Super+Shift+G` groups the tiled windows on the active workspace into one
@@ -989,6 +1026,40 @@ Commands receive the normal hook environment (`TESSA_EVENT`, `TESSA_WINDOW_ID`,
 `TESSA_WORKSPACE`, `TESSA_TITLE`, `TESSA_OUTPUT`, `TESSA_ARG`, and so on).
 Matching rules run in config order before unconditional `hook` entries. Like
 hooks, commands run through `/bin/sh -c` with the compositor's privileges.
+
+### 8.9 Long-lived effect helper
+
+```ini
+effect_helper = python3 ~/.config/tessa/effects.py
+effect_helper_timeout = 200
+```
+
+The effect helper is one long-lived process for all outputs. Tessa sends a
+coalesced request whenever window metadata or focus changes:
+
+```text
+HELLO 1
+EFFECT 1
+WINDOW <id> <app-id> <title> <output> <ws> <focused> <urgent> <fullscreen> <floating> <visible> <opacity> <radius> <blur> <shadow> <border-width> <x> <y> <w> <h>
+END
+```
+
+Fields after the title are tab-separated. The helper replies with an optional
+`VERSION 1`, zero or more overrides, and `END`:
+
+```text
+VERSION 1
+WINDOW <id> <opacity> <radius> <blur> <shadow> <border-width>
+END
+```
+
+`opacity` is 0–1, radius 0–64, blur/shadow are `on`, `off`, or `unset`, and
+border width is 0–16. Omitting a window removes any previous override. Tessa
+validates IDs and ranges; a timeout, crash, or malformed reply drops all
+overrides and returns to rule visuals, then retries after one second. `stdout`
+is reserved for the protocol. See
+[EXTENDING.md](EXTENDING.md#effect-helper-process-protocol) for a runnable
+example. The protocol never injects code into the compositor.
 
 ---
 
@@ -1061,6 +1132,19 @@ is `cover` (fill and crop, the default), `contain` (letterbox using `bg`), or
 `stretch`. Without an image, the gradient and art above are used. Image load
 errors are logged and fall back to the gradient.
 
+A command can render a procedural wallpaper instead:
+
+```ini
+wallpaper_shader = ~/.config/tessa/sunset.sh
+wallpaper_fit = stretch
+```
+
+The command must print a binary PPM header (`P6`, width, height, maxval `255`)
+followed by exactly one whitespace byte and `width * height * 3` RGB bytes. It
+runs on config load/reload; the frame is cached until the next reload. The
+shader takes precedence over `wallpaper_image`. Because the command is invoked
+synchronously, keep render time short.
+
 ### Bar and fonts
 
 ```ini
@@ -1070,7 +1154,23 @@ bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
 font = Inter
+bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
+bar_font = Inter
+launcher_font = Inter
+popover_font = Inter
+toast_font = Inter
+bar_fg = #eef2f8
+bar_bg = #0e1320
 ```
+
+`bar_layout` selects visible modules and orders the right-hand cluster from
+left to right. Recognized names are `logo`, `workspaces`, `chips`, `clock`,
+`battery`, `network`, `volume`, `stats`, `media`, `tray`, and `status`; unknown
+names are ignored. Logo, workspace pills, and window chips stay anchored.
+`bar-font`, `launcher-font`, `popover-font`, and `toast-font` fall back to
+`font`. The `*-fg` and `*-bg` keys override foreground/background per surface;
+unset values inherit `panel_fg`/`panel_bg`. Bar background and foreground
+`output-rule` keys still apply per output.
 
 Semantic theme roles let one value drive the compositor and panel:
 
@@ -1087,10 +1187,14 @@ theme-role = wallpaper.bottom = #070a12
 
 Supported roles are `accent`, `window.border.active`,
 `window.border.inactive`, `window.background`, `panel.background`,
-`panel.foreground`, `wallpaper.top`, and `wallpaper.bottom`. Roles are applied
-after direct keys, so a role wins over `accent`, `border_active`,
-`border_inactive`, `bg`, and the corresponding panel keys. A matching
-`output-rule` theme still overrides the global role for that output.
+`panel.foreground`, `bar.background`, `bar.foreground`, `launcher.background`,
+`launcher.foreground`, `popover.background`, `popover.foreground`,
+`toast.background`, `toast.foreground`, `wallpaper.top`, and
+`wallpaper.bottom`. Roles are applied after direct keys, so a role wins over
+`accent`, `border_active`, `border_inactive`, `bg`, and the corresponding
+panel keys. `panel.background`/`panel.foreground` also fill any per-surface
+background/foreground that was not set explicitly. A matching `output-rule`
+theme still overrides the global role for that output.
 
 ### Borders and shadows
 
@@ -1455,10 +1559,16 @@ CMD state
 CMD state-json
 CMD config
 CMD config-json
+CMD config-compare <path>
+CMD perf
+CMD perf-json
+CMD perf-reset
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad
 CMD move-to-scratchpad
+CMD special <name>
+CMD move-to-special <name>
 CMD toggle-group
 CMD group-next
 CMD group-prev
@@ -1487,8 +1597,14 @@ CMD quit
 ```sh
 tessa-ctl state
 tessa-ctl config
+tessa-ctl config-check [file]
+tessa-ctl config-diff file
+tessa-ctl config-edit [file]
+tessa-ctl perf [--json] [--reset]
 tessa-ctl events [topic]
 tessa-ctl workspace 3 [output]
+tessa-ctl special notes
+tessa-ctl move-to-special notes
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
@@ -1498,6 +1614,18 @@ tessa-ctl resize 40 30
 tessa-ctl dispatch reload
 tessa-ctl quit
 ```
+
+`config-check <file>` validates a candidate without applying it. `config-diff`
+loads the candidate transactionally, reports diagnostics, and prints lines from
+the effective configuration that would change. `config-edit` copies the running
+config to a temporary file, opens `$VISUAL`/`$EDITOR`, shows the check/diff, and
+writes it back and reloads only after confirmation.
+
+`perf` reports render-commit timing from the compositor (`avg_us`, `p50_us`,
+`p95_us`, `max_us`, over-budget frames, and whether scenefx is active). The
+budget comes from `frame_time_budget`; `--reset` clears the sample window.
+`tests/performance.sh` uses this for the headless animation and full-effect
+benchmarks.
 
 ### 13.2 JSON and JSON-RPC
 

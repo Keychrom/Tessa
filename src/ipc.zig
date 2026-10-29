@@ -6,6 +6,7 @@ const layout = @import("layout.zig");
 const effects = @import("effects.zig");
 const window_effects = @import("window_effects.zig");
 const json_snapshot = @import("json_snapshot.zig");
+const config = @import("config.zig");
 const modes = @import("modes.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -468,6 +469,16 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "move-to-scratchpad")) {
         layout.moveToScratchpad(server);
         broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "special") or std.mem.eql(u8, cmd, "toggle-special")) {
+        if (start + 1 < n) {
+            layout.toggleSpecial(server, toks[start + 1]);
+            broadcastState(server);
+        }
+    } else if (std.mem.eql(u8, cmd, "move-to-special")) {
+        if (start + 1 < n) {
+            layout.moveToSpecial(server, toks[start + 1]);
+            broadcastState(server);
+        }
     } else if (std.mem.eql(u8, cmd, "toggle-group")) {
         layout.toggleGroup(server);
         broadcastState(server);
@@ -565,6 +576,17 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         sendConfig(server, cl);
     } else if (std.mem.eql(u8, cmd, "config-json")) {
         sendConfigJson(server, cl);
+    } else if (std.mem.eql(u8, cmd, "config-compare")) {
+        const woff = findWordOffset(line, "config-compare");
+        const candidate = std.mem.trim(u8, line[woff..], " \t");
+        sendConfigCompare(server, cl, candidate);
+    } else if (std.mem.eql(u8, cmd, "perf")) {
+        sendPerf(server, cl, false);
+    } else if (std.mem.eql(u8, cmd, "perf-json")) {
+        sendPerf(server, cl, true);
+    } else if (std.mem.eql(u8, cmd, "perf-reset")) {
+        server.perf.reset();
+        sendRaw(cl, "PERF_RESET\n");
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -675,6 +697,12 @@ fn buildState(server: *Server, buf: []u8) usize {
             @as(u8, if (server.focused_output == out) 1 else 0),
             types.layoutName(out.ws_layouts[out.active_ws - 1]),
         });
+        if (out.special_workspace_len > 0) {
+            append(buf, &off, "SPECIAL {s} {s}\n", .{
+                core.outputName(out),
+                out.special_workspace[0..out.special_workspace_len],
+            });
+        }
     }
 
     var ws: usize = 1;
@@ -683,7 +711,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and !cl.scratchpad and cl.ws == ws) count += 1;
+            if (cl.mapped and !cl.scratchpad and cl.special_workspace_len == 0 and cl.ws == ws) count += 1;
         }
         append(buf, &off, "OCC {d} {d}\n", .{ ws, count });
     }
@@ -727,8 +755,7 @@ fn buildState(server: *Server, buf: []u8) usize {
             cl.w,
             cl.h,
             @as(u8, if (cl.scratchpad) 1 else 0),
-            @as(u8, if ((cl.group_id == 0 or cl.group_active) and
-                (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws)) 1 else 0),
+            @as(u8, if (types.clientVisible(cl, cl.output)) 1 else 0),
             cl.group_id,
             @as(u8, if (cl.group_active) 1 else 0),
         });
@@ -762,29 +789,33 @@ fn buildState(server: *Server, buf: []u8) usize {
     return off;
 }
 
-fn sendConfig(server: *Server, cl: *IpcClient) void {
-    var buf: [65536]u8 = undefined;
+fn buildConfigText(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     const cfg = &server.config;
-    append(&buf, &off, "CONFIG\n", .{});
-    append(&buf, &off, "terminal {s}\n", .{cfg.terminal[0..cfg.terminal_len]});
-    append(&buf, &off, "gaps {d}\n", .{cfg.gaps});
-    append(&buf, &off, "outer_gaps {d}\n", .{cfg.outer_gaps});
-    append(&buf, &off, "border_width {d}\n", .{cfg.border_width});
-    append(&buf, &off, "border_active {s}\n", .{cfg.border_active[0..cfg.border_active_len]});
-    append(&buf, &off, "border_inactive {s}\n", .{cfg.border_inactive[0..cfg.border_inactive_len]});
-    append(&buf, &off, "master_ratio {d:.3}\n", .{cfg.master_ratio});
-    append(&buf, &off, "master_count {d}\n", .{cfg.master_count});
-    append(&buf, &off, "mosaic_ratio {d:.3}\n", .{cfg.mosaic_ratio});
-    append(&buf, &off, "mosaic_min_size {d}\n", .{cfg.mosaic_min_size});
-    append(&buf, &off, "grid_columns {d}\n", .{cfg.grid_columns});
-    append(&buf, &off, "layout_helper {s}\n", .{cfg.layout_helper[0..cfg.layout_helper_len]});
-    append(&buf, &off, "layout_helper_timeout {d}\n", .{cfg.layout_helper_timeout});
-    append(&buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
+    append(buf, &off, "CONFIG\n", .{});
+    var path_buf: [512]u8 = undefined;
+    append(buf, &off, "config_path {s}\n", .{config.resolvePath(&path_buf)});
+    append(buf, &off, "terminal {s}\n", .{cfg.terminal[0..cfg.terminal_len]});
+    append(buf, &off, "gaps {d}\n", .{cfg.gaps});
+    append(buf, &off, "outer_gaps {d}\n", .{cfg.outer_gaps});
+    append(buf, &off, "border_width {d}\n", .{cfg.border_width});
+    append(buf, &off, "border_active {s}\n", .{cfg.border_active[0..cfg.border_active_len]});
+    append(buf, &off, "border_inactive {s}\n", .{cfg.border_inactive[0..cfg.border_inactive_len]});
+    append(buf, &off, "master_ratio {d:.3}\n", .{cfg.master_ratio});
+    append(buf, &off, "master_count {d}\n", .{cfg.master_count});
+    append(buf, &off, "mosaic_ratio {d:.3}\n", .{cfg.mosaic_ratio});
+    append(buf, &off, "mosaic_min_size {d}\n", .{cfg.mosaic_min_size});
+    append(buf, &off, "grid_columns {d}\n", .{cfg.grid_columns});
+    append(buf, &off, "layout_helper {s}\n", .{cfg.layout_helper[0..cfg.layout_helper_len]});
+    append(buf, &off, "layout_helper_timeout {d}\n", .{cfg.layout_helper_timeout});
+    append(buf, &off, "effect_helper {s}\n", .{cfg.effect_helper[0..cfg.effect_helper_len]});
+    append(buf, &off, "effect_helper_timeout {d}\n", .{cfg.effect_helper_timeout});
+    append(buf, &off, "frame_time_budget {d}\n", .{cfg.frame_time_budget});
+    append(buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {
-        append(&buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
-        append(&buf, &off, "workspace_tuning {d} {d} {d} {d:.3}\n", .{
+        append(buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
+        append(buf, &off, "workspace_tuning {d} {d} {d} {d:.3}\n", .{
             ws + 1,
             cfg.ws_gaps[ws],
             cfg.ws_outer_gaps[ws],
@@ -794,122 +825,122 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     var pi: usize = 0;
     while (pi < cfg.workspace_pin_count) : (pi += 1) {
         const pin = &cfg.workspace_pins[pi];
-        append(&buf, &off, "workspace_pin {s} {d}\n", .{ pin.output_name[0..pin.output_len], pin.ws });
+        append(buf, &off, "workspace_pin {s} {d}\n", .{ pin.output_name[0..pin.output_len], pin.ws });
     }
     var wn: usize = 0;
     while (wn < types.WS_COUNT) : (wn += 1) {
         if (cfg.workspace_name_lens[wn] == 0) continue;
-        append(&buf, &off, "workspace_name {d} {s}\n", .{
+        append(buf, &off, "workspace_name {d} {s}\n", .{
             wn + 1,
             cfg.workspace_names[wn][0..cfg.workspace_name_lens[wn]],
         });
     }
-    append(&buf, &off, "active_mode {s}\n", .{modes.currentName(server)});
+    append(buf, &off, "active_mode {s}\n", .{modes.currentName(server)});
     var mi: usize = 0;
     while (mi < cfg.mode_count) : (mi += 1) {
-        append(&buf, &off, "mode {s}\n", .{cfg.mode_names[mi][0..cfg.mode_name_lens[mi]]});
+        append(buf, &off, "mode {s}\n", .{cfg.mode_names[mi][0..cfg.mode_name_lens[mi]]});
     }
-    append(&buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
-    append(&buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});
-    append(&buf, &off, "xwayland_display {s}\n", .{cfg.xwayland_display[0..cfg.xwayland_display_len]});
-    append(&buf, &off, "animations {d}\n", .{@as(u8, if (cfg.animations) 1 else 0)});
-    append(&buf, &off, "animation_ms {d}\n", .{cfg.animation_ms});
-    append(&buf, &off, "animation_open_ms {d}\n", .{
+    append(buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
+    append(buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});
+    append(buf, &off, "xwayland_display {s}\n", .{cfg.xwayland_display[0..cfg.xwayland_display_len]});
+    append(buf, &off, "animations {d}\n", .{@as(u8, if (cfg.animations) 1 else 0)});
+    append(buf, &off, "animation_ms {d}\n", .{cfg.animation_ms});
+    append(buf, &off, "animation_open_ms {d}\n", .{
         if (cfg.animation_open_ms >= 0) cfg.animation_open_ms else cfg.animation_ms,
     });
-    append(&buf, &off, "animation_workspace_ms {d}\n", .{
+    append(buf, &off, "animation_workspace_ms {d}\n", .{
         if (cfg.animation_workspace_ms >= 0) cfg.animation_workspace_ms else cfg.animation_ms,
     });
-    append(&buf, &off, "animation_close_ms {d}\n", .{
+    append(buf, &off, "animation_close_ms {d}\n", .{
         if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms,
     });
-    append(&buf, &off, "animation_curve {s}\n", .{cfg.animation_curve[0..cfg.animation_curve_len]});
-    append(&buf, &off, "animation_open_curve {s}\n", .{cfg.animation_open_curve[0..cfg.animation_open_curve_len]});
-    append(&buf, &off, "animation_workspace_curve {s}\n", .{cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len]});
-    append(&buf, &off, "animation_close_curve {s}\n", .{cfg.animation_close_curve[0..cfg.animation_close_curve_len]});
-    append(&buf, &off, "animation_open_x {d}\n", .{cfg.animation_open_x});
-    append(&buf, &off, "animation_open_y {d}\n", .{cfg.animation_open_y});
-    append(&buf, &off, "animation_workspace_offset {d}\n", .{cfg.animation_workspace_offset});
-    append(&buf, &off, "animation_close_scale {d:.3}\n", .{cfg.animation_close_scale});
-    append(&buf, &off, "animation_close_fade {d}\n", .{@as(u8, if (cfg.animation_close_fade) 1 else 0)});
-    append(&buf, &off, "curve_count {d}\n", .{cfg.curve_count});
+    append(buf, &off, "animation_curve {s}\n", .{cfg.animation_curve[0..cfg.animation_curve_len]});
+    append(buf, &off, "animation_open_curve {s}\n", .{cfg.animation_open_curve[0..cfg.animation_open_curve_len]});
+    append(buf, &off, "animation_workspace_curve {s}\n", .{cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len]});
+    append(buf, &off, "animation_close_curve {s}\n", .{cfg.animation_close_curve[0..cfg.animation_close_curve_len]});
+    append(buf, &off, "animation_open_x {d}\n", .{cfg.animation_open_x});
+    append(buf, &off, "animation_open_y {d}\n", .{cfg.animation_open_y});
+    append(buf, &off, "animation_workspace_offset {d}\n", .{cfg.animation_workspace_offset});
+    append(buf, &off, "animation_close_scale {d:.3}\n", .{cfg.animation_close_scale});
+    append(buf, &off, "animation_close_fade {d}\n", .{@as(u8, if (cfg.animation_close_fade) 1 else 0)});
+    append(buf, &off, "curve_count {d}\n", .{cfg.curve_count});
     var ci: usize = 0;
     while (ci < cfg.curve_count) : (ci += 1) {
         const curve = &cfg.curves[ci];
         switch (curve.curve.kind) {
-            .bezier => append(&buf, &off, "bezier {s} {d:.3} {d:.3} {d:.3} {d:.3}\n", .{
+            .bezier => append(buf, &off, "bezier {s} {d:.3} {d:.3} {d:.3} {d:.3}\n", .{
                 curve.name[0..curve.name_len],
                 curve.curve.points[0],
                 curve.curve.points[1],
                 curve.curve.points[2],
                 curve.curve.points[3],
             }),
-            .spring => append(&buf, &off, "spring {s} {d:.3} {d:.3}\n", .{
+            .spring => append(buf, &off, "spring {s} {d:.3} {d:.3}\n", .{
                 curve.name[0..curve.name_len],
                 curve.curve.damping,
                 curve.curve.frequency,
             }),
         }
     }
-    append(&buf, &off, "reduce_motion {d}\n", .{@as(u8, if (cfg.reduce_motion) 1 else 0)});
-    append(&buf, &off, "reduce_motion_animations {s}\n", .{switch (cfg.reduce_motion_animations) {
+    append(buf, &off, "reduce_motion {d}\n", .{@as(u8, if (cfg.reduce_motion) 1 else 0)});
+    append(buf, &off, "reduce_motion_animations {s}\n", .{switch (cfg.reduce_motion_animations) {
         .none => "none",
         .fade => "fade",
     }});
-    append(&buf, &off, "reduce_motion_fade_ms {d}\n", .{cfg.reduce_motion_fade_ms});
-    append(&buf, &off, "theme_role_count {d}\n", .{cfg.theme_role_count});
+    append(buf, &off, "reduce_motion_fade_ms {d}\n", .{cfg.reduce_motion_fade_ms});
+    append(buf, &off, "theme_role_count {d}\n", .{cfg.theme_role_count});
     var tri: usize = 0;
     while (tri < cfg.theme_role_count) : (tri += 1) {
         const role = &cfg.theme_roles[tri];
-        append(&buf, &off, "theme_role {s} {s}\n", .{
+        append(buf, &off, "theme_role {s} {s}\n", .{
             role.name[0..role.name_len],
             role.color[0..role.color_len],
         });
     }
-    append(&buf, &off, "shadows {d}\n", .{@as(u8, if (cfg.shadows) 1 else 0)});
-    append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
-    append(&buf, &off, "corner_radius {d}\n", .{cfg.corner_radius});
-    append(&buf, &off, "blur {d}\n", .{@as(u8, if (cfg.blur) 1 else 0)});
-    append(&buf, &off, "blur_radius {d}\n", .{cfg.blur_radius});
-    append(&buf, &off, "blur_passes {d}\n", .{cfg.blur_passes});
-    append(&buf, &off, "gestures {d}\n", .{@as(u8, if (cfg.gestures) 1 else 0)});
-    append(&buf, &off, "gesture_fingers {d}\n", .{cfg.gesture_fingers});
-    append(&buf, &off, "gesture_workspace_threshold {d}\n", .{cfg.gesture_workspace_threshold});
-    append(&buf, &off, "gesture_launcher_threshold {d}\n", .{cfg.gesture_launcher_threshold});
-    append(&buf, &off, "touch {d}\n", .{@as(u8, if (cfg.touch) 1 else 0)});
-    append(&buf, &off, "tablet {d}\n", .{@as(u8, if (cfg.tablet) 1 else 0)});
-    append(&buf, &off, "pointer_constraints {d}\n", .{@as(u8, if (cfg.pointer_constraints) 1 else 0)});
-    append(&buf, &off, "xim {d}\n", .{@as(u8, if (cfg.xim) 1 else 0)});
-    append(&buf, &off, "xim_server {s}\n", .{cfg.xim_server[0..cfg.xim_server_len]});
-    append(&buf, &off, "xim_start {s}\n", .{cfg.xim_start[0..cfg.xim_start_len]});
-    append(&buf, &off, "kb_layout {s}\n", .{cfg.kb_layout[0..cfg.kb_layout_len]});
-    append(&buf, &off, "kb_variant {s}\n", .{cfg.kb_variant[0..cfg.kb_variant_len]});
-    append(&buf, &off, "kb_options {s}\n", .{cfg.kb_options[0..cfg.kb_options_len]});
-    append(&buf, &off, "kb_model {s}\n", .{cfg.kb_model[0..cfg.kb_model_len]});
-    append(&buf, &off, "kb_rules {s}\n", .{cfg.kb_rules[0..cfg.kb_rules_len]});
-    append(&buf, &off, "repeat_rate {d}\n", .{cfg.repeat_rate});
-    append(&buf, &off, "repeat_delay {d}\n", .{cfg.repeat_delay});
-    append(&buf, &off, "cursor_theme {s}\n", .{cfg.cursor_theme[0..cfg.cursor_theme_len]});
-    append(&buf, &off, "cursor_size {d}\n", .{cfg.cursor_size});
-    append(&buf, &off, "font {s}\n", .{cfg.font[0..cfg.font_len]});
-    append(&buf, &off, "accent {s}\n", .{cfg.accent[0..cfg.accent_len]});
-    append(&buf, &off, "bg {s}\n", .{cfg.bg[0..cfg.bg_len]});
-    append(&buf, &off, "output_config {s}\n", .{cfg.output_config[0..cfg.output_config_len]});
-    append(&buf, &off, "binding_count {d}\n", .{cfg.binding_count});
-    append(&buf, &off, "hook_count {d}\n", .{cfg.hook_count});
-    append(&buf, &off, "event_rule_count {d}\n", .{cfg.event_rule_count});
-    append(&buf, &off, "profile_count {d}\n", .{cfg.profile_count});
-    append(&buf, &off, "workspace_rule_count {d}\n", .{cfg.workspace_rule_count});
-    append(&buf, &off, "rule_count {d}\n", .{cfg.rule_count});
-    append(&buf, &off, "output_rule_count {d}\n", .{cfg.output_rule_count});
-    append(&buf, &off, "layer_rule_count {d}\n", .{cfg.layer_rule_count});
-    append(&buf, &off, "input_rule_count {d}\n", .{cfg.input_rule_count});
+    append(buf, &off, "shadows {d}\n", .{@as(u8, if (cfg.shadows) 1 else 0)});
+    append(buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
+    append(buf, &off, "corner_radius {d}\n", .{cfg.corner_radius});
+    append(buf, &off, "blur {d}\n", .{@as(u8, if (cfg.blur) 1 else 0)});
+    append(buf, &off, "blur_radius {d}\n", .{cfg.blur_radius});
+    append(buf, &off, "blur_passes {d}\n", .{cfg.blur_passes});
+    append(buf, &off, "gestures {d}\n", .{@as(u8, if (cfg.gestures) 1 else 0)});
+    append(buf, &off, "gesture_fingers {d}\n", .{cfg.gesture_fingers});
+    append(buf, &off, "gesture_workspace_threshold {d}\n", .{cfg.gesture_workspace_threshold});
+    append(buf, &off, "gesture_launcher_threshold {d}\n", .{cfg.gesture_launcher_threshold});
+    append(buf, &off, "touch {d}\n", .{@as(u8, if (cfg.touch) 1 else 0)});
+    append(buf, &off, "tablet {d}\n", .{@as(u8, if (cfg.tablet) 1 else 0)});
+    append(buf, &off, "pointer_constraints {d}\n", .{@as(u8, if (cfg.pointer_constraints) 1 else 0)});
+    append(buf, &off, "xim {d}\n", .{@as(u8, if (cfg.xim) 1 else 0)});
+    append(buf, &off, "xim_server {s}\n", .{cfg.xim_server[0..cfg.xim_server_len]});
+    append(buf, &off, "xim_start {s}\n", .{cfg.xim_start[0..cfg.xim_start_len]});
+    append(buf, &off, "kb_layout {s}\n", .{cfg.kb_layout[0..cfg.kb_layout_len]});
+    append(buf, &off, "kb_variant {s}\n", .{cfg.kb_variant[0..cfg.kb_variant_len]});
+    append(buf, &off, "kb_options {s}\n", .{cfg.kb_options[0..cfg.kb_options_len]});
+    append(buf, &off, "kb_model {s}\n", .{cfg.kb_model[0..cfg.kb_model_len]});
+    append(buf, &off, "kb_rules {s}\n", .{cfg.kb_rules[0..cfg.kb_rules_len]});
+    append(buf, &off, "repeat_rate {d}\n", .{cfg.repeat_rate});
+    append(buf, &off, "repeat_delay {d}\n", .{cfg.repeat_delay});
+    append(buf, &off, "cursor_theme {s}\n", .{cfg.cursor_theme[0..cfg.cursor_theme_len]});
+    append(buf, &off, "cursor_size {d}\n", .{cfg.cursor_size});
+    append(buf, &off, "font {s}\n", .{cfg.font[0..cfg.font_len]});
+    append(buf, &off, "accent {s}\n", .{cfg.accent[0..cfg.accent_len]});
+    append(buf, &off, "bg {s}\n", .{cfg.bg[0..cfg.bg_len]});
+    append(buf, &off, "output_config {s}\n", .{cfg.output_config[0..cfg.output_config_len]});
+    append(buf, &off, "binding_count {d}\n", .{cfg.binding_count});
+    append(buf, &off, "hook_count {d}\n", .{cfg.hook_count});
+    append(buf, &off, "event_rule_count {d}\n", .{cfg.event_rule_count});
+    append(buf, &off, "profile_count {d}\n", .{cfg.profile_count});
+    append(buf, &off, "workspace_rule_count {d}\n", .{cfg.workspace_rule_count});
+    append(buf, &off, "rule_count {d}\n", .{cfg.rule_count});
+    append(buf, &off, "output_rule_count {d}\n", .{cfg.output_rule_count});
+    append(buf, &off, "layer_rule_count {d}\n", .{cfg.layer_rule_count});
+    append(buf, &off, "input_rule_count {d}\n", .{cfg.input_rule_count});
     var hi: usize = 0;
     while (hi < cfg.hook_count) : (hi += 1) {
         const hook = &cfg.hooks[hi];
         var command_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const command = escape(&command_buf, hook.command[0..hook.command_len]);
-        append(&buf, &off, "hook {s} {s}\n", .{ hook.event[0..hook.event_len], command });
+        append(buf, &off, "hook {s} {s}\n", .{ hook.event[0..hook.event_len], command });
     }
     var eri: usize = 0;
     while (eri < cfg.event_rule_count) : (eri += 1) {
@@ -918,7 +949,7 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         var command_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const expr_text = escape(&expr_buf, rule.expr[0..rule.expr_len]);
         const command_text = escape(&command_buf, rule.command[0..rule.command_len]);
-        append(&buf, &off, "event_rule {s} {s} {s}\n", .{
+        append(buf, &off, "event_rule {s} {s} {s}\n", .{
             rule.event[0..rule.event_len],
             expr_text,
             command_text,
@@ -927,7 +958,7 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
     var profi: usize = 0;
     while (profi < cfg.profile_count) : (profi += 1) {
         const profile = &cfg.profiles[profi];
-        append(&buf, &off, "profile {s} {s} {d} {d} {d:.3} {d} {d:.3} {d} {d}\n", .{
+        append(buf, &off, "profile {s} {s} {d} {d} {d:.3} {d} {d:.3} {d} {d}\n", .{
             profile.name[0..profile.name_len],
             types.layoutName(profile.tuning.layout),
             profile.tuning.gaps,
@@ -944,40 +975,195 @@ fn sendConfig(server: *Server, cl: *IpcClient) void {
         const rule = &cfg.rules[i];
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
-        append(&buf, &off, "rule {s}\n", .{raw});
+        append(buf, &off, "rule {s}\n", .{raw});
     }
     i = 0;
     while (i < cfg.output_rule_count) : (i += 1) {
         const rule = &cfg.output_rules[i];
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
-        append(&buf, &off, "output_rule {s}\n", .{raw});
+        append(buf, &off, "output_rule {s}\n", .{raw});
     }
     i = 0;
     while (i < cfg.layer_rule_count) : (i += 1) {
         const rule = &cfg.layer_rules[i];
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
-        append(&buf, &off, "layer_rule {s}\n", .{raw});
+        append(buf, &off, "layer_rule {s}\n", .{raw});
     }
     i = 0;
     while (i < cfg.input_rule_count) : (i += 1) {
         const rule = &cfg.input_rules[i];
         var raw_buf: [types.MAX_COMMAND * 2 + 1]u8 = undefined;
         const raw = escape(&raw_buf, rule.raw[0..rule.raw_len]);
-        append(&buf, &off, "input_rule {s}\n", .{raw});
+        append(buf, &off, "input_rule {s}\n", .{raw});
     }
     i = 0;
     while (i < server.config_issue_count) : (i += 1) {
         const issue = &server.config_issues[i];
-        append(&buf, &off, "diagnostic {s} {s}:{d}: {s}\n", .{
+        append(buf, &off, "diagnostic {s} {s}:{d}: {s}\n", .{
             if (issue.is_error) "error" else "warning",
             issue.path[0..issue.path_len],
             issue.line,
             issue.message[0..issue.message_len],
         });
     }
+    append(buf, &off, "END\n", .{});
+    return off;
+}
+
+fn sendConfig(server: *Server, cl: *IpcClient) void {
+    var buf: [65536]u8 = undefined;
+    const len = buildConfigText(server, &buf);
+    sendRaw(cl, buf[0..len]);
+}
+
+fn diffNoise(line: []const u8) bool {
+    return std.mem.eql(u8, line, "CONFIG") or
+        std.mem.eql(u8, line, "END") or
+        std.mem.startsWith(u8, line, "active_mode ") or
+        std.mem.startsWith(u8, line, "config_path ") or
+        std.mem.startsWith(u8, line, "diagnostic ");
+}
+
+fn containsLine(text: []const u8, needle: []const u8) bool {
+    var lines = std.mem.splitScalar(u8, text, '\n');
+    while (lines.next()) |line| {
+        if (std.mem.eql(u8, line, needle)) return true;
+    }
+    return false;
+}
+
+fn appendDiff(buf: []u8, off: *usize, current: []const u8, candidate: []const u8) void {
+    append(buf, off, "DIFF\n", .{});
+    var lines = std.mem.splitScalar(u8, current, '\n');
+    while (lines.next()) |line| {
+        if (line.len == 0 or diffNoise(line)) continue;
+        if (containsLine(candidate, line)) continue;
+        append(buf, off, "-{s}\n", .{line});
+    }
+    lines = std.mem.splitScalar(u8, candidate, '\n');
+    while (lines.next()) |line| {
+        if (line.len == 0 or diffNoise(line)) continue;
+        if (containsLine(current, line)) continue;
+        append(buf, off, "+{s}\n", .{line});
+    }
+}
+
+fn sendConfigCompare(server: *Server, cl: *IpcClient, path: []const u8) void {
+    var buf: [98304]u8 = undefined;
+    var off: usize = 0;
+    append(&buf, &off, "CONFIG_COMPARE\n", .{});
+    var path_buf: [512]u8 = undefined;
+    const shown_path = escape(&path_buf, path);
+    append(&buf, &off, "path {s}\n", .{shown_path});
+    if (path.len == 0 or path.len >= 512) {
+        append(&buf, &off, "diagnostic error {s}:1: invalid path\n", .{shown_path});
+        append(&buf, &off, "DIFF\nEND\n", .{});
+        sendRaw(cl, buf[0..off]);
+        return;
+    }
+
+    var candidate_path: [512:0]u8 = undefined;
+    @memcpy(candidate_path[0..path.len], path);
+    candidate_path[path.len] = 0;
+
+    const old_config = server.config;
+    const old_issue_count = server.config_issue_count;
+    const old_error_count = server.config_error_count;
+    const old_issues = server.config_issues;
+    const old_env_ptr = c.getenv("TESSA_CONFIG");
+    var old_env: [512]u8 = undefined;
+    var old_env_len: usize = 0;
+    if (old_env_ptr) |p| {
+        const env = std.mem.span(p);
+        const n = @min(env.len, old_env.len);
+        @memcpy(old_env[0..n], env[0..n]);
+        old_env_len = n;
+    }
+
+    if (c.setenv("TESSA_CONFIG", &candidate_path, 1) != 0) {
+        append(&buf, &off, "diagnostic error {s}:1: cannot set TESSA_CONFIG\n", .{shown_path});
+        append(&buf, &off, "DIFF\nEND\n", .{});
+        sendRaw(cl, buf[0..off]);
+        return;
+    }
+    config.load(server);
+    var candidate_text: [65536]u8 = undefined;
+    const candidate_len = buildConfigText(server, &candidate_text);
+    const candidate = candidate_text[0..candidate_len];
+
+    var current_text: [65536]u8 = undefined;
+    server.config = old_config;
+    server.config_issue_count = old_issue_count;
+    server.config_error_count = old_error_count;
+    server.config_issues = old_issues;
+    if (old_env_len > 0) {
+        var env_z: [512:0]u8 = undefined;
+        @memcpy(env_z[0..old_env_len], old_env[0..old_env_len]);
+        env_z[old_env_len] = 0;
+        _ = c.setenv("TESSA_CONFIG", &env_z, 1);
+    } else {
+        _ = c.unsetenv("TESSA_CONFIG");
+    }
+    const current_len = buildConfigText(server, &current_text);
+    const current = current_text[0..current_len];
+
+    var lines = std.mem.splitScalar(u8, candidate, '\n');
+    while (lines.next()) |line| {
+        if (std.mem.startsWith(u8, line, "diagnostic ")) {
+            append(&buf, &off, "{s}\n", .{line});
+        }
+    }
+    appendDiff(&buf, &off, current, candidate);
     append(&buf, &off, "END\n", .{});
+    sendRaw(cl, buf[0..off]);
+}
+
+fn percentileUs(sorted: []const u32, pct: usize) u32 {
+    if (sorted.len == 0) return 0;
+    const index = (@min(sorted.len - 1, (sorted.len - 1) * pct / 100));
+    return sorted[index];
+}
+
+fn sendPerf(server: *Server, cl: *IpcClient, json: bool) void {
+    const perf = &server.perf;
+    var samples: [types.PERF_SAMPLES]u32 = undefined;
+    @memcpy(samples[0..perf.sample_count], perf.samples_us[0..perf.sample_count]);
+    std.mem.sort(u32, samples[0..perf.sample_count], {}, std.sort.asc(u32));
+    const p50 = percentileUs(samples[0..perf.sample_count], 50);
+    const p95 = percentileUs(samples[0..perf.sample_count], 95);
+    const avg: u64 = if (perf.frames > 0) perf.total_us / perf.frames else 0;
+
+    var buf: [4096]u8 = undefined;
+    var off: usize = 0;
+    if (json) {
+        append(&buf, &off, "{{\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"budget_ms\":{d},\"over_budget\":{d},\"scenefx\":{d}}}\n", .{
+            perf.frames,
+            perf.sample_count,
+            avg,
+            p50,
+            p95,
+            perf.max_us,
+            perf.last_us,
+            server.config.frame_time_budget,
+            perf.over_budget,
+            @as(u8, if (window_effects.available()) 1 else 0),
+        });
+    } else {
+        append(&buf, &off, "PERF\n", .{});
+        append(&buf, &off, "frames {d}\n", .{perf.frames});
+        append(&buf, &off, "samples {d}\n", .{perf.sample_count});
+        append(&buf, &off, "avg_us {d}\n", .{avg});
+        append(&buf, &off, "p50_us {d}\n", .{p50});
+        append(&buf, &off, "p95_us {d}\n", .{p95});
+        append(&buf, &off, "max_us {d}\n", .{perf.max_us});
+        append(&buf, &off, "last_us {d}\n", .{perf.last_us});
+        append(&buf, &off, "budget_ms {d}\n", .{server.config.frame_time_budget});
+        append(&buf, &off, "over_budget {d}\n", .{perf.over_budget});
+        append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
+        append(&buf, &off, "END\n", .{});
+    }
     sendRaw(cl, buf[0..off]);
 }
 

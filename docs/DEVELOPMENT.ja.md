@@ -315,6 +315,61 @@ sh tests/fractional-scale.sh
 sh tests/effects.sh
 ```
 
+### シェル v2 のテスト
+
+`tests/shell-v2.sh` はサーフェス別フォント・配色と `bar_layout` の順序を
+指定して `tessa-panel --check` を実行し、PPM シェーダー壁紙付きの headless
+セッションを起動します。`tests/png-pixel.py` で壁紙画素を検査し、
+`tessa-bar` と `tessa-overlay` へのレイヤールール適用を `tessa-ctl state` で
+確認します。
+
+```sh
+sh tests/shell-v2.sh
+```
+
+### エフェクトヘルパーのテスト
+
+`tests/effect-helper.sh` は常駐 Python ヘルパーと kitty ウィンドウを起動し、
+不透明度 0.4、角丸 24、ブラー/影 off、ボーダー幅 6 を返させて JSON 状態の
+実効値を確認します。`effect_helper` を削除してリロードすると、ルール適用値へ
+戻ることも検証します。
+
+```sh
+sh tests/effect-helper.sh
+```
+
+### 性能のテスト
+
+`tests/performance.sh` はワークスペース切り替えアニメーション中の
+`tessa-ctl perf` を計測し、角丸/影/ブラーを有効にした設定で再計測します。
+10 フレーム以上と、`TESSA_PERF_BUDGET_MS`（pixman headless では既定 100 ms）
+以内の p95 を要求します。`TESSA_BIN_DIR` に `zig-out-scenefx/bin` を指定すると
+scenefx ビルドを計測します。
+
+```sh
+sh tests/performance.sh
+TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
+```
+
+### 設定エディタのテスト
+
+`tests/config-editor.sh` は候補設定の検証、未知キーの拒否、実効設定差分、
+`$EDITOR` 変更の `tessa-ctl config-edit` 適用、拒否時の破棄を確認します。
+
+```sh
+sh tests/config-editor.sh
+```
+
+### special ワークスペースのテスト
+
+`tests/special-workspaces.sh` は宣言した special ワークスペースへ kitty を
+ルールで割り当て、非表示/表示の切り替えと `move-to-special` を
+`tessa-ctl` と JSON 状態で検証します。
+
+```sh
+sh tests/special-workspaces.sh
+```
+
 ### 出力ルールのテスト
 
 `tests/output-rules.sh` は 2 出力の headless セッションを起動し、出力全体の

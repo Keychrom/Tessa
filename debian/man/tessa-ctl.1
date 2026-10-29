@@ -17,8 +17,22 @@ Print one state snapshot.
 .B config [--json]
 Print the effective configuration and diagnostics.
 .TP
-.B config-check
-Check configuration diagnostics and exit non-zero on errors.
+.B config-check [FILE]
+Check the running configuration, or validate FILE without applying it, and
+exit non-zero on errors.
+.TP
+.B config-diff FILE
+Print diagnostics and the effective-configuration changes FILE would produce.
+.TP
+.B config-edit [FILE]
+Copy the running config (or FILE) to a temporary file, open it with
+.BR $VISUAL / $EDITOR ,
+validate and diff it, then write it back and reload after confirmation.
+.TP
+.B perf [--json] [--reset]
+Print render-commit frame-time statistics. The budget is set by
+.I frame_time_budget
+in the config.
 .TP
 .B events [topic]
 Stream extension events.
@@ -31,6 +45,21 @@ Send a raw compositor command.
 .TP
 .B workspace N [OUTPUT]
 Switch workspace.
+.TP
+.B special NAME
+Toggle a named special workspace.
+.TP
+.B move-to-special NAME
+Move the focused window to a named special workspace.
+.TP
+.B layout [NAME] [OUTPUT]
+Cycle or set the workspace layout.
+.TP
+.B resize DX DY
+Resize the focused floating window.
+.TP
+.B notify-action ID KEY
+Invoke a notification action.
 .TP
 .B spawn COMMAND...
 Start a command.

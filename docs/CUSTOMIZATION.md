@@ -904,16 +904,25 @@ Hooks receive the same structured fields as the event stream. Status entries,
 custom launcher entries, runtime layout changes, and window resizing are all
 available through IPC. See [EXTENDING.md](EXTENDING.md) for the protocol.
 
-## Planned customization work
+## Customization status
 
-- Shader/effect hooks for window movement, workspace changes, borders, and the
-  shell.
-- Interactive config editor/check with diff preview, built on the existing
-  diagnostics and JSON snapshots.
-- More shell theming: font/palette roles per surface and replaceable shell
-  surfaces (bar size/margins, per-output colors, and theme roles are available
-  now).
+The 0.7 customization-parity items are implemented:
 
-The roadmap is in [ROADMAP.md](ROADMAP.md). A TypeScript/TSX configuration
-runtime remains a non-goal; Tessa's answer to ShojiWM-style composition is a
-process protocol plus declarative rules, not an embedded JS VM.
+- `effect_helper` receives per-window state from a long-lived process and
+  returns opacity, corner radius, blur/shadow, and border-width overrides; see
+  [EXTENDING.md](EXTENDING.md#external-effect-helper). There is no in-process
+  plugin VM.
+- `tessa-ctl config-check FILE`, `config-diff FILE`, and `config-edit` provide
+  candidate validation and effective-config diff previews.
+- Shell v2 adds selectable/ordered bar modules, per-surface fonts and
+  foreground/background colors, PNG or PPM-shader wallpapers, and layer rules
+  for the bar, popovers, and toasts.
+- `tessa-ctl perf` and `frame_time_budget` expose render-commit timings; the
+  headless benchmark is `tests/performance.sh`.
+
+Remaining validation is hardware-specific (DRM/libinput, physical touchpads,
+VRR, and a target-laptop frame-time budget). CI-built signed packages and
+release artifacts are still on the 0.1.x roadmap. The roadmap is in
+[ROADMAP.md](ROADMAP.md). A TypeScript/TSX configuration runtime remains a
+non-goal; Tessa's answer to ShojiWM-style composition is a process protocol
+plus declarative rules, not an embedded JS VM.

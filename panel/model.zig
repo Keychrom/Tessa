@@ -22,6 +22,20 @@ pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio };
 pub const WallpaperFit = enum { cover, contain, stretch };
+pub const BarModule = enum {
+    logo,
+    workspaces,
+    chips,
+    clock,
+    battery,
+    network,
+    volume,
+    stats,
+    media,
+    tray,
+    status,
+};
+pub const BAR_MODULE_COUNT = @typeInfo(BarModule).@"enum".fields.len;
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -448,15 +462,69 @@ pub const Panel = struct {
     wallpaper_art: bool = true,
     wallpaper_image: [512]u8 = undefined,
     wallpaper_image_len: usize = 0,
+    wallpaper_shader: [512]u8 = undefined,
+    wallpaper_shader_len: usize = 0,
     wallpaper_fit: WallpaperFit = .cover,
     wallpaper_surface: ?*c.cairo_surface_t = null,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    launcher_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
+    popover_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
+    toast_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    bar_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    launcher_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    popover_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    toast_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    bar_bg_set: bool = false,
+    launcher_bg_set: bool = false,
+    popover_bg_set: bool = false,
+    toast_bg_set: bool = false,
+    bar_fg_set: bool = false,
+    launcher_fg_set: bool = false,
+    popover_fg_set: bool = false,
+    toast_fg_set: bool = false,
     bar_height: i32 = 44,
     bar_top_margin: i32 = 12,
     bar_side_margin: i32 = 16,
+    bar_layout: [256]u8 = undefined,
+    bar_layout_len: usize = 0,
+    bar_layout_set: bool = false,
+    bar_modules: [BAR_MODULE_COUNT]BarModule = .{
+        .logo,
+        .workspaces,
+        .chips,
+        .clock,
+        .battery,
+        .network,
+        .volume,
+        .stats,
+        .media,
+        .tray,
+        .status,
+    },
+    bar_module_count: usize = BAR_MODULE_COUNT,
+    show_logo: bool = true,
+    show_workspaces: bool = true,
+    show_chips: bool = true,
+    show_clock: bool = true,
+    show_battery: bool = true,
+    show_network: bool = true,
+    show_volume: bool = true,
+    show_stats: bool = true,
+    show_media: bool = true,
+    show_tray: bool = true,
+    show_status: bool = true,
     font: [64]u8 = undefined,
     font_len: usize = 0,
+    bar_font: [64]u8 = undefined,
+    bar_font_len: usize = 0,
+    launcher_font: [64]u8 = undefined,
+    launcher_font_len: usize = 0,
+    popover_font: [64]u8 = undefined,
+    popover_font_len: usize = 0,
+    toast_font: [64]u8 = undefined,
+    toast_font_len: usize = 0,
     terminal: [128]u8 = undefined,
     terminal_len: usize = 0,
     terminal_explicit: bool = false,
@@ -482,6 +550,26 @@ pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
         .y = (h - 620.0 * scale) / 2.0 - 8.0 * scale,
         .scale = scale,
     };
+}
+
+pub fn barFont() []const u8 {
+    if (g.bar_font_len > 0) return g.bar_font[0..g.bar_font_len];
+    return g.font[0..g.font_len];
+}
+
+pub fn launcherFont() []const u8 {
+    if (g.launcher_font_len > 0) return g.launcher_font[0..g.launcher_font_len];
+    return g.font[0..g.font_len];
+}
+
+pub fn popoverFont() []const u8 {
+    if (g.popover_font_len > 0) return g.popover_font[0..g.popover_font_len];
+    return g.font[0..g.font_len];
+}
+
+pub fn toastFont() []const u8 {
+    if (g.toast_font_len > 0) return g.toast_font[0..g.toast_font_len];
+    return g.font[0..g.font_len];
 }
 
 pub fn nowMs() i64 {
@@ -611,8 +699,32 @@ fn applyThemeRoles() void {
             g.bg_rgb = role.color;
         } else if (std.mem.eql(u8, name, "panel.background")) {
             g.panel_bg = role.color;
+            if (!g.bar_bg_set) g.bar_bg = role.color;
+            if (!g.launcher_bg_set) g.launcher_bg = role.color;
+            if (!g.popover_bg_set) g.popover_bg = role.color;
+            if (!g.toast_bg_set) g.toast_bg = role.color;
         } else if (std.mem.eql(u8, name, "panel.foreground")) {
             g.panel_fg = role.color;
+            if (!g.bar_fg_set) g.bar_fg = role.color;
+            if (!g.launcher_fg_set) g.launcher_fg = role.color;
+            if (!g.popover_fg_set) g.popover_fg = role.color;
+            if (!g.toast_fg_set) g.toast_fg = role.color;
+        } else if (std.mem.eql(u8, name, "bar.background")) {
+            g.bar_bg = role.color;
+        } else if (std.mem.eql(u8, name, "launcher.background")) {
+            g.launcher_bg = role.color;
+        } else if (std.mem.eql(u8, name, "popover.background")) {
+            g.popover_bg = role.color;
+        } else if (std.mem.eql(u8, name, "toast.background")) {
+            g.toast_bg = role.color;
+        } else if (std.mem.eql(u8, name, "bar.foreground")) {
+            g.bar_fg = role.color;
+        } else if (std.mem.eql(u8, name, "launcher.foreground")) {
+            g.launcher_fg = role.color;
+        } else if (std.mem.eql(u8, name, "popover.foreground")) {
+            g.popover_fg = role.color;
+        } else if (std.mem.eql(u8, name, "toast.foreground")) {
+            g.toast_fg = role.color;
         } else if (std.mem.eql(u8, name, "wallpaper.top")) {
             g.bg_top = role.color;
             g.bg_top_set = true;
@@ -635,8 +747,20 @@ fn applyOutputTheme() void {
         g.bg_bottom = v;
         g.bg_bottom_set = true;
     }
-    if (output_theme.panel_bg) |v| g.panel_bg = v;
-    if (output_theme.panel_fg) |v| g.panel_fg = v;
+    if (output_theme.panel_bg) |v| {
+        g.panel_bg = v;
+        if (!g.bar_bg_set) g.bar_bg = v;
+        if (!g.launcher_bg_set) g.launcher_bg = v;
+        if (!g.popover_bg_set) g.popover_bg = v;
+        if (!g.toast_bg_set) g.toast_bg = v;
+    }
+    if (output_theme.panel_fg) |v| {
+        g.panel_fg = v;
+        if (!g.bar_fg_set) g.bar_fg = v;
+        if (!g.launcher_fg_set) g.launcher_fg = v;
+        if (!g.popover_fg_set) g.popover_fg = v;
+        if (!g.toast_fg_set) g.toast_fg = v;
+    }
     if (output_theme.bar_height) |v| g.bar_height = v;
     if (output_theme.bar_top_margin) |v| g.bar_top_margin = v;
     if (output_theme.bar_side_margin) |v| g.bar_side_margin = v;
@@ -758,6 +882,86 @@ fn trim(s: []const u8) []const u8 {
     return std.mem.trim(u8, s, " \t\r\n");
 }
 
+fn disableAllBarModules() void {
+    g.show_logo = false;
+    g.show_workspaces = false;
+    g.show_chips = false;
+    g.show_clock = false;
+    g.show_battery = false;
+    g.show_network = false;
+    g.show_volume = false;
+    g.show_stats = false;
+    g.show_media = false;
+    g.show_tray = false;
+    g.show_status = false;
+}
+
+/// Comma/space-separated module list. Unknown names are ignored so a panel
+/// can run with a config written for a newer Tessa build. The listed order is
+/// used for the right-hand cluster; the logo, workspace pills, and window chips
+/// keep their anchored positions.
+fn parseBarLayout(value: []const u8) void {
+    disableAllBarModules();
+    g.bar_module_count = 0;
+    var it = std.mem.tokenizeAny(u8, value, ", \t|");
+    while (it.next()) |raw| {
+        const name = trim(raw);
+        const module: BarModule = if (std.mem.eql(u8, name, "logo") or std.mem.eql(u8, name, "mark"))
+            .logo
+        else if (std.mem.eql(u8, name, "workspaces") or std.mem.eql(u8, name, "workspace"))
+            .workspaces
+        else if (std.mem.eql(u8, name, "title") or std.mem.eql(u8, name, "chips") or
+            std.mem.eql(u8, name, "windows"))
+            .chips
+        else if (std.mem.eql(u8, name, "clock") or std.mem.eql(u8, name, "date"))
+            .clock
+        else if (std.mem.eql(u8, name, "battery"))
+            .battery
+        else if (std.mem.eql(u8, name, "network"))
+            .network
+        else if (std.mem.eql(u8, name, "volume") or std.mem.eql(u8, name, "audio"))
+            .volume
+        else if (std.mem.eql(u8, name, "stats") or std.mem.eql(u8, name, "cpu") or
+            std.mem.eql(u8, name, "memory"))
+            .stats
+        else if (std.mem.eql(u8, name, "media"))
+            .media
+        else if (std.mem.eql(u8, name, "tray"))
+            .tray
+        else if (std.mem.eql(u8, name, "status"))
+            .status
+        else
+            continue;
+
+        var seen = false;
+        for (g.bar_modules[0..g.bar_module_count]) |existing| {
+            if (existing == module) {
+                seen = true;
+                break;
+            }
+        }
+        if (seen) continue;
+        if (g.bar_module_count < g.bar_modules.len) {
+            g.bar_modules[g.bar_module_count] = module;
+            g.bar_module_count += 1;
+        }
+
+        switch (module) {
+            .logo => g.show_logo = true,
+            .workspaces => g.show_workspaces = true,
+            .chips => g.show_chips = true,
+            .clock => g.show_clock = true,
+            .battery => g.show_battery = true,
+            .network => g.show_network = true,
+            .volume => g.show_volume = true,
+            .stats => g.show_stats = true,
+            .media => g.show_media = true,
+            .tray => g.show_tray = true,
+            .status => g.show_status = true,
+        }
+    }
+}
+
 fn addCustomApp(value: []const u8) void {
     if (g.custom_count >= g.custom_apps.len) return;
     const bar = std.mem.indexOfScalar(u8, value, '|') orelse {
@@ -817,6 +1021,44 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             g.terminal_explicit = true;
         } else if (std.mem.eql(u8, key, "font")) {
             copyTrunc(&g.font, &g.font_len, val);
+        } else if (std.mem.eql(u8, key, "bar_font") or std.mem.eql(u8, key, "bar-font")) {
+            copyTrunc(&g.bar_font, &g.bar_font_len, val);
+        } else if (std.mem.eql(u8, key, "launcher_font") or std.mem.eql(u8, key, "launcher-font")) {
+            copyTrunc(&g.launcher_font, &g.launcher_font_len, val);
+        } else if (std.mem.eql(u8, key, "popover_font") or std.mem.eql(u8, key, "popover-font")) {
+            copyTrunc(&g.popover_font, &g.popover_font_len, val);
+        } else if (std.mem.eql(u8, key, "toast_font") or std.mem.eql(u8, key, "toast-font")) {
+            copyTrunc(&g.toast_font, &g.toast_font_len, val);
+        } else if (std.mem.eql(u8, key, "bar_layout") or std.mem.eql(u8, key, "bar-layout") or
+            std.mem.eql(u8, key, "bar_modules") or std.mem.eql(u8, key, "bar-modules"))
+        {
+            copyTrunc(&g.bar_layout, &g.bar_layout_len, val);
+            g.bar_layout_set = true;
+            parseBarLayout(val);
+        } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
+            hexColor(val, &g.bar_bg);
+            g.bar_bg_set = true;
+        } else if (std.mem.eql(u8, key, "launcher_bg") or std.mem.eql(u8, key, "launcher-bg")) {
+            hexColor(val, &g.launcher_bg);
+            g.launcher_bg_set = true;
+        } else if (std.mem.eql(u8, key, "popover_bg") or std.mem.eql(u8, key, "popover-bg")) {
+            hexColor(val, &g.popover_bg);
+            g.popover_bg_set = true;
+        } else if (std.mem.eql(u8, key, "toast_bg") or std.mem.eql(u8, key, "toast-bg")) {
+            hexColor(val, &g.toast_bg);
+            g.toast_bg_set = true;
+        } else if (std.mem.eql(u8, key, "bar_fg") or std.mem.eql(u8, key, "bar-fg")) {
+            hexColor(val, &g.bar_fg);
+            g.bar_fg_set = true;
+        } else if (std.mem.eql(u8, key, "launcher_fg") or std.mem.eql(u8, key, "launcher-fg")) {
+            hexColor(val, &g.launcher_fg);
+            g.launcher_fg_set = true;
+        } else if (std.mem.eql(u8, key, "popover_fg") or std.mem.eql(u8, key, "popover-fg")) {
+            hexColor(val, &g.popover_fg);
+            g.popover_fg_set = true;
+        } else if (std.mem.eql(u8, key, "toast_fg") or std.mem.eql(u8, key, "toast-fg")) {
+            hexColor(val, &g.toast_fg);
+            g.toast_fg_set = true;
         } else if (std.mem.eql(u8, key, "accent")) {
             hexColor(val, &g.accent);
         } else if (std.mem.eql(u8, key, "bg")) {
@@ -831,6 +1073,8 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             g.wallpaper_art = parsePanelBool(val) orelse g.wallpaper_art;
         } else if (std.mem.eql(u8, key, "wallpaper_image") or std.mem.eql(u8, key, "wallpaper-image")) {
             copyTrunc(&g.wallpaper_image, &g.wallpaper_image_len, val);
+        } else if (std.mem.eql(u8, key, "wallpaper_shader") or std.mem.eql(u8, key, "wallpaper-shader")) {
+            copyTrunc(&g.wallpaper_shader, &g.wallpaper_shader_len, val);
         } else if (std.mem.eql(u8, key, "wallpaper_fit") or std.mem.eql(u8, key, "wallpaper-fit")) {
             if (std.mem.eql(u8, val, "cover")) {
                 g.wallpaper_fit = .cover;
@@ -873,9 +1117,80 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
     }
 }
 
+fn loadWallpaperShader() bool {
+    const command = g.wallpaper_shader[0..g.wallpaper_shader_len];
+    if (command.len == 0) return false;
+    var command_z: [512:0]u8 = undefined;
+    if (command.len >= command_z.len) return false;
+    @memcpy(command_z[0..command.len], command);
+    command_z[command.len] = 0;
+
+    const pipe = c.popen(&command_z, "r") orelse {
+        std.debug.print("tessa-panel: wallpaper shader could not start: {s}\n", .{command});
+        return false;
+    };
+    var magic: [3]u8 = undefined;
+    var width: c_int = 0;
+    var height: c_int = 0;
+    var maxval: c_int = 0;
+    if (c.fscanf(pipe, "%2s %d %d %d", &magic, &width, &height, &maxval) != 4 or
+        !std.mem.eql(u8, magic[0..2], "P6") or
+        width < 1 or height < 1 or width > 4096 or height > 4096 or maxval != 255)
+    {
+        _ = c.pclose(pipe);
+        std.debug.print("tessa-panel: wallpaper shader must emit binary PPM P6 (maxval 255)\n", .{});
+        return false;
+    }
+    // fscanf leaves exactly one whitespace character before the pixel data.
+    _ = c.fgetc(pipe);
+    const pixels = @as(usize, @intCast(width)) * @as(usize, @intCast(height)) * 3;
+    const rgb = @as(?[*]u8, @ptrCast(c.malloc(pixels))) orelse {
+        _ = c.pclose(pipe);
+        return false;
+    };
+    defer c.free(rgb);
+    const got = c.fread(rgb, 1, pixels, pipe);
+    const rc = c.pclose(pipe);
+    if (got != pixels or rc != 0) {
+        std.debug.print("tessa-panel: wallpaper shader did not emit a complete PPM frame\n", .{});
+        return false;
+    }
+
+    const surface = c.cairo_image_surface_create(c.CAIRO_FORMAT_ARGB32, width, height);
+    if (surface == null or c.cairo_surface_status(surface) != c.CAIRO_STATUS_SUCCESS) {
+        if (surface) |s| c.cairo_surface_destroy(s);
+        return false;
+    }
+    const stride: usize = @intCast(c.cairo_image_surface_get_stride(surface));
+    const data = c.cairo_image_surface_get_data(surface);
+    if (data == null) {
+        c.cairo_surface_destroy(surface);
+        return false;
+    }
+    const bytes = data[0 .. stride * @as(usize, @intCast(height))];
+    var y: usize = 0;
+    while (y < @as(usize, @intCast(height))) : (y += 1) {
+        var x: usize = 0;
+        while (x < @as(usize, @intCast(width))) : (x += 1) {
+            const src = (y * @as(usize, @intCast(width)) + x) * 3;
+            const dst = y * stride + x * 4;
+            const r: u32 = rgb[src];
+            const gg: u32 = rgb[src + 1];
+            const b: u32 = rgb[src + 2];
+            const px: u32 = 0xff000000 | (r << 16) | (gg << 8) | b;
+            std.mem.writeInt(u32, bytes[dst..][0..4], px, .little);
+        }
+    }
+    c.cairo_surface_mark_dirty(surface);
+    g.wallpaper_surface = surface;
+    std.debug.print("tessa-panel: wallpaper shader frame {d}x{d}\n", .{ width, height });
+    return true;
+}
+
 fn loadWallpaperImage() void {
     if (g.wallpaper_surface) |surface| c.cairo_surface_destroy(surface);
     g.wallpaper_surface = null;
+    if (loadWallpaperShader()) return;
     if (g.wallpaper_image_len == 0) return;
 
     var path_buf: [512:0]u8 = undefined;
@@ -957,6 +1272,37 @@ pub fn loadConfig() void {
     copyTrunc(&g.terminal, &g.terminal_len, "kitty");
     g.terminal_explicit = false;
     copyTrunc(&g.font, &g.font_len, "Inter");
+    g.bar_font_len = 0;
+    g.launcher_font_len = 0;
+    g.popover_font_len = 0;
+    g.toast_font_len = 0;
+    g.bar_layout_len = 0;
+    g.bar_layout_set = false;
+    g.bar_modules = .{
+        .logo,
+        .workspaces,
+        .chips,
+        .clock,
+        .battery,
+        .network,
+        .volume,
+        .stats,
+        .media,
+        .tray,
+        .status,
+    };
+    g.bar_module_count = BAR_MODULE_COUNT;
+    g.show_logo = true;
+    g.show_workspaces = true;
+    g.show_chips = true;
+    g.show_clock = true;
+    g.show_battery = true;
+    g.show_network = true;
+    g.show_volume = true;
+    g.show_stats = true;
+    g.show_media = true;
+    g.show_tray = true;
+    g.show_status = true;
     g.accent = .{ 0.886, 0.408, 0.31 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
     g.bg_top = .{ 0, 0, 0 };
@@ -966,6 +1312,22 @@ pub fn loadConfig() void {
     g.wallpaper_art = true;
     g.panel_bg = .{ 0.055, 0.075, 0.115 };
     g.panel_fg = .{ 0.93, 0.95, 0.98 };
+    g.bar_bg = g.panel_bg;
+    g.launcher_bg = .{ 0.055, 0.072, 0.105 };
+    g.popover_bg = .{ 0.055, 0.072, 0.105 };
+    g.toast_bg = g.panel_bg;
+    g.bar_fg = g.panel_fg;
+    g.launcher_fg = g.panel_fg;
+    g.popover_fg = g.panel_fg;
+    g.toast_fg = g.panel_fg;
+    g.bar_bg_set = false;
+    g.launcher_bg_set = false;
+    g.popover_bg_set = false;
+    g.toast_bg_set = false;
+    g.bar_fg_set = false;
+    g.launcher_fg_set = false;
+    g.popover_fg_set = false;
+    g.toast_fg_set = false;
     g.bar_height = 44;
     g.bar_top_margin = 12;
     g.bar_side_margin = 16;
@@ -978,6 +1340,7 @@ pub fn loadConfig() void {
     output_theme = .{};
     theme_role_count = 0;
     g.wallpaper_image_len = 0;
+    g.wallpaper_shader_len = 0;
     g.wallpaper_fit = .cover;
     if (g.wallpaper_surface) |surface| {
         c.cairo_surface_destroy(surface);
@@ -1003,6 +1366,41 @@ pub fn loadConfig() void {
     g.bar_height = std.math.clamp(g.bar_height, 32, 96);
     g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
     g.bar_side_margin = std.math.clamp(g.bar_side_margin, 0, 128);
+}
+
+/// Resolved panel settings for `tessa-panel --check` and config tooling.
+pub fn printConfigSummary() void {
+    std.debug.print("panel font={s}\n", .{g.font[0..g.font_len]});
+    std.debug.print("panel bar-font={s} launcher-font={s} popover-font={s} toast-font={s}\n", .{
+        barFont(),
+        launcherFont(),
+        popoverFont(),
+        toastFont(),
+    });
+    std.debug.print("panel bar-bg={d:.3},{d:.3},{d:.3} launcher-bg={d:.3},{d:.3},{d:.3} popover-bg={d:.3},{d:.3},{d:.3} toast-bg={d:.3},{d:.3},{d:.3}\n", .{
+        g.bar_bg[0],      g.bar_bg[1],      g.bar_bg[2],
+        g.launcher_bg[0], g.launcher_bg[1], g.launcher_bg[2],
+        g.popover_bg[0],  g.popover_bg[1],  g.popover_bg[2],
+        g.toast_bg[0],    g.toast_bg[1],    g.toast_bg[2],
+    });
+    std.debug.print("panel bar-fg={d:.3},{d:.3},{d:.3} launcher-fg={d:.3},{d:.3},{d:.3} popover-fg={d:.3},{d:.3},{d:.3} toast-fg={d:.3},{d:.3},{d:.3}\n", .{
+        g.bar_fg[0],      g.bar_fg[1],      g.bar_fg[2],
+        g.launcher_fg[0], g.launcher_fg[1], g.launcher_fg[2],
+        g.popover_fg[0],  g.popover_fg[1],  g.popover_fg[2],
+        g.toast_fg[0],    g.toast_fg[1],    g.toast_fg[2],
+    });
+    std.debug.print("panel bar-layout={s}\n", .{g.bar_layout[0..g.bar_layout_len]});
+    std.debug.print("panel modules=", .{});
+    for (g.bar_modules[0..g.bar_module_count], 0..) |module, i| {
+        if (i > 0) std.debug.print(",", .{});
+        std.debug.print("{s}", .{@tagName(module)});
+    }
+    std.debug.print("\n", .{});
+    std.debug.print("panel wallpaper-shader={s} wallpaper-image={s} fit={s}\n", .{
+        g.wallpaper_shader[0..g.wallpaper_shader_len],
+        g.wallpaper_image[0..g.wallpaper_image_len],
+        @tagName(g.wallpaper_fit),
+    });
 }
 
 pub fn updateClock() bool {

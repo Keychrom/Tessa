@@ -132,7 +132,7 @@ a daily Japanese desktop, then by polish.
 - [x] Config-defined event-to-action rules for policy automation.
 - [x] Theme role system and configurable, reduced-motion-aware animations.
 - [x] JSON-RPC/event stream with request ids and capability negotiation.
-- [ ] Interactive config editor/check with diff preview.
+- [x] Interactive config editor/check with diff preview.
 
 ## 0.7 — customization parity
 
@@ -155,7 +155,7 @@ the interactive config editor/diff preview) before or alongside this work.
       IPC commands, and window-rule `workspace=`, with deferred resolution.
 - [x] Scratchpad overlay: per-output hidden floating windows assigned by rule
       or command, toggled from bindings/IPC, with focus and visibility handling.
-- [ ] Special named workspaces beyond the scratchpad overlay.
+- [x] Special named workspaces beyond the scratchpad overlay.
 - [x] Window groups: tabbed groups of tiled windows on a workspace, tab
       cycling through `Super+Tab`, group add/remove, and IPC control. Groups are
       runtime state and are not persisted.
@@ -166,13 +166,15 @@ the interactive config editor/diff preview) before or alongside this work.
       remains part of the hardware validation pass.
 - [x] Wallpaper image sources: PNG backgrounds with cover/contain/stretch fit,
       live reload, and fallback to the generated gradient/art.
-- [ ] Shell v2 remainder: composable bar modules/layout, per-surface font and
+- [x] Shell v2 remainder: composable bar modules/layout, per-surface font and
       color roles, wallpaper shader sources, and layer-rule-aware popovers and
       toasts.
-- [ ] Shader/effect hooks through the long-lived process protocol; no
+- [x] Shader/effect hooks through the long-lived process protocol; no
       in-process plugin VM.
-- [ ] Performance guardrails: headless benchmarks and a frame-time budget for
+- [x] Performance guardrails: headless benchmarks and a frame-time budget for
       blur, rounded corners, and animations on the target laptop.
+      `tests/performance.sh` measures animation-only and full-effect workloads;
+      the target-laptop budget remains part of the hardware validation pass.
 
 The success criterion is that a typical Hyprland/Niri theme and workflow can be
 reproduced from one Tessa config, changed without logging out, and extended

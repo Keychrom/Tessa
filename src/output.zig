@@ -124,16 +124,28 @@ fn onOutputCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     core.markDirty(out.server);
 }
 
+fn elapsedUs(start: c.timespec, end: c.timespec) u32 {
+    const sec: i64 = @intCast(end.tv_sec - start.tv_sec);
+    const nsec: i64 = @intCast(end.tv_nsec - start.tv_nsec);
+    const us = sec * 1_000_000 + @divTrunc(nsec, 1000);
+    return @intCast(std.math.clamp(us, 0, std.math.maxInt(u32)));
+}
+
 fn onOutputFrame(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const out: *Output = @fieldParentPtr("frame", listener.?);
     const so = c.wlr_scene_get_scene_output(out.server.scene, out.wlr) orelse return;
+    var start: c.timespec = undefined;
+    _ = c.clock_gettime(c.CLOCK_MONOTONIC, &start);
     const now_ms = core.timeNowMs();
     const animating = layout.tickAnimations(out.server, now_ms);
     const closing = effects.tick(out.server, now_ms);
-    _ = c.wlr_scene_output_commit(so, null);
+    const committed = c.wlr_scene_output_commit(so, null);
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, &now);
+    if (committed) {
+        out.server.perf.record(elapsedUs(start, now), out.server.config.frame_time_budget);
+    }
     c.wlr_scene_output_send_frame_done(so, &now);
     if (animating or closing) c.wlr_output_schedule_frame(out.wlr);
 }

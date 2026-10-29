@@ -6,6 +6,7 @@ pub const window_open = "window-open";
 pub const window_close = "window-close";
 pub const window_focus = "window-focus";
 pub const workspace_change = "workspace-change";
+pub const special_change = "special-change";
 pub const window_moved = "window-moved";
 pub const layout_change = "layout-change";
 pub const mode_change = "mode-change";
@@ -26,6 +27,7 @@ pub const known = [_][]const u8{
     window_close,
     window_focus,
     workspace_change,
+    special_change,
     window_moved,
     layout_change,
     mode_change,

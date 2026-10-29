@@ -30,6 +30,8 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.mosaic_min_size = 160;
     cfg.grid_columns = 0;
     cfg.layout_helper_timeout = 100;
+    cfg.effect_helper_timeout = 200;
+    cfg.frame_time_budget = 16;
     cfg.animations = true;
     cfg.reduce_motion = false;
     cfg.reduce_motion_animations = .none;
@@ -239,6 +241,51 @@ fn addWorkspaceName(
     core.copyString(&server.config.workspace_names[index], &server.config.workspace_name_lens[index], name);
 }
 
+fn parseSpecialWorkspace(
+    server: *Server,
+    path: []const u8,
+    line: u32,
+    key: []const u8,
+    value: []const u8,
+) void {
+    var it = std.mem.tokenizeAny(u8, value, " \t");
+    const name = it.next() orelse {
+        addIssue(server, path, line, "expected a special workspace name for {s}", .{key});
+        return;
+    };
+    if (it.next() != null) {
+        addIssue(server, path, line, "special workspace names cannot contain spaces", .{});
+        return;
+    }
+    if (name.len >= types.MAX_WORKSPACE_NAME) {
+        addIssue(server, path, line, "special workspace name too long for {s}", .{key});
+        return;
+    }
+    for (name) |ch| {
+        if (ch < 0x20 or ch == 0x7f) {
+            addIssue(server, path, line, "special workspace name contains a control character", .{});
+            return;
+        }
+    }
+    if (types.workspaceIndexByName(&server.config, name) != null or
+        types.specialWorkspaceIndexByName(&server.config, name) != null)
+    {
+        addIssue(server, path, line, "duplicate workspace name '{s}'", .{name});
+        return;
+    }
+    if (server.config.special_workspace_count >= types.MAX_SPECIAL_WORKSPACES) {
+        addIssue(server, path, line, "too many special workspaces (max {d})", .{types.MAX_SPECIAL_WORKSPACES});
+        return;
+    }
+    const index = server.config.special_workspace_count;
+    core.copyString(
+        &server.config.special_workspaces[index],
+        &server.config.special_workspace_lens[index],
+        name,
+    );
+    server.config.special_workspace_count += 1;
+}
+
 fn parseBoolValue(
     server: *Server,
     path: []const u8,
@@ -423,6 +470,18 @@ pub fn addBindingInMode(
                 // Resolve names after the whole file has been parsed, so a
                 // workspace-name line may appear after its bindings.
                 binding.num = 0;
+            }
+        },
+        .toggle_special, .move_to_special => {
+            if (arg.len == 0 or arg.len >= types.MAX_WORKSPACE_NAME) {
+                core.logInfo("config: special workspace bind needs a name", .{});
+                return false;
+            }
+            for (arg) |ch| {
+                if (ch == ' ' or ch == '\t') {
+                    core.logInfo("config: special workspace names cannot contain spaces", .{});
+                    return false;
+                }
             }
         },
         .ratio => {
@@ -750,6 +809,24 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
                 rule.floating = .on;
                 rule.workspace = 0;
                 rule.workspace_name_len = 0;
+                rule.special_workspace_len = 0;
+            } else if (std.ascii.startsWithIgnoreCase(val, "special:")) {
+                const name = val["special:".len..];
+                if (name.len == 0 or name.len >= types.MAX_WORKSPACE_NAME) {
+                    core.logInfo("config: invalid special workspace in rule: '{s}'", .{val});
+                    return false;
+                }
+                for (name) |ch| {
+                    if (ch == ' ' or ch == '\t') {
+                        core.logInfo("config: special workspace names cannot contain spaces", .{});
+                        return false;
+                    }
+                }
+                core.copyString(&rule.special_workspace, &rule.special_workspace_len, name);
+                rule.scratchpad = .off;
+                rule.floating = .on;
+                rule.workspace = 0;
+                rule.workspace_name_len = 0;
             } else if (std.fmt.parseInt(usize, val, 10)) |ws| {
                 if (ws < 1 or ws > types.WS_COUNT) {
                     core.logInfo("config: rule workspace out of range: {d}", .{ws});
@@ -777,6 +854,23 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
             };
             rule.scratchpad = if (on) .on else .off;
             if (on) rule.floating = .on;
+            if (on) rule.special_workspace_len = 0;
+        } else if (std.ascii.eqlIgnoreCase(key, "special")) {
+            if (val.len == 0 or val.len >= types.MAX_WORKSPACE_NAME) {
+                core.logInfo("config: invalid special workspace rule value '{s}'", .{val});
+                return false;
+            }
+            for (val) |ch| {
+                if (ch == ' ' or ch == '\t') {
+                    core.logInfo("config: special workspace names cannot contain spaces", .{});
+                    return false;
+                }
+            }
+            core.copyString(&rule.special_workspace, &rule.special_workspace_len, val);
+            rule.scratchpad = .off;
+            rule.floating = .on;
+            rule.workspace = 0;
+            rule.workspace_name_len = 0;
         } else if (std.ascii.eqlIgnoreCase(key, "float") or
             std.ascii.eqlIgnoreCase(key, "floating"))
         {
@@ -1470,6 +1564,17 @@ fn resolveWorkspaceReferences(server: *Server) void {
     }
 
     i = 0;
+    while (i < cfg.rule_count) : (i += 1) {
+        const rule = &cfg.rules[i];
+        if (rule.special_workspace_len == 0) continue;
+        if (types.specialWorkspaceIndexByName(cfg, rule.special_workspace[0..rule.special_workspace_len]) == null) {
+            addIssue(server, "<config>", 0, "window-rule references unknown special workspace '{s}'", .{
+                rule.special_workspace[0..rule.special_workspace_len],
+            });
+        }
+    }
+
+    i = 0;
     while (i < cfg.binding_count) : (i += 1) {
         const binding = &cfg.bindings[i];
         if (binding.action != .workspace and binding.action != .move_to_workspace) continue;
@@ -1478,6 +1583,17 @@ fn resolveWorkspaceReferences(server: *Server) void {
             binding.num = @intCast(ws);
         } else {
             addIssue(server, "<config>", 0, "bind references unknown workspace '{s}'", .{
+                binding.arg[0..binding.arg_len],
+            });
+        }
+    }
+
+    i = 0;
+    while (i < cfg.binding_count) : (i += 1) {
+        const binding = &cfg.bindings[i];
+        if (binding.action != .toggle_special and binding.action != .move_to_special) continue;
+        if (types.specialWorkspaceIndexByName(cfg, binding.arg[0..binding.arg_len]) == null) {
+            addIssue(server, "<config>", 0, "bind references unknown special workspace '{s}'", .{
                 binding.arg[0..binding.arg_len],
             });
         }
@@ -2031,6 +2147,9 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "toggle-scratchpad") or
         std.ascii.eqlIgnoreCase(name, "scratchpad")) return .toggle_scratchpad;
     if (std.ascii.eqlIgnoreCase(name, "move-to-scratchpad")) return .move_to_scratchpad;
+    if (std.ascii.eqlIgnoreCase(name, "special") or
+        std.ascii.eqlIgnoreCase(name, "toggle-special")) return .toggle_special;
+    if (std.ascii.eqlIgnoreCase(name, "move-to-special")) return .move_to_special;
     if (std.ascii.eqlIgnoreCase(name, "toggle-group") or
         std.ascii.eqlIgnoreCase(name, "group")) return .toggle_group;
     if (std.ascii.eqlIgnoreCase(name, "group-next")) return .group_next;
@@ -2175,6 +2294,14 @@ fn loadPath(
             core.copyString(&server.config.layout_helper, &server.config.layout_helper_len, value);
         } else if (std.mem.eql(u8, key, "layout_helper_timeout")) {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.layout_helper_timeout = v;
+        } else if (std.mem.eql(u8, key, "effect_helper") or std.mem.eql(u8, key, "effect-helper")) {
+            core.copyString(&server.config.effect_helper, &server.config.effect_helper_len, value);
+        } else if (std.mem.eql(u8, key, "effect_helper_timeout") or std.mem.eql(u8, key, "effect-helper-timeout")) {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.effect_helper_timeout = v;
+        } else if (std.mem.eql(u8, key, "frame_time_budget") or std.mem.eql(u8, key, "frame-time-budget") or
+            std.mem.eql(u8, key, "frame_budget_ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.frame_time_budget = v;
         } else if (std.mem.eql(u8, key, "layout")) {
             if (types.layoutFromName(value)) |mode| {
                 server.config.layout_mode = mode;
@@ -2195,6 +2322,8 @@ fn loadPath(
             addWorkspacePin(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "workspace_name") or std.mem.eql(u8, key, "workspace-name")) {
             addWorkspaceName(server, path, line_no, key, value);
+        } else if (std.mem.eql(u8, key, "special_workspace") or std.mem.eql(u8, key, "special-workspace")) {
+            parseSpecialWorkspace(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
         } else if (std.mem.eql(u8, key, "animations")) {
@@ -2456,11 +2585,41 @@ fn loadPath(
         } else if (std.mem.eql(u8, key, "launcher_entry") or
             std.mem.eql(u8, key, "panel_bg") or
             std.mem.eql(u8, key, "panel_fg") or
+            std.mem.eql(u8, key, "bar_layout") or
+            std.mem.eql(u8, key, "bar-layout") or
+            std.mem.eql(u8, key, "bar_modules") or
+            std.mem.eql(u8, key, "bar-modules") or
+            std.mem.eql(u8, key, "bar_font") or
+            std.mem.eql(u8, key, "bar-font") or
+            std.mem.eql(u8, key, "bar_fg") or
+            std.mem.eql(u8, key, "bar-fg") or
+            std.mem.eql(u8, key, "bar_bg") or
+            std.mem.eql(u8, key, "bar-bg") or
+            std.mem.eql(u8, key, "launcher_font") or
+            std.mem.eql(u8, key, "launcher-font") or
+            std.mem.eql(u8, key, "launcher_fg") or
+            std.mem.eql(u8, key, "launcher-fg") or
+            std.mem.eql(u8, key, "launcher_bg") or
+            std.mem.eql(u8, key, "launcher-bg") or
+            std.mem.eql(u8, key, "popover_font") or
+            std.mem.eql(u8, key, "popover-font") or
+            std.mem.eql(u8, key, "popover_fg") or
+            std.mem.eql(u8, key, "popover-fg") or
+            std.mem.eql(u8, key, "popover_bg") or
+            std.mem.eql(u8, key, "popover-bg") or
+            std.mem.eql(u8, key, "toast_font") or
+            std.mem.eql(u8, key, "toast-font") or
+            std.mem.eql(u8, key, "toast_fg") or
+            std.mem.eql(u8, key, "toast-fg") or
+            std.mem.eql(u8, key, "toast_bg") or
+            std.mem.eql(u8, key, "toast-bg") or
             std.mem.eql(u8, key, "bg_top") or
             std.mem.eql(u8, key, "bg_bottom") or
             std.mem.eql(u8, key, "wallpaper_art") or
             std.mem.eql(u8, key, "wallpaper_image") or
             std.mem.eql(u8, key, "wallpaper-image") or
+            std.mem.eql(u8, key, "wallpaper_shader") or
+            std.mem.eql(u8, key, "wallpaper-shader") or
             std.mem.eql(u8, key, "wallpaper_fit") or
             std.mem.eql(u8, key, "wallpaper-fit") or
             std.mem.eql(u8, key, "bar_height") or
@@ -2524,6 +2683,10 @@ pub fn load(server: *Server) void {
     if (server.config.grid_columns > 8) server.config.grid_columns = 8;
     if (server.config.layout_helper_timeout < 10) server.config.layout_helper_timeout = 10;
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
+    if (server.config.effect_helper_timeout < 20) server.config.effect_helper_timeout = 20;
+    if (server.config.effect_helper_timeout > 2000) server.config.effect_helper_timeout = 2000;
+    if (server.config.frame_time_budget < 1) server.config.frame_time_budget = 1;
+    if (server.config.frame_time_budget > 1000) server.config.frame_time_budget = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
     if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
     if (server.config.animation_open_ms < -1) server.config.animation_open_ms = -1;

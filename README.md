@@ -139,7 +139,11 @@ LLVM/LLD, so update the tree; an older tree can use
 
 ## Status
 
-This is an MVP (`0.2.3`), but it is usable and the core pieces are implemented:
+This is an MVP (`0.2.3`), but it is usable and the core pieces are implemented.
+The 0.7 customization-parity roadmap items are complete; see
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
+Highlights include:
 
 - wlroots 0.19 compositor in Zig (DRM, headless, and nested backends via
   wlroots' autodetection)
@@ -158,6 +162,20 @@ This is an MVP (`0.2.3`), but it is usable and the core pieces are implemented:
 - external layout-helper v2 for custom tiling algorithms: one asynchronous
   process per output, coalesced requests, focus/urgent metadata, version
   negotiation, timeout, restart, and built-in fallback
+- named special workspaces: hidden per-output overlays assigned by rule or
+  command, with toggle/move bindings, IPC control, focus handling, and separate
+  visibility from the scratchpad
+- long-lived effect-helper process that receives window state and returns
+  per-window opacity, corner radius, blur/shadow, and border-width overrides;
+  requests are coalesced and there is no in-process plugin VM
+- composable shell v2 bar modules with configurable order and visibility,
+  per-surface bar/launcher/popover/toast fonts and foreground/background
+  colors, PNG or PPM-shader wallpaper sources, and layer-rule styling for the
+  bar, popovers, and toasts
+- frame-time instrumentation (`tessa-ctl perf`) with a configurable
+  `frame_time_budget`, plus headless animation and full-effect benchmarks
+- interactive config editing with validation and effective-config diff preview
+  (`tessa-ctl config-check <file>`, `config-diff <file>`, `config-edit`)
 - file/line config diagnostics, automatic reload on atomic config saves,
   transactional reload, and versioned JSON state/config snapshots for external
   tools; per-workspace and per-output layout/gap/master rules; animation
@@ -265,7 +283,9 @@ restarts were exercised by
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
-`tests/popups.sh`, and `tests/portal.sh`.
+`tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
+`tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`, and
+`tests/config-editor.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
 corners only in a `-Dscenefx=true` build and skips otherwise. The Kitty and real

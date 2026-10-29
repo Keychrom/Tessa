@@ -839,6 +839,8 @@ fn reloadPanelConfig() void {
         updateToastsSurface();
     }
     g.bg.dirty = true;
+    g.bar.dirty = true;
+    if (g.toasts) |toasts| toasts.dirty = true;
     if (g.overlay) |ov| ov.dirty = true;
     logMsg("config reloaded ({d} launcher entries)", .{g.app_list.count});
 }
@@ -3564,7 +3566,7 @@ fn eventLoop() void {
     }
 }
 
-pub fn main() !void {
+pub fn main(init: std.process.Init.Minimal) !void {
     g.* = std.mem.zeroes(m.Panel);
     g.running = true;
     g.active_ws = 1;
@@ -3575,6 +3577,22 @@ pub fn main() !void {
     g.media_fd = -1;
     g.tray_fd = -1;
     g.audio_fd = -1;
+
+    var check_only = false;
+    var args = init.args.iterate();
+    defer args.deinit();
+    _ = args.next();
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "--print-config")) {
+            check_only = true;
+        }
+    }
+    if (check_only) {
+        m.loadConfig();
+        m.printConfigSummary();
+        return;
+    }
+
     _ = c.signal(c.SIGPIPE, c.SIG_IGN);
     if (c.getenv("TESSA_PANEL_OUTPUT")) |name| {
         m.copyTrunc(&g.target_name, &g.target_name_len, std.mem.span(name));

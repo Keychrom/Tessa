@@ -229,9 +229,7 @@ fn nextClientOnWorkspace(server: *Server, exclude: *Client) ?*Client {
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
-        if (cl != exclude and cl.mapped and cl.output == exclude.output and
-            (cl.group_id == 0 or cl.group_active) and
-            (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws)) return cl;
+        if (cl != exclude and types.clientVisible(cl, exclude.output)) return cl;
     }
     return null;
 }
@@ -369,10 +367,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         var i: usize = 0;
         while (i < server.clients.len) : (i += 1) {
             const cl = server.clients[i] orelse continue;
-            if (cl.mapped and cl.output == client.output and
-                (cl.group_id == 0 or cl.group_active) and
-                (if (cl.scratchpad) cl.output.scratchpad_visible else cl.ws == cl.output.active_ws))
-            {
+            if (types.clientVisible(cl, client.output)) {
                 next = cl;
                 break;
             }
@@ -457,6 +452,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.fullscreen = false;
     client.urgent = false;
     client.scratchpad = false;
+    client.special_workspace_len = 0;
     client.group_id = 0;
     client.group_active = false;
     client.opacity = 1.0;
@@ -464,6 +460,12 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.blur = .unset;
     client.shadow = .unset;
     client.border_width = -1;
+    client.hook_active = false;
+    client.hook_opacity = 1.0;
+    client.hook_corner_radius = -1;
+    client.hook_blur = .unset;
+    client.hook_shadow = .unset;
+    client.hook_border_width = -1;
     client.anim = .{};
     client.anim_curve = .{};
     client.id = server.next_client_id;

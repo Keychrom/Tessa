@@ -26,6 +26,7 @@ pub const MAX_LAYER_RULES = 64;
 pub const MAX_INPUT_RULES = 32;
 pub const MAX_INPUT_DEVICES = 32;
 pub const MAX_WORKSPACE_NAME = 32;
+pub const MAX_SPECIAL_WORKSPACES = 8;
 pub const MAX_CONFIG_ISSUES = 64;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
@@ -35,6 +36,39 @@ pub const MAX_CONSTRAINTS = 32;
 pub const MAX_EFFECTS = 4;
 pub const MAX_LAYOUT_RECTS = 64;
 pub const LAYOUT_HELPER_BUFFER = 64 * 1024;
+pub const PERF_SAMPLES = 4096;
+
+pub const PerfStats = struct {
+    samples_us: [PERF_SAMPLES]u32 = [_]u32{0} ** PERF_SAMPLES,
+    sample_count: usize = 0,
+    sample_index: usize = 0,
+    frames: u64 = 0,
+    total_us: u64 = 0,
+    max_us: u32 = 0,
+    last_us: u32 = 0,
+    over_budget: u64 = 0,
+
+    pub fn reset(self: *PerfStats) void {
+        self.sample_count = 0;
+        self.sample_index = 0;
+        self.frames = 0;
+        self.total_us = 0;
+        self.max_us = 0;
+        self.last_us = 0;
+        self.over_budget = 0;
+    }
+
+    pub fn record(self: *PerfStats, us: u32, budget_ms: i32) void {
+        self.samples_us[self.sample_index] = us;
+        self.sample_index = (self.sample_index + 1) % self.samples_us.len;
+        if (self.sample_count < self.samples_us.len) self.sample_count += 1;
+        self.frames += 1;
+        self.total_us += us;
+        self.last_us = us;
+        if (us > self.max_us) self.max_us = us;
+        if (budget_ms > 0 and us > @as(u32, @intCast(budget_ms)) * 1000) self.over_budget += 1;
+    }
+};
 
 pub const MAX_TITLE = 256;
 pub const MAX_APP_ID = 128;
@@ -86,6 +120,8 @@ pub const Action = enum {
     toggle_fullscreen,
     toggle_scratchpad,
     move_to_scratchpad,
+    toggle_special,
+    move_to_special,
     toggle_group,
     group_next,
     group_prev,
@@ -266,6 +302,8 @@ pub const WindowRule = struct {
     has_border_width: bool = false,
     border_width: i32 = 0,
     scratchpad: RuleBool = .unset,
+    special_workspace: [MAX_WORKSPACE_NAME]u8 = [_]u8{0} ** MAX_WORKSPACE_NAME,
+    special_workspace_len: usize = 0,
     anim: AnimationOverride = .{},
 };
 
@@ -347,6 +385,25 @@ pub const LayoutHelperState = struct {
         .w = 0,
         .h = 0,
     }} ** MAX_LAYOUT_RECTS,
+    read_len: usize = 0,
+    read_buf: [LAYOUT_HELPER_BUFFER]u8 = undefined,
+};
+
+pub const EffectHookState = struct {
+    fd: c_int = -1,
+    pid: c.pid_t = 0,
+    hash: u64 = 0,
+    fail_until: i64 = 0,
+    source: ?*c.wl_event_source = null,
+    timer: ?*c.wl_event_source = null,
+    waiting: bool = false,
+    pending: bool = false,
+    hello_sent: bool = false,
+    version_logged: bool = false,
+    request_sig: u64 = 0,
+    request_count: usize = 0,
+    request_ids: [MAX_CLIENTS]u64 = [_]u64{0} ** MAX_CLIENTS,
+    cache_sig: u64 = 0,
     read_len: usize = 0,
     read_buf: [LAYOUT_HELPER_BUFFER]u8 = undefined,
 };
@@ -461,6 +518,10 @@ pub const Config = struct {
     layout_helper: [MAX_COMMAND]u8,
     layout_helper_len: usize,
     layout_helper_timeout: i32,
+    effect_helper: [MAX_COMMAND]u8,
+    effect_helper_len: usize,
+    effect_helper_timeout: i32,
+    frame_time_budget: i32,
     ws_gaps: [WS_COUNT]i32,
     ws_outer_gaps: [WS_COUNT]i32,
     ws_master_ratio: [WS_COUNT]f32,
@@ -482,6 +543,9 @@ pub const Config = struct {
     workspace_pin_count: usize,
     workspace_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8,
     workspace_name_lens: [WS_COUNT]usize,
+    special_workspaces: [MAX_SPECIAL_WORKSPACES][MAX_WORKSPACE_NAME]u8,
+    special_workspace_lens: [MAX_SPECIAL_WORKSPACES]usize,
+    special_workspace_count: usize,
     animations: bool,
     reduce_motion: bool,
     reduce_motion_animations: ReducedMotionAnimations,
@@ -601,6 +665,8 @@ pub const Output = struct {
     theme_border_inactive: ?[4]f32,
     active_ws: usize,
     scratchpad_visible: bool,
+    special_workspace: [MAX_WORKSPACE_NAME]u8,
+    special_workspace_len: usize,
     ws_layouts: [WS_COUNT]LayoutMode,
     layout_overridden: [WS_COUNT]bool,
     runtime_ratio: [WS_COUNT]f32,
@@ -635,6 +701,8 @@ pub const Client = struct {
     fullscreen: bool,
     urgent: bool,
     scratchpad: bool,
+    special_workspace: [MAX_WORKSPACE_NAME]u8,
+    special_workspace_len: usize,
     group_id: u32,
     group_active: bool,
 
@@ -659,6 +727,12 @@ pub const Client = struct {
     blur: RuleBool,
     shadow: RuleBool,
     border_width: i32,
+    hook_active: bool,
+    hook_opacity: f32,
+    hook_corner_radius: i32,
+    hook_blur: RuleBool,
+    hook_shadow: RuleBool,
+    hook_border_width: i32,
     anim: AnimationOverride,
 
     x: i32,
@@ -698,6 +772,26 @@ pub const Client = struct {
     foreign_destroy: c.wl_listener,
     ext_foreign_toplevel: ?*c.wlr_ext_foreign_toplevel_handle_v1,
 };
+
+pub fn effectiveClientOpacity(cl: *const Client) f32 {
+    return if (cl.hook_active) cl.hook_opacity else cl.opacity;
+}
+
+pub fn effectiveClientRadius(cl: *const Client) i32 {
+    return if (cl.hook_active) cl.hook_corner_radius else cl.corner_radius;
+}
+
+pub fn effectiveClientBlur(cl: *const Client) RuleBool {
+    return if (cl.hook_active) cl.hook_blur else cl.blur;
+}
+
+pub fn effectiveClientShadow(cl: *const Client) RuleBool {
+    return if (cl.hook_active) cl.hook_shadow else cl.shadow;
+}
+
+pub fn effectiveClientBorderWidth(cl: *const Client) i32 {
+    return if (cl.hook_active) cl.hook_border_width else cl.border_width;
+}
 
 pub const InputPolicySnapshot = struct {
     accel_profile: c_uint,
@@ -1025,6 +1119,8 @@ pub const Server = struct {
     config_watch_source: ?*c.wl_event_source,
     config_reload_timer: ?*c.wl_event_source,
     layout_refresh: ?*const fn (*Server) void,
+    effect_helper: EffectHookState,
+    perf: PerfStats,
     ipc_fd: c_int,
     ipc_source: ?*c.wl_event_source,
     ipc_idle: ?*c.wl_event_source,
@@ -1114,4 +1210,34 @@ pub fn resolveWorkspace(cfg: *const Config, text: []const u8) ?usize {
         return null;
     } else |_| {}
     return workspaceIndexByName(cfg, text);
+}
+
+pub fn specialWorkspaceName(cfg: *const Config, index: usize) []const u8 {
+    if (index >= cfg.special_workspace_count) return "";
+    return cfg.special_workspaces[index][0..cfg.special_workspace_lens[index]];
+}
+
+pub fn specialWorkspaceIndexByName(cfg: *const Config, name: []const u8) ?usize {
+    if (name.len == 0) return null;
+    var i: usize = 0;
+    while (i < cfg.special_workspace_count) : (i += 1) {
+        if (std.mem.eql(u8, specialWorkspaceName(cfg, i), name)) return i;
+    }
+    return null;
+}
+
+pub fn clientVisible(cl: *const Client, out: *const Output) bool {
+    if (!cl.mapped or cl.output != out) return false;
+    if (cl.group_id != 0 and !cl.group_active) return false;
+    if (out.special_workspace_len > 0) {
+        return cl.special_workspace_len > 0 and
+            std.mem.eql(
+                u8,
+                cl.special_workspace[0..cl.special_workspace_len],
+                out.special_workspace[0..out.special_workspace_len],
+            );
+    }
+    if (cl.special_workspace_len > 0) return false;
+    if (cl.scratchpad) return out.scratchpad_visible;
+    return cl.ws == out.active_ws;
 }

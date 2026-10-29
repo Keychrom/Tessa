@@ -69,7 +69,7 @@ layout = master
 # (background, bottom, top, overlay). Later matches win. Opacity works in every
 # build; corner-radius and blur require -Dscenefx=true.
 # layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
-# layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+# layer-rule = namespace=tessa-notifications; layer=top; opacity=1; blur=false
 
 # Per-workspace layout/spacing overrides. Runtime layout choices still win over
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
@@ -88,6 +88,15 @@ layout = master
 # bind = SUPER+2 workspace Code
 # bind = SUPER+SHIFT+2 move-to-workspace Code
 # window-rule = app-id=org.mozilla.firefox; workspace=Chat
+
+# Named special workspaces are hidden overlays, separate from the numeric
+# workspace row and from the scratchpad. Declare each name, then assign windows
+# with special= in a rule or toggle/move them from bindings and IPC.
+# special-workspace = notes
+# special-workspace = tools
+# window-rule = app-id=com.example.notes; special=notes; size=520x360
+# bind = SUPER+ALT+n special notes
+# bind = SUPER+ALT+SHIFT+n move-to-special notes
 
 # Per-output tuning. Add ws= to apply a layout rule to one workspace on that
 # output. Theme keys apply to all workspaces and are re-read by the panel.
@@ -111,6 +120,20 @@ layout = master
 # layout = custom
 # layout_helper = python3 ~/.config/tessa/layout.py
 # layout_helper_timeout = 100
+
+# Long-lived visual effect helper. It receives window metadata (app-id, title,
+# output, workspace, focus, fullscreen, geometry, and rule visuals) and returns
+# per-window opacity, corner radius, blur/shadow overrides, and border width.
+# Requests are coalesced; there is no in-process plugin VM. See
+# docs/EXTENDING.md for the line protocol.
+# effect_helper = python3 ~/.config/tessa/effects.py
+# effect_helper_timeout = 200
+
+# Render-commit time budget in milliseconds. Frames above this budget are
+# counted by `tessa-ctl perf`; use `tessa-ctl perf --json` for benchmarks.
+# The default targets a 60 Hz desktop (16 ms). On a software headless renderer,
+# set a larger budget for automated checks.
+frame_time_budget = 16
 
 # Window motion. Open and workspace switches slide into place. Per-kind
 # durations override animation_ms; -1 inherits it. reduce_motion disables
@@ -157,14 +180,36 @@ bar_top_margin = 12
 bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
+# Composable bar modules. The list selects visible modules and orders the
+# right-hand cluster (left to right). logo/workspaces/chips stay anchored.
+# Names: logo, workspaces, chips, clock, battery, network, volume, stats, media,
+# tray, status. Unknown names are ignored for forward compatibility.
+# bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
+# Per-surface fonts and colors. Unset values fall back to `font` and panel_fg.
+# bar-font = Inter
+# launcher-font = Inter
+# popover-font = Inter
+# toast-font = Inter
+# bar-fg = #eef2f8
+# launcher-fg = #eef2f8
+# popover-fg = #eef2f8
+# toast-fg = #eef2f8
+# bar-bg = #0e1320
+# launcher-bg = #0d1220
+# popover-bg = #0d1220
+# toast-bg = #0e1320
 # Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
 # wallpaper_art = false for a clean gradient without ink/sun/water artwork.
 # wallpaper_image replaces the gradient/art with a PNG (absolute path or ~/...);
-# wallpaper_fit is cover, contain, or stretch.
+# wallpaper_fit is cover, contain, or stretch. wallpaper-shader runs a command
+# that prints a binary PPM (P6, maxval 255) frame and takes precedence over the
+# image. It is re-run on config reload, so animated shaders should be driven by
+# a long-lived helper instead.
 # bg_top = #162038
 # bg_bottom = #070a12
 # wallpaper_art = true
 # wallpaper_image = ~/Pictures/wallpaper.png
+# wallpaper_shader = ~/.config/tessa/wallpaper.ppm.sh
 # wallpaper_fit = cover
 
 # Commands for the power menu (right-click the TESSA mark).

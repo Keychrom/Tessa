@@ -3,8 +3,9 @@
 # Tessa セットアップ & カスタマイズ完全ガイド
 
 このガイドは、現在の Tessa ツリーで使えるセットアップ方法とカスタマイズ
-項目を一か所にまとめたものです。0.6 ロードマップまでの実装を対象にし、
-残る 0.6 項目はレイアウトヘルパー v2 と対話型設定エディタです。
+項目を一か所にまとめたものです。0.7 ロードマップまでの実装を対象にし、
+special ワークスペース、シェル v2、エフェクトヘルパー、性能計測、対話型
+設定エディタも含みます。
 
 Tessa は **wlroots ベースのコンポジタ本体 `tessa`**、**タスクバー／
 ランチャー／壁紙を担当する `tessa-panel`**、**自動化用の `tessa-ctl`** の
@@ -475,9 +476,13 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `layout_1` … `layout_9` | 継承 | 保存済み・実行中の上書きがないワークスペースの初期レイアウト |
 | `layout_helper` | 空 | 出力ごとに 1 つ起動する非同期カスタムレイアウトヘルパー |
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
+| `effect_helper` | 空 | ウィンドウ別の視覚効果を返す常駐ヘルパープロセス |
+| `effect_helper_timeout` | `200` | エフェクトヘルパー応答タイムアウト（20〜2000 ms） |
+| `frame_time_budget` | `16` | 描画コミットの予算（ms）。超過フレームを `tessa-ctl perf` が数える |
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
 | `workspace-name` | — | `WORKSPACE NAME` の表示名／コマンド別名。複数行可 |
+| `special-workspace` | — | 名前付き special（非表示オーバーレイ）ワークスペースを宣言。複数行可 |
 | `workspace-rule` | — | ワークスペース別のレイアウト／間隔ルール |
 | `output-rule` | — | コネクタ名または EDID で一致させる出力別レイアウト／間隔／テーマ／VRR ルール |
 | `input` / `input-rule` | — | デバイス別 libinput ポリシー。複数行可 |
@@ -499,6 +504,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bg_bottom` | 未指定 | 壁紙グラデーション下端 |
 | `wallpaper_art` | `true` | インク／太陽／水面などの装飾を描く |
 | `wallpaper_image` | 空 | PNG 壁紙のパス（絶対パスまたは `~/...`）。グラデーション／装飾を置換 |
+| `wallpaper_shader` | 空 | バイナリ PPM（P6）フレームを出力するコマンド。画像より優先 |
 | `wallpaper_fit` | `cover` | 画像の合わせ方: `cover`、`contain`、`stretch` |
 | `border_active` | 空 | フォーカス中ボーダー。空なら `accent` |
 | `border_inactive` | `#293347` | 非フォーカスボーダー |
@@ -540,6 +546,10 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_side_margin` | `16` | 左右マージン（0〜128） |
 | `panel_bg` | `#0e1320` | バー背景色 |
 | `panel_fg` | `#eef2f8` | バー主要テキスト色 |
+| `bar_layout` | 全モジュール | カンマ／空白区切りのモジュール一覧。右側クラスタの表示と順序を決定 |
+| `bar-font`、`launcher-font`、`popover-font`、`toast-font` | `font` | サーフェス別フォント |
+| `bar-fg`、`launcher-fg`、`popover-fg`、`toast-fg` | `panel_fg` | サーフェス別前景色 |
+| `bar-bg`、`launcher-bg`、`popover-bg`、`toast-bg` | `panel_bg` | サーフェス別背景色 |
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
 | `power_lock` | `loginctl lock-session` | 電源メニューの Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
@@ -825,6 +835,8 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `fullscreen=true/false` | フルスクリーン |
 | `workspace=1..9\|name` | ワークスペース指定 |
 | `workspace=special` | スクラッチパッドへ（`scratchpad=true` の別名） |
+| `workspace=special:NAME` | 宣言済み special ワークスペースへ |
+| `special=NAME` | 宣言済み special ワークスペースへ（短縮形） |
 | `scratchpad=true/false` | 非表示フローティングのスクラッチパッド割り当て |
 | `size=WxH` | フローティングサイズ |
 | `width=N`、`height=N` | 片軸のみ |
@@ -862,7 +874,7 @@ app-id が変わった時点でも即座に再評価されます。モーショ�
 
 ```ini
 layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
-layer-rule = namespace=tessa-notifications; layer=overlay; opacity=1; blur=false
+layer-rule = namespace=tessa-notifications; layer=top; opacity=1; blur=false
 layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 ```
 
@@ -885,8 +897,12 @@ layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 レイヤールールはファイル順で評価され、後の一致が優先されます。ルールが
 ない場合の不透明度は `1`、ブラーは top／overlay レイヤーでグローバルの
 `blur` に従います（background／bottom はブラーなし）。角丸の既定値は `0`
-です。`Super+R`／設定リロードで再適用されます。`corner-radius` と `blur`
-は `-Dscenefx=true` ビルドが必要です。`tessa-ctl state` と
+です。パネルのサーフェスは `tessa-bar`、`tessa-overlay`（ランチャー、
+カレンダー、電源、クリップボード、メディア、トレイ、音量、スクリーンショット
+のポップオーバー）、`tessa-notifications`（トースト）の namespace を使います。
+`layer=top` のルールはバーとトースト、`tessa-overlay` は overlay レイヤーに
+適用されます。`Super+R`／設定リロードで再適用されます。`corner-radius` と
+`blur` は `-Dscenefx=true` ビルドが必要です。`tessa-ctl state` と
 `tessa-ctl state --json` で実効値、`tessa-ctl config`／`config --json` で
 解析済みルールを確認できます。
 
@@ -970,6 +986,26 @@ bind = SUPER+SHIFT+grave move-to-scratchpad
 占有数には数えず、閉じている間はバーにも表示されません。IPC では
 `CMD toggle-scratchpad` と `CMD move-to-scratchpad` が使えます。
 
+#### Special ワークスペース
+
+名前付き special ワークスペースは一度宣言すると、出力ごとの非表示
+オーバーレイとして使えます。スクラッチパッドとは別で、タイル／フローティング
+の両方のウィンドウを置けます:
+
+```ini
+special-workspace = notes
+special-workspace = tools
+window-rule = app-id=org.example.notes; special=notes; size=520x360
+bind = SUPER+ALT+n special notes
+bind = SUPER+ALT+SHIFT+n move-to-special notes
+```
+
+ルールでは `workspace=special:tools` も同等です。表示切替は
+`tessa-ctl special tools`、フォーカス中ウィンドウの移動は
+`tessa-ctl move-to-special tools` で行えます。special 表示中は同じ出力の
+通常ワークスペースのウィンドウが隠れ、再度切り替えると元の表示とフォーカスに
+戻ります。special のウィンドウはワークスペース占有数に含めません。
+
 #### ウィンドウグループ
 
 `Super+Shift+G` はアクティブワークスペースのタイルウィンドウを 1 つの
@@ -1010,6 +1046,43 @@ event-rule = workspace-change; match=ws == "3"; run=~/bin/on-workspace-3
 `TESSA_WORKSPACE`、`TESSA_TITLE`、`TESSA_OUTPUT`、`TESSA_ARG` など）が
 渡されます。一致したルールは設定順に並び、無条件 `hook` より先に実行され
 ます。フックと同様に `/bin/sh -c` とセッションユーザーの権限で動きます。
+
+### 8.9 常駐エフェクトヘルパー
+
+```ini
+effect_helper = python3 ~/.config/tessa/effects.py
+effect_helper_timeout = 200
+```
+
+エフェクトヘルパーは全出力で 1 つの常駐プロセスです。ウィンドウの
+メタデータやフォーカスが変わるたびに、合流された完全なスナップショットを
+送ります:
+
+```text
+HELLO\t1
+EFFECT\t1
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+...
+END
+```
+
+`focused`、`urgent`、`fullscreen`、`floating`、`visible` は `0`/`1` です。
+`opacity`、角丸、ボーダー幅は現在のルール適用後の値、`blur`/`shadow` は
+`on`、`off`、`unset` です。応答は任意の `VERSION\t1`、0 個以上の上書き、
+`END` です:
+
+```text
+VERSION\t1
+WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+END
+```
+
+応答に含まれないウィンドウはルール適用値へ戻ります。範囲（opacity 0〜1、
+角丸 0〜64、ボーダー幅 0〜16）と ID を検証し、タイムアウト、クラッシュ、
+不正な応答では全上書きを破棄して 1 秒後に再試行します。stdout は
+プロトコル専用です。詳細とサンプルは
+[EXTENDING.ja.md](EXTENDING.ja.md#エフェクトヘルパープロトコル) を参照して
+ください。このプロトコルはコンポジタ内へコードを注入しません。
 
 ---
 
@@ -1083,6 +1156,18 @@ Cairo で PNG を読み込み、設定リロード時に再読み込みします
 `stretch`（縦横比を無視）です。画像がない場合は上のグラデーション／装飾を
 使います。読み込みに失敗した場合はログを出してグラデーションへ戻ります。
 
+コマンドで手続き的な壁紙を描画できます:
+
+```ini
+wallpaper_shader = ~/.config/tessa/sunset.sh
+wallpaper_fit = stretch
+```
+
+コマンドはバイナリ PPM のヘッダ（`P6`、幅、高さ、最大値 `255`）に続けて
+空白 1 バイトと `幅 * 高さ * 3` バイトの RGB を出力します。設定の読み込み／
+リロード時に実行し、次のリロードまでフレームを保持します。画像より優先され
+ます。同期実行なので描画時間は短くしてください。
+
 ### 10.2 バーとフォント
 
 ```ini
@@ -1092,7 +1177,21 @@ bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
 font = Inter
+bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
+bar_font = Inter
+launcher_font = Inter
+popover_font = Inter
+toast_font = Inter
+bar_fg = #eef2f8
+bar_bg = #0e1320
 ```
+
+`bar_layout` は表示するモジュールと右側クラスタの左→右順を指定します。
+`logo`、`workspaces`、`chips`、`clock`、`battery`、`network`、`volume`、
+`stats`、`media`、`tray`、`status` を認識し、未知の名前は無視します。
+ロゴ、ワークスペースピル、ウィンドウチップの位置は固定です。
+`bar-font`、`launcher-font`、`popover-font`、`toast-font` は `font` へ、
+`*-fg`／`*-bg` は `panel_fg`／`panel_bg` へフォールバックします。
 
 意味論的テーマロールを使うと、1 つの値をコンポジタとパネルで共有できます:
 
@@ -1109,10 +1208,14 @@ theme-role = wallpaper.bottom = #070a12
 
 対応ロールは `accent`、`window.border.active`、`window.border.inactive`、
 `window.background`、`panel.background`、`panel.foreground`、
-`wallpaper.top`、`wallpaper.bottom` です。ロールは直接キーの後に適用される
-ため、`accent`、`border_active`、`border_inactive`、`bg` と対応するパネル
-キーより優先されます。一致する `output-rule` のテーマは、その出力に限り
-グローバルロールも上書きします。
+`bar.background`、`bar.foreground`、`launcher.background`、
+`launcher.foreground`、`popover.background`、`popover.foreground`、
+`toast.background`、`toast.foreground`、`wallpaper.top`、`wallpaper.bottom`
+です。ロールは直接キーの後に適用されるため、`accent`、`border_active`、
+`border_inactive`、`bg` と対応するパネルキーより優先されます。
+`panel.background`／`panel.foreground` は明示されていないサーフェス別の
+背景／前景色にも反映されます。一致する `output-rule` のテーマは、その出力に
+限りグローバルロールも上書きします。
 
 ### 10.3 ボーダーとシャドウ
 
@@ -1481,8 +1584,14 @@ Screenshot/ScreenCast は `XDG_CURRENT_DESKTOP=Tessa` で wlr バックエンド
 ```sh
 tessa-ctl state
 tessa-ctl config
+tessa-ctl config-check [file]
+tessa-ctl config-diff file
+tessa-ctl config-edit [file]
+tessa-ctl perf [--json] [--reset]
 tessa-ctl events [topic]
 tessa-ctl workspace 3 [output]
+tessa-ctl special notes
+tessa-ctl move-to-special notes
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
@@ -1493,6 +1602,15 @@ tessa-ctl dispatch reload
 tessa-ctl quit
 ```
 
+`config-check <file>` は候補ファイルを適用せず検証します。`config-diff` は
+候補を一時的に読み込み、診断と実効設定の差分を表示します。`config-edit` は
+実行中設定を一時ファイルへコピーして `$VISUAL`／`$EDITOR` を開き、検証と
+差分を表示してから、確認後に書き戻してリロードします。
+
+`perf` は描画コミット時間（`avg_us`、`p50_us`、`p95_us`、`max_us`、
+予算超過フレーム数、scenefx の有無）を表示します。予算は
+`frame_time_budget` です。
+
 生の IPC コマンド:
 
 ```text
@@ -1501,10 +1619,16 @@ CMD state
 CMD state-json
 CMD config
 CMD config-json
+CMD config-compare <path>
+CMD perf
+CMD perf-json
+CMD perf-reset
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad
 CMD move-to-scratchpad
+CMD special <name>
+CMD move-to-special <name>
 CMD toggle-group
 CMD group-next
 CMD group-prev

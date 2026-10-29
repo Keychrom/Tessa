@@ -21,6 +21,10 @@ they had run it in a terminal.
 ```sh
 tessa-ctl state                         # one snapshot
 tessa-ctl config                        # effective configuration + rules
+tessa-ctl config-check [file]           # validate current or candidate config
+tessa-ctl config-diff file              # preview effective changes
+tessa-ctl config-edit [file]            # edit, validate, diff, apply
+tessa-ctl perf [--json] [--reset]       # render-commit frame timings
 tessa-ctl events                        # stream all events
 tessa-ctl events window-focus           # stream one topic
 tessa-ctl workspace 3                   # focused output
@@ -293,6 +297,79 @@ tab-separated request/response containing the usable area, window ids,
 app-id/title metadata, and returned frame rectangles. The full protocol,
 timeout behavior, and fallback rules are in
 [CUSTOMIZATION.md](CUSTOMIZATION.md#external-layout-helper).
+
+## External effect helper
+
+`effect_helper` starts one long-lived process for the compositor. Tessa sends a
+complete window snapshot whenever metadata, focus, geometry, or rule visuals
+change. Requests are coalesced: while a reply is pending, only the latest state
+is sent afterward.
+
+The request uses tabs between fields:
+
+```text
+HELLO\t1
+EFFECT\t1
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+...
+END
+```
+
+`focused`, `urgent`, `fullscreen`, `floating`, and `visible` are `0`/`1`.
+`opacity`, corner radius, and border width are the current rule results;
+`blur`/`shadow` are `on`, `off`, or `unset`. The helper replies:
+
+```text
+VERSION\t1
+WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+...
+END
+```
+
+Overrides are optional per window. Tessa validates IDs against the request and
+the ranges (opacity 0–1, radius 0–64, width 0–16). Returned windows not present
+in the reply, or a client omitted from the reply, fall back to rule visuals.
+Timeout, a crash, an unknown/duplicate ID, an invalid mode, or a missing `END`
+drops every override and retries after one second. stdout is protocol-only;
+write diagnostics to stderr.
+
+A minimal helper:
+
+```python
+#!/usr/bin/env python3
+import sys
+
+while True:
+    lines = []
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            raise SystemExit(0)
+        line = line.rstrip("\n")
+        if line == "END":
+            break
+        lines.append(line.split("\t"))
+    out = ["VERSION\t1"]
+    for fields in lines:
+        if fields[0] != "WINDOW":
+            continue
+        window_id, app_id, title = fields[1], fields[2], fields[3]
+        if app_id == "org.example.notes" or "notes" in title.lower():
+            out.append(f"WINDOW\t{window_id}\t0.92\t18\toff\toff\t3")
+    out.append("END")
+    sys.stdout.write("\n".join(out) + "\n")
+    sys.stdout.flush()
+```
+
+```ini
+effect_helper = python3 ~/.config/tessa/effects.py
+effect_helper_timeout = 200
+```
+
+The helper runs with the compositor's privileges and is not sandboxed. It can
+only adjust declared visual properties; it cannot inject shaders or execute
+code inside the compositor. `tests/effect-helper.sh` exercises overrides and
+live removal.
 
 ## Launcher entries and includes
 

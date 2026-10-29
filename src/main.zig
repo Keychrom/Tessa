@@ -201,6 +201,7 @@ pub fn main() !void {
     server.active_ws = 1;
     server.next_client_id = 1;
     server.ipc_fd = -1;
+    server.effect_helper = .{};
     server.layout_refresh = layout.arrangeAll;
     server.ipc_dirty = true;
 

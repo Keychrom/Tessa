@@ -3,7 +3,10 @@ const std = @import("std");
 const c = @cImport({
     @cDefine("_GNU_SOURCE", "1");
     @cDefine("_FORTIFY_SOURCE", "0");
+    @cInclude("fcntl.h");
+    @cInclude("stdio.h");
     @cInclude("sys/socket.h");
+    @cInclude("sys/stat.h");
     @cInclude("sys/un.h");
     @cInclude("unistd.h");
     @cInclude("stdlib.h");
@@ -17,10 +20,16 @@ fn usage() void {
         "  state [--json]                print one state snapshot\n" ++
         "  config [--json]               print the effective configuration\n" ++
         "  config-check                  check config diagnostics; exit 1 on errors\n" ++
+        "  config-check <file>           validate a candidate config file\n" ++
+        "  config-diff <file>            preview effective changes from a candidate\n" ++
+        "  config-edit [file]            edit, validate, diff, and apply config\n" ++
+        "  perf [--json] [--reset]       print frame-time statistics\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
         "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
         "  workspace <1-9|name> [output] switch workspace\n" ++
+        "  special <name>                toggle a named special workspace\n" ++
+        "  move-to-special <name>        move the focused window to a special workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
         "  panel <calendar|power|clipboard|screenshot|media|tray|audio> [out]\n" ++
@@ -363,6 +372,247 @@ fn runState(args: []const []const u8) !void {
     }
 }
 
+fn printPerf(json: bool, reset: bool) !void {
+    if (reset) try sendCommand("CMD perf-reset\n");
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, if (json) "CMD perf-json\n" else "CMD perf\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    if (json) {
+        const line = (try reader.next(&line_buf)) orelse return error.Closed;
+        writeLine(line);
+        return;
+    }
+    while (try reader.next(&line_buf)) |line| {
+        writeLine(line);
+        if (std.mem.eql(u8, line, "END")) return;
+    }
+    return error.Closed;
+}
+
+fn runPerf(args: []const []const u8) !void {
+    var json = false;
+    var reset = false;
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--json")) {
+            json = true;
+        } else if (std.mem.eql(u8, arg, "--reset")) {
+            reset = true;
+        } else {
+            return error.BadArguments;
+        }
+    }
+    if (reset) {
+        try sendCommand("CMD perf-reset\n");
+        writeLine("perf: reset");
+        return;
+    }
+    try printPerf(json, false);
+}
+
+const CompareResult = struct {
+    errors: usize = 0,
+    changes: usize = 0,
+};
+
+fn showConfigCompare(path: []const u8, show_diff: bool) !CompareResult {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    var line: [768]u8 = undefined;
+    const command = std.fmt.bufPrint(&line, "CMD config-compare {s}\n", .{path}) catch
+        return error.PathTooLong;
+    try sendAll(fd, command);
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    var in_compare = false;
+    var in_diff = false;
+    var result = CompareResult{};
+    while (try reader.next(&line_buf)) |text| {
+        if (std.mem.eql(u8, text, "CONFIG_COMPARE")) {
+            in_compare = true;
+            continue;
+        }
+        if (!in_compare) continue;
+        if (std.mem.eql(u8, text, "DIFF")) {
+            in_diff = true;
+            continue;
+        }
+        if (std.mem.eql(u8, text, "END")) break;
+        if (std.mem.startsWith(u8, text, "diagnostic ")) {
+            if (std.mem.startsWith(u8, text, "diagnostic error ")) result.errors += 1;
+            writeLine(text);
+            continue;
+        }
+        if (in_diff and (text.len > 0 and (text[0] == '-' or text[0] == '+'))) {
+            result.changes += 1;
+            if (show_diff) writeLine(text);
+        }
+    }
+    if (show_diff) {
+        if (result.changes == 0) writeLine("effective config: no changes");
+    } else if (result.errors == 0) {
+        writeLine("config: ok");
+    }
+    return result;
+}
+
+fn fetchConfigPath(out: []u8) ![]const u8 {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "CMD config\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    while (try reader.next(&line_buf)) |line| {
+        if (std.mem.startsWith(u8, line, "config_path ")) {
+            const value = line["config_path ".len..];
+            if (value.len == 0 or value.len > out.len) return error.NoConfigPath;
+            @memcpy(out[0..value.len], value);
+            return out[0..value.len];
+        }
+        if (std.mem.eql(u8, line, "END")) break;
+    }
+    return error.NoConfigPath;
+}
+
+fn pathZ(path: []const u8, buf: *[512:0]u8) ?[*:0]const u8 {
+    if (path.len >= buf.len) return null;
+    @memcpy(buf[0..path.len], path);
+    buf[path.len] = 0;
+    return @ptrCast(buf);
+}
+
+fn copyFileToFd(source: ?[*:0]const u8, out_fd: c_int) !void {
+    if (source) |src| {
+        const in_fd = c.open(src, c.O_RDONLY);
+        if (in_fd < 0) return error.OpenFailed;
+        defer _ = c.close(in_fd);
+        var buf: [8192]u8 = undefined;
+        while (true) {
+            const n = c.read(in_fd, &buf, buf.len);
+            if (n < 0) return error.ReadFailed;
+            if (n == 0) break;
+            var off: usize = 0;
+            const total: usize = @intCast(n);
+            while (off < total) {
+                const w = c.write(out_fd, buf[off..].ptr, total - off);
+                if (w <= 0) return error.WriteFailed;
+                off += @intCast(w);
+            }
+        }
+    }
+    _ = c.fsync(out_fd);
+}
+
+fn createTempCopy(source: []const u8, path_buf: *[512:0]u8) ![]const u8 {
+    const tmpdir = if (c.getenv("TMPDIR")) |p| std.mem.span(p) else "/tmp";
+    const written = std.fmt.bufPrint(path_buf[0..511], "{s}/tessa-config-edit-XXXXXX", .{tmpdir}) catch
+        return error.PathTooLong;
+    path_buf[written.len] = 0;
+    const fd = c.mkstemp(path_buf);
+    if (fd < 0) return error.TempFailed;
+    defer _ = c.close(fd);
+
+    var source_z: [512:0]u8 = undefined;
+    const src = pathZ(source, &source_z);
+    copyFileToFd(src, fd) catch |err| {
+        _ = c.unlink(path_buf);
+        return err;
+    };
+    return std.mem.sliceTo(path_buf, 0);
+}
+
+fn replaceFile(source: []const u8, dest: []const u8) !void {
+    var source_z: [512:0]u8 = undefined;
+    var dest_z: [512:0]u8 = undefined;
+    const src = pathZ(source, &source_z) orelse return error.PathTooLong;
+    const dst = pathZ(dest, &dest_z) orelse return error.PathTooLong;
+
+    var st: c.struct_stat = undefined;
+    const have_stat = c.stat(dst, &st) == 0;
+    const out_fd = c.open(dst, c.O_WRONLY | c.O_CREAT | c.O_TRUNC, @as(c_uint, 0o644));
+    if (out_fd < 0) return error.OpenFailed;
+    defer _ = c.close(out_fd);
+    try copyFileToFd(src, out_fd);
+    if (have_stat) _ = c.fchmod(out_fd, st.st_mode & 0o7777);
+}
+
+fn runEditor(path: []const u8) !void {
+    const editor = if (c.getenv("VISUAL")) |p|
+        std.mem.span(p)
+    else if (c.getenv("EDITOR")) |p|
+        std.mem.span(p)
+    else
+        "vi";
+    var command: [2048:0]u8 = undefined;
+    const written = std.fmt.bufPrint(command[0..2047], "{s} '{s}'", .{ editor, path }) catch
+        return error.CommandTooLong;
+    command[written.len] = 0;
+    const rc = c.system(&command);
+    if (rc != 0) return error.EditorFailed;
+}
+
+fn confirm(prompt: []const u8) bool {
+    writeAll(2, prompt);
+    var buf: [16]u8 = undefined;
+    const n = c.read(0, &buf, buf.len);
+    if (n <= 0) return false;
+    return buf[0] == 'y' or buf[0] == 'Y';
+}
+
+fn runConfigCheck(args: []const []const u8) !void {
+    if (args.len > 1) {
+        const result = try showConfigCompare(args[1], false);
+        if (result.errors > 0) return error.ConfigInvalid;
+        return;
+    }
+    try printConfigCheck();
+}
+
+fn runConfigDiff(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    _ = try showConfigCompare(args[1], true);
+}
+
+fn runConfigEdit(args: []const []const u8) !void {
+    var path_buf: [512]u8 = undefined;
+    const target = if (args.len > 1)
+        args[1]
+    else
+        try fetchConfigPath(&path_buf);
+
+    var temp_buf: [512:0]u8 = undefined;
+    const temp = try createTempCopy(target, &temp_buf);
+    defer _ = c.unlink(&temp_buf);
+
+    runEditor(temp) catch |err| {
+        if (err == error.EditorFailed) {
+            std.debug.print("tessa-ctl: editor exited with an error; changes not applied\n", .{});
+            return;
+        }
+        return err;
+    };
+
+    const result = try showConfigCompare(temp, true);
+    if (result.changes == 0) {
+        writeLine("no changes; not saving");
+        return;
+    }
+    const prompt = if (result.errors > 0)
+        "config has errors; save anyway? Changes will not apply until fixed. [y/N] "
+    else
+        "apply changes and reload? [y/N] ";
+    if (!confirm(prompt)) {
+        writeLine("discarded");
+        return;
+    }
+    try replaceFile(temp, target);
+    try sendCommand("CMD reload\n");
+    var applied: [600]u8 = undefined;
+    const msg = std.fmt.bufPrint(&applied, "applied {s}", .{target}) catch "applied";
+    writeLine(msg);
+}
+
 fn runConfig(args: []const []const u8) !void {
     if (args.len > 1 and std.mem.eql(u8, args[1], "--json")) {
         try printJson("CMD config-json\n", "CONFIG_JSON");
@@ -444,6 +694,16 @@ fn runNotificationAction(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runSpecial(args: []const []const u8, move: bool) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [256]u8 = undefined;
+    const msg = if (move)
+        std.fmt.bufPrint(&line, "CMD move-to-special {s}\n", .{args[1]}) catch return error.LineTooLong
+    else
+        std.fmt.bufPrint(&line, "CMD special {s}\n", .{args[1]}) catch return error.LineTooLong;
+    try sendCommand(msg);
+}
+
 pub fn main(init: std.process.Init.Minimal) void {
     var args_buf: [32][]const u8 = undefined;
     var arg_count: usize = 0;
@@ -469,7 +729,13 @@ pub fn main(init: std.process.Init.Minimal) void {
     else if (std.mem.eql(u8, cmd, "config"))
         runConfig(args)
     else if (std.mem.eql(u8, cmd, "config-check"))
-        printConfigCheck()
+        runConfigCheck(args)
+    else if (std.mem.eql(u8, cmd, "config-diff"))
+        runConfigDiff(args)
+    else if (std.mem.eql(u8, cmd, "config-edit"))
+        runConfigEdit(args)
+    else if (std.mem.eql(u8, cmd, "perf"))
+        runPerf(args)
     else if (std.mem.eql(u8, cmd, "rpc"))
         runRpc(args)
     else if (std.mem.eql(u8, cmd, "events"))
@@ -478,6 +744,10 @@ pub fn main(init: std.process.Init.Minimal) void {
         runDispatch(args)
     else if (std.mem.eql(u8, cmd, "workspace"))
         runWorkspace(args)
+    else if (std.mem.eql(u8, cmd, "special"))
+        runSpecial(args, false)
+    else if (std.mem.eql(u8, cmd, "move-to-special"))
+        runSpecial(args, true)
     else if (std.mem.eql(u8, cmd, "spawn"))
         runSpawn(args)
     else if (std.mem.eql(u8, cmd, "launcher"))

@@ -542,7 +542,7 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
 
     // signature
     drawPetal(cr, w - 150, h - 30, 7, .{ 1, 1, 1, 0.16 });
-    _ = drawText(cr, "TESSA", w - 136, h - 36, g.font[0..g.font_len], "Semi-Bold", 8, .{ 1, 1, 1, 0.20 }, 0, 2.4);
+    _ = drawText(cr, "TESSA", w - 136, h - 36, m.popoverFont(), "Semi-Bold", 8, .{ 1, 1, 1, 0.20 }, 0, 2.4);
     _ = drawText(cr, "SUMI SHELL / 01", w - 136, h - 24, MONO, "Medium", 6.5, .{ 1, 1, 1, 0.10 }, 0, 1.2);
 }
 
@@ -619,7 +619,7 @@ fn drawBatteryIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
 
 fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
     const label = g.network_label[0..g.network_label_len];
-    const tw = textWidth(cr, label, g.font[0..g.font_len], "Medium", 8.2, 0.4);
+    const tw = textWidth(cr, label, m.popoverFont(), "Medium", 8.2, 0.4);
     const group_w = 20.0 + tw;
     const x = right - group_w;
     const bars = [_]f64{ 4.0, 7.0, 10.0 };
@@ -631,7 +631,7 @@ fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
             g.accent[0], g.accent[1], g.accent[2], 0.78,
         });
     }
-    _ = drawTextCentered(cr, label, x + 20, cy + 0.3, g.font[0..g.font_len], "Medium", 8.2, .{
+    _ = drawTextCentered(cr, label, x + 20, cy + 0.3, m.popoverFont(), "Medium", 8.2, .{
         fg[0], fg[1], fg[2], 0.58,
     }, 0, 0.4);
     return x - 14;
@@ -727,7 +727,7 @@ fn paintNotificationIcon(cr: *c.cairo_t, n: *const m.NotificationEntry, x: f64, 
         const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
         var glyph_buf: [8]u8 = undefined;
         const glyph = upperFirst(&glyph_buf, firstGlyph(app));
-        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.8, y + size / 2.0 + 0.4, g.font[0..g.font_len], "Semi-Bold", 10.5, .{
+        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.8, y + size / 2.0 + 0.4, m.popoverFont(), "Semi-Bold", 10.5, .{
             1, 1, 1, 0.96,
         }, 0, 0);
     }
@@ -779,7 +779,7 @@ fn paintTrayIcon(cr: *c.cairo_t, item: *const m.TrayItem, x: f64, y: f64, size: 
         fillRound(cr, x, y, size, size, 6, .{ col[0], col[1], col[2], 0.92 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(if (label.len > 0) label else "T"));
-        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.4, y + size / 2.0 + 0.3, g.font[0..g.font_len], "Semi-Bold", 8.0, .{ 1, 1, 1, 0.95 }, 0, 0);
+        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.4, y + size / 2.0 + 0.3, m.popoverFont(), "Semi-Bold", 8.0, .{ 1, 1, 1, 0.95 }, 0, 0);
     }
 
     if (item.status == 2) {
@@ -794,8 +794,8 @@ pub fn drawBar(s: *m.Surface) void {
     const H: f64 = @floatFromInt(s.height);
     const cy = H / 2.0;
     const accent = g.accent;
-    const bg = g.panel_bg;
-    const fg = g.panel_fg;
+    const bg = g.bar_bg;
+    const fg = g.bar_fg;
     const bar_top = [4]f64{
         std.math.clamp(bg[0] + 0.030, 0, 1),
         std.math.clamp(bg[1] + 0.040, 0, 1),
@@ -827,32 +827,36 @@ pub fn drawBar(s: *m.Surface) void {
     c.cairo_set_line_width(cr, 1.0);
     c.cairo_stroke(cr);
 
-    // menu mark
-    const mark_x = 14.0;
-    const mark_y = cy - 14.0;
-    const hover_menu = g.hover.kind == .menu;
-    fillRound(cr, mark_x, mark_y, 28, 28, 9, .{
-        1, 1, 1, if (hover_menu) 0.11 else 0.055,
-    });
-    strokeRound(cr, mark_x + 0.5, mark_y + 0.5, 27, 27, 9, .{
-        accent[0], accent[1], accent[2], if (hover_menu) 0.55 else 0.30,
-    }, 1.0);
-    drawPetal(cr, mark_x + 14, cy, 7.2, .{ accent[0], accent[1], accent[2], 1.0 });
+    var menu_end: f64 = 12.0;
+    var div_x: f64 = 12.0;
+    if (g.show_logo) {
+        // menu mark
+        const mark_x = 14.0;
+        const mark_y = cy - 14.0;
+        const hover_menu = g.hover.kind == .menu;
+        fillRound(cr, mark_x, mark_y, 28, 28, 9, .{
+            1, 1, 1, if (hover_menu) 0.11 else 0.055,
+        });
+        strokeRound(cr, mark_x + 0.5, mark_y + 0.5, 27, 27, 9, .{
+            accent[0], accent[1], accent[2], if (hover_menu) 0.55 else 0.30,
+        }, 1.0);
+        drawPetal(cr, mark_x + 14, cy, 7.2, .{ accent[0], accent[1], accent[2], 1.0 });
 
-    const word = "TESSA";
-    const word_w = textWidth(cr, word, g.font[0..g.font_len], "Semi-Bold", 10.0, 1.8);
-    _ = drawTextCentered(cr, word, mark_x + 38, cy + 0.5, g.font[0..g.font_len], "Semi-Bold", 10.0, .{ fg[0], fg[1], fg[2], 0.92 }, 0, 1.8);
+        const word = "TESSA";
+        const word_w = textWidth(cr, word, m.barFont(), "Semi-Bold", 10.0, 1.8);
+        _ = drawTextCentered(cr, word, mark_x + 38, cy + 0.5, m.barFont(), "Semi-Bold", 10.0, .{ fg[0], fg[1], fg[2], 0.92 }, 0, 1.8);
 
-    const menu_end = mark_x + 38 + word_w + 8;
-    addBarHit(mark_x, 4, menu_end - mark_x, H - 8, .{ .kind = .menu });
+        menu_end = mark_x + 38 + word_w + 8;
+        addBarHit(mark_x, 4, menu_end - mark_x, H - 8, .{ .kind = .menu });
 
-    const div_x = menu_end + 7;
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, div_x, cy - 9);
-    c.cairo_line_to(cr, div_x, cy + 9);
-    setColor(cr, .{ 1, 1, 1, 0.055 });
-    c.cairo_set_line_width(cr, 1);
-    c.cairo_stroke(cr);
+        div_x = menu_end + 7;
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, div_x, cy - 9);
+        c.cairo_line_to(cr, div_x, cy + 9);
+        setColor(cr, .{ 1, 1, 1, 0.055 });
+        c.cairo_set_line_width(cr, 1);
+        c.cairo_stroke(cr);
+    }
 
     // workspace pills
     const pill_h = 20.0;
@@ -868,7 +872,7 @@ pub fn drawBar(s: *m.Surface) void {
         const tw = textWidth(
             cr,
             labels[wi],
-            if (named) g.font[0..g.font_len] else MONO,
+            if (named) m.barFont() else MONO,
             "Medium",
             if (named) 8.2 else 9.0,
             0,
@@ -877,47 +881,49 @@ pub fn drawBar(s: *m.Surface) void {
         ws_total += pill_widths[wi];
         if (wi + 1 < m.WS_COUNT) ws_total += pill_gap;
     }
-    const ws_x0 = W / 2.0 - ws_total / 2.0;
+    const ws_x0 = if (g.show_workspaces) W / 2.0 - ws_total / 2.0 else W / 2.0;
     const ws_y = cy - pill_h / 2.0;
 
-    var pill_x = ws_x0;
-    wi = 0;
-    while (wi < m.WS_COUNT) : (wi += 1) {
-        const ws = wi + 1;
-        const pill_w = pill_widths[wi];
-        const active = ws == g.active_ws;
-        const occupied = g.occ[ws] > 0;
-        const hovered = g.hover.kind == .workspace and g.hover.value == ws;
-        const named = g.ws_name_lens[wi] > 0;
+    if (g.show_workspaces) {
+        var pill_x = ws_x0;
+        wi = 0;
+        while (wi < m.WS_COUNT) : (wi += 1) {
+            const ws = wi + 1;
+            const pill_w = pill_widths[wi];
+            const active = ws == g.active_ws;
+            const occupied = g.occ[ws] > 0;
+            const hovered = g.hover.kind == .workspace and g.hover.value == ws;
+            const named = g.ws_name_lens[wi] > 0;
 
-        if (active) {
-            fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{ accent[0], accent[1], accent[2], 1.0 });
-        } else {
-            fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{
-                1, 1, 1, if (hovered) 0.115 else if (occupied) 0.070 else 0.030,
-            });
-            strokeRound(cr, pill_x + 0.5, ws_y + 0.5, pill_w - 1, pill_h - 1, 9.5, .{ 1, 1, 1, 0.045 }, 1.0);
+            if (active) {
+                fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{ accent[0], accent[1], accent[2], 1.0 });
+            } else {
+                fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{
+                    1, 1, 1, if (hovered) 0.115 else if (occupied) 0.070 else 0.030,
+                });
+                strokeRound(cr, pill_x + 0.5, ws_y + 0.5, pill_w - 1, pill_h - 1, 9.5, .{ 1, 1, 1, 0.045 }, 1.0);
+            }
+            const text_col: [4]f64 = if (active)
+                .{ 0.055, 0.08, 0.11, 1.0 }
+            else
+                .{ 0.70, 0.76, 0.86, if (occupied) 0.95 else 0.55 };
+            const family = if (named) m.barFont() else MONO;
+            const tw = textWidth(cr, labels[wi], family, "Medium", if (named) 8.2 else 9.0, 0);
+            _ = drawTextCentered(
+                cr,
+                labels[wi],
+                pill_x + (pill_w - tw) / 2.0,
+                cy + 0.5,
+                family,
+                "Medium",
+                if (named) 8.2 else 9.0,
+                text_col,
+                0,
+                0,
+            );
+            addBarHit(pill_x, ws_y - 2, pill_w, pill_h + 4, .{ .kind = .workspace, .value = ws });
+            pill_x += pill_w + pill_gap;
         }
-        const text_col: [4]f64 = if (active)
-            .{ 0.055, 0.08, 0.11, 1.0 }
-        else
-            .{ 0.70, 0.76, 0.86, if (occupied) 0.95 else 0.55 };
-        const family = if (named) g.font[0..g.font_len] else MONO;
-        const tw = textWidth(cr, labels[wi], family, "Medium", if (named) 8.2 else 9.0, 0);
-        _ = drawTextCentered(
-            cr,
-            labels[wi],
-            pill_x + (pill_w - tw) / 2.0,
-            cy + 0.5,
-            family,
-            "Medium",
-            if (named) 8.2 else 9.0,
-            text_col,
-            0,
-            0,
-        );
-        addBarHit(pill_x, ws_y - 2, pill_w, pill_h + 4, .{ .kind = .workspace, .value = ws });
-        pill_x += pill_w + pill_gap;
     }
 
     // window chips
@@ -926,6 +932,7 @@ pub fn drawBar(s: *m.Surface) void {
     var shown: usize = 0;
     var skipped: usize = 0;
     var index: usize = 0;
+    if (g.show_chips) {
     while (index < g.window_count) : (index += 1) {
         const w = &g.windows[index];
         if (!w.visible) continue;
@@ -936,7 +943,7 @@ pub fn drawBar(s: *m.Surface) void {
             w.app_id[0..w.app_len]
         else
             "untitled";
-        const tw = textWidth(cr, label, g.font[0..g.font_len], "Medium", 9.6, 0);
+        const tw = textWidth(cr, label, m.barFont(), "Medium", 9.6, 0);
         var chip_w = tw + 50.0;
         chip_w = std.math.clamp(chip_w, 92.0, 190.0);
         if (cx + chip_w > chips_end) {
@@ -964,9 +971,9 @@ pub fn drawBar(s: *m.Surface) void {
         fillRound(cr, cx + 6, cy - 8, 16, 16, 5, .{ col[0], col[1], col[2], 0.92 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(label));
-        _ = drawTextCentered(cr, glyph, cx + 10.6, cy + 0.3, g.font[0..g.font_len], "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
+        _ = drawTextCentered(cr, glyph, cx + 10.6, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
 
-        _ = drawTextCentered(cr, label, cx + 28, cy + 0.2, g.font[0..g.font_len], "Medium", 9.6, if (focused) .{ 1, 1, 1, 0.96 } else .{ 0.68, 0.74, 0.84, 0.9 }, chip_w - 36, 0);
+        _ = drawTextCentered(cr, label, cx + 28, cy + 0.2, m.barFont(), "Medium", 9.6, if (focused) .{ 1, 1, 1, 0.96 } else .{ 0.68, 0.74, 0.84, 0.9 }, chip_w - 36, 0);
         addBarHit(cx, chip_y, chip_w, chip_h, .{ .kind = .window, .value = w.id });
         cx += chip_w + 6;
         shown += 1;
@@ -978,170 +985,194 @@ pub fn drawBar(s: *m.Surface) void {
         const extra = std.fmt.bufPrint(&sbuf, "+{d}", .{skipped}) catch "+";
         _ = drawTextCentered(cr, extra, cx + 8, cy + 0.5, MONO, "Medium", 8.5, .{ 0.65, 0.71, 0.81, 0.8 }, 0, 0);
     }
-
-    // right cluster
-    const clock_right = W - 16.0;
-    const time = std.mem.sliceTo(&g.clock_buf, 0);
-    const tw = textWidth(cr, time, MONO, "Medium", 12.0, 0);
-    const time_x = clock_right - tw;
-    const date = std.mem.sliceTo(&g.date_buf, 0);
-    const dw = textWidth(cr, date, g.font[0..g.font_len], "Medium", 8.2, 0.9);
-    const date_x = time_x - 12.0 - dw;
-    const clock_hovered = g.hover.kind == .clock;
-
-    if (clock_hovered) {
-        fillRound(cr, date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, 9, .{
-            accent[0], accent[1], accent[2], 0.10,
-        });
-    }
-    _ = drawTextCentered(cr, time, time_x, cy + 0.3, MONO, "Medium", 12.0, .{
-        fg[0], fg[1], fg[2], 0.95,
-    }, 0, 0);
-    _ = drawTextCentered(cr, date, date_x, cy + 0.3, g.font[0..g.font_len], "Medium", 8.2, .{
-        0.66, 0.72, 0.82, if (clock_hovered) 0.78 else 0.55,
-    }, 0, 0.9);
-    addBarHit(date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, .{ .kind = .clock });
-    var right = date_x - 12.0;
-
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, right, cy - 7);
-    c.cairo_line_to(cr, right, cy + 7);
-    setColor(cr, .{ 1, 1, 1, 0.06 });
-    c.cairo_set_line_width(cr, 1);
-    c.cairo_stroke(cr);
-    right -= 12.0;
-
-    if (g.battery_percent >= 0 and W > 900) {
-        right = drawBatteryIndicator(cr, right, cy, fg);
-    }
-    if (g.network_present and W > 1000) {
-        right = drawNetworkIndicator(cr, right, cy, fg);
-    }
-    if (g.volume_percent >= 0 and W > 1080) {
-        const vol_right = right;
-        right = drawVolumeIndicator(cr, right, cy, fg);
-        addBarHit(right + 14, cy - 12, vol_right - (right + 14), 24, .{ .kind = .volume });
     }
 
-    if (W > 1180) {
-        var mbuf: [32]u8 = undefined;
-        const ms = std.fmt.bufPrint(&mbuf, "MEM {d:.0}%", .{g.mem_percent}) catch "MEM";
-        const mw = textWidth(cr, ms, MONO, "Medium", 8.2, 0);
-        _ = drawTextCentered(cr, ms, right - mw, cy + 0.3, MONO, "Medium", 8.2, .{ 0.60, 0.67, 0.77, 0.55 }, 0, 0);
-        right -= mw + 12.0;
+    // right cluster, in configured module order from right to left
+    var right = W - 16.0;
+    var right_first = true;
+    var mi: usize = 0;
+    while (mi < g.bar_module_count) : (mi += 1) {
+        switch (g.bar_modules[mi]) {
+            .clock => {
+                if (!g.show_clock) continue;
+                const clock_right = W - 16.0;
+                const time = std.mem.sliceTo(&g.clock_buf, 0);
+                const tw = textWidth(cr, time, MONO, "Medium", 12.0, 0);
+                const time_x = clock_right - tw;
+                const date = std.mem.sliceTo(&g.date_buf, 0);
+                const dw = textWidth(cr, date, m.barFont(), "Medium", 8.2, 0.9);
+                const date_x = time_x - 12.0 - dw;
+                const clock_hovered = g.hover.kind == .clock;
 
-        var cbuf: [32]u8 = undefined;
-        const cs = std.fmt.bufPrint(&cbuf, "CPU {d:.0}%", .{g.cpu_percent}) catch "CPU";
-        const cw = textWidth(cr, cs, MONO, "Medium", 8.2, 0);
-        _ = drawTextCentered(cr, cs, right - cw, cy + 0.3, MONO, "Medium", 8.2, .{ 0.60, 0.67, 0.77, 0.55 }, 0, 0);
-        right -= cw + 10.0;
-
-        const spark_w = 42.0;
-        drawSparkline(cr, right - spark_w, cy - 7, spark_w, 14);
-        // Reserve the sparkline before the media/tray/status clusters.
-        right -= spark_w + 12.0;
-    }
-
-    if ((g.media_status == 1 or g.media_status == 2) and W > 1250) {
-        const title = if (g.media_title_len > 0)
-            g.media_title[0..g.media_title_len]
-        else if (g.media_artist_len > 0)
-            g.media_artist[0..g.media_artist_len]
-        else if (g.media_player_len > 0)
-            g.media_player[0..g.media_player_len]
-        else
-            "Media";
-        const media_tw = @min(textWidth(cr, title, g.font[0..g.font_len], "Medium", 8.6, 0), 150.0);
-        const chip_w = media_tw + 46.0;
-        const chip_h = 24.0;
-        const chip_x = right - chip_w;
-        if (chip_x > cx + 12.0) {
-            const hovered = g.hover.kind == .media;
-            fillRound(cr, chip_x, cy - chip_h / 2.0, chip_w, chip_h, 8, .{
-                accent[0], accent[1], accent[2], if (hovered) 0.16 else 0.10,
-            });
-            strokeRound(cr, chip_x + 0.5, cy - chip_h / 2.0 + 0.5, chip_w - 1, chip_h - 1, 7.5, .{
-                accent[0], accent[1], accent[2], 0.22,
-            }, 1);
-            if (g.media_status == 1) {
-                fillRound(cr, chip_x + 11, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
-                fillRound(cr, chip_x + 15, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
-            } else {
-                c.cairo_new_path(cr);
-                c.cairo_move_to(cr, chip_x + 11, cy - 5);
-                c.cairo_line_to(cr, chip_x + 18, cy);
-                c.cairo_line_to(cr, chip_x + 11, cy + 5);
-                c.cairo_close_path(cr);
-                setColor(cr, .{ accent[0], accent[1], accent[2], 0.95 });
-                c.cairo_fill(cr);
-            }
-            _ = drawTextCentered(cr, title, chip_x + 27, cy + 0.3, g.font[0..g.font_len], "Medium", 8.6, .{
-                fg[0], fg[1], fg[2], 0.84,
-            }, media_tw, 0);
-            addBarHit(chip_x, cy - chip_h / 2.0 - 1, chip_w, chip_h + 2, .{ .kind = .media });
-            right = chip_x - 14.0;
-        }
-    }
-
-    if (g.tray_count > 0 and W > 980) {
-        const slot = 24.0;
-        const icon_size = 18.0;
-        const tray_w = @as(f64, @floatFromInt(g.tray_count)) * slot;
-        const tray_x = right - tray_w;
-        if (tray_x > cx + 12.0) {
-            var ti: usize = 0;
-            while (ti < g.tray_count) : (ti += 1) {
-                const item = &g.tray_items[ti];
-                const ix = tray_x + @as(f64, @floatFromInt(ti)) * slot;
-                const hovered = g.hover.kind == .tray and g.hover.value == ti;
-                if (hovered) {
-                    fillRound(cr, ix + 1, cy - 12, slot - 2, 24, 7, .{
-                        accent[0], accent[1], accent[2], 0.12,
+                if (clock_hovered) {
+                    fillRound(cr, date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, 9, .{
+                        accent[0], accent[1], accent[2], 0.10,
                     });
                 }
-                paintTrayIcon(cr, item, ix + (slot - icon_size) / 2.0, cy - icon_size / 2.0, icon_size);
-                addBarHit(ix, cy - 12, slot, 24, .{ .kind = .tray, .value = ti });
-            }
-            right = tray_x - 10.0;
-        }
-    }
+                _ = drawTextCentered(cr, time, time_x, cy + 0.3, MONO, "Medium", 12.0, .{
+                    fg[0], fg[1], fg[2], 0.95,
+                }, 0, 0);
+                _ = drawTextCentered(cr, date, date_x, cy + 0.3, m.barFont(), "Medium", 8.2, .{
+                    0.66, 0.72, 0.82, if (clock_hovered) 0.78 else 0.55,
+                }, 0, 0.9);
+                addBarHit(date_x - 9, cy - 13, clock_right + 8 - (date_x - 9), 26, .{ .kind = .clock });
+                right = date_x - 12.0;
 
-    // Extension status entries. They are right-aligned next to the built-in
-    // cluster and only drawn when they fit between the window chips and it.
-    var status_widths: [m.MAX_STATUS]f64 = undefined;
-    var status_fit: usize = 0;
-    var status_total: f64 = 0;
-    while (status_fit < g.status_count) : (status_fit += 1) {
-        const st = &g.statuses[status_fit];
-        const text = st.text[0..st.text_len];
-        const tw2 = @min(textWidth(cr, text, g.font[0..g.font_len], "Medium", 8.4, 0), 112.0);
-        const status_pill = tw2 + 20.0;
-        const gap2: f64 = if (status_fit == 0) 0 else 6.0;
-        if (right - status_total - status_pill - gap2 < cx + 12.0) break;
-        status_widths[status_fit] = status_pill;
-        status_total += status_pill + gap2;
-    }
+                if (right_first) {
+                    c.cairo_new_path(cr);
+                    c.cairo_move_to(cr, right, cy - 7);
+                    c.cairo_line_to(cr, right, cy + 7);
+                    setColor(cr, .{ 1, 1, 1, 0.06 });
+                    c.cairo_set_line_width(cr, 1);
+                    c.cairo_stroke(cr);
+                    right -= 12.0;
+                }
+                right_first = false;
+            },
+            .battery => {
+                if (!g.show_battery or g.battery_percent < 0 or W <= 900) continue;
+                right = drawBatteryIndicator(cr, right, cy, fg);
+                right_first = false;
+            },
+            .network => {
+                if (!g.show_network or !g.network_present or W <= 1000) continue;
+                right = drawNetworkIndicator(cr, right, cy, fg);
+                right_first = false;
+            },
+            .volume => {
+                if (!g.show_volume or g.volume_percent < 0 or W <= 1080) continue;
+                const vol_right = right;
+                right = drawVolumeIndicator(cr, right, cy, fg);
+                addBarHit(right + 14, cy - 12, vol_right - (right + 14), 24, .{ .kind = .volume });
+                right_first = false;
+            },
+            .stats => {
+                if (!g.show_stats or W <= 1180) continue;
+                var mbuf: [32]u8 = undefined;
+                const ms = std.fmt.bufPrint(&mbuf, "MEM {d:.0}%", .{g.mem_percent}) catch "MEM";
+                const mw = textWidth(cr, ms, MONO, "Medium", 8.2, 0);
+                _ = drawTextCentered(cr, ms, right - mw, cy + 0.3, MONO, "Medium", 8.2, .{ 0.60, 0.67, 0.77, 0.55 }, 0, 0);
+                right -= mw + 12.0;
 
-    if (status_fit > 0) {
-        var sx = right - status_total;
-        var si: usize = 0;
-        while (si < status_fit) : (si += 1) {
-            const st = &g.statuses[si];
-            const status_w = status_widths[si];
-            const hovered = g.hover.kind == .status and g.hover.value == si;
-            fillRound(cr, sx, cy - 10, status_w, 20, 6, .{
-                1, 1, 1, if (hovered) 0.075 else 0.040,
-            });
-            strokeRound(cr, sx + 0.5, cy - 9.5, status_w - 1, 19, 5.5, .{
-                1, 1, 1, if (hovered) 0.10 else 0.045,
-            }, 1.0);
-            const col: [4]f64 = if (hovered)
-                .{ 0.92, 0.95, 0.99, 0.98 }
-            else
-                .{ 0.68, 0.74, 0.84, 0.88 };
-            _ = drawTextCentered(cr, st.text[0..st.text_len], sx + 10, cy + 0.3, g.font[0..g.font_len], "Medium", 8.4, col, status_w - 20, 0);
-            addBarHit(sx, cy - 11, status_w, 22, .{ .kind = .status, .value = si });
-            sx += status_w + 6.0;
+                var cbuf: [32]u8 = undefined;
+                const cs = std.fmt.bufPrint(&cbuf, "CPU {d:.0}%", .{g.cpu_percent}) catch "CPU";
+                const cw = textWidth(cr, cs, MONO, "Medium", 8.2, 0);
+                _ = drawTextCentered(cr, cs, right - cw, cy + 0.3, MONO, "Medium", 8.2, .{ 0.60, 0.67, 0.77, 0.55 }, 0, 0);
+                right -= cw + 10.0;
+
+                const spark_w = 42.0;
+                drawSparkline(cr, right - spark_w, cy - 7, spark_w, 14);
+                right -= spark_w + 12.0;
+                right_first = false;
+            },
+            .media => {
+                if (!g.show_media or (g.media_status != 1 and g.media_status != 2) or W <= 1250) continue;
+                const title = if (g.media_title_len > 0)
+                    g.media_title[0..g.media_title_len]
+                else if (g.media_artist_len > 0)
+                    g.media_artist[0..g.media_artist_len]
+                else if (g.media_player_len > 0)
+                    g.media_player[0..g.media_player_len]
+                else
+                    "Media";
+                const media_tw = @min(textWidth(cr, title, m.barFont(), "Medium", 8.6, 0), 150.0);
+                const chip_w = media_tw + 46.0;
+                const chip_h = 24.0;
+                const chip_x = right - chip_w;
+                if (chip_x > cx + 12.0) {
+                    const hovered = g.hover.kind == .media;
+                    fillRound(cr, chip_x, cy - chip_h / 2.0, chip_w, chip_h, 8, .{
+                        accent[0], accent[1], accent[2], if (hovered) 0.16 else 0.10,
+                    });
+                    strokeRound(cr, chip_x + 0.5, cy - chip_h / 2.0 + 0.5, chip_w - 1, chip_h - 1, 7.5, .{
+                        accent[0], accent[1], accent[2], 0.22,
+                    }, 1);
+                    if (g.media_status == 1) {
+                        fillRound(cr, chip_x + 11, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
+                        fillRound(cr, chip_x + 15, cy - 4.5, 2.2, 9, 1, .{ accent[0], accent[1], accent[2], 0.95 });
+                    } else {
+                        c.cairo_new_path(cr);
+                        c.cairo_move_to(cr, chip_x + 11, cy - 5);
+                        c.cairo_line_to(cr, chip_x + 18, cy);
+                        c.cairo_line_to(cr, chip_x + 11, cy + 5);
+                        c.cairo_close_path(cr);
+                        setColor(cr, .{ accent[0], accent[1], accent[2], 0.95 });
+                        c.cairo_fill(cr);
+                    }
+                    _ = drawTextCentered(cr, title, chip_x + 27, cy + 0.3, m.barFont(), "Medium", 8.6, .{
+                        fg[0], fg[1], fg[2], 0.84,
+                    }, media_tw, 0);
+                    addBarHit(chip_x, cy - chip_h / 2.0 - 1, chip_w, chip_h + 2, .{ .kind = .media });
+                    right = chip_x - 14.0;
+                    right_first = false;
+                }
+            },
+            .tray => {
+                if (!g.show_tray or g.tray_count == 0 or W <= 980) continue;
+                const slot = 24.0;
+                const icon_size = 18.0;
+                const tray_w = @as(f64, @floatFromInt(g.tray_count)) * slot;
+                const tray_x = right - tray_w;
+                if (tray_x > cx + 12.0) {
+                    var ti: usize = 0;
+                    while (ti < g.tray_count) : (ti += 1) {
+                        const item = &g.tray_items[ti];
+                        const ix = tray_x + @as(f64, @floatFromInt(ti)) * slot;
+                        const hovered = g.hover.kind == .tray and g.hover.value == ti;
+                        if (hovered) {
+                            fillRound(cr, ix + 1, cy - 12, slot - 2, 24, 7, .{
+                                accent[0], accent[1], accent[2], 0.12,
+                            });
+                        }
+                        paintTrayIcon(cr, item, ix + (slot - icon_size) / 2.0, cy - icon_size / 2.0, icon_size);
+                        addBarHit(ix, cy - 12, slot, 24, .{ .kind = .tray, .value = ti });
+                    }
+                    right = tray_x - 10.0;
+                    right_first = false;
+                }
+            },
+            .status => {
+                if (!g.show_status) continue;
+                var status_widths: [m.MAX_STATUS]f64 = undefined;
+                var status_fit: usize = 0;
+                var status_total: f64 = 0;
+                while (status_fit < g.status_count) : (status_fit += 1) {
+                    const st = &g.statuses[status_fit];
+                    const text = st.text[0..st.text_len];
+                    const tw2 = @min(textWidth(cr, text, m.barFont(), "Medium", 8.4, 0), 112.0);
+                    const status_pill = tw2 + 20.0;
+                    const gap2: f64 = if (status_fit == 0) 0 else 6.0;
+                    if (right - status_total - status_pill - gap2 < cx + 12.0) break;
+                    status_widths[status_fit] = status_pill;
+                    status_total += status_pill + gap2;
+                }
+
+                if (status_fit > 0) {
+                    var sx = right - status_total;
+                    var si: usize = 0;
+                    while (si < status_fit) : (si += 1) {
+                        const st = &g.statuses[si];
+                        const status_w = status_widths[si];
+                        const hovered = g.hover.kind == .status and g.hover.value == si;
+                        fillRound(cr, sx, cy - 10, status_w, 20, 6, .{
+                            1, 1, 1, if (hovered) 0.075 else 0.040,
+                        });
+                        strokeRound(cr, sx + 0.5, cy - 9.5, status_w - 1, 19, 5.5, .{
+                            1, 1, 1, if (hovered) 0.10 else 0.045,
+                        }, 1.0);
+                        const col: [4]f64 = if (hovered)
+                            .{ 0.92, 0.95, 0.99, 0.98 }
+                        else
+                            .{ 0.68, 0.74, 0.84, 0.88 };
+                        _ = drawTextCentered(cr, st.text[0..st.text_len], sx + 10, cy + 0.3, m.barFont(), "Medium", 8.4, col, status_w - 20, 0);
+                        addBarHit(sx, cy - 11, status_w, 22, .{ .kind = .status, .value = si });
+                        sx += status_w + 6.0;
+                    }
+                    right = right - status_total - 12.0;
+                    right_first = false;
+                }
+            },
+            else => {},
         }
     }
 
@@ -1162,7 +1193,9 @@ fn addOverlayHit(x: f64, y: f64, w: f64, h: f64, hit: m.Hit) void {
 
 fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const bg = g.launcher_bg;
+    const fg = g.launcher_fg;
+    const fam = m.launcherFont();
 
     c.cairo_push_group(cr);
 
@@ -1173,9 +1206,14 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
         fillRound(cr, px - expand, py - expand + 8, pw + expand * 2, ph + expand * 2, 28 + expand, .{ 0, 0, 0, 0.035 });
     }
 
-    fillRound(cr, px, py, pw, ph, 24, .{ 0.055, 0.072, 0.105, 0.985 });
+    fillRound(cr, px, py, pw, ph, 24, .{ bg[0], bg[1], bg[2], 0.985 });
     roundRect(cr, px, py, pw, ph, 24);
-    linearGradient(cr, px, py, px, py + ph, .{ 0.085, 0.105, 0.15, 0.99 }, .{ 0.032, 0.043, 0.068, 0.99 });
+    linearGradient(cr, px, py, px, py + ph, .{
+        std.math.clamp(bg[0] * 1.55 + 0.01, 0, 1),
+        std.math.clamp(bg[1] * 1.55 + 0.01, 0, 1),
+        std.math.clamp(bg[2] * 1.55 + 0.01, 0, 1),
+        0.99,
+    }, .{ bg[0] * 0.58, bg[1] * 0.58, bg[2] * 0.64, 0.99 });
     c.cairo_fill(cr);
     strokeRound(cr, px + 0.5, py + 0.5, pw - 1, ph - 1, 23.5, .{ 1, 1, 1, 0.11 }, 1.0);
 
@@ -1190,7 +1228,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
 
     // header
     drawPetal(cr, px + 44, py + 44, 10.0, .{ accent[0], accent[1], accent[2], 1.0 });
-    _ = drawText(cr, "Tessa", px + 64, py + 26, fam, "Semi-Bold", 24, .{ 0.94, 0.96, 0.99, 0.98 }, 0, 0);
+    _ = drawText(cr, "Tessa", px + 64, py + 26, fam, "Semi-Bold", 24, .{ fg[0], fg[1], fg[2], 0.98 }, 0, 0);
     _ = drawText(cr, "SUMI SHELL  /  LAUNCHER", px + 66, py + 60, fam, "Medium", 7.8, .{ 0.64, 0.70, 0.80, 0.42 }, 0, 1.8);
 
     // search box
@@ -1219,7 +1257,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     } else {
         var cursor_x = text_x;
         if (query.len > 0) {
-            const size = drawTextCentered(cr, query, cursor_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ 0.94, 0.96, 0.99, 0.98 }, sw - 110, 0);
+            const size = drawTextCentered(cr, query, cursor_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ fg[0], fg[1], fg[2], 0.98 }, sw - 110, 0);
             cursor_x += size.w;
         }
         if (preedit.len > 0) {
@@ -1303,7 +1341,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
             const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
             _ = drawTextCentered(cr, glyph, row_x + 21, y + 24, fam, "Semi-Bold", 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
 
-            _ = drawText(cr, app.name[0..app.name_len], row_x + 60, y + 10, fam, "Semi-Bold", 11.2, if (selected) .{ 0.97, 0.98, 1, 1 } else .{ 0.86, 0.90, 0.95, 0.9 }, row_w - 130, 0);
+            _ = drawText(cr, app.name[0..app.name_len], row_x + 60, y + 10, fam, "Semi-Bold", 11.2, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - 130, 0);
             _ = drawText(cr, app.comment[0..app.comment_len], row_x + 60, y + 28, fam, "Regular", 8.7, .{ 0.62, 0.68, 0.77, 0.62 }, row_w - 130, 0);
 
             if (app.terminal) {
@@ -1383,6 +1421,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
 
 fn drawPopoverCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
     const accent = g.accent;
+    const bg = g.popover_bg;
     var i: usize = 0;
     while (i < 7) : (i += 1) {
         const expand = 6.0 + @as(f64, @floatFromInt(i)) * 4.0;
@@ -1391,11 +1430,14 @@ fn drawPopoverCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
         });
     }
 
-    fillRound(cr, x, y, w, h, 18, .{ 0.055, 0.072, 0.105, 0.985 });
+    fillRound(cr, x, y, w, h, 18, .{ bg[0], bg[1], bg[2], 0.985 });
     roundRect(cr, x, y, w, h, 18);
-    linearGradient(cr, x, y, x, y + h, .{ 0.088, 0.108, 0.152, 0.99 }, .{
-        0.032, 0.043, 0.068, 0.99,
-    });
+    linearGradient(cr, x, y, x, y + h, .{
+        std.math.clamp(bg[0] * 1.6 + 0.01, 0, 1),
+        std.math.clamp(bg[1] * 1.6 + 0.01, 0, 1),
+        std.math.clamp(bg[2] * 1.6 + 0.01, 0, 1),
+        0.99,
+    }, .{ bg[0] * 0.58, bg[1] * 0.58, bg[2] * 0.64, 0.99 });
     c.cairo_fill(cr);
     strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 17.5, .{ 1, 1, 1, 0.11 }, 1.0);
 
@@ -1411,7 +1453,7 @@ fn drawPopoverCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
 
 fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.calendar, W, H);
     const x = p.x;
     const y = p.y;
@@ -1434,7 +1476,7 @@ fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     var title_buf: [48]u8 = undefined;
     const title = std.fmt.bufPrint(&title_buf, "{s} {d}", .{ month_name, g.calendar_year }) catch month_name;
     _ = drawText(cr, title, x + 24, y + 34, fam, "Semi-Bold", 19.5, .{
-        0.95, 0.97, 0.99, 0.98,
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98,
     }, w - 140, 0);
 
     const nav_y = y + 20;
@@ -1545,7 +1587,7 @@ fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
 fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.power, W, H);
     const x = p.x;
     const y = p.y;
@@ -1565,7 +1607,7 @@ fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         0.64, 0.70, 0.80, 0.45,
     }, 0, 1.6);
     _ = drawText(cr, "Power", x + 48, y + 33, fam, "Semi-Bold", 21.0, .{
-        0.95, 0.97, 0.99, 0.98,
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98,
     }, w - 72, 0);
 
     c.cairo_new_path(cr);
@@ -1608,8 +1650,8 @@ fn drawPowerPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
             1, 1, 1, 0.96,
         }, 0, 0);
         _ = drawText(cr, label, x + 66, row_y + 7, fam, "Semi-Bold", 10.6, if (selected) .{
-            0.98, 0.99, 1, 1,
-        } else .{ 0.84, 0.89, 0.95, 0.9 }, row_w - 90, 0);
+            g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 1,
+        } else .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.9 }, row_w - 90, 0);
         _ = drawText(cr, m.power_details[i], x + 66, row_y + 24, fam, "Regular", 8.0, .{
             0.60, 0.66, 0.76, 0.58,
         }, row_w - 90, 0);
@@ -1654,9 +1696,9 @@ pub fn drawToasts(s: *m.Surface) void {
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
     const accent = g.accent;
-    const bg = g.panel_bg;
-    const fg = g.panel_fg;
-    const fam = g.font[0..g.font_len];
+    const bg = g.toast_bg;
+    const fg = g.toast_fg;
+    const fam = m.toastFont();
     g.toast_hit_count = 0;
     g.toast_action_hit_count = 0;
 
@@ -1814,7 +1856,7 @@ fn clipboardPreview(buf: []u8, text: []const u8) []const u8 {
 
 fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.clipboard, W, H);
     const x = p.x;
     const y = p.y;
@@ -1834,7 +1876,7 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         0.64, 0.70, 0.80, 0.45,
     }, 0, 1.6);
     _ = drawText(cr, "History", x + 48, y + 33, fam, "Semi-Bold", 21.0, .{
-        0.95, 0.97, 0.99, 0.98,
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98,
     }, w - 72, 0);
 
     var count_buf: [48]u8 = undefined;
@@ -1895,8 +1937,8 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
             var preview_buf: [160]u8 = undefined;
             const preview = clipboardPreview(&preview_buf, entry.text[0..entry.len]);
             _ = drawTextCentered(cr, preview, row_x + 44, row_y + row_h / 2.0, fam, "Medium", 10.0, if (selected) .{
-                0.97, 0.98, 1, 1,
-            } else .{ 0.82, 0.87, 0.94, 0.88 }, row_w - 150, 0);
+                g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 1,
+            } else .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.88 }, row_w - 150, 0);
 
             var size_buf: [24]u8 = undefined;
             const size = std.fmt.bufPrint(&size_buf, "{d} B", .{entry.len}) catch "";
@@ -1944,7 +1986,7 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
 fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
 
     fillRound(cr, 0, 0, W, H, 0, .{ 0.008, 0.012, 0.020, 0.38 * t });
     g.overlay_hit_count = 0;
@@ -2029,7 +2071,7 @@ fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
 fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.audio, W, H);
     const x = p.x;
     const y = p.y;
@@ -2063,7 +2105,7 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         const value_col: [4]f64 = if (g.volume_muted)
             .{ 0.58, 0.63, 0.72, 0.55 }
         else
-            .{ 0.96, 0.98, 1.0, 0.98 };
+            .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98 };
         const vw = drawText(cr, value, x + 24, y + 50, fam, "Semi-Bold", 46.0, value_col, w - 120, 0).w;
         _ = drawText(cr, "%", x + 28 + vw, y + 76, fam, "Medium", 15.0, .{
             value_col[0], value_col[1], value_col[2], 0.62,
@@ -2155,7 +2197,7 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
 fn drawTrayPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.tray, W, H);
     const x = p.x;
     const y = p.y;
@@ -2219,7 +2261,7 @@ fn drawTrayPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
             paintTrayIcon(cr, item, x + 28, row_y + 8, 24);
             const title = if (item.title_len > 0) item.title[0..item.title_len] else "Tray item";
             _ = drawText(cr, title, x + 62, row_y + 9, fam, "Medium", 10.0, .{
-                0.92, 0.95, 0.99, 0.95,
+                g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.95,
             }, row_w - 140, 0);
             const status_text = switch (item.status) {
                 1 => "ACTIVE",
@@ -2251,7 +2293,7 @@ fn drawTrayPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
 fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
-    const fam = g.font[0..g.font_len];
+    const fam = m.popoverFont();
     const p = popoverLayout(.media, W, H);
     const x = p.x;
     const y = p.y;
@@ -2306,8 +2348,8 @@ fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     }, 0, 0);
 
     _ = drawText(cr, title, x + 100, y + 43, fam, "Semi-Bold", 16.0, if (active) .{
-        0.96, 0.98, 1, 0.98,
-    } else .{ 0.85, 0.89, 0.95, 0.8 }, w - 124, 0);
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98,
+    } else .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.8 }, w - 124, 0);
     _ = drawText(cr, artist, x + 100, y + 66, fam, "Regular", 9.2, .{
         0.66, 0.72, 0.81, 0.70,
     }, w - 124, 0);

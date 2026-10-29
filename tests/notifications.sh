@@ -43,6 +43,7 @@ chmod 700 "$runtime"
 cat > "$runtime/config" <<EOF
 panel = true
 xwayland = false
+layer-rule = namespace=tessa-notifications; opacity=0.65; corner-radius=17; blur=false
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -138,8 +139,9 @@ gdbus call --session \
 grep -q "Tessa" "$runtime/server"
 echo "notification service + introspection: ok"
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "python3 not found; skipping rich notification test"
+if ! command -v python3 >/dev/null 2>&1 ||
+    ! python3 -c 'import gi; gi.require_version("GLib", "2.0"); from gi.repository import GLib' 2>/dev/null; then
+    echo "python3 gi/GLib not available; skipping rich notification test"
 else
     gdbus monitor --session --dest org.freedesktop.Notifications \
         >"$runtime/monitor.log" 2>&1 &
@@ -185,7 +187,17 @@ if [ -z "$id" ]; then
 fi
 wait_log "notification: added id=$id total=1"
 wait_log "layer map: tessa-notifications layer=2 keyboard=0"
-echo "notification toast: ok"
+tessa-ctl state | awk -F '\t' '
+    $1 == "LAYER" && $2 == "tessa-notifications" {
+        if ($5 == "0.650" && $6 == "17") found = 1
+    }
+    END { exit(found ? 0 : 1) }
+' || {
+    echo "notification layer rule was not applied" >&2
+    tessa-ctl state | grep -E '^LAYER' >&2 || true
+    exit 1
+}
+echo "notification toast: ok (layer rule)"
 
 gdbus call --session \
     --dest org.freedesktop.Notifications \

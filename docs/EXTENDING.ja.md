@@ -21,6 +21,10 @@ Tessa はプラグイン VM や JavaScript 設定ランタイムを意図的に�
 ```sh
 tessa-ctl state                         # スナップショットを 1 回表示
 tessa-ctl config                        # 実効設定とルールを表示
+tessa-ctl config-check [file]           # 現在／候補設定を検証
+tessa-ctl config-diff file              # 実効設定の差分をプレビュー
+tessa-ctl config-edit [file]            # 編集・検証・差分・適用
+tessa-ctl perf [--json] [--reset]       # 描画コミットのフレーム時間
 tessa-ctl events                        # 全イベントを購読
 tessa-ctl events window-focus           # 1 トピックだけ購読
 tessa-ctl workspace 3                   # フォーカス中の出力
@@ -297,6 +301,75 @@ Tessa はヘルパープロセスを保持し、使用可能領域、ウィン�
 タイトルと、返されたフレーム矩形をタブ区切りで交換します。プロトコル全体、
 タイムアウト、フォールバックの仕様は
 [CUSTOMIZATION.ja.md](CUSTOMIZATION.ja.md#外部レイアウトヘルパー) にあります。
+
+## エフェクトヘルパープロトコル
+
+`effect_helper` はコンポジタごとに 1 つの常駐プロセスを起動します。ウィンドウの
+メタデータ、フォーカス、ジオメトリ、ルール適用後の見た目が変わるたびに、
+タブ区切りの完全なスナップショットを送ります:
+
+```text
+HELLO\t1
+EFFECT\t1
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+...
+END
+```
+
+`focused`、`urgent`、`fullscreen`、`floating`、`visible` は `0`/`1`。
+`opacity`、角丸、ボーダー幅はルール適用後の値、`blur`/`shadow` は `on`、
+`off`、`unset` です。応答:
+
+```text
+VERSION\t1
+WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+...
+END
+```
+
+上書きはウィンドウごとに任意です。Tessa はリクエスト内の ID、重複、範囲
+（opacity 0〜1、角丸 0〜64、ボーダー幅 0〜16）を検証します。応答にない
+ウィンドウはルール適用値へ戻ります。タイムアウト、クラッシュ、未知の ID、
+不正なモード、`END` 欠落では全上書きを破棄し、1 秒後に再試行します。
+stdout はプロトコル専用で、診断は stderr に出してください。リクエストは
+合流され、応答待ちの間は最新状態だけが次に送られます。
+
+最小例:
+
+```python
+#!/usr/bin/env python3
+import sys
+
+while True:
+    lines = []
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            raise SystemExit(0)
+        line = line.rstrip("\n")
+        if line == "END":
+            break
+        lines.append(line.split("\t"))
+    out = ["VERSION\t1"]
+    for fields in lines:
+        if fields[0] != "WINDOW":
+            continue
+        window_id, app_id, title = fields[1], fields[2], fields[3]
+        if app_id == "org.example.notes" or "notes" in title.lower():
+            out.append(f"WINDOW\t{window_id}\t0.92\t18\toff\toff\t3")
+    out.append("END")
+    sys.stdout.write("\n".join(out) + "\n")
+    sys.stdout.flush()
+```
+
+```ini
+effect_helper = python3 ~/.config/tessa/effects.py
+effect_helper_timeout = 200
+```
+
+ヘルパーはコンポジタと同じ権限で動き、サンドボックスはありません。調整
+できるのは宣言済みの視覚プロパティだけで、コンポジタ内へのシェーダー注入や
+コード実行はできません。`tests/effect-helper.sh` が上書きと解除を検証します。
 
 ## ランチャー項目と include
 

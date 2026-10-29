@@ -369,7 +369,19 @@ fn apply(rule: *const WindowRule, client: *Client) void {
     }
     if (rule.scratchpad != .unset) {
         client.scratchpad = rule.scratchpad == .on;
-        if (client.scratchpad) client.floating = true;
+        if (client.scratchpad) {
+            client.floating = true;
+            client.special_workspace_len = 0;
+        }
+    }
+    if (rule.special_workspace_len > 0) {
+        core.copyString(
+            &client.special_workspace,
+            &client.special_workspace_len,
+            rule.special_workspace[0..rule.special_workspace_len],
+        );
+        client.scratchpad = false;
+        client.floating = true;
     }
 }
 
@@ -377,13 +389,17 @@ pub fn applyToClient(client: *Client) void {
     const cfg = &client.server.config;
     resetDecorations(client);
     const was_scratchpad = client.scratchpad;
+    const had_special = client.special_workspace_len > 0;
     client.scratchpad = false;
+    client.special_workspace_len = 0;
     var i: usize = 0;
     while (i < cfg.rule_count) : (i += 1) {
         const rule = &cfg.rules[i];
         if (matches(rule, client)) apply(rule, client);
     }
-    if (was_scratchpad and !client.scratchpad) {
+    if ((was_scratchpad or had_special) and
+        !client.scratchpad and client.special_workspace_len == 0)
+    {
         client.floating = false;
         client.float_w = 0;
         client.float_h = 0;
