@@ -225,6 +225,12 @@ pointer_constraints = true
 # cursor_theme = Adwaita
 cursor_size = 24
 
+# Advertise zwp_linux_dmabuf_v1 to clients. Tessa disables it automatically on
+# vmwgfx, where the kernel rejects wlroots' dmabuf handle-close path and clients
+# disconnect with "importing the supplied dmabufs failed". Set
+# TESSA_ALLOW_LINUX_DMABUF=1 to force it back on for debugging.
+# linux_dmabuf = true
+
 # Where wlr-randr changes are persisted. The default is
 # $XDG_CONFIG_HOME/tessa/outputs.conf (or ~/.config/tessa/outputs.conf).
 # TESSA_OUTPUT_CONFIG overrides this. Use an absolute path.

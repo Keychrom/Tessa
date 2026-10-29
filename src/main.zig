@@ -20,7 +20,7 @@ const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
 
-pub const version = "0.2.2";
+pub const version = "0.2.3";
 
 fn onSignal(sig: c_int, data: ?*anyopaque) callconv(.c) c_int {
     _ = sig;
@@ -112,6 +112,32 @@ fn onXwaylandReady(data: ?*anyopaque) callconv(.c) c_int {
     return 0;
 }
 
+fn pathExists(path: []const u8) bool {
+    var z: [128:0]u8 = undefined;
+    if (path.len >= z.len) return false;
+    core.copyZ(&z, path);
+    return c.access(&z, c.F_OK) == 0;
+}
+
+fn virtualGpuDetected() bool {
+    const modules = [_][]const u8{
+        "/sys/module/vmwgfx",
+        "/sys/module/vboxvideo",
+        "/sys/module/bochs",
+        "/sys/module/qxl",
+        "/sys/module/cirrus",
+        "/sys/module/virtio_gpu",
+    };
+    for (modules) |path| {
+        if (pathExists(path)) return true;
+    }
+    return false;
+}
+
+fn vmwgfxDetected() bool {
+    return pathExists("/sys/module/vmwgfx");
+}
+
 fn startXwayland(server: *Server) void {
     if (!server.config.xwayland) return;
     if (c.getenv("TESSA_NO_XWAYLAND") != null) return;
@@ -180,6 +206,17 @@ pub fn main() !void {
 
     config.load(server);
 
+    const virtual_gpu = virtualGpuDetected();
+    if (virtual_gpu and c.getenv("WLR_NO_HARDWARE_CURSORS") == null) {
+        _ = c.setenv("WLR_NO_HARDWARE_CURSORS", "1", 1);
+        core.logInfo("platform: virtual GPU detected; using software cursors", .{});
+    }
+    // vmwgfx (VMware/VirtualBox VMSVGA) rejects the handle close performed by
+    // wlroots' linux-dmabuf import path. Clients then receive a fatal dmabuf
+    // import error, so keep them on wl_shm unless explicitly overridden.
+    const allow_linux_dmabuf = server.config.linux_dmabuf and
+        (!vmwgfxDetected() or c.getenv("TESSA_ALLOW_LINUX_DMABUF") != null);
+
     server.display = c.wl_display_create() orelse {
         core.logInfo("failed to create wl_display", .{});
         return error.DisplayCreateFailed;
@@ -199,7 +236,13 @@ pub fn main() !void {
         core.logInfo("failed to create renderer", .{});
         return error.RendererCreateFailed;
     };
-    _ = c.wlr_renderer_init_wl_display(server.renderer, server.display);
+    // wlr_renderer_init_wl_display() also creates linux-dmabuf v4, bypassing
+    // the vmwgfx guard below. Create wl_shm directly and add dmabuf only when
+    // the platform supports it.
+    if (!c.wlr_renderer_init_wl_shm(server.renderer, server.display)) {
+        core.logInfo("failed to initialize wl_shm", .{});
+        return error.ShmCreateFailed;
+    }
 
     server.allocator = c.wlr_allocator_autocreate(server.backend, server.renderer) orelse {
         core.logInfo("failed to create allocator", .{});
@@ -230,8 +273,14 @@ pub fn main() !void {
         core.logInfo("wlr-data-control-v1 enabled", .{});
     }
     _ = c.wlr_screencopy_manager_v1_create(server.display);
-    if (c.wlr_linux_dmabuf_v1_create_with_renderer(server.display, 5, server.renderer) != null) {
-        core.logInfo("linux-dmabuf-v1 enabled", .{});
+    if (allow_linux_dmabuf) {
+        if (c.wlr_linux_dmabuf_v1_create_with_renderer(server.display, 5, server.renderer) != null) {
+            core.logInfo("linux-dmabuf-v1 enabled", .{});
+        }
+    } else if (!server.config.linux_dmabuf) {
+        core.logInfo("linux-dmabuf-v1 disabled by config", .{});
+    } else {
+        core.logInfo("linux-dmabuf-v1 disabled on vmwgfx; set TESSA_ALLOW_LINUX_DMABUF=1 to override", .{});
     }
     if (c.wlr_ext_output_image_capture_source_manager_v1_create(server.display, 1) != null) {
         core.logInfo("ext-output-image-capture-source enabled", .{});

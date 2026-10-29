@@ -1,3 +1,16 @@
+tessa (0.2.3) unstable; urgency=medium
+
+  * Disable linux-dmabuf automatically on vmwgfx, where client dmabuf imports
+    fail with "importing the supplied dmabufs failed" and terminal/browser
+    clients disconnect. Clients fall back to wl_shm; a config option and
+    TESSA_ALLOW_LINUX_DMABUF override are available.
+  * Enable software cursors automatically when Tessa detects vmwgfx,
+    vboxvideo, bochs, qxl, cirrus, or virtio_gpu, including when launched
+    directly outside the session script.
+  * Add a linux-dmabuf-off regression test.
+
+ -- Tessa contributors <maintainers@tessa.invalid>  Thu, 29 Oct 2026 18:30:00 +0900
+
 tessa (0.2.2) unstable; urgency=medium
 
   * Restore the compositor default cursor when pointer focus moves to a new

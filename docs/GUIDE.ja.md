@@ -80,15 +80,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 バイナリパッケージ（Ubuntu 26.04）
 
-推奨は `v0.2.2` の amd64 パッケージです:
+推奨は `v0.2.3` の amd64 パッケージです:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
-grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
+grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.3_amd64.deb
 ```
 
 パッケージが導入するもの:
@@ -1803,16 +1803,17 @@ sudo apt install adwaita-icon-theme
 ```
 
 `tessa` パッケージは `xcursor-themes` に依存するようになりました。古いテーマに
-は `default` が無く `left_ptr` だけのものがありますが、Tessa 0.2.2 は
+は `default` が無く `left_ptr` だけのものがありますが、Tessa 0.2.3 は
 `default`、`left_ptr`、`arrow` の順で利用可能な名前を選び、ログに出します。
 設定した `cursor_theme` を読み込めない場合は警告をログに出し、システムカーソル
 へフォールバックします。`~/.local/state/tessa/tessa.log` またはコンポジタの
 出力を確認してください。
 
 仮想マシンでは DRM のハードウェアカーソルプレーンが透明になることがあります。
-`tessa-session` は `systemd-detect-virt` が VM を検出した場合、
-`WLR_NO_HARDWARE_CURSORS=1` を自動設定します。直接起動する場合は次を使って
-ください:
+Tessa 0.2.3 は vmwgfx、vboxvideo、bochs、qxl、cirrus、virtio_gpu を検出すると、
+直接起動した場合でも `WLR_NO_HARDWARE_CURSORS=1` を自動設定します。
+`tessa-session` は他の VM も `systemd-detect-virt` で検出して設定します。
+手動で指定する場合は次を使ってください:
 
 ```sh
 WLR_NO_HARDWARE_CURSORS=1 tessa
@@ -1829,7 +1830,7 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.2 は既定ターミナルが見つからない場合、`foot`、`kitty`、
+Tessa 0.2.3 は既定ターミナルが見つからない場合、`foot`、`kitty`、
 `alacritty`、`wezterm`、`xterm` の順で解決し、使用したコマンドをログに
 出します。明示的に設定した `terminal = ...` は置き換えません。Kitty は
 EGL/GL が必要なので、GPU のない VM では `foot` を使うか
@@ -1854,6 +1855,11 @@ WAYLAND_DEBUG=1 kitty
   3D の動かない VM では `foot` を使ってください。
   `LIBGL_ALWAYS_SOFTWARE=1` は Mesa のソフトウェア EGL が入っている場合だけ
   有効です。
+- **`importing the supplied dmabufs failed` / Broken pipe が vmwgfx で出る:**
+  vmwgfx の linux-dmabuf 不具合で、Kitty の問題ではありません。Tessa 0.2.3 は
+  vmwgfx で `linux-dmabuf-v1` を無効にし、クライアントを `wl_shm` に
+  フォールバックさせます。再検証する場合だけ
+  `TESSA_ALLOW_LINUX_DMABUF=1` を設定してください。
 - **`Terminal=true` のデスクトップエントリがコマンド終了直後に閉じる:**
   これは仕様です。Tessa は `terminal sh -c '<command>'` として起動するため、
   一瞬で終わるコマンドはターミナルも一瞬で終了します。`kitty.desktop` は
@@ -1866,7 +1872,7 @@ WAYLAND_DEBUG=1 kitty
 - `xwayland = true`
 - `TESSA_NO_XWAYLAND` が設定されていないか
 - ログに `xwayland: '...' not found; X11 apps disabled` が出ていないか
-- ログに `xwayland: connected on :N` が出ているか。Tessa 0.2.2 はこの後に
+- ログに `xwayland: connected on :N` が出ているか。Tessa 0.2.3 はこの後に
   初めて `DISPLAY` を設定します
 
 サテライトを起動できない場合に架空の `DISPLAY` を設定しないため、X11

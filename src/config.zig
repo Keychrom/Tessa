@@ -71,6 +71,7 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.mode_count = 1;
     cfg.autostart_panel = true;
     cfg.xwayland = true;
+    cfg.linux_dmabuf = true;
     copyDefault(&cfg.xwayland_display, &cfg.xwayland_display_len, "auto");
     cfg.repeat_rate = 25;
     cfg.repeat_delay = 600;
@@ -2307,6 +2308,8 @@ fn loadPath(
             core.copyString(&server.config.xim_start, &server.config.xim_start_len, value);
         } else if (std.mem.eql(u8, key, "xwayland")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.xwayland = v;
+        } else if (std.mem.eql(u8, key, "linux_dmabuf") or std.mem.eql(u8, key, "linux-dmabuf")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.linux_dmabuf = v;
         } else if (std.mem.eql(u8, key, "xwayland_display")) {
             core.copyString(&server.config.xwayland_display, &server.config.xwayland_display_len, value);
         } else if (std.mem.eql(u8, key, "kb_layout") or std.mem.eql(u8, key, "keyboard_layout")) {

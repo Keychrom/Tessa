@@ -524,6 +524,7 @@ pub const Config = struct {
     xim_start_len: usize,
     autostart_panel: bool,
     xwayland: bool,
+    linux_dmabuf: bool,
     xwayland_display: [32]u8,
     xwayland_display_len: usize,
     kb_layout: [64]u8,

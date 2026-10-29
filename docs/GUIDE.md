@@ -78,15 +78,15 @@ ldconfig -p | grep wlroots
 
 ### 2.1 Binary package (Ubuntu 26.04)
 
-The recommended install uses the `v0.2.2` amd64 package:
+The recommended install uses the `v0.2.3` amd64 package:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/tessa_0.2.2_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.2/SHA256SUMS
-grep ' tessa_0.2.2_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.2_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
+grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.3_amd64.deb
 ```
 
 The package installs:
@@ -1752,14 +1752,16 @@ sudo apt install adwaita-icon-theme
 ```
 
 The `tessa` package depends on `xcursor-themes`. Some legacy themes only provide
-`left_ptr`; Tessa 0.2.2 checks `default`, `left_ptr`, and `arrow` and logs which
+`left_ptr`; Tessa 0.2.3 checks `default`, `left_ptr`, and `arrow` and logs which
 name it selected. If a configured `cursor_theme` cannot be loaded, Tessa logs a
 warning and falls back to the system cursor; check
 `~/.local/state/tessa/tessa.log` or the compositor output.
 
 On a virtual machine, a broken DRM cursor plane can hide a correctly loaded
-cursor. `tessa-session` sets `WLR_NO_HARDWARE_CURSORS=1` automatically when
-`systemd-detect-virt` reports a VM. When launching Tessa directly, use:
+cursor. Tessa 0.2.3 detects vmwgfx, vboxvideo, bochs, qxl, cirrus, and
+virtio_gpu and sets `WLR_NO_HARDWARE_CURSORS=1` automatically, including when
+launched directly. `tessa-session` also enables it for other detected VMs. To
+force it manually:
 
 ```sh
 WLR_NO_HARDWARE_CURSORS=1 tessa
@@ -1776,7 +1778,7 @@ sudo apt install kitty
 sudo apt install foot
 ```
 
-Tessa 0.2.2 resolves a missing default terminal through `foot`, `kitty`,
+Tessa 0.2.3 resolves a missing default terminal through `foot`, `kitty`,
 `alacritty`, `wezterm`, then `xterm`, and logs which command it uses. An
 explicitly configured `terminal = ...` is never replaced. Kitty needs a working
 EGL/GL stack; on virtual machines without GPU acceleration use `foot` or set
@@ -1800,6 +1802,10 @@ WAYLAND_DEBUG=1 kitty
   GBM, DBus, or shell-startup errors in Kitty's output. On a VM without working
   3D, use `foot`; forcing software rendering with `LIBGL_ALWAYS_SOFTWARE=1`
   works only when Mesa's software EGL stack is installed.
+- **`importing the supplied dmabufs failed` / broken pipe on vmwgfx:** this is a
+  vmwgfx linux-dmabuf failure, not a Kitty bug. Tessa 0.2.3 disables
+  `linux-dmabuf-v1` on vmwgfx so clients use `wl_shm`. Set
+  `TESSA_ALLOW_LINUX_DMABUF=1` only for debugging if you need to re-enable it.
 - **A `Terminal=true` desktop entry closes after its command finishes:** this is
   expected. Tessa runs it as `terminal sh -c '<command>'`, so a short-lived
   command produces a short-lived terminal. `kitty.desktop` itself is
@@ -1811,7 +1817,7 @@ WAYLAND_DEBUG=1 kitty
 - Is `xwayland = true`?
 - Is `TESSA_NO_XWAYLAND` set?
 - Does the log contain `xwayland: '...' not found; X11 apps disabled`?
-- Does the log contain `xwayland: connected on :N`? Tessa 0.2.2 sets `DISPLAY`
+- Does the log contain `xwayland: connected on :N`? Tessa 0.2.3 sets `DISPLAY`
   only after this point.
 
 Tessa does not invent a `DISPLAY` value when the satellite cannot start, so an
