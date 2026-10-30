@@ -126,10 +126,10 @@ For X11 applications, install the AUR `xwayland-satellite-git` package.
 default wlroots scene and does not enable rounded corners or blur. Log in on a
 TTY and run `tessa`, or select **Tessa** in your display manager.
 
-The Arch package has not yet been exercised on a physical Arch installation.
-If `makepkg` reports a missing dependency or ABI mismatch, confirm that
-`zig-0.16` is the compiler and `pkg-config --modversion wlroots-0.19` reports
-`0.19.x`.
+The Arch packaging path is exercised on Arch Linux with AUR `zig0.16-bin` and
+`wlroots0.19`, including a real session and the plain/scenefx builds. If
+`makepkg` reports an ABI or dependency problem, confirm that `zig-0.16` is the
+compiler and `pkg-config --modversion wlroots-0.19` reports `0.19.x`.
 
 A custom **Debug** build on Arch can fail with
 `unhandled relocation type R_X86_64_PC64 ... Scrt1.o:.sframe`. This is a Zig
@@ -255,9 +255,11 @@ Highlights include:
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
-It has been built and tested on Ubuntu 26.04 with Zig 0.16.0 and wlroots
-0.19.2, primarily in the headless pixman backend with `grim`, `wtype`, Fcitx5 +
-Mozc, and X11 clients through `xwayland-satellite`. Dual-headless-output
+It has been built and tested on Ubuntu 26.04 and Arch Linux with Zig 0.16.0 and
+wlroots 0.19.2, primarily in the headless pixman backend with `grim`, `wtype`,
+Fcitx5 + Mozc, and X11 clients through `xwayland-satellite`; the Arch host also
+runs the compositor in a real session for display, keyboard, mouse, IME, and
+browser checks. Dual-headless-output
 workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
 status entries, custom launcher entries, config reload, per-workspace
@@ -958,10 +960,12 @@ The IPC socket is created as mode `0600` under `$XDG_RUNTIME_DIR`.
 
 These are real and important:
 
-- **DRM/keyboard/mouse not yet validated on real hardware.** Development uses
-  the headless backend with `wtype`/Fcitx5 and software rendering. Interactive
-  pointer behavior, per-device libinput tuning, VRR/adaptive-sync, and DRM mode
-  setting still need a physical test pass.
+- **DRM/libinput is exercised on Arch Linux, with device-specific gaps.**
+  A real Arch Linux session (including display-manager startup), DRM output,
+  keyboard, mouse, IME, and XWayland clients have been exercised. Per-device
+  touchpad tuning, VRR/adaptive-sync commits, and unusual multi-GPU/monitor
+  combinations still need validation on the matching hardware; headless tests
+  cover the configuration and protocol paths.
 - **Kitty needs working EGL/GL.** On virtual machines without GPU acceleration,
   Kitty may fail to create a window even when Tessa runs. Use `foot`, software
   Mesa, or `terminal = foot`. Tessa falls back to foot only when Kitty is not
@@ -1045,8 +1049,12 @@ These are real and important:
   eight short strings.
 - **Layout-helper responses are complete snapshots.** Per-output asynchronous
   helpers, focus/urgent metadata, and version negotiation are implemented, but
-  partial streaming rectangle updates are not; an interactive config diff
-  editor is still planned.
+  partial streaming rectangle updates are not.
+- **Config editing is terminal-based.** `tessa-ctl config-check FILE`,
+  `config-diff FILE`, and `config-edit` provide validation, an effective-config
+  diff preview, and confirmed apply/reload while the compositor is running.
+  `config-edit` uses `$VISUAL`/`$EDITOR`; there is no separate GUI editor, and
+  validation/diff requires a running compositor.
 - Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the

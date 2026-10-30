@@ -184,10 +184,12 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 
 X11 アプリには AUR の `xwayland-satellite-git` を使います。
 `scenefx0.4` は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
-ビルドでは角丸もブラーも有効になりません。Arch パッケージはまだ実機の
-Arch で検証していません。`makepkg` が ABI や依存関係のエラーを出した場合は、
-`zig-0.16 version` が 0.16.x、`pkg-config --modversion wlroots-0.19` が
-0.19.x を返すことを確認してください。
+ビルドでは角丸もブラーも有効になりません。Arch のパッケージ経路は Arch Linux
+実機で AUR の `zig0.16-bin` と `wlroots0.19` を使ってビルド・実行し、通常
+セッションと plain／scenefx ビルドで確認しています。`makepkg` が ABI や依存
+関係のエラーを出した場合は、`zig-0.16 version` が 0.16.x、
+`pkg-config --modversion wlroots-0.19` が 0.19.x を返すことを確認して
+ください。
 
 ### 2.3 ソースからビルド（開発向け）
 
@@ -2062,12 +2064,16 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 
 ## 16. 既知の制限
 
-- **物理 DRM / libinput は実機検証が未完了**。開発は headless pixman、
-  `wtype`、Fcitx5、`xwayland-satellite` が中心です。実際の DRM モード設定、
-  物理キーボード／マウス／タッチパッドの挙動、VRR/Adaptive Sync の
-  コミットは実機で最終確認が必要です。
-- **Arch パッケージは実機未検証**。PKGBUILD は AUR の `zig0.16-bin` と
-  `wlroots0.19` を前提にしています。`makepkg` が失敗した場合は、
+- **物理 DRM/libinput は Arch Linux 実機で確認済みですが、デバイス固有の
+  未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
+  DRM 出力、キーボード、マウス、IME、XWayland クライアントを実際に確認して
+  います。headless スイートは pixman、`wtype`、Fcitx5、
+  `xwayland-satellite` で回帰をカバーしています。タッチパッドのデバイス別
+  チューニング、VRR/Adaptive Sync のコミット、特殊なマルチ GPU／モニター
+  構成は、対応する実機での追加確認が必要です。
+- **Arch パッケージには AUR ツールチェーンが必要**。PKGBUILD は AUR の
+  `zig0.16-bin` と `wlroots0.19` を前提にしており、公式リポジトリの新しい
+  バージョンは ABI が一致しません。`makepkg` が失敗した場合は、
   トラブルシューティングにあるコンパイラと pkg-config のバージョンを
   添えて報告してください。
 - **フラクショナルスケーリングは部分的**。Wayland の対応クライアントには
@@ -2103,7 +2109,11 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   非同期ヘルパー、フォーカス／緊急度メタデータ、バージョンネゴシエーションは
   実装済みですが、矩形の部分ストリーミング更新は未実装です。
 - **JSON-RPC は読み取りとイベント購読のみ**。変更操作は行コマンドを使います。
-- **差分プレビュー付きの設定エディタは未実装**です。
+- **設定編集は端末ベース**。コンポジタ起動中に
+  `tessa-ctl config-check FILE`、`config-diff FILE`、`config-edit` で検証、
+  実効設定の差分プレビュー、確認付きの適用／リロードができます。
+  `config-edit` は `$VISUAL`／`$EDITOR` を使い、専用 GUI エディタはありません。
+  検証と差分プレビューにはコンポジタの起動が必要です。
 - 出力の `enabled` 状態、通知の出力固定、カスタム通知音などは未対応です。
 
 ---

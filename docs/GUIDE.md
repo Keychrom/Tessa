@@ -182,8 +182,9 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 
 For X11 applications, use AUR `xwayland-satellite-git`. `scenefx0.4` is only
 needed for a custom `-Dscenefx=true` build; the PKGBUILD's default build does
-not enable rounded corners or blur. The Arch packaging path has not yet been
-exercised on a physical Arch installation; if `makepkg` reports an ABI or
+not enable rounded corners or blur. The Arch packaging path is built and
+exercised on Arch Linux with AUR `zig0.16-bin` and `wlroots0.19`, including a
+real session and the plain/scenefx builds. If `makepkg` reports an ABI or
 dependency problem, confirm `zig-0.16 version` is 0.16.x and
 `pkg-config --modversion wlroots-0.19` is 0.19.x.
 
@@ -2011,13 +2012,17 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 
 ## 16. Known Limitations
 
-- **Physical DRM/libinput is not fully validated.** Development uses headless
-  pixman, `wtype`, Fcitx5, and `xwayland-satellite`. Real DRM mode setting,
-  physical keyboard/mouse/touchpad behavior, and VRR/adaptive-sync commits still
-  need a final hardware pass.
-- **Arch packaging is not yet hardware-tested.** The PKGBUILD targets AUR
-  `zig0.16-bin` and `wlroots0.19`; report `makepkg` failures with the compiler
-  and pkg-config versions from the troubleshooting section.
+- **Physical DRM/libinput is exercised on Arch Linux, with device-specific
+  gaps.** A real Arch Linux session (including display-manager startup), DRM
+  output, keyboard, mouse, IME, and XWayland clients have been validated. The
+  headless suite uses pixman, `wtype`, Fcitx5, and `xwayland-satellite` for
+  regression coverage. Per-device touchpad tuning, VRR/adaptive-sync commits,
+  and unusual multi-GPU/monitor combinations still need validation on the
+  matching hardware.
+- **Arch packaging requires the AUR toolchain.** The PKGBUILD targets AUR
+  `zig0.16-bin` and `wlroots0.19`; the official repos provide newer,
+  ABI-incompatible versions. Report `makepkg` failures with the compiler and
+  pkg-config versions from the troubleshooting section.
 - **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
   the exact scale, but the panel uses integer Cairo buffers and unsupported
   clients use the ceiling. XWayland depends on `xwayland-satellite` and is not
@@ -2049,7 +2054,11 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   partial streaming rectangle updates are not.
 - **JSON-RPC is read-only plus event subscriptions.** Mutation still uses the
   line commands.
-- **There is no graphical config editor/diff preview yet.**
+- **Config editing is terminal-based.** `tessa-ctl config-check FILE`,
+  `config-diff FILE`, and `config-edit` provide validation, effective-config
+  diff previews, and confirmed apply/reload while the compositor is running.
+  `config-edit` uses `$VISUAL`/`$EDITOR`; there is no separate GUI editor.
+  Validation and diff preview require a running compositor.
 - Output `enabled` state, notification output pinning, and custom notification
   sounds are not implemented.
 
