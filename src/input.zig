@@ -6,6 +6,7 @@ const layout = @import("layout.zig");
 const rules = @import("rules.zig");
 const layout_helper = @import("layout_helper.zig");
 const effect_helper = @import("effect_helper.zig");
+const panel_supervisor = @import("panel_supervisor.zig");
 const modes = @import("modes.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
@@ -512,6 +513,7 @@ pub fn reloadRuntime(server: *Server) void {
     input_policy.applyAll(server);
     layout_helper.reload(server);
     effect_helper.reload(server);
+    panel_supervisor.reload(server);
     rules.applyAll(server);
     rules.applyOutputThemes(server);
     rules.applyOutputPolicies(server);

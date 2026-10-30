@@ -175,7 +175,13 @@ Highlights include:
 - frame-time instrumentation (`tessa-ctl perf`) with a configurable
   `frame_time_budget`, plus headless animation and full-effect benchmarks
 - interactive config editing with validation and effective-config diff preview
-  (`tessa-ctl config-check <file>`, `config-diff <file>`, `config-edit`)
+  (`tessa-ctl config-check <file>`, `config-diff <file>`, `config-edit`) and
+  offline preflight with `tessa --check-config [file]`
+- supervised built-in panel: pidfd-based exit detection with bounded exponential
+  backoff, so a panel crash does not take down the bar for the session
+- fuzzing and sanitizer boundary passes for the config and IPC parsers
+  (`tests/fuzz-parsers.sh`, `tests/fuzz-asan.sh`), plus strict helper-timeout
+  regression coverage
 - file/line config diagnostics, automatic reload on atomic config saves,
   transactional reload, and versioned JSON state/config snapshots for external
   tools; per-workspace and per-output layout/gap/master rules; animation
@@ -286,16 +292,19 @@ restarts were exercised by
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
-`tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`, and
-`tests/config-editor.sh`.
+`tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`,
+`tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
+`tests/helper-timeouts.sh`, `tests/fuzz-parsers.sh`, and
+`tests/fuzz-asan.sh`.
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
 corners only in a `-Dscenefx=true` build and skips otherwise. The Kitty and real
 XWayland integration tests skip when Kitty, `wlr-randr`, or
 `xwayland-satellite` is unavailable; `tests/xwayland-ready.sh` uses a fake
 satellite so DISPLAY readiness is covered everywhere.
-**DRM/tty and real keyboard/mouse testing still needs to be done on the target
-machine.** See [Known limitations](#known-limitations).
+Physical Arch Linux validation covers an eDP-1 DRM session, keyboard/mouse,
+IME, and XWayland clients; per-device touchpad tuning and VRR remain tracked in
+[Known limitations](#known-limitations).
 
 ## Why another tiling WM?
 
@@ -312,6 +321,10 @@ desktop:
   theme on top.
 - **Small, direct implementation.** Zig + wlroots, a line config, a line IPC
   protocol, and small C shims for Pango, GDBus, and mixer commands.
+- **Reliability-first.** Configs can be validated offline before restart,
+  reloads are transactional, helper processes have strict 100/200 ms fallback
+  contracts, and the built-in panel is supervised. Fuzz and ASan passes cover
+  the config and IPC parsers.
 - **No JavaScript/TypeScript runtime.** Unlike ShojiWM, the shell and config are
   fixed and small. If you want to program every pixel in TSX, ShojiWM is the
   better tool. If you want animations, blur, and a huge plugin ecosystem,

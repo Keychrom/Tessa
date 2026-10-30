@@ -9,6 +9,7 @@ const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
 const rules = @import("rules.zig");
 const layout_helper = @import("layout_helper.zig");
+const panel_supervisor = @import("panel_supervisor.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -531,6 +532,7 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     const server = out.server;
 
     layout_helper.destroyOutput(out);
+    panel_supervisor.deinitOutput(out);
     c.wl_list_remove(&out.frame.link);
     c.wl_list_remove(&out.request_state.link);
     c.wl_list_remove(&out.commit.link);
@@ -642,6 +644,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.wlr = wlr_out;
     out.active_ws = 1;
     layout_helper.initOutput(out);
+    panel_supervisor.initOutput(out);
     rules.applyOutputTheme(server, out);
     rules.seedOutputLayouts(server, out);
     applySavedLayouts(server, out);
@@ -690,7 +693,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 
     rules.applyOutputPolicy(server, out);
     if (server.focused_output == null) server.focused_output = out;
-    core.spawnPanel(server, out);
+    panel_supervisor.start(out);
 
     arrangeLayers(out);
     layout.arrangeAll(server);

@@ -2,6 +2,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const layout_helper = @import("layout_helper.zig");
 const effect_helper = @import("effect_helper.zig");
+const panel_supervisor = @import("panel_supervisor.zig");
 const input = @import("input.zig");
 const gestures = @import("gestures.zig");
 const touch = @import("touch.zig");
@@ -20,6 +21,7 @@ const Server = types.Server;
 pub fn cleanupGlobals(server: *Server) void {
     layout_helper.deinit(server);
     effect_helper.deinit(server);
+    panel_supervisor.shutdown(server);
     input.cleanupTrackedInputs(server);
     var i: usize = 0;
     while (i < server.outputs.len) : (i += 1) {

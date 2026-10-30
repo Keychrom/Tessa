@@ -20,6 +20,7 @@ they had run it in a terminal.
 
 ```sh
 tessa-ctl state                         # one snapshot
+tessa-ctl hello                         # line protocol version/capabilities
 tessa-ctl config                        # effective configuration + rules
 tessa-ctl config-check [file]           # validate current or candidate config
 tessa-ctl config-diff file              # preview effective changes
@@ -87,7 +88,9 @@ workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height. Geometry is in logical compositor coordinates and is
 included for tooling that tracks windows. `LAYER` is `namespace`, output,
 layer number (`0` background … `3` overlay), effective opacity, effective
-corner radius, and effective blur (`0`/`1`). `STATUS` is covered below.
+corner radius, and effective blur (`0`/`1`). `PANEL` is output, panel pid,
+supervised (`0`/`1`), and notification-owner (`0`/`1`). `STATUS` is covered
+below.
 
 ## JSON snapshots
 

@@ -20,6 +20,7 @@ Tessa はプラグイン VM や JavaScript 設定ランタイムを意図的に�
 
 ```sh
 tessa-ctl state                         # スナップショットを 1 回表示
+tessa-ctl hello                         # 行プロトコルのバージョン/機能一覧
 tessa-ctl config                        # 実効設定とルールを表示
 tessa-ctl config-check [file]           # 現在／候補設定を検証
 tessa-ctl config-diff file              # 実効設定の差分をプレビュー
@@ -87,7 +88,8 @@ id、ワークスペース、フォーカス、フローティング、フルス
 された app_id、タイトル、出力名、x、y、幅、高さです。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
 `LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
-overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。
+overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。`PANEL` は
+出力名、パネル PID、監視中（`0`/`1`）、通知所有者（`0`/`1`）です。
 `STATUS` は後述します。
 
 ## JSON スナップショット

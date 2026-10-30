@@ -438,9 +438,11 @@ TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
 
 ### Config editor test
 
-`tests/config-editor.sh` validates a candidate config, rejects an unknown key,
-checks the effective-config diff, applies an `$EDITOR` change through
-`tessa-ctl config-edit`, and verifies that a declined change is discarded.
+`tests/config-editor.sh` validates a candidate config with both the live
+`tessa-ctl config-check` and the offline `tessa --check-config` path, rejects
+an unknown key, checks the effective-config diff, applies an `$EDITOR` change
+through `tessa-ctl config-edit`, and verifies that a declined change is
+discarded.
 
 ```sh
 sh tests/config-editor.sh
@@ -454,6 +456,55 @@ workspace by rule, then verifies hidden/visible toggling and
 
 ```sh
 sh tests/special-workspaces.sh
+```
+
+### Panel recovery test
+
+`tests/panel-recovery.sh` starts a headless session with the built-in panel,
+kills the panel with `SIGKILL`, and verifies that the compositor restarts it
+with bounded exponential backoff and that the `tessa-bar` layer returns. It
+repeats the crash and checks that shutdown does not leave a panel process
+behind.
+
+```sh
+sh tests/panel-recovery.sh
+```
+
+### IPC version test
+
+`tests/ipc-version.sh` sends `HELLO 1`, `HELLO 99`, an invalid version, legacy
+commands without `HELLO`, and a state request after negotiation. It checks
+`VERSION`, `CAPABILITIES`, and that an invalid hello does not close the
+connection.
+
+```sh
+sh tests/ipc-version.sh
+```
+
+### Helper timeout test
+
+`tests/helper-timeouts.sh` configures layout and effect helpers that never
+reply, with the default 100 ms/200 ms timeouts. It verifies that both are
+stopped, fallbacks remain active, the compositor keeps serving state, and the
+fallback completes within 1.5 s.
+
+```sh
+sh tests/helper-timeouts.sh
+```
+
+### Parser fuzz and ASan test
+
+`tests/fuzz-parsers.sh` mutates `config/config.example` and random byte
+sequences, validates each candidate with the offline `tessa --check-config`
+path, then sends malformed line and JSON-RPC payloads to a live headless
+compositor. It fails on panics, crash exit codes, timeouts, or a dead compositor.
+`tests/fuzz-asan.sh` repeats the pass with the system ASan runtime preloaded;
+Zig 0.16 has no compiler ASan instrumentation, so this is an allocator/
+interceptor pass over the Debug-safety build.
+
+```sh
+TESSA_FUZZ_ITERS=500 sh tests/fuzz-parsers.sh
+sh tests/fuzz-asan.sh
 ```
 
 ### Output rules test

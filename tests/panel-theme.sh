@@ -18,7 +18,6 @@ tpid=
 cleanup() {
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
-    pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
 }
 trap cleanup EXIT INT TERM
@@ -126,7 +125,6 @@ if grep -qE 'Assertion|panic|thread .* panic' "$runtime/tessa.log"; then
     grep -E 'Assertion|panic|thread .* panic' "$runtime/tessa.log" >&2
     exit 1
 fi
-pkill -x tessa-panel 2>/dev/null || true
 
 trap - EXIT INT TERM
 rm -rf "$runtime"

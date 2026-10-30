@@ -443,14 +443,17 @@ cp config/config.example ~/.config/tessa/config
 再読み込みと診断:
 
 ```sh
+tessa --check-config [file]      # オフライン検証。エラー時は非ゼロ終了
 tessa-ctl config                 # 実効設定と解析済みルール
 tessa-ctl config --json          # schema 1 の JSON
 tessa-ctl config-check           # エラー時は非ゼロ終了
 tessa-ctl dispatch reload        # Super+R と同じ
 ```
 
-エラーのあるリロードは拒否され、以前の設定が維持されます。診断には
-ファイル名と行番号が付きます。
+`tessa --check-config` はコンポジタを起動せず、一時的なパーサ状態に設定を
+読み込みます。ファイル名と行番号付きの診断を出力するため、エディタ、CI、
+ログイン前の TTY からも使えます。エラーのあるリロードは拒否され、以前の
+設定が維持されます。診断にはファイル名と行番号が付きます。
 
 Tessa は設定ディレクトリも監視します。メイン設定と同ディレクトリ内の
 `.conf` include をアトミックに保存すると、短いデバウンス後に自動で
@@ -1536,6 +1539,12 @@ Pango の範囲を超える HTML、通知音、通知ごとの出力固定は未
 - 音量（`wpctl`/`pactl`/`amixer`）
 - 最大 8 件のカスタムステータス
 
+パネルはコンポジタに監視されます。Tessa は Linux の pidfd でパネルプロセスを
+追跡し、クラッシュ時は上限付き指数バックオフ（500 ms から倍増、最大 8 秒）で
+再起動します。通知所有者のパネルは再起動後もその役割を維持します。意図的な
+終了や出力の取り外しでは再起動しません。`tests/panel-recovery.sh` で検証して
+います。
+
 ### 12.7 音量
 
 ```ini
@@ -1585,6 +1594,7 @@ Screenshot/ScreenCast は `XDG_CURRENT_DESKTOP=Tessa` で wlr バックエンド
 
 ```sh
 tessa-ctl state
+tessa-ctl hello
 tessa-ctl config
 tessa-ctl config-check [file]
 tessa-ctl config-diff file
@@ -1618,6 +1628,7 @@ tessa-ctl quit
 生の IPC コマンド:
 
 ```text
+HELLO <version>
 CMD subscribe state|events|all
 CMD state
 CMD state-json
@@ -1652,12 +1663,20 @@ CMD notification-action <id> <key>
 CMD quit
 ```
 
+`HELLO <version>` は省略可能で、最初に送れます。Tessa は `VERSION\t1` と
+タブ区切りの `CAPABILITIES` 行を返し、接続を維持します。未知の新しい
+バージョンは 1 にネゴシエートし、数値でない場合は
+`ERR\tinvalid-version` を返します。HELLO なしでコマンドを送る従来クライアント
+（line protocol 0）も互換です。`tessa-ctl hello` でネゴシエート結果を表示
+できます。
+
 接続直後は何も届きません。`CMD subscribe ...` が必要です。`STATE` は
 `END` までで 1 スナップショットです。
 
 `OUT` は `name workspace focused layout`、`WIN` はタブ区切りで
 `id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h`
-です。
+です。`PANEL` は内蔵パネル監視の
+`output, pid, supervised, notify-owner` です。
 
 ### 13.2 JSON と JSON-RPC
 

@@ -18,6 +18,7 @@ fn usage() void {
     writeAll(1, "usage: tessa-ctl <command>\n" ++
         "\n" ++
         "  state [--json]                print one state snapshot\n" ++
+        "  hello                         negotiate the line protocol version\n" ++
         "  config [--json]               print the effective configuration\n" ++
         "  config-check                  check config diagnostics; exit 1 on errors\n" ++
         "  config-check <file>           validate a candidate config file\n" ++
@@ -370,6 +371,20 @@ fn runState(args: []const []const u8) !void {
     } else {
         try printState();
     }
+}
+
+fn printHello() !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "HELLO 1\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [4096]u8 = undefined;
+    while (try reader.next(&line_buf)) |line| {
+        writeLine(line);
+        if (std.mem.startsWith(u8, line, "CAPABILITIES")) return;
+        if (std.mem.startsWith(u8, line, "ERR")) return;
+    }
+    return error.Closed;
 }
 
 fn printPerf(json: bool, reset: bool) !void {
@@ -755,6 +770,8 @@ pub fn main(init: std.process.Init.Minimal) void {
 
     const result: anyerror!void = if (std.mem.eql(u8, cmd, "state"))
         runState(args)
+    else if (std.mem.eql(u8, cmd, "hello"))
+        printHello()
     else if (std.mem.eql(u8, cmd, "config"))
         runConfig(args)
     else if (std.mem.eql(u8, cmd, "config-check"))

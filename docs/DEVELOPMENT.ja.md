@@ -353,7 +353,8 @@ TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
 
 ### 設定エディタのテスト
 
-`tests/config-editor.sh` は候補設定の検証、未知キーの拒否、実効設定差分、
+`tests/config-editor.sh` は候補設定を `tessa-ctl config-check` とオフラインの
+`tessa --check-config` の両方で検証し、未知キーの拒否、実効設定差分、
 `$EDITOR` 変更の `tessa-ctl config-edit` 適用、拒否時の破棄を確認します。
 
 ```sh
@@ -368,6 +369,52 @@ sh tests/config-editor.sh
 
 ```sh
 sh tests/special-workspaces.sh
+```
+
+### パネル復旧のテスト
+
+`tests/panel-recovery.sh` は内蔵パネル付きの headless セッションを起動し、
+パネルを `SIGKILL` して、上限付き指数バックオフで再起動され `tessa-bar`
+レイヤーが戻ることを確認します。クラッシュを繰り返した後、終了時にパネル
+プロセスが残らないことも検証します。
+
+```sh
+sh tests/panel-recovery.sh
+```
+
+### IPC バージョンのテスト
+
+`tests/ipc-version.sh` は `HELLO 1`、`HELLO 99`、不正バージョン、
+HELLO なしの従来コマンド、ネゴシエーション後の状態取得を送ります。
+`VERSION`、`CAPABILITIES`、不正 HELLO 後も接続が維持されることを確認します。
+
+```sh
+sh tests/ipc-version.sh
+```
+
+### ヘルパータイムアウトのテスト
+
+`tests/helper-timeouts.sh` は応答しないレイアウト/エフェクトヘルパーを
+既定の 100 ms/200 ms タイムアウトで起動し、両方が停止してフォールバックが
+有効なまま、コンポジタが状態提供を続け、1.5 秒以内に復帰することを確認します。
+
+```sh
+sh tests/helper-timeouts.sh
+```
+
+### パーサー Fuzzing / ASan テスト
+
+`tests/fuzz-parsers.sh` は `config/config.example` とランダムバイト列を変異
+させ、各候補をオフラインの `tessa --check-config` で検証した後、不正な行と
+JSON-RPC ペイロードを稼働中の headless コンポジタへ送ります。パニック、
+クラッシュ終了コード、タイムアウト、コンポジタ停止を失敗とします。
+`tests/fuzz-asan.sh` はシステム ASan ランタイムを preload して同じパスを
+実行します。Zig 0.16 はコンパイラ ASan 計測を持たないため、Debug 安全
+ビルドに対するアロケータ/インターセプタ実行です。
+
+```sh
+TESSA_FUZZ_ITERS=500 sh tests/fuzz-parsers.sh
+sh tests/fuzz-asan.sh
 ```
 
 ### 出力ルールのテスト

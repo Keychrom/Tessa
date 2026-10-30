@@ -24,7 +24,6 @@ cleanup() {
     wait "${apid:-0}" 2>/dev/null || true
     wait "${bpid:-0}" 2>/dev/null || true
     wait "${tpid:-0}" 2>/dev/null || true
-    pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
 }
 trap cleanup EXIT INT TERM

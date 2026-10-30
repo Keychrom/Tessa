@@ -176,7 +176,13 @@ MVP（`0.2.3`）ですが、日常的に使えるレベルまで中核機能は�
 - フレームタイム計測（`tessa-ctl perf`）と設定可能な `frame_time_budget`、
   アニメーション／全エフェクトのヘッドレスベンチマーク
 - 検証と実効設定の差分プレビュー付き対話型設定編集
-  （`tessa-ctl config-check <file>`、`config-diff <file>`、`config-edit`）
+  （`tessa-ctl config-check <file>`、`config-diff <file>`、`config-edit`）と、
+  コンポジタを起動せずに検証する `tessa --check-config [file]`
+- 内蔵パネルの監視と自動復旧: pidfd で終了を検知し、上限付き指数バックオフで
+  再起動。パネルのクラッシュでバーがセッション全体を巻き込まない
+- 設定・IPC パーサーの Fuzzing とサニタイザ境界テスト
+  （`tests/fuzz-parsers.sh`、`tests/fuzz-asan.sh`）、およびヘルパーの
+  厳格なタイムアウト回帰テスト
 - 行番号付きの設定診断、設定のアトミック保存時の自動リロード、失敗時に
   旧設定を維持するトランザクショナルなリロード、外部ツール向けの
   バージョン付き JSON 状態/設定スナップショット。ワークスペース別・出力別の
@@ -295,14 +301,18 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/shell-v2.sh`、`tests/effect-helper.sh`、`tests/performance.sh`、
-`tests/config-editor.sh` で
+`tests/config-editor.sh`、`tests/panel-recovery.sh`、`tests/ipc-version.sh`、
+`tests/helper-timeouts.sh`、`tests/fuzz-parsers.sh`、
+`tests/fuzz-asan.sh` で
 検証しています。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
 Kitty、`wlr-randr`、`xwayland-satellite` が無い場合にスキップします。
 `tests/xwayland-ready.sh` は偽のサテライトを使うため、`DISPLAY` の準備待ちは
 どの環境でも検証されます。ポータルのテストはポータルと PipeWire がインストール
 されている場合に ScreenCast を端から端まで実行し、なければスキップします。
-**DRM/tty と実際のキーボード・マウスでの検証は、まだ実機で行う必要があります。**
+Arch Linux 実機の eDP-1 DRM セッションでキーボード／マウス、IME、
+XWayland クライアントを確認済みです。タッチパッドのデバイス別調整と VRR は
+[既知の制限](#既知の制限) に記載しています。
 [既知の制限](#既知の制限)も参照してください。
 
 ## なぜもう 1 つのタイル型 WM なのか
@@ -321,6 +331,9 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   ありません。
 - **小さく直接的な実装。** Zig + wlroots、Pango/GDBus/ミキサーコマンド用の
   小さな C シム、行ベースの設定と IPC。余計なレイヤーをできるだけ挟みません。
+- **信頼性優先。** 設定は再起動前にオフライン検証でき、リロードは
+  トランザクショナル。ヘルパーは 100/200 ms の厳格なフォールバック契約を持ち、
+  内蔵パネルは監視されます。設定と IPC パーサーは Fuzz / ASan パスで検証します。
 - **JavaScript / TypeScript ランタイムなし。** ShojiWM のようにシェルを TSX
   で自由に書くのではなく、固定された小さなシェルと設定を持ちます。ピクセル
   単位で UI をプログラムしたいなら ShojiWM、アニメーション・ブラー・巨大な

@@ -919,6 +919,12 @@ The 0.7 customization-parity items are implemented:
   for the bar, popovers, and toasts.
 - `tessa-ctl perf` and `frame_time_budget` expose render-commit timings; the
   headless benchmark is `tests/performance.sh`.
+- The built-in panel is supervised with pidfd exit detection and bounded
+  exponential restart backoff; `tests/panel-recovery.sh` covers crash recovery
+  and config-driven enable/disable.
+- `tests/fuzz-parsers.sh` fuzzes config and IPC parsing, and
+  `tests/fuzz-asan.sh` repeats it with the ASan runtime preloaded. Helper
+  timeout contracts are covered by `tests/helper-timeouts.sh`.
 
 Remaining validation is hardware-specific (DRM/libinput, physical touchpads,
 VRR, and a target-laptop frame-time budget). CI-built signed packages and

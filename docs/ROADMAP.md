@@ -7,14 +7,17 @@ a daily Japanese desktop, then by polish.
 
 ## 0.1.x — make the foundation trustworthy
 
-- [ ] Run on DRM + libinput on the target machine and fix layout/input issues.
+- [x] Run on DRM + libinput on the target machine and fix layout/input issues.
+      Verified on Arch Linux with a real eDP-1 DRM session, keyboard/mouse,
+      IME, XWayland clients, and the built-in bar. Per-device touchpad tuning
+      and VRR/adaptive-sync remain tracked as hardware-specific follow-ups.
 - [x] Automated headless coverage for bar workspace clicks, window-chip
       right-click close, floating drag/resize, click-to-focus, and launcher
       typing (`tests/interaction.sh`, using `wlr-virtual-pointer-v1`).
 - [x] Fullscreen, xdg client popups, clipboard, and multi-window focus are
       covered by `tests/interaction.sh`, `tests/popups.sh`, and
-      `tests/clipboard.sh`. Physical mouse/keyboard validation remains part of
-      the DRM item above.
+      `tests/clipboard.sh`. Physical keyboard/mouse behavior is covered by the
+      Arch DRM validation above.
 - [ ] Fix transient client repaint gaps after float/resize. Interactive
       grabs now re-arrange and publish final geometry on release; visual
       validation during the drag still needs a real display.
@@ -183,13 +186,42 @@ not feature-for-feature plugin parity.
 
 ## 1.0 — stability
 
-- [x] Config validation with useful errors and transactional reload.
+- [x] Config validation with useful errors and transactional reload, plus
+      offline preflight (`tessa --check-config [file]`).
 - [x] JSON state/config snapshots with schema version 1.
-- [ ] IPC line-protocol version negotiation and JSON-RPC request ids.
-- [ ] Fuzzing/ASan runs of config and IPC parsers.
-- [ ] Crash recovery for the panel.
-- [ ] Documentation with a full user guide and theme guide.
+- [x] IPC line-protocol version negotiation and JSON-RPC request ids.
+      `HELLO` negotiates line protocol 1; legacy command-only clients remain
+      compatible.
+- [x] Fuzzing and sanitizer boundary runs of config and IPC parsers.
+      `tests/fuzz-parsers.sh` mutates config files and the live line/IPC
+      parser; `tests/fuzz-asan.sh` repeats the pass with the system ASan
+      runtime preloaded. Zig 0.16 has no compiler-level ASan instrumentation,
+      so this is an allocator/interceptor pass over the Debug-safety build.
+- [x] Crash recovery for the panel. One supervisor per output uses pidfd exit
+      detection and bounded exponential backoff; deliberate shutdown and output
+      removal do not restart it (`tests/panel-recovery.sh`).
+- [x] Strict helper timeout guarantees: layout helper 100 ms and effect helper
+      200 ms by default, hard-failing to built-in/rule fallbacks
+      (`tests/helper-timeouts.sh`).
+- [x] Documentation with a full user guide and theme guide.
 - [ ] Reproducible packages and a release process.
+
+### Reliability-first design for visual parity
+
+Visual parity with Hyprland/Niri/MangoWC/ShojiWM is a direction, not a reason to
+weaken the core:
+
+- Every visual feature must remain optional and declarative. Scene effects,
+  animation curves, layer rules, and process helpers have built-in fallbacks.
+- External helpers are time-bounded and never block the Wayland event loop.
+  The 100 ms layout and 200 ms effect contracts are regression-tested.
+- Config changes are preflightable offline and transactionally reloaded; a bad
+  edit cannot replace the running config.
+- The panel is supervised, so shell/visual work cannot take down the bar for
+  the session.
+- New effects must keep the headless performance and fuzz suites green. Visual
+  parity work should add tests in the same style as `niri-visual-tests`, not
+  only screenshots.
 
 ## Non-goals
 

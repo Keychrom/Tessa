@@ -47,7 +47,6 @@ cleanup() {
     fi
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
-    pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
 }
 trap cleanup EXIT INT TERM

@@ -3,6 +3,8 @@
 tessa \- quiet tiled Wayland compositor and desktop shell
 .SH SYNOPSIS
 .B tessa
+.RB [ \-\-check\-config
+.IR file ]
 .SH DESCRIPTION
 .B tessa
 is a wlroots-based tiled Wayland compositor written in Zig. It provides a
@@ -10,6 +12,14 @@ taskbar, launcher, wallpaper, per-output workspaces, tiling layouts, window
 rules, input modes, session locking, idle/output-power support, a clipboard
 history, a screenshot UI, a StatusNotifier tray, and a process-based extension
 API.
+.PP
+With
+.BR \-\-check\-config ,
+the compositor parses the configuration file (or the supplied
+.IR file )
+without creating a Wayland display, prints file/line diagnostics, and exits
+non-zero on errors. This is the offline preflight equivalent of
+.BR "tessa-ctl config-check" .
 .PP
 Start the compositor from an active logind seat, either from a TTY or through a
 display-manager Wayland session. Do not run it as root. Quit with

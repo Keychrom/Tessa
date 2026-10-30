@@ -192,7 +192,76 @@ fn startXwayland(server: *Server) void {
     }
 }
 
-pub fn main() !void {
+fn writeAllFd(fd: c_int, data: []const u8) void {
+    var sent: usize = 0;
+    while (sent < data.len) {
+        const n = c.write(fd, data.ptr + sent, data.len - sent);
+        if (n <= 0) return;
+        sent += @intCast(n);
+    }
+}
+
+fn checkConfigAndExit(path: ?[]const u8) noreturn {
+    if (path) |p| {
+        if (p.len >= 512) {
+            writeAllFd(2, "tessa: config path is too long\n");
+            std.process.exit(2);
+        }
+        var path_z: [512:0]u8 = undefined;
+        @memcpy(path_z[0..p.len], p);
+        path_z[p.len] = 0;
+        if (c.setenv("TESSA_CONFIG", &path_z, 1) != 0) {
+            writeAllFd(2, "tessa: cannot set TESSA_CONFIG\n");
+            std.process.exit(2);
+        }
+    }
+
+    const server = @as(*Server, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Server)).?)));
+    server.ipc_fd = -1;
+    config.load(server);
+
+    var errors: usize = 0;
+    var i: usize = 0;
+    while (i < server.config_issue_count) : (i += 1) {
+        const issue = &server.config_issues[i];
+        if (issue.is_error) errors += 1;
+        var buf: [1024]u8 = undefined;
+        const line = std.fmt.bufPrint(&buf, "diagnostic {s} {s}:{d}: {s}\n", .{
+            if (issue.is_error) "error" else "warning",
+            issue.path[0..issue.path_len],
+            issue.line,
+            issue.message[0..issue.message_len],
+        }) catch continue;
+        writeAllFd(1, line);
+    }
+    if (errors == 0) writeAllFd(1, "config: ok\n");
+    std.process.exit(if (errors > 0) 1 else 0);
+}
+
+pub fn main(init: std.process.Init.Minimal) !void {
+    var check_only = false;
+    var check_path: ?[]const u8 = null;
+    var args = init.args.iterate();
+    defer args.deinit();
+    _ = args.next();
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--check-config") or std.mem.eql(u8, arg, "-c")) {
+            check_only = true;
+        } else if (std.mem.startsWith(u8, arg, "--check-config=")) {
+            check_only = true;
+            check_path = arg["--check-config=".len..];
+        } else if (check_only and check_path == null) {
+            check_path = arg;
+        } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            writeAllFd(1, "usage: tessa [--check-config [FILE]]\n");
+            std.process.exit(0);
+        } else {
+            writeAllFd(2, "tessa: unknown argument\n");
+            std.process.exit(2);
+        }
+    }
+    if (check_only) checkConfigAndExit(check_path);
+
     _ = c.signal(c.SIGCHLD, c.SIG_IGN);
     const debug = c.getenv("TESSA_DEBUG") != null;
     c.wlr_log_init(if (debug) c.WLR_DEBUG else c.WLR_INFO, null);

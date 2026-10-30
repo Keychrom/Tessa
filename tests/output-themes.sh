@@ -24,7 +24,6 @@ tpid=
 cleanup() {
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "$tpid" 2>/dev/null || true
-    pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
 }
 trap cleanup EXIT INT TERM
@@ -86,7 +85,6 @@ stop_compositor() {
     while pgrep -x tessa-panel >/dev/null 2>&1; do
         i=$((i + 1))
         if [ "$i" -ge 20 ]; then
-            pkill -x tessa-panel 2>/dev/null || true
             break
         fi
         sleep 0.1

@@ -915,6 +915,12 @@ IPC から操作できます。プロトコルの詳細は
   トーストへのレイヤールールを追加しました。
 - `tessa-ctl perf` と `frame_time_budget` で描画コミット時間を計測できます。
   ヘッドレスベンチマークは `tests/performance.sh` です。
+- 内蔵パネルは pidfd で終了を検知し、上限付き指数バックオフで再起動します。
+  `tests/panel-recovery.sh` がクラッシュ復旧と設定による有効/無効切り替えを
+  検証します。
+- `tests/fuzz-parsers.sh` が設定と IPC の解析を fuzz し、
+  `tests/fuzz-asan.sh` が ASan ランタイムを preload して再実行します。
+  ヘルパーのタイムアウト契約は `tests/helper-timeouts.sh` で検証します。
 
 残る検証はハードウェア固有の項目（DRM/libinput、実機タッチパッド、VRR、
 対象ノート PC でのフレームタイム予算）です。CI による署名済みパッケージと

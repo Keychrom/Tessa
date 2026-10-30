@@ -651,6 +651,18 @@ pub const Config = struct {
     input_rule_count: usize,
 };
 
+pub const PanelState = struct {
+    fd: c_int = -1,
+    pid: c.pid_t = 0,
+    source: ?*c.wl_event_source = null,
+    restart_timer: ?*c.wl_event_source = null,
+    restart_at_ms: i64 = 0,
+    started_ms: i64 = 0,
+    failures: u32 = 0,
+    supervised: bool = false,
+    notify_owner: bool = false,
+};
+
 pub const Output = struct {
     server: *Server,
     wlr: *c.wlr_output,
@@ -673,6 +685,7 @@ pub const Output = struct {
     runtime_ratio_set: [WS_COUNT]bool,
     last_focused: [WS_COUNT + 1]?*Client,
     helper: LayoutHelperState,
+    panel: PanelState,
 
     last_scale: f32,
     adaptive_sync_base: bool,
@@ -883,6 +896,8 @@ pub const IpcClient = struct {
     buf: [8192]u8,
     len: usize,
     alive: bool,
+    version: u8,
+    hello: bool,
     wants_state: bool,
     wants_events: bool,
     json_events: bool,

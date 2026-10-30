@@ -429,13 +429,17 @@ Format rules:
 Reload and inspect:
 
 ```sh
+tessa --check-config [file]      # offline validation; non-zero on errors
 tessa-ctl config                 # effective settings and parsed rules
 tessa-ctl config --json          # schema-1 JSON
 tessa-ctl config-check           # non-zero on errors
 tessa-ctl dispatch reload        # same as Super+R
 ```
 
-A reload with errors is rejected and the previous configuration remains active.
+`tessa --check-config` loads the config into a temporary parser state without
+starting the compositor. It prints the same file/line diagnostics and is safe
+to use from editors, CI, or a pre-login TTY. A reload with errors is rejected
+and the previous configuration remains active.
 Diagnostics include the file name and line number.
 
 Tessa also watches the config directory. Atomic saves of the main config and
@@ -1510,6 +1514,12 @@ output pinning.
 - Volume (`wpctl`/`pactl`/`amixer`)
 - Up to eight custom status entries
 
+The panel is supervised by the compositor. Tessa watches the panel process with
+a Linux pidfd and restarts it with bounded exponential backoff after a crash
+(500 ms, doubling to 8 s). The notification-owner panel keeps that role across
+restarts. Deliberate shutdown and output removal do not restart it. This is
+covered by `tests/panel-recovery.sh`.
+
 ### Volume
 
 ```ini
@@ -1555,6 +1565,7 @@ The socket is `$TESSA_IPC` or `$XDG_RUNTIME_DIR/tessa.sock`, mode 0600. A
 connection receives nothing until it subscribes.
 
 ```text
+HELLO <version>
 CMD subscribe state|events|all
 CMD state
 CMD state-json
@@ -1589,14 +1600,24 @@ CMD notification-action <id> <key>
 CMD quit
 ```
 
+`HELLO <version>` is optional and may be sent first. Tessa replies
+`VERSION\t1` and a tab-separated `CAPABILITIES` line, then keeps the connection
+open for commands. Unknown/newer versions negotiate down to 1; a non-numeric
+version gets `ERR\tinvalid-version`. Clients that send commands directly remain
+compatible (line protocol 0). `tessa-ctl hello` prints the negotiated version
+and capability list.
+
 `STATE`/`CONFIG` snapshots end with `END`. `OUT` is
 `name workspace focused layout`. `WIN` is tab-separated:
 `id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h`.
+`PANEL` is `output, pid, supervised, notify-owner` for the built-in panel
+supervisor.
 
 `tessa-ctl` wraps the common operations:
 
 ```sh
 tessa-ctl state
+tessa-ctl hello
 tessa-ctl config
 tessa-ctl config-check [file]
 tessa-ctl config-diff file

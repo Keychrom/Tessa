@@ -16,7 +16,6 @@ tpid=
 cleanup() {
     [ -n "${tpid:-}" ] && kill "$tpid" 2>/dev/null || true
     wait "${tpid:-0}" 2>/dev/null || true
-    pkill -x tessa-panel 2>/dev/null || true
     rm -rf "$runtime"
 }
 trap cleanup EXIT INT TERM
@@ -62,7 +61,9 @@ EOF
 
 tessa-ctl config-check "$runtime/candidate" >"$runtime/check.out"
 grep -qF "config: ok" "$runtime/check.out"
-echo "candidate check: ok"
+"$bin/tessa" --check-config "$runtime/candidate" >"$runtime/offline.out" 2>&1
+grep -qF "config: ok" "$runtime/offline.out"
+echo "candidate check: ok (online + offline)"
 
 cat > "$runtime/invalid" <<EOF
 panel = false
@@ -76,7 +77,12 @@ if tessa-ctl config-check "$runtime/invalid" >"$runtime/invalid.out" 2>&1; then
 fi
 grep -qF "diagnostic error" "$runtime/invalid.out"
 grep -qF "unknown key 'not_a_real_key'" "$runtime/invalid.out"
-echo "invalid candidate rejected: ok"
+if "$bin/tessa" --check-config "$runtime/invalid" >"$runtime/offline-invalid.out" 2>&1; then
+    echo "offline check accepted an invalid config" >&2
+    exit 1
+fi
+grep -qF "diagnostic error" "$runtime/offline-invalid.out"
+echo "invalid candidate rejected: ok (online + offline)"
 
 tessa-ctl config-diff "$runtime/candidate" >"$runtime/diff.out"
 grep -qF -- "-gaps 12" "$runtime/diff.out"
@@ -141,7 +147,6 @@ if grep -qE 'Assertion|panic|thread .* panic' "$runtime/tessa.log"; then
     grep -E 'Assertion|panic|thread .* panic' "$runtime/tessa.log" >&2
     exit 1
 fi
-pkill -x tessa-panel 2>/dev/null || true
 
 trap - EXIT INT TERM
 rm -rf "$runtime"

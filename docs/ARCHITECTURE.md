@@ -488,11 +488,23 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   width). Overrides live separately from rule fields, so removing the helper
   or a bad reply restores them. Requests are coalesced; timeout or protocol
   errors stop the child and retry after one second.
+- `panel_supervisor.zig` owns one panel child per output. A Linux pidfd is
+  attached to the Wayland event loop, so an exit is detected without changing
+  the compositor's global `SIGCHLD` handling. Restarts use bounded exponential
+  backoff (500 ms to 8 s); a panel that ran for ten seconds resets the failure
+  count. Intentional output removal and compositor shutdown stop supervision
+  and terminate the child. The notification-owner role is retained across a
+  restart.
 - `ipc.zig` exposes `config-compare` by loading a candidate path into a
   temporary configuration, building the effective config text for both, and
   emitting diagnostics plus changed lines. The live config and environment are
   restored before the reply is sent. `perf` reports samples collected around
-  the scene-output commit in `output.zig`.
+  the scene-output commit in `output.zig`. Optional `HELLO` negotiates line
+  protocol 1 and advertises capabilities; clients that skip it remain on the
+  legacy command path.
+- Offline validation uses `tessa --check-config`: it allocates only parser
+  state, calls `config.load`, prints diagnostics, and never creates a Wayland
+  display. This path is also the entry point for the config fuzz harness.
 - `rules.zig` evaluates declarative window rules after metadata is known at
   map time, and re-evaluates them for existing windows on config reload. Match
   fields are app-id, title, and output using a small `*`/`?` wildcard matcher;

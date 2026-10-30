@@ -394,8 +394,37 @@ fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
     }
 }
 
+fn handleHello(cl: *IpcClient, line: []const u8) void {
+    var fields: [8][]const u8 = undefined;
+    const n = tokens(line, &fields);
+    var requested: u32 = 1;
+    if (n > 1) {
+        requested = std.fmt.parseInt(u32, fields[1], 10) catch {
+            sendRaw(cl, "ERR\tinvalid-version\n");
+            return;
+        };
+    }
+    if (requested == 0) {
+        sendRaw(cl, "ERR\tinvalid-version\n");
+        return;
+    }
+    const negotiated: u8 = if (requested >= 1) 1 else 0;
+    cl.version = negotiated;
+    cl.hello = true;
+    sendRaw(cl, "VERSION\t1\n");
+    sendRaw(cl, "CAPABILITIES\tstate,config,events,subscriptions,config-compare,perf,special,groups\n");
+}
+
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
     const server = cl.server;
+    if (std.mem.eql(u8, line, "HELLO") or std.mem.startsWith(u8, line, "HELLO ")) {
+        handleHello(cl, line);
+        return;
+    }
+    if (std.mem.eql(u8, line, "CMD HELLO") or std.mem.startsWith(u8, line, "CMD HELLO ")) {
+        handleHello(cl, line["CMD ".len..]);
+        return;
+    }
     if (line.len > 0 and line[0] == '{') {
         handleJsonRpc(cl, line);
         return;
@@ -783,6 +812,18 @@ fn buildState(server: *Server, buf: []u8) usize {
             @as(u8, if (blur) 1 else 0),
         });
         if (off > buf.len - 1024) break;
+    }
+
+    i = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        append(buf, &off, "PANEL\t{s}\t{d}\t{d}\t{d}\n", .{
+            core.outputName(out),
+            out.panel.pid,
+            @as(u8, if (out.panel.supervised) 1 else 0),
+            @as(u8, if (out.panel.notify_owner) 1 else 0),
+        });
+        if (off > buf.len - 512) break;
     }
 
     append(buf, &off, "END\n", .{});

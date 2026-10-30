@@ -74,6 +74,7 @@ pub const c = @cImport({
     @cInclude("string.h");
     @cInclude("sys/inotify.h");
     @cInclude("sys/mman.h");
+    @cInclude("sys/pidfd.h");
     @cInclude("sys/poll.h");
     @cInclude("sys/socket.h");
     @cInclude("sys/stat.h");
