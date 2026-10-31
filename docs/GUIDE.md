@@ -79,16 +79,20 @@ ldconfig -p | grep wlroots
 
 ### 2.1 Binary package (Ubuntu 26.04)
 
-The recommended install uses the `v0.2.3` amd64 package:
+The recommended install uses the `v0.2.4` amd64 package:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
-grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
+grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.4_amd64.deb
 ```
+
+> **0.2.4 may be the final `.deb` release.** It is the last package planned
+> against Zig 0.16 and wlroots 0.19. Subsequent versions target Zig 0.17 and
+> wlroots 0.20; use a source build or the Arch package after that transition.
 
 The package installs:
 

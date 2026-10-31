@@ -22,18 +22,23 @@ Tessa はコンポジタであり、小さなシェルでもあります。フ�
 
 ## Ubuntu 26.04 へのインストール
 
-[v0.2.3 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.3)
+[v0.2.4 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.4)
 に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
 バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
-grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
+grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.4_amd64.deb
 ```
+
+> **0.2.4 が最後の `.deb` リリースになる可能性があります。** Zig 0.16 /
+> wlroots 0.19 を前提にした最後のパッケージとして計画しています。次の
+> バージョン以降は Zig 0.17 / wlroots 0.20 に移行する方針のため、移行後は
+> ソースビルドまたは Arch パッケージを使用してください。
 
 `apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
 設定例、ポータル設定、man ページを導入します。実用的な追加パッケージ:
@@ -139,7 +144,7 @@ Arch で **Debug** ビルドを行うと
 
 ## 状態
 
-MVP（`0.2.3`）ですが、日常的に使えるレベルまで中核機能は実装されています。
+MVP（`0.2.4`）ですが、日常的に使えるレベルまで中核機能は実装されています。
 0.7 のカスタマイズ性ロードマップ項目は完了しています
 （[docs/ROADMAP.ja.md](docs/ROADMAP.ja.md)）。
 
@@ -351,6 +356,10 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 `.deb` または Arch の `tessa-git` パッケージで十分です。
 
 必要なもの:
+
+> **ツールチェーン移行:** 0.2.4 は Zig 0.16 / wlroots 0.19 でビルドする最後の
+> 0.2.x リリースです。次のバージョンは Zig 0.17 / wlroots 0.20 を対象にする
+> 方針で、以下の 0.16 向け手順は 0.2.4 に適用されます。
 
 - Zig **0.16.0**（Ubuntu 26.04 の `zig` パッケージは 0.14 なので不足です）
 - wlroots **0.19** の開発ファイル（`pkg-config --modversion wlroots-0.19`

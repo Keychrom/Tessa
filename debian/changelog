@@ -1,3 +1,24 @@
+tessa (0.2.4) unstable; urgency=medium
+
+  * Final planned Debian package built against Zig 0.16 and wlroots 0.19.
+    Subsequent Tessa versions target Zig 0.17 and wlroots 0.20; source and
+    Arch packaging continue after this transition.
+  * Add named special workspaces, scratchpad-independent visibility, rule
+    assignment, toggle/move bindings, and IPC control.
+  * Add shell v2: composable bar modules, per-surface fonts and colors, PPM
+    wallpaper shaders, and layer-rule styling for bars, popovers, and toasts.
+  * Add the long-lived effect-helper protocol with validated per-window
+    opacity/rounding/blur/shadow/border overrides and strict fallback timeouts.
+  * Add frame-time instrumentation, frame_time_budget, headless performance
+    benchmarks, and offline config preflight (tessa --check-config).
+  * Add config-check/config-diff/config-edit, IPC HELLO version negotiation,
+    pidfd-based panel crash recovery, fuzz parser tests, and an ASan runtime
+    pass.
+  * Include documentation, guide, roadmap, and packaging updates for the
+    reliability-first 1.0 work.
+
+ -- Tessa contributors <maintainers@tessa.invalid>  Sun, 01 Nov 2026 12:00:00 +0900
+
 tessa (0.2.3) unstable; urgency=medium
 
   * Disable linux-dmabuf automatically on vmwgfx, where client dmabuf imports

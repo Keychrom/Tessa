@@ -81,16 +81,21 @@ ldconfig -p | grep wlroots
 
 ### 2.1 バイナリパッケージ（Ubuntu 26.04）
 
-推奨は `v0.2.3` の amd64 パッケージです:
+推奨は `v0.2.4` の amd64 パッケージです:
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
-grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
+grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.4_amd64.deb
 ```
+
+> **0.2.4 が最後の `.deb` リリースになる可能性があります。** Zig 0.16 /
+> wlroots 0.19 を前提にした最後のパッケージとして計画しています。次の
+> バージョン以降は Zig 0.17 / wlroots 0.20 に移行する方針のため、移行後は
+> ソースビルドまたは Arch パッケージを使用してください。
 
 パッケージが導入するもの:
 

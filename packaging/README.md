@@ -78,8 +78,12 @@ a machine with the development packages in `debian/control`:
 ```sh
 sudo apt install debhelper dpkg-dev fakeroot
 ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
-sudo apt install ./dist/tessa_0.2.3_amd64.deb
+sudo apt install ./dist/tessa_0.2.4_amd64.deb
 ```
+
+> **0.2.4 may be the final `.deb` release.** It is the last package planned
+> against Zig 0.16 and wlroots 0.19. Later versions target Zig 0.17 and
+> wlroots 0.20.
 
 The script runs `dpkg-buildpackage -b -us -uc -d`, collects the `.deb`,
 `.buildinfo`, and `.changes` under `dist/`, and prints the package metadata.

@@ -22,18 +22,23 @@ key, rules, effects, IPC, events, and hooks, see the
 ## Install on Ubuntu 26.04
 
 A prebuilt amd64 package is available on the
-[v0.2.3 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.2.3).
+[v0.2.4 release page](https://github.com/Keychrom/Tessa/releases/tag/v0.2.4).
 This is the recommended install path; Zig and the wlroots development headers
 are not needed for the binary package.
 
 ```sh
 sudo apt update
 sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/tessa_0.2.3_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.3/SHA256SUMS
-grep ' tessa_0.2.3_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.3_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
+curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
+grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
+sudo apt install ./tessa_0.2.4_amd64.deb
 ```
+
+> **0.2.4 may be the final `.deb` release.** It is the last package planned
+> against Zig 0.16 and wlroots 0.19. Subsequent Tessa versions target Zig 0.17
+> and wlroots 0.20; build from source or use the Arch package after that
+> transition.
 
 `apt` installs the runtime libraries, the compositor, panel, CLI, session
 entry, example config, portal selector, and man pages. Useful runtime
@@ -139,7 +144,7 @@ LLVM/LLD, so update the tree; an older tree can use
 
 ## Status
 
-This is an MVP (`0.2.3`), but it is usable and the core pieces are implemented.
+This is an MVP (`0.2.4`), but it is usable and the core pieces are implemented.
 The 0.7 customization-parity roadmap items are complete; see
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -341,6 +346,10 @@ build. The `.deb` and Arch `tessa-git` package above are sufficient for normal
 use on their respective distributions.
 
 Requirements:
+
+> **Toolchain transition:** 0.2.4 is the final 0.2.x release built against Zig
+> 0.16 and wlroots 0.19. The next version targets Zig 0.17 and wlroots 0.20;
+> these 0.16 build instructions apply to 0.2.4.
 
 - Zig **0.16.0** (the Ubuntu 26.04 `zig` package is 0.14 and is not enough)
 - wlroots **0.19** development files, discoverable with

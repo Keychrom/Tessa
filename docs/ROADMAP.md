@@ -5,6 +5,14 @@
 Tessa is intentionally small. The roadmap is ordered by what makes it usable as
 a daily Japanese desktop, then by polish.
 
+## Toolchain transition after 0.2.4
+
+0.2.4 is the final planned `.deb` release built against Zig 0.16 and wlroots
+0.19. The next Tessa version moves to **Zig 0.17** and **wlroots 0.20**. The
+0.2.x source, package, and tests remain as the 0.16/0.19 maintenance point;
+new work after the transition should target 0.17/0.20 and update packaging,
+CI, and the compatibility matrix together.
+
 ## 0.1.x — make the foundation trustworthy
 
 - [x] Run on DRM + libinput on the target machine and fix layout/input issues.
