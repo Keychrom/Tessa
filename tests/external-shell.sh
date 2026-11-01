@@ -60,6 +60,8 @@ cat > "$runtime/waybar.css" <<'EOF'
 * { font-family: sans-serif; font-size: 12px; }
 window#waybar { background: #202020; color: #ffffff; }
 EOF
+# Wofi's dmenu reader does not process keyboard input while an upstream pipe
+# remains open. Feed it a regular file so EOF arrives before typing.
 printf 'alpha\nbeta\n' > "$runtime/items.txt"
 
 export TESSA_CONFIG="$runtime/config"
