@@ -78,7 +78,7 @@ pub fn buildState(server: *Server, buf: []u8) usize {
     }
     addRaw(buf, &off, "],\"occupancy\":[");
 
-    var counts: [types.WS_COUNT]usize = [_]usize{0} ** types.WS_COUNT;
+    var counts: [types.WS_COUNT]usize = @splat(0);
     var ci: usize = 0;
     while (ci < server.clients.len) : (ci += 1) {
         const cl = server.clients[ci] orelse continue;

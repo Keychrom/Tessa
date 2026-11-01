@@ -99,7 +99,7 @@ layer サーフェスのツリーの下にポップアップのシーンツリ�
 ## エフェクトバックエンド
 
 既定ビルドは upstream wlroots のシーン実装を使います。`-Dscenefx=true` では
-`src/scene_include.h` が scenefx 0.4 のヘッダを選び、`main.zig` は
+`src/scene_include.h` が scenefx 0.5 のヘッダを選び、`main.zig` は
 `wlr_renderer_autocreate()` の代わりに `fx_renderer_create()` でレンダラーを
 作成します。scenefx のシーン関数と wlroots のシーン関数は同じ
 `wlr_scene_*` シンボルに解決されるため、Tessa の残りのシーングラフコードは
@@ -852,7 +852,7 @@ CreateSession/SelectSources/Start/OpenPipeWireRemote を実行して、有効な
 
 Cairo が角丸矩形、グラデーション、墨だまり、太陽、粒子、バー、ランチャーを
 描画します。テキストは Pango の小さな C API である `panel/text.c` 経由で
-描画します。このシムが必要なのは、Zig 0.16 の translate-c が GLib の
+描画します。このシムが必要なのは、translate-c が GLib の
 `_Pragma` ベースの非推奨マクロで失敗するためです。Zig 側は `cairo.h` と
 `text.h` だけを含み、Pango/GLib は含みません。
 
@@ -873,13 +873,19 @@ Cairo が角丸矩形、グラデーション、墨だまり、太陽、粒子�
 
 ## ビルドと生成プロトコル
 
-`build.zig` がコンポジタ、パネル、`tessa-ctl` をビルドします。コンポジタの
-C インポートは `WLR_USE_UNSTABLE` 付きの wlroots 0.19 を含みます。パネルは
+`build.zig` がコンポジタ、パネル、`tessa-ctl` をビルドします。Zig 0.17 で
+`@cImport` が削除されたため、各プログラムは C  API をヘッダー
+（`src/c_import.h`、`panel/c_import.h`、`src/ctl_c_import.h`）で宣言し、外部の
+`translate-c` パッケージがビルド時に `c_translated` モジュールを生成します。
+コンポジタのヘッダーは `WLR_USE_UNSTABLE` 付きの wlroots 0.20 を含み、
+`-Dscenefx=true` では scenefx 0.5 も含みます。パネルは
 layer-shell 用の生成済みクライアントプロトコル C をコンパイルします（これは
 推移的に xdg-shell の `xdg_popup_interface` を必要とします）。`tessa-ctl` は
-libc とソケットヘッダーだけをリンクします。
+libc とソケットヘッダーだけを必要とします。
 
-`protocol/` 以下の生成済みヘッダー/C はコミットされています:
+`build.zig.zon` が translate-c パッケージを固定し、初回ビルド時に取得します。
+システムパッケージは translate-c モジュールと最終リンクの両方で pkg-config
+から検出されます。`protocol/` 以下の生成済みヘッダー/C はコミットされています:
 
 - `xdg-shell-protocol.h` — wlroots ヘッダー用
 - `wlr-layer-shell-unstable-v1-protocol.h` — wlroots ヘッダー用
@@ -902,8 +908,9 @@ libc とソケットヘッダーだけをリンクします。
 - パネルの切断はコンポジタが後始末します。パネルは IPC の EOF で終了します。
 - 遅いイベント/状態購読者はイベントループを止めずに切断されます。フックは
   独立したシェルプロセスで動くため、フックの失敗はコンポジタに影響しません。
-- パネルがクラッシュしてもコンポジタは生存します。`tessa-panel` を手動で
-  再起動してください。
+- パネルがクラッシュしてもコンポジタは生存します。出力ごとのスーパーバイザが
+  pidfd で終了を検知し、上限付きの指数バックオフでパネルを再起動します。
+  pidfd による監視が使えない場合だけ `tessa-panel` を手動で再起動してください。
 - 出力が取り外されると、クライアントは残っている最初の出力へ移動します。
   最後の出力が取り外されるとコンポジタは終了します。
 - 無効なアプリ/desktop エントリはスキップされ、無効な設定値はクランプ

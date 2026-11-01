@@ -10,6 +10,16 @@ const INITIAL_RESTART_MS: i32 = 500;
 const MAX_RESTART_MS: i32 = 8000;
 const STABLE_RUN_MS: i64 = 10_000;
 
+fn openPidfd(pid: c.pid_t) ?c_int {
+    // Use the syscall directly: glibc only declares pidfd_open when built
+    // against glibc >= 2.36, but the kernel interface is what Tessa needs.
+    const rc = std.os.linux.pidfd_open(@intCast(pid), 0);
+    return switch (std.posix.errno(rc)) {
+        .SUCCESS => @intCast(rc),
+        else => null,
+    };
+}
+
 fn panelBin() [*:0]const u8 {
     if (c.getenv("TESSA_PANEL_BIN")) |p| return p;
     return "tessa-panel";
@@ -131,11 +141,10 @@ pub fn start(out: *Output) void {
 
     panel.pid = pid;
     panel.started_ms = core.timeNowMs();
-    const pidfd = c.pidfd_open(pid, 0);
-    if (pidfd < 0) {
+    const pidfd = openPidfd(pid) orelse {
         core.logInfo("panel for {s}: pidfd_open failed; crash recovery disabled", .{core.outputName(out)});
         return;
-    }
+    };
     panel.fd = pidfd;
     const loop = c.wl_display_get_event_loop(server.display);
     const source = c.wl_event_loop_add_fd(

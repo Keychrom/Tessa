@@ -5,13 +5,27 @@
 Tessa is intentionally small. The roadmap is ordered by what makes it usable as
 a daily Japanese desktop, then by polish.
 
-## Toolchain transition after 0.2.4
+## Toolchain transition (completed in 0.2.5)
 
-0.2.4 is the final planned `.deb` release built against Zig 0.16 and wlroots
-0.19. The next Tessa version moves to **Zig 0.17** and **wlroots 0.20**. The
-0.2.x source, package, and tests remain as the 0.16/0.19 maintenance point;
-new work after the transition should target 0.17/0.20 and update packaging,
-CI, and the compatibility matrix together.
+0.2.4 was the final planned `.deb` release built against Zig 0.16 and wlroots
+0.19. The 0.2.5 source tree now targets **Zig 0.17**, **wlroots 0.20**, and
+**scenefx 0.5**:
+
+- [x] Replace `@cImport` with the external `translate-c` package and explicit
+      compositor, panel, and CLI header modules.
+- [x] Adapt to wlroots 0.20 signal renames, output timestamp changes, and the
+      generated wayland-protocols enum headers.
+- [x] Rebuild scenefx blur as dedicated `wlr_scene_blur` nodes for clients,
+      layers, and IME popups, with transparency masks.
+- [x] Update the Zig build system for 0.17 and replace removed standard-library
+      APIs.
+- [x] Update Arch packaging to the official `zig` and `wlroots0.20` packages.
+- [ ] Run the full headless suite and a real DRM/libinput session on the new
+      toolchain before the next source release.
+- [ ] Update CI and the compatibility matrix alongside packaging.
+
+0.2.4 remains the 0.16/0.19 maintenance point. New work targets 0.17/0.20 and
+must keep packaging, docs, and the compatibility matrix in sync.
 
 ## 0.1.x — make the foundation trustworthy
 
@@ -32,8 +46,8 @@ CI, and the compatibility matrix together.
 - [x] Add a small integration test that starts the headless compositor and
       asserts state/IPC and extension hooks (`tests/smoke.sh`).
 - [x] Decide the license (MIT).
-- [x] Arch PKGBUILD and Debian packaging definitions, with wlroots 0.19
-      explicitly pinned by the build and package dependencies.
+- [x] Arch PKGBUILD and Debian packaging definitions, with the wlroots
+      version explicitly pinned by the build and package dependencies.
 - [ ] CI-built signed packages and release artifacts.
 
 ## 0.2 — input and apps
@@ -93,7 +107,7 @@ CI, and the compatibility matrix together.
       `animation_ms`, and `reduce_motion` settings.
 - [x] Window close animations and scale/fade easing snapshots for
       compositor-initiated closes.
-- [x] Rounded corners and backdrop blur through the opt-in scenefx 0.4
+- [x] Rounded corners and backdrop blur through the opt-in scenefx 0.5
       renderer (`-Dscenefx=true`; GLES2).
 - [x] Window drop shadows using layered scene geometry (`shadows = true`).
 - [x] Theme/config for bar height, margins, fonts, and palette.
@@ -203,8 +217,9 @@ not feature-for-feature plugin parity.
 - [x] Fuzzing and sanitizer boundary runs of config and IPC parsers.
       `tests/fuzz-parsers.sh` mutates config files and the live line/IPC
       parser; `tests/fuzz-asan.sh` repeats the pass with the system ASan
-      runtime preloaded. Zig 0.16 has no compiler-level ASan instrumentation,
-      so this is an allocator/interceptor pass over the Debug-safety build.
+      runtime preloaded. Zig has no compiler-level ASan instrumentation in
+      this setup, so this is an allocator/interceptor pass over the
+      Debug-safety build.
 - [x] Crash recovery for the panel. One supervisor per output uses pidfd exit
       detection and bounded exponential backoff; deliberate shutdown and output
       removal do not restart it (`tests/panel-recovery.sh`).

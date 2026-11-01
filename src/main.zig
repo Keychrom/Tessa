@@ -20,7 +20,7 @@ const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
 
-pub const version = "0.2.4";
+pub const version = "0.2.5";
 
 fn onSignal(sig: c_int, data: ?*anyopaque) callconv(.c) c_int {
     _ = sig;
@@ -55,17 +55,17 @@ fn displayNumber(display: []const u8) ?u8 {
 
 fn displaySocketExists(n: u8) bool {
     var path_buf: [64:0]u8 = undefined;
-    const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return true;
+    const path = std.mem.printSentinel(&path_buf, "/tmp/.X11-unix/X{d}", .{n}, 0) catch return true;
     if (c.access(path, c.F_OK) == 0) return true;
     var lock_buf: [64:0]u8 = undefined;
-    const lock_path = std.fmt.bufPrintZ(&lock_buf, "/tmp/.X{d}-lock", .{n}) catch return true;
+    const lock_path = std.mem.printSentinel(&lock_buf, "/tmp/.X{d}-lock", .{n}, 0) catch return true;
     return c.access(lock_path, c.F_OK) == 0;
 }
 
 fn xDisplayReady(display: []const u8) bool {
     const n = displayNumber(display) orelse return false;
     var path_buf: [64:0]u8 = undefined;
-    const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{n}) catch return false;
+    const path = std.mem.printSentinel(&path_buf, "/tmp/.X11-unix/X{d}", .{n}, 0) catch return false;
     return c.access(path, c.F_OK) == 0;
 }
 

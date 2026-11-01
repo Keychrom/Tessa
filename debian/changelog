@@ -1,3 +1,20 @@
+tessa (0.2.5) unstable; urgency=medium
+
+  * Source-only toolchain migration to Zig 0.17, wlroots 0.20, and
+    scenefx 0.5. This tree is not planned as a published .deb release.
+  * Replace @cImport with the external translate-c package and dedicated
+    compositor, panel, and CLI header modules.
+  * Adapt to wlroots 0.20 signal renames and generated wayland-protocols
+    enum headers.
+  * Rework scenefx blur as per-client, per-layer, and IME-popup scene nodes
+    with transparency masks; update corner-radius calls for scenefx 0.5.
+  * Update the Zig build for the 0.17 build system, @splat array
+    initialization, std.mem.printSentinel, and other std API changes.
+  * Update Arch packaging and build scripts for the official zig and
+    wlroots0.20 packages.
+
+ -- Tessa contributors <maintainers@tessa.invalid>  Sun, 01 Nov 2026 23:30:00 +0900
+
 tessa (0.2.4) unstable; urgency=medium
 
   * Final planned Debian package built against Zig 0.16 and wlroots 0.19.

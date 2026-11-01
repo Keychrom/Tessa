@@ -20,7 +20,7 @@ chmod +x scripts/*.sh scripts/tessa-session
 ./scripts/build.sh
 ```
 
-角丸と背景ブラーを使う場合は scenefx 0.4.1 を導入し、
+角丸と背景ブラーを使う場合は scenefx 0.5 を導入し、
 `-Dscenefx=true` を付けます。このバイナリは scenefx の GLES2 レンダラーを
 使うため、pixman レンダラーでは実行できません。
 
@@ -28,7 +28,7 @@ chmod +x scripts/*.sh scripts/tessa-session
 ./scripts/build.sh -Dscenefx=true
 ```
 
-必要なものはメイン README にまとめています。要点は Zig 0.16、wlroots 0.19、
+必要なものはメイン README にまとめています。要点は Zig 0.17、wlroots 0.20、
 Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、Cairo、Pango、
 フォントです。X11 をテストする場合は `xwayland-satellite` も `PATH` に
 入れてください。
@@ -36,7 +36,7 @@ Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、Cairo、Pa
 ライブラリの確認:
 
 ```sh
-pkg-config --modversion wlroots-0.19
+pkg-config --modversion wlroots-0.20
 ldconfig -p | grep wlroots
 fc-list | grep -i -E 'Inter|JetBrains|Noto Sans CJK'
 ```
@@ -409,7 +409,7 @@ sh tests/helper-timeouts.sh
 JSON-RPC ペイロードを稼働中の headless コンポジタへ送ります。パニック、
 クラッシュ終了コード、タイムアウト、コンポジタ停止を失敗とします。
 `tests/fuzz-asan.sh` はシステム ASan ランタイムを preload して同じパスを
-実行します。Zig 0.16 はコンパイラ ASan 計測を持たないため、Debug 安全
+実行します。Zig はコンパイラ ASan 計測を持たないため、Debug 安全
 ビルドに対するアロケータ/インターセプタ実行です。
 
 ```sh

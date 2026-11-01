@@ -736,7 +736,7 @@ fn applyHelperRects(
     border: i32,
 ) bool {
     var order: [types.MAX_CLIENTS]usize = undefined;
-    var used = [_]bool{false} ** types.MAX_CLIENTS;
+    var used: [types.MAX_CLIENTS]bool = @splat(false);
 
     for (rects, 0..) |rect, ri| {
         var found: ?usize = null;

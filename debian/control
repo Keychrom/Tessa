@@ -5,7 +5,7 @@ Maintainer: Tessa contributors <maintainers@tessa.invalid>
 Build-Depends: debhelper-compat (= 13),
                pkg-config,
                zig,
-               libwlroots-0.19-dev,
+               libwlroots-0.20-dev,
                libwayland-dev,
                wayland-protocols,
                libxkbcommon-dev,

@@ -1,4 +1,5 @@
 const std = @import("std");
+const Translator = @import("translate_c").Translator;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -6,11 +7,41 @@ pub fn build(b: *std.Build) void {
     const scenefx = b.option(
         bool,
         "scenefx",
-        "build with scenefx rounded corners and backdrop blur (requires scenefx-0.4 and GLES2)",
+        "build with scenefx 0.5 rounded corners and backdrop blur (requires scenefx-0.5 and GLES2)",
     ) orelse false;
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "scenefx", scenefx);
+
+    const translate_c = b.dependency("translate_c", .{});
+
+    // Zig 0.17 removed @cImport. Declare each C API surface as a header and
+    // let the external translate-c package generate a Zig module for it.
+    const server_libs: []const Translator.LinkSystemLib = if (scenefx) &.{
+        .{ .name = "scenefx-0.5" },
+        .{ .name = "wlroots-0.20" },
+        .{ .name = "libinput" },
+        .{ .name = "wayland-server" },
+        .{ .name = "xkbcommon" },
+        .{ .name = "pixman-1" },
+    } else &.{
+        .{ .name = "wlroots-0.20" },
+        .{ .name = "libinput" },
+        .{ .name = "wayland-server" },
+        .{ .name = "xkbcommon" },
+        .{ .name = "pixman-1" },
+    };
+
+    const server_c = Translator.init(translate_c, .{
+        .name = "tessa_c",
+        .c_source_file = b.path("src/c_import.h"),
+        .target = target,
+        .optimize = optimize,
+        .link_system_libs = server_libs,
+        .extra_args = if (scenefx) &.{"-DTESSA_SCENEFX=1"} else &.{"-DTESSA_SCENEFX=0"},
+    });
+    server_c.addIncludePath(b.path("protocol"));
+    server_c.addIncludePath(b.path("src"));
 
     const server_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -21,7 +52,15 @@ pub fn build(b: *std.Build) void {
 
     server_mod.addIncludePath(b.path("protocol"));
     server_mod.addIncludePath(b.path("src"));
+    server_mod.addImport("c_translated", server_c.mod);
     server_mod.addOptions("build_options", build_options);
+    if (scenefx) server_mod.linkSystemLibrary("scenefx-0.5", .{});
+    server_mod.linkSystemLibrary("wlroots-0.20", .{});
+    server_mod.linkSystemLibrary("libinput", .{});
+    server_mod.linkSystemLibrary("wayland-server", .{});
+    server_mod.linkSystemLibrary("xkbcommon", .{});
+    server_mod.linkSystemLibrary("pixman-1", .{});
+    server_mod.linkSystemLibrary("m", .{ .use_pkg_config = .no });
     server_mod.addCSourceFile(.{
         .file = b.path("src/regex_shim.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
@@ -32,19 +71,29 @@ pub fn build(b: *std.Build) void {
         .root_module = server_mod,
     });
     server.pie = true;
-    // Zig 0.16's self-hosted linker cannot handle the R_X86_64_PC64
-    // relocations in glibc 2.43's .sframe sections (Arch/GCC 16). Use LLD
-    // for every build mode, including Debug.
+    // Zig's self-hosted linker cannot handle the R_X86_64_PC64 relocations
+    // in glibc 2.43's .sframe sections (Arch/GCC 16). Use LLD for every
+    // build mode, including Debug.
     server.use_llvm = true;
     server.use_lld = true;
-    if (scenefx) server.root_module.linkSystemLibrary("scenefx-0.4", .{});
-    server.root_module.linkSystemLibrary("wlroots-0.19", .{});
-    server.root_module.linkSystemLibrary("libinput", .{});
-    server.root_module.linkSystemLibrary("wayland-server", .{});
-    server.root_module.linkSystemLibrary("xkbcommon", .{});
-    server.root_module.linkSystemLibrary("pixman-1", .{});
-    server.root_module.linkSystemLibrary("m", .{ .use_pkg_config = .no });
     b.installArtifact(server);
+
+    const panel_libs: []const Translator.LinkSystemLib = &.{
+        .{ .name = "wayland-client" },
+        .{ .name = "cairo" },
+        .{ .name = "pangocairo-1.0" },
+        .{ .name = "gio-2.0" },
+        .{ .name = "xkbcommon" },
+    };
+    const panel_c = Translator.init(translate_c, .{
+        .name = "tessa_panel_c",
+        .c_source_file = b.path("panel/c_import.h"),
+        .target = target,
+        .optimize = optimize,
+        .link_system_libs = panel_libs,
+    });
+    panel_c.addIncludePath(b.path("protocol"));
+    panel_c.addIncludePath(b.path("panel"));
 
     const panel_mod = b.createModule(.{
         .root_source_file = b.path("panel/main.zig"),
@@ -52,8 +101,14 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .link_libc = true,
     });
+    panel_mod.addImport("c_translated", panel_c.mod);
     panel_mod.addIncludePath(b.path("protocol"));
     panel_mod.addIncludePath(b.path("panel"));
+    panel_mod.linkSystemLibrary("wayland-client", .{});
+    panel_mod.linkSystemLibrary("cairo", .{});
+    panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
+    panel_mod.linkSystemLibrary("gio-2.0", .{});
+    panel_mod.linkSystemLibrary("xkbcommon", .{});
     panel_mod.addCSourceFile(.{
         .file = b.path("protocol/layer-shell-protocol.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
@@ -94,11 +149,6 @@ pub fn build(b: *std.Build) void {
         .file = b.path("panel/audio.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
     });
-    panel_mod.linkSystemLibrary("wayland-client", .{});
-    panel_mod.linkSystemLibrary("cairo", .{});
-    panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
-    panel_mod.linkSystemLibrary("gio-2.0", .{});
-    panel_mod.linkSystemLibrary("xkbcommon", .{});
     panel_mod.linkSystemLibrary("m", .{ .use_pkg_config = .no });
     const panel = b.addExecutable(.{
         .name = "tessa-panel",
@@ -109,12 +159,19 @@ pub fn build(b: *std.Build) void {
     panel.use_lld = true;
     b.installArtifact(panel);
 
+    const ctl_c = Translator.init(translate_c, .{
+        .name = "tessa_ctl_c",
+        .c_source_file = b.path("src/ctl_c_import.h"),
+        .target = target,
+        .optimize = optimize,
+    });
     const ctl_mod = b.createModule(.{
         .root_source_file = b.path("src/ctl.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
+    ctl_mod.addImport("c_translated", ctl_c.mod);
     const ctl = b.addExecutable(.{
         .name = "tessa-ctl",
         .root_module = ctl_mod,
@@ -126,7 +183,7 @@ pub fn build(b: *std.Build) void {
 
     const run_cmd = b.addRunArtifact(server);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run", "Run the Tessa compositor");
     run_step.dependOn(&run_cmd.step);
 }

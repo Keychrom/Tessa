@@ -16,7 +16,7 @@ fn displayReady(display: []const u8) bool {
     }
     if (digits == 0) return false;
     var path_buf: [64:0]u8 = undefined;
-    const path = std.fmt.bufPrintZ(&path_buf, "/tmp/.X11-unix/X{d}", .{number}) catch return false;
+    const path = std.mem.printSentinel(&path_buf, "/tmp/.X11-unix/X{d}", .{number}, 0) catch return false;
     return c.access(path, c.F_OK) == 0;
 }
 
@@ -51,7 +51,7 @@ pub fn init(server: *Server, display: []const u8) void {
     if (!server.config.xim) return;
     if (server.config.xim_server_len > 0 and c.getenv("XMODIFIERS") == null) {
         var value: [96:0]u8 = undefined;
-        const text = std.fmt.bufPrintZ(&value, "@im={s}", .{server.config.xim_server[0..server.config.xim_server_len]}) catch return;
+        const text = std.mem.printSentinel(&value, "@im={s}", .{server.config.xim_server[0..server.config.xim_server_len]}, 0) catch return;
         _ = c.setenv("XMODIFIERS", text, 1);
         core.logInfo("xim: XMODIFIERS={s}", .{text});
     }

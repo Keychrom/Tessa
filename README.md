@@ -36,9 +36,9 @@ sudo apt install ./tessa_0.2.4_amd64.deb
 ```
 
 > **0.2.4 may be the final `.deb` release.** It is the last package planned
-> against Zig 0.16 and wlroots 0.19. Subsequent Tessa versions target Zig 0.17
-> and wlroots 0.20; build from source or use the Arch package after that
-> transition.
+> against Zig 0.16 and wlroots 0.19. The current source tree (`0.2.5`) targets
+> Zig 0.17, wlroots 0.20, and scenefx 0.5; build from source or use the Arch
+> package for the new toolchain.
 
 `apt` installs the runtime libraries, the compositor, panel, CLI, session
 entry, example config, portal selector, and man pages. Useful runtime
@@ -77,28 +77,14 @@ the manual binaries would otherwise continue to be used.
 
 ## Install on Arch Linux
 
-Tessa requires Zig **0.16** and wlroots **0.19**. Arch's official repositories
-currently ship Zig 0.17 as `zig` and wlroots 0.20 as `wlroots0.20`, which are
-not ABI-compatible with this tree. Install the AUR packages `zig0.16-bin`
-(provides `zig0.16` and `/usr/bin/zig-0.16`) and `wlroots0.19` before building.
-
-With an AUR helper such as paru:
+Tessa requires Zig **0.17** and wlroots **0.20**. Both are available in the
+official repositories as `zig` and `wlroots0.20`. Install the build
+dependencies:
 
 ```sh
-sudo pacman -Syu --needed base-devel git
-paru -S --needed zig0.16-bin wlroots0.19
-```
-
-Without an AUR helper, build those two packages manually:
-
-```sh
-sudo pacman -S --needed base-devel git meson ninja glslang \
-  vulkan-headers wayland-protocols xorg-xwayland minisign
-mkdir -p ~/aur && cd ~/aur
-for pkg in zig0.16-bin wlroots0.19; do
-  git clone "https://aur.archlinux.org/$pkg.git"
-  (cd "$pkg" && makepkg -si)
-done
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+  wayland wayland-protocols libxkbcommon libinput pixman libdrm \
+  libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
 
 Then build and install Tessa from its PKGBUILD:
@@ -111,8 +97,7 @@ makepkg -si
 
 The `tessa-git` package installs the compositor, panel, CLI, session entry,
 example config, portal selector, man pages, and documentation under `/usr`.
-`makepkg` does not fetch AUR dependencies automatically; install
-`zig0.16-bin` and `wlroots0.19` first. Verify the result with:
+Verify the result with:
 
 ```sh
 tessa-ctl config-check
@@ -127,30 +112,31 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 ```
 
 For X11 applications, install the AUR `xwayland-satellite-git` package.
-`scenefx0.4` is only for a custom `-Dscenefx=true` build; the PKGBUILD uses the
+`scenefx` 0.5 is only for a custom `-Dscenefx=true` build; the PKGBUILD uses the
 default wlroots scene and does not enable rounded corners or blur. Log in on a
 TTY and run `tessa`, or select **Tessa** in your display manager.
 
-The Arch packaging path is exercised on Arch Linux with AUR `zig0.16-bin` and
-`wlroots0.19`, including a real session and the plain/scenefx builds. If
-`makepkg` reports an ABI or dependency problem, confirm that `zig-0.16` is the
-compiler and `pkg-config --modversion wlroots-0.19` reports `0.19.x`.
+The 0.2.4 Arch package was exercised on Arch Linux with the 0.16/0.19 AUR
+toolchain, including a real session and plain/scenefx builds. The 0.2.5 tree
+updates the PKGBUILD to the official `zig` 0.17 and `wlroots0.20` packages; run
+`makepkg -si` on your system to validate the new toolchain. If `makepkg`
+reports an ABI or dependency problem, confirm that `zig version` is `0.17.x`
+and `pkg-config --modversion wlroots-0.20` reports `0.20.x`.
 
-A custom **Debug** build on Arch can fail with
-`unhandled relocation type R_X86_64_PC64 ... Scrt1.o:.sframe`. This is a Zig
-0.16 linker limitation with glibc 2.43/GCC 16. The current `build.zig` forces
-LLVM/LLD, so update the tree; an older tree can use
-`-Doptimize=ReleaseSafe` instead.
+`build.zig` forces LLVM/LLD for every build mode, so the glibc 2.43/GCC 16
+`R_X86_64_PC64` relocation problem seen with older Zig self-hosted linking
+does not require a special optimize mode.
 
 ## Status
 
-This is an MVP (`0.2.4`), but it is usable and the core pieces are implemented.
-The 0.7 customization-parity roadmap items are complete; see
+The current development tree is `0.2.5`; `0.2.4` remains the latest binary
+release. Tessa is usable and the core pieces are implemented. The 0.7
+customization-parity roadmap items are complete; see
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Highlights include:
 
-- wlroots 0.19 compositor in Zig (DRM, headless, and nested backends via
+- wlroots 0.20 compositor in Zig (DRM, headless, and nested backends via
   wlroots' autodetection)
 - xdg-shell toplevels, layer-shell, data-device and primary-selection
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
@@ -266,11 +252,11 @@ Highlights include:
 - line-based IPC with explicit state/event subscriptions and a `tessa-ctl` CLI
 - line-based configuration file with includes and event hooks
 
-It has been built and tested on Ubuntu 26.04 and Arch Linux with Zig 0.16.0 and
-wlroots 0.19.2, primarily in the headless pixman backend with `grim`, `wtype`,
-Fcitx5 + Mozc, and X11 clients through `xwayland-satellite`; the Arch host also
-runs the compositor in a real session for display, keyboard, mouse, IME, and
-browser checks. Dual-headless-output
+Tessa 0.2.4 was built and tested on Ubuntu 26.04 and Arch Linux with Zig 0.16.0
+and wlroots 0.19.2, primarily in the headless pixman backend with `grim`,
+`wtype`, Fcitx5 + Mozc, and X11 clients through `xwayland-satellite`; the Arch
+host also runs the compositor in a real session for display, keyboard, mouse,
+IME, and browser checks. Dual-headless-output
 workspaces, per-output panels, session locking across outputs, and `wlr-randr`
 output management were also verified. Event hooks, the event stream, custom
 status entries, custom launcher entries, config reload, per-workspace
@@ -301,6 +287,11 @@ restarts were exercised by
 `tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
 `tests/helper-timeouts.sh`, `tests/fuzz-parsers.sh`, and
 `tests/fuzz-asan.sh`.
+The 0.2.5 source tree targets Zig 0.17.0, wlroots 0.20.2, and scenefx 0.5. All
+compositor, panel, and CLI modules and their tests compile against those
+libraries in both plain and scenefx configurations; live-session validation on
+the new toolchain is still pending.
+
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
 corners only in a `-Dscenefx=true` build and skips otherwise. The Kitty and real
@@ -347,14 +338,11 @@ use on their respective distributions.
 
 Requirements:
 
-> **Toolchain transition:** 0.2.4 is the final 0.2.x release built against Zig
-> 0.16 and wlroots 0.19. The next version targets Zig 0.17 and wlroots 0.20;
-> these 0.16 build instructions apply to 0.2.4.
-
-- Zig **0.16.0** (the Ubuntu 26.04 `zig` package is 0.14 and is not enough)
-- wlroots **0.19** development files, discoverable with
-  `pkg-config --modversion wlroots-0.19`
-- Wayland, xkbcommon, pixman, libdrm, libinput, libseat, libudev, EGL/GLES
+- Zig **0.17.0**
+- wlroots **0.20** development files, discoverable with
+  `pkg-config --modversion wlroots-0.20`
+- Wayland, xkbcommon, pixman, libdrm, libinput, libseat, libudev, EGL/GLES,
+  and wayland-protocols >= 1.47 (for the generated enum headers)
 - Cairo, Pango, and GLib/GIO development files for the panel and notifications
 - fonts: Inter, JetBrains Mono, and a CJK font such as Noto Sans CJK JP
 - optional: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
@@ -362,8 +350,8 @@ Requirements:
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
-- optional: [scenefx](https://github.com/wlrfx/scenefx) **0.4.1** for rounded
-  corners and backdrop blur (`pkg-config --modversion scenefx-0.4`)
+- optional: [scenefx](https://github.com/wlrfx/scenefx) **0.5** for rounded
+  corners and backdrop blur (`pkg-config --modversion scenefx-0.5`)
 - optional: a D-Bus session bus for desktop notifications, tray, and portals
 - optional: `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for
   volume control
@@ -376,9 +364,13 @@ compositor, panel, CLI, session file, example config, and the
 `xdg-desktop-portal` backend selector. To build a Debian binary package:
 
 ```sh
-ZIG="$HOME/.local/zig-0.16.0/zig" ./scripts/build-deb.sh
+ZIG="$HOME/.local/zig-0.17.0/zig" ./scripts/build-deb.sh
 # result: dist/tessa_<version>_<arch>.deb
 ```
+
+The `.deb` path is retained for downstream packaging, but 0.2.4 remains the
+last published Debian package; `debian/control` now expects
+`libwlroots-0.20-dev`.
 
 See [packaging/README.md](packaging/README.md).
 
@@ -391,11 +383,12 @@ xdpw needs a source chooser; for a single monitor set
 `chooser_type=none` and `output_name=<output>` in
 `~/.config/xdg-desktop-portal-wlr/config`.
 
-On Ubuntu 26.04:
+On Ubuntu 26.04, install Zig 0.17 from upstream if the distribution package is
+older, then the development headers:
 
 ```sh
 sudo apt install build-essential pkg-config git \
-  libwayland-dev wayland-protocols libwlroots-0.19-dev \
+  libwayland-dev wayland-protocols libwlroots-0.20-dev \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
@@ -403,21 +396,21 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-On Arch Linux, install AUR `zig0.16-bin` and `wlroots0.19` as described in
-[Install on Arch Linux](#install-on-arch-linux). `scripts/build.sh` prefers
-`/usr/bin/zig-0.16` automatically; `ZIG=/path/to/zig` overrides it. Do not use
-Arch's official `zig` 0.17 or `wlroots0.20` for this build.
+On Arch Linux, install the official `zig`, `wlroots0.20`, and `scenefx`
+packages as described in [Install on Arch Linux](#install-on-arch-linux).
+`scripts/build.sh` requires Zig 0.17.x; `ZIG=/path/to/zig` overrides the
+compiler. Do not use Zig 0.16 or wlroots 0.19 for this tree.
 
 `xwayland-satellite` is not packaged everywhere; install it into `PATH` (for
 example `~/.local/bin/xwayland-satellite`), or set `TESSA_XWAYLAND_BIN` to its
 absolute path. Tessa does not use wlroots' built-in XWayland; satellite gives
 rootless X11 windows to the compositor as ordinary xdg-shell toplevels.
 
-If wlroots 0.19 is installed under `/usr/local` (for example when built from source),
+If wlroots 0.20 is installed under `/usr/local` (for example when built from source),
 make sure its `.pc` file and shared library are found:
 
 ```sh
-pkg-config --modversion wlroots-0.19
+pkg-config --modversion wlroots-0.20
 ldconfig -p | grep wlroots
 ```
 
@@ -429,7 +422,7 @@ chmod +x scripts/*.sh scripts/tessa-session   # once, if not preserved
 ```
 
 Rounded corners and backdrop blur are an opt-in scenefx build. Install
-scenefx 0.4.1 (the wlroots 0.19 series), then:
+scenefx 0.5 (the wlroots 0.20 series), then:
 
 ```sh
 ./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
@@ -1077,7 +1070,7 @@ These are real and important:
   diff preview, and confirmed apply/reload while the compositor is running.
   `config-edit` uses `$VISUAL`/`$EDITOR`; there is no separate GUI editor, and
   validation/diff requires a running compositor.
-- Layer-shell/kbd focus uses wlroots 0.19 unstable APIs; pin the wlroots
+- Layer-shell/kbd focus uses wlroots 0.20 unstable APIs; pin the wlroots
   version when packaging.
 - The launcher scans `.desktop` files; if you have only a few installed, the
   list will be short. It does not use icon themes yet (monogram tiles instead).

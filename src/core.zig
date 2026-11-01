@@ -113,10 +113,10 @@ pub fn resetChildSignals() void {
     _ = c.sigemptyset(&empty);
     _ = c.sigprocmask(c.SIG_SETMASK, &empty, null);
     const signals = [_]c_int{
-        c.SIGHUP,   c.SIGINT,   c.SIGQUIT, c.SIGTERM,
-        c.SIGPIPE,  c.SIGCHLD,  c.SIGUSR1, c.SIGUSR2,
-        c.SIGALRM,  c.SIGWINCH, c.SIGCONT, c.SIGTSTP,
-        c.SIGTTIN,  c.SIGTTOU,
+        c.SIGHUP,  c.SIGINT,   c.SIGQUIT, c.SIGTERM,
+        c.SIGPIPE, c.SIGCHLD,  c.SIGUSR1, c.SIGUSR2,
+        c.SIGALRM, c.SIGWINCH, c.SIGCONT, c.SIGTSTP,
+        c.SIGTTIN, c.SIGTTOU,
     };
     for (signals) |sig| _ = c.signal(sig, c.SIG_DFL);
 }
@@ -143,7 +143,7 @@ pub fn commandExists(cmd: []const u8) bool {
 
 pub fn spawn(cmd: []const u8) void {
     var buf: [2048]u8 = undefined;
-    const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
+    const z = std.mem.printSentinel(&buf, "{s}", .{cmd}, 0) catch return;
     const pid = c.fork();
     if (pid == 0) {
         resetChildSignals();
@@ -160,7 +160,7 @@ pub const EnvVar = struct {
 
 pub fn spawnWithEnv(cmd: []const u8, envs: []const EnvVar) void {
     var buf: [2048]u8 = undefined;
-    const z = std.fmt.bufPrintZ(&buf, "{s}", .{cmd}) catch return;
+    const z = std.mem.printSentinel(&buf, "{s}", .{cmd}, 0) catch return;
     const pid = c.fork();
     if (pid == 0) {
         resetChildSignals();

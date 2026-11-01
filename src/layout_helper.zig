@@ -142,7 +142,7 @@ fn start(out: *Output, command: []const u8, hash: u64) bool {
     );
 
     var cmd_buf: [2048:0]u8 = undefined;
-    const command_z = std.fmt.bufPrintZ(&cmd_buf, "{s}", .{command}) catch {
+    const command_z = std.mem.printSentinel(&cmd_buf, "{s}", .{command}, 0) catch {
         _ = c.close(fds[0]);
         _ = c.close(fds[1]);
         core.logInfo("layout helper for {s}: command too long", .{core.outputName(out)});
@@ -440,7 +440,7 @@ fn parseResponse(out: *Output, data: []const u8) bool {
         return false;
     }
 
-    var matched = [_]bool{false} ** MAX_HELPER_WINDOWS;
+    var matched: [MAX_HELPER_WINDOWS]bool = @splat(false);
     for (rects[0..count]) |rect| {
         var found = false;
         var i: usize = 0;

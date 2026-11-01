@@ -4,13 +4,13 @@ const c = @import("c.zig").c;
 pub const MAX_APPS = 256;
 
 pub const App = struct {
-    id: [128]u8 = [_]u8{0} ** 128,
+    id: [128]u8 = @splat(0),
     id_len: usize = 0,
-    name: [160]u8 = [_]u8{0} ** 160,
+    name: [160]u8 = @splat(0),
     name_len: usize = 0,
-    comment: [192]u8 = [_]u8{0} ** 192,
+    comment: [192]u8 = @splat(0),
     comment_len: usize = 0,
-    exec: [512]u8 = [_]u8{0} ** 512,
+    exec: [512]u8 = @splat(0),
     exec_len: usize = 0,
     terminal: bool = false,
 };
@@ -117,9 +117,9 @@ fn scanFile(list: *AppList, dir_path: []const u8, filename: []const u8) void {
     defer _ = c.fclose(file);
 
     var app: App = .{};
-    var name_ja: [160]u8 = [_]u8{0} ** 160;
+    var name_ja: [160]u8 = @splat(0);
     var name_ja_len: usize = 0;
-    var comment_ja: [192]u8 = [_]u8{0} ** 192;
+    var comment_ja: [192]u8 = @splat(0);
     var comment_ja_len: usize = 0;
     var type_ok = true;
     var hidden = false;
@@ -237,8 +237,8 @@ fn isPinned(app: *const App) bool {
     const id = app.id[0..app.id_len];
     const name = app.name[0..app.name_len];
     for (pinned) |p| {
-        if (std.ascii.indexOfIgnoreCase(id, p) != null) return true;
-        if (std.ascii.indexOfIgnoreCase(name, p) != null) return true;
+        if (std.ascii.findIgnoreCase(id, p) != null) return true;
+        if (std.ascii.findIgnoreCase(name, p) != null) return true;
     }
     return false;
 }

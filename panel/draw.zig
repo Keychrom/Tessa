@@ -933,58 +933,58 @@ pub fn drawBar(s: *m.Surface) void {
     var skipped: usize = 0;
     var index: usize = 0;
     if (g.show_chips) {
-    while (index < g.window_count) : (index += 1) {
-        const w = &g.windows[index];
-        if (!w.visible) continue;
-        if (w.ws != g.active_ws) continue;
-        const label = if (w.title_len > 0)
-            w.title[0..w.title_len]
-        else if (w.app_len > 0)
-            w.app_id[0..w.app_len]
-        else
-            "untitled";
-        const tw = textWidth(cr, label, m.barFont(), "Medium", 9.6, 0);
-        var chip_w = tw + 50.0;
-        chip_w = std.math.clamp(chip_w, 92.0, 190.0);
-        if (cx + chip_w > chips_end) {
-            skipped += 1;
-            continue;
+        while (index < g.window_count) : (index += 1) {
+            const w = &g.windows[index];
+            if (!w.visible) continue;
+            if (w.ws != g.active_ws) continue;
+            const label = if (w.title_len > 0)
+                w.title[0..w.title_len]
+            else if (w.app_len > 0)
+                w.app_id[0..w.app_len]
+            else
+                "untitled";
+            const tw = textWidth(cr, label, m.barFont(), "Medium", 9.6, 0);
+            var chip_w = tw + 50.0;
+            chip_w = std.math.clamp(chip_w, 92.0, 190.0);
+            if (cx + chip_w > chips_end) {
+                skipped += 1;
+                continue;
+            }
+            const chip_h = 26.0;
+            const chip_y = cy - chip_h / 2.0;
+            const focused = w.id == g.focused_id;
+            const hovered = g.hover.kind == .window and g.hover.value == w.id;
+
+            if (focused) {
+                fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ accent[0], accent[1], accent[2], if (hovered) 0.22 else 0.15 });
+                strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ accent[0], accent[1], accent[2], 0.42 }, 1.0);
+            } else {
+                fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ 1, 1, 1, if (hovered) 0.075 else 0.040 });
+                strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ 1, 1, 1, 0.040 }, 1.0);
+            }
+
+            const app_id = if (w.app_len > 0) w.app_id[0..w.app_len] else label;
+            var hsh: u32 = 2166136261;
+            for (app_id) |ch| hsh = (hsh ^ ch) *% 16777619;
+            const col = palette[hsh % palette.len];
+
+            fillRound(cr, cx + 6, cy - 8, 16, 16, 5, .{ col[0], col[1], col[2], 0.92 });
+            var gbuf: [8]u8 = undefined;
+            const glyph = upperFirst(&gbuf, firstGlyph(label));
+            _ = drawTextCentered(cr, glyph, cx + 10.6, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
+
+            _ = drawTextCentered(cr, label, cx + 28, cy + 0.2, m.barFont(), "Medium", 9.6, if (focused) .{ 1, 1, 1, 0.96 } else .{ 0.68, 0.74, 0.84, 0.9 }, chip_w - 36, 0);
+            addBarHit(cx, chip_y, chip_w, chip_h, .{ .kind = .window, .value = w.id });
+            cx += chip_w + 6;
+            shown += 1;
+            if (shown >= 6) break;
         }
-        const chip_h = 26.0;
-        const chip_y = cy - chip_h / 2.0;
-        const focused = w.id == g.focused_id;
-        const hovered = g.hover.kind == .window and g.hover.value == w.id;
-
-        if (focused) {
-            fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ accent[0], accent[1], accent[2], if (hovered) 0.22 else 0.15 });
-            strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ accent[0], accent[1], accent[2], 0.42 }, 1.0);
-        } else {
-            fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ 1, 1, 1, if (hovered) 0.075 else 0.040 });
-            strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ 1, 1, 1, 0.040 }, 1.0);
+        if (skipped > 0 and cx + 34 < chips_end) {
+            fillRound(cr, cx, cy - 11, 32, 22, 7, .{ 1, 1, 1, 0.045 });
+            var sbuf: [16]u8 = undefined;
+            const extra = std.fmt.bufPrint(&sbuf, "+{d}", .{skipped}) catch "+";
+            _ = drawTextCentered(cr, extra, cx + 8, cy + 0.5, MONO, "Medium", 8.5, .{ 0.65, 0.71, 0.81, 0.8 }, 0, 0);
         }
-
-        const app_id = if (w.app_len > 0) w.app_id[0..w.app_len] else label;
-        var hsh: u32 = 2166136261;
-        for (app_id) |ch| hsh = (hsh ^ ch) *% 16777619;
-        const col = palette[hsh % palette.len];
-
-        fillRound(cr, cx + 6, cy - 8, 16, 16, 5, .{ col[0], col[1], col[2], 0.92 });
-        var gbuf: [8]u8 = undefined;
-        const glyph = upperFirst(&gbuf, firstGlyph(label));
-        _ = drawTextCentered(cr, glyph, cx + 10.6, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
-
-        _ = drawTextCentered(cr, label, cx + 28, cy + 0.2, m.barFont(), "Medium", 9.6, if (focused) .{ 1, 1, 1, 0.96 } else .{ 0.68, 0.74, 0.84, 0.9 }, chip_w - 36, 0);
-        addBarHit(cx, chip_y, chip_w, chip_h, .{ .kind = .window, .value = w.id });
-        cx += chip_w + 6;
-        shown += 1;
-        if (shown >= 6) break;
-    }
-    if (skipped > 0 and cx + 34 < chips_end) {
-        fillRound(cr, cx, cy - 11, 32, 22, 7, .{ 1, 1, 1, 0.045 });
-        var sbuf: [16]u8 = undefined;
-        const extra = std.fmt.bufPrint(&sbuf, "+{d}", .{skipped}) catch "+";
-        _ = drawTextCentered(cr, extra, cx + 8, cy + 0.5, MONO, "Medium", 8.5, .{ 0.65, 0.71, 0.81, 0.8 }, 0, 0);
-    }
     }
 
     // right cluster, in configured module order from right to left

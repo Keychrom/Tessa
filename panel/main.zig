@@ -1226,7 +1226,7 @@ fn screenshotPath(dest: *[1024]u8) ?[]const u8 {
     var t: c.time_t = c.time(null);
     var tm: c.tm = undefined;
     _ = c.localtime_r(&t, &tm);
-    var stamp: [32]u8 = [_]u8{0} ** 32;
+    var stamp: [32]u8 = @splat(0);
     _ = c.strftime(&stamp, stamp.len, "%Y%m%d-%H%M%S", &tm);
     var ts: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_REALTIME, &ts);
@@ -3151,7 +3151,7 @@ fn splitTabs(line: []const u8, fields: [][]const u8) usize {
 fn handleStateLine(line: []const u8) void {
     if (std.mem.eql(u8, line, "STATE")) {
         g.window_count = 0;
-        g.occ = [_]u32{0} ** 10;
+        g.occ = @splat(0);
         g.focused_id = 0;
         g.is_focused_output = false;
         g.status_count = 0;
@@ -3160,7 +3160,7 @@ fn handleStateLine(line: []const u8) void {
     }
     if (std.mem.eql(u8, line, "END")) {
         g.ipc_in_state = false;
-        g.occ = [_]u32{0} ** 10;
+        g.occ = @splat(0);
         var wi: usize = 0;
         while (wi < g.window_count) : (wi += 1) {
             const ws = g.windows[wi].ws;

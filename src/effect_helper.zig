@@ -144,7 +144,7 @@ fn start(server: *Server, command: []const u8, hash: u64) bool {
     );
 
     var cmd_buf: [2048:0]u8 = undefined;
-    const command_z = std.fmt.bufPrintZ(&cmd_buf, "{s}", .{command}) catch {
+    const command_z = std.mem.printSentinel(&cmd_buf, "{s}", .{command}, 0) catch {
         _ = c.close(fds[0]);
         _ = c.close(fds[1]);
         core.logInfo("effect helper: command too long", .{});
@@ -336,7 +336,7 @@ fn applyResponse(server: *Server, data: []const u8) bool {
     const h = &server.effect_helper;
     var overrides: [types.MAX_CLIENTS]Override = undefined;
     var override_count: usize = 0;
-    var matched = [_]bool{false} ** types.MAX_CLIENTS;
+    var matched: [types.MAX_CLIENTS]bool = @splat(false);
     var saw_end = false;
 
     var lines = std.mem.splitScalar(u8, data, '\n');

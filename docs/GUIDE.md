@@ -28,19 +28,20 @@ On Arch Linux, use the AUR-backed PKGBUILD in section 2.2. The Zig/wlroots
 development requirements below apply only to source and package builds.
 
 - Linux (development is tested on Ubuntu 26.04)
-- Zig **0.16.0**
-- wlroots **0.19** development files
-- Wayland, wayland-protocols, xkbcommon, pixman, libdrm, libinput, libseat,
-  libudev, EGL/GLES
+- Zig **0.17.0**
+- wlroots **0.20** development files
+- Wayland, wayland-protocols >= 1.47, xkbcommon, pixman, libdrm, libinput,
+  libseat, libudev, EGL/GLES
 - Cairo, Pango, GLib/GIO for the panel and notifications
 - Fonts: Inter, JetBrains Mono, Noto Sans CJK JP (or equivalent)
 - A terminal; the default command is `kitty` (`terminal = foot` is fine)
 
-Ubuntu 26.04 example:
+Ubuntu 26.04 example (install Zig 0.17 from upstream if the distribution
+package is older):
 
 ```sh
 sudo apt install build-essential pkg-config git \
-  libwayland-dev wayland-protocols libwlroots-0.19-dev \
+  libwayland-dev wayland-protocols libwlroots-0.20-dev \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
@@ -48,15 +49,14 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-On Arch Linux, the official `zig` (0.17) and `wlroots0.20` do not match the
-Zig 0.16 / wlroots 0.19 ABI. Use AUR `zig0.16-bin` and `wlroots0.19` as shown in
-section 2.2 instead.
+On Arch Linux, the official `zig` (0.17) and `wlroots0.20` match this tree.
+Install them as shown in section 2.2.
 
 If wlroots is installed under `/usr/local`, verify that pkg-config and the
 shared library are visible:
 
 ```sh
-pkg-config --modversion wlroots-0.19
+pkg-config --modversion wlroots-0.20
 ldconfig -p | grep wlroots
 ```
 
@@ -71,7 +71,7 @@ ldconfig -p | grep wlroots
 - `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for volume
 - `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and PipeWire for screen sharing
 - Fcitx5 + Mozc for Wayland IME and XIM
-- scenefx **0.4.1** only for rounded corners and backdrop blur
+- scenefx **0.5** only for rounded corners and backdrop blur
 
 ---
 
@@ -91,8 +91,9 @@ sudo apt install ./tessa_0.2.4_amd64.deb
 ```
 
 > **0.2.4 may be the final `.deb` release.** It is the last package planned
-> against Zig 0.16 and wlroots 0.19. Subsequent versions target Zig 0.17 and
-> wlroots 0.20; use a source build or the Arch package after that transition.
+> against Zig 0.16 and wlroots 0.19. The current source tree (`0.2.5`) targets
+> Zig 0.17, wlroots 0.20, and scenefx 0.5; use a source build or the Arch
+> package for the new toolchain.
 
 The package installs:
 
@@ -131,30 +132,15 @@ If Tessa was previously installed manually under `/usr/local`, keep only one
 installation. `/usr/local/bin` normally precedes `/usr/bin` in `PATH`, so the
 manual binaries would otherwise win.
 
-### 2.2 Arch Linux (AUR)
+### 2.2 Arch Linux
 
-Arch's official repositories currently provide `zig` 0.17 and `wlroots0.20`.
-Tessa is built against Zig 0.16 and the wlroots 0.19 ABI, so install the AUR
-packages `zig0.16-bin` and `wlroots0.19` first. Do not build against the
-official `zig` or `wlroots0.20`.
-
-With an AUR helper, after installing paru or yay:
+Arch's official repositories provide `zig` 0.17 and `wlroots0.20`, which match
+this tree. Install the build dependencies:
 
 ```sh
-sudo pacman -Syu --needed base-devel git
-paru -S --needed zig0.16-bin wlroots0.19
-```
-
-Without a helper:
-
-```sh
-sudo pacman -S --needed base-devel git meson ninja glslang \
-  vulkan-headers wayland-protocols xorg-xwayland minisign
-mkdir -p ~/aur && cd ~/aur
-for pkg in zig0.16-bin wlroots0.19; do
-  git clone "https://aur.archlinux.org/$pkg.git"
-  (cd "$pkg" && makepkg -si)
-done
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+  wayland wayland-protocols libxkbcommon libinput pixman libdrm \
+  libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
 
 Then build and install Tessa:
@@ -165,10 +151,9 @@ cd Tessa/packaging/arch
 makepkg -si
 ```
 
-`makepkg` does not fetch AUR dependencies automatically; the two packages
-above must already be installed. The resulting `tessa-git` package installs
-the same files as the `.deb` (binaries, session entry, config example, portal
-selector, man pages, and documentation) under `/usr`.
+The resulting `tessa-git` package installs the same files as the `.deb`
+(binaries, session entry, config example, portal selector, man pages, and
+documentation) under `/usr`.
 
 Verify:
 
@@ -184,13 +169,14 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
   xdg-desktop-portal xdg-desktop-portal-wlr pipewire
 ```
 
-For X11 applications, use AUR `xwayland-satellite-git`. `scenefx0.4` is only
+For X11 applications, use AUR `xwayland-satellite-git`. `scenefx` 0.5 is only
 needed for a custom `-Dscenefx=true` build; the PKGBUILD's default build does
-not enable rounded corners or blur. The Arch packaging path is built and
-exercised on Arch Linux with AUR `zig0.16-bin` and `wlroots0.19`, including a
-real session and the plain/scenefx builds. If `makepkg` reports an ABI or
-dependency problem, confirm `zig-0.16 version` is 0.16.x and
-`pkg-config --modversion wlroots-0.19` is 0.19.x.
+not enable rounded corners or blur. The 0.2.4 Arch package was built and
+exercised with the 0.16/0.19 AUR toolchain; 0.2.5 updates the PKGBUILD to the
+official `zig` and `wlroots0.20`, so validate the new toolchain with
+`makepkg -si` on your system. If `makepkg` reports an ABI or dependency
+problem, confirm `zig version` is 0.17.x and
+`pkg-config --modversion wlroots-0.20` is 0.20.x.
 
 ### 2.3 Build from source (development)
 
@@ -207,9 +193,9 @@ Release build:
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-`scripts/build.sh` prefers `zig-0.16` when it exists and otherwise uses `zig`;
-set `ZIG=/path/to/zig` to choose an explicit 0.16 toolchain. On Arch, this
-picks up `/usr/bin/zig-0.16` from `zig0.16-bin`.
+`scripts/build.sh` requires Zig 0.17.x; set `ZIG=/path/to/zig` to choose an
+explicit toolchain. On Arch, the official `zig` package is the supported
+compiler.
 
 Artifacts:
 
@@ -233,7 +219,7 @@ installed (`foot`, `grim`, `wlr-randr`, PipeWire, D-Bus, etc.).
 ### scenefx effects build
 
 The default build uses the upstream wlroots scene and supports both GL and
-pixman. For rounded corners and backdrop blur, install scenefx 0.4.1 and build:
+pixman. For rounded corners and backdrop blur, install scenefx 0.5 and build:
 
 ```sh
 ./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
@@ -1849,19 +1835,18 @@ configuration, so reload after editing.
 
 ### Arch build fails: wrong Zig or wlroots
 
-Tessa requires Zig 0.16 and wlroots 0.19. Arch's official `zig` is 0.17 and
-`wlroots0.20` is 0.20, so install AUR `zig0.16-bin` and `wlroots0.19` and build
-with the PKGBUILD from section 2.2.
+Tessa requires Zig 0.17 and wlroots 0.20. Both are in the official Arch
+repositories as `zig` and `wlroots0.20`; build with the PKGBUILD from section
+2.2.
 
 ```sh
-zig-0.16 version
-pkg-config --modversion wlroots-0.19
+zig version
+pkg-config --modversion wlroots-0.20
 ```
 
-The first command must print `0.16.x`; the second must print `0.19.x`. If
-`makepkg` cannot find `zig0.16`, install AUR `zig0.16-bin` before building
-Tessa. If pkg-config finds `/usr/local`, remove that prefix from the build
-environment or point `PKG_CONFIG_PATH` at the AUR installation.
+The first command must print `0.17.x`; the second must print `0.20.x`. If
+pkg-config finds `/usr/local`, remove that prefix from the build environment or
+point `PKG_CONFIG_PATH` at the official installation.
 
 ### Arch Debug build fails with R_X86_64_PC64
 
@@ -1870,11 +1855,11 @@ fatal linker error: unhandled relocation type R_X86_64_PC64
 note: in .../Scrt1.o:.sframe
 ```
 
-Zig 0.16's self-hosted linker cannot handle the `.sframe` relocations emitted
-by glibc 2.43 and GCC 16 on Arch. The current `build.zig` forces LLVM/LLD for
-all three programs, so update the tree before building. On an older clone, use
-a release build (`-Doptimize=ReleaseSafe`), which already selects LLVM/LLD, or
-apply the `use_llvm = true` and `use_lld = true` settings to each executable.
+Old Zig self-hosted linking could not handle the `.sframe` relocations emitted
+by glibc 2.43 and GCC 16. The current `build.zig` forces LLVM/LLD for all three
+programs, so this tree is not affected. On an older clone, use a release build
+(`-Doptimize=ReleaseSafe`), which already selects LLVM/LLD, or apply the
+`use_llvm = true` and `use_lld = true` settings to each executable.
 
 ### Panel missing
 
@@ -2039,15 +2024,17 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
-  output, keyboard, mouse, IME, and XWayland clients have been validated. The
-  headless suite uses pixman, `wtype`, Fcitx5, and `xwayland-satellite` for
-  regression coverage. Per-device touchpad tuning, VRR/adaptive-sync commits,
-  and unusual multi-GPU/monitor combinations still need validation on the
-  matching hardware.
-- **Arch packaging requires the AUR toolchain.** The PKGBUILD targets AUR
-  `zig0.16-bin` and `wlroots0.19`; the official repos provide newer,
-  ABI-incompatible versions. Report `makepkg` failures with the compiler and
-  pkg-config versions from the troubleshooting section.
+  output, keyboard, mouse, IME, and XWayland clients have been validated on
+  0.2.4. The headless suite uses pixman, `wtype`, Fcitx5, and
+  `xwayland-satellite` for regression coverage. The 0.2.5 tree compiles against
+  Zig 0.17 / wlroots 0.20 / scenefx 0.5, but live-session validation on those
+  versions is still pending. Per-device touchpad tuning, VRR/adaptive-sync
+  commits, and unusual multi-GPU/monitor combinations still need validation on
+  the matching hardware.
+- **Arch packaging uses the official toolchain.** The PKGBUILD targets the
+  official `zig` 0.17 and `wlroots0.20` packages; `scenefx` 0.5 is optional for
+  the effects build. Report `makepkg` failures with the compiler and pkg-config
+  versions from the troubleshooting section.
 - **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
   the exact scale, but the panel uses integer Cairo buffers and unsupported
   clients use the ceiling. XWayland depends on `xwayland-satellite` and is not
@@ -2065,7 +2052,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Media controls the first MPRIS player only.** No album art.
 - **System indicators are basic.** Battery reads `/sys/class/power_supply`;
   network uses the default route and `operstate`.
-- **Corners/blur are opt-in.** Requires scenefx 0.4.1 and GLES2; no pixman.
+- **Corners/blur are opt-in.** Requires scenefx 0.5 and GLES2; no pixman.
 - **Window effects are simple.** Close snapshots only apply to
   compositor-initiated closes; client self-closes are immediate.
 - **Profiles cover layout/tuning, not theme values.** Use per-output

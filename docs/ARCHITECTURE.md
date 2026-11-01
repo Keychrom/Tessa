@@ -100,7 +100,7 @@ dropdowns visible.
 ## Effects backend
 
 The default build uses the upstream wlroots scene implementation. With
-`-Dscenefx=true`, `src/scene_include.h` selects the scenefx 0.4 header and
+`-Dscenefx=true`, `src/scene_include.h` selects the scenefx 0.5 header and
 `main.zig` creates the renderer with `fx_renderer_create()` instead of
 `wlr_renderer_autocreate()`. Scenefx's scene entry points and wlroots' scene
 entry points resolve to the same `wlr_scene_*` symbols, so the rest of Tessa
@@ -823,7 +823,7 @@ timeout becomes zero. Buffers are recreated on configure resize.
 
 Cairo draws rounded rectangles, gradients, the ink blobs, the sun, grain, the
 bar, and the launcher. Text is drawn through `panel/text.c`, a tiny C API around
-Pango. This shim exists because Zig 0.16's translate-c fails on GLib's
+Pango. This shim exists because translate-c cannot process GLib's
 `_Pragma`-based deprecation macros. The Zig side includes only `cairo.h` and
 `text.h`, not Pango/GLib.
 
@@ -843,13 +843,18 @@ compositor-facing panel loop never blocks.
 
 ## Build and generated protocols
 
-`build.zig` builds the compositor, panel, and `tessa-ctl`. The compositor's C
-import includes wlroots 0.19 with `WLR_USE_UNSTABLE`. The panel compiles
-generated client protocol C for layer-shell (which transitively needs
-xdg-shell's `xdg_popup_interface`). `tessa-ctl` only links libc and socket
-headers.
+`build.zig` builds the compositor, panel, and `tessa-ctl`. Zig 0.17 removed
+`@cImport`, so each program declares its C surface in a header
+(`src/c_import.h`, `panel/c_import.h`, `src/ctl_c_import.h`) and the external
+`translate-c` package generates the `c_translated` module at build time. The
+compositor's header includes wlroots 0.20 with `WLR_USE_UNSTABLE`, plus scenefx
+0.5 when `-Dscenefx=true`. The panel compiles generated client protocol C for
+layer-shell (which transitively needs xdg-shell's `xdg_popup_interface`).
+`tessa-ctl` only needs libc and socket headers.
 
-The generated headers/C under `protocol/` are committed:
+`build.zig.zon` pins the translate-c package; it is fetched on the first build.
+System packages are discovered through pkg-config by the translate-c module and
+by the final link. The generated headers/C under `protocol/` are committed:
 
 - `xdg-shell-protocol.h` — for wlroots headers
 - `wlr-layer-shell-unstable-v1-protocol.h` — for wlroots headers
@@ -871,7 +876,9 @@ The generated headers/C under `protocol/` are committed:
 - A slow event/state subscriber is disconnected instead of stalling the event
   loop. Hooks run in detached shell processes; a failing hook does not affect
   the compositor.
-- A panel crash leaves the compositor alive; restart `tessa-panel` manually.
+- A panel crash leaves the compositor alive. The per-output supervisor detects
+  the exit through a pidfd and restarts the panel with bounded exponential
+  backoff; if pidfd supervision is unavailable, restart `tessa-panel` manually.
 - Output removal moves clients to the first remaining output. Removing the last
   output terminates the compositor.
 - Invalid app/desktop entries are skipped; invalid settings are clamped.

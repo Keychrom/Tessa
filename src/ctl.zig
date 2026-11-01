@@ -1,16 +1,6 @@
 const std = @import("std");
 
-const c = @cImport({
-    @cDefine("_GNU_SOURCE", "1");
-    @cDefine("_FORTIFY_SOURCE", "0");
-    @cInclude("fcntl.h");
-    @cInclude("stdio.h");
-    @cInclude("sys/socket.h");
-    @cInclude("sys/stat.h");
-    @cInclude("sys/un.h");
-    @cInclude("unistd.h");
-    @cInclude("stdlib.h");
-});
+const c = @import("c_translated");
 
 const MAX_SOCKET_PATH = 100;
 

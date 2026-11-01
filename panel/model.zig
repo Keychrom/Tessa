@@ -35,7 +35,7 @@ pub const BarModule = enum {
     tray,
     status,
 };
-pub const BAR_MODULE_COUNT = @typeInfo(BarModule).@"enum".fields.len;
+pub const BAR_MODULE_COUNT = @typeInfo(BarModule).@"enum".field_names.len;
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -98,40 +98,40 @@ pub const HitRect = struct {
 pub const WindowInfo = struct {
     id: u64 = 0,
     ws: usize = 1,
-    output_name: [64]u8 = [_]u8{0} ** 64,
+    output_name: [64]u8 = @splat(0),
     output_len: usize = 0,
     focused: bool = false,
     floating: bool = false,
     fullscreen: bool = false,
     scratchpad: bool = false,
     visible: bool = true,
-    app_id: [64]u8 = [_]u8{0} ** 64,
+    app_id: [64]u8 = @splat(0),
     app_len: usize = 0,
-    title: [160]u8 = [_]u8{0} ** 160,
+    title: [160]u8 = @splat(0),
     title_len: usize = 0,
 };
 
 pub const StatusInfo = struct {
-    id: [48]u8 = [_]u8{0} ** 48,
+    id: [48]u8 = @splat(0),
     id_len: usize = 0,
-    text: [160]u8 = [_]u8{0} ** 160,
+    text: [160]u8 = @splat(0),
     text_len: usize = 0,
-    command: [256]u8 = [_]u8{0} ** 256,
+    command: [256]u8 = @splat(0),
     command_len: usize = 0,
 };
 
 pub const CustomApp = struct {
-    name: [160]u8 = [_]u8{0} ** 160,
+    name: [160]u8 = @splat(0),
     name_len: usize = 0,
-    comment: [192]u8 = [_]u8{0} ** 192,
+    comment: [192]u8 = @splat(0),
     comment_len: usize = 0,
-    exec: [512]u8 = [_]u8{0} ** 512,
+    exec: [512]u8 = @splat(0),
     exec_len: usize = 0,
 };
 
 pub const OutputInfo = struct {
     wl: ?*c.wl_output = null,
-    name: [64]u8 = [_]u8{0} ** 64,
+    name: [64]u8 = @splat(0),
     name_len: usize = 0,
     scale: i32 = 1,
     x: i32 = 0,
@@ -166,24 +166,24 @@ pub const Surface = struct {
 };
 
 pub const ClipboardEntry = struct {
-    text: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    text: [MAX_CLIPBOARD_BYTES]u8 = @splat(0),
     len: usize = 0,
 };
 
 pub const NotificationAction = struct {
-    key: [64]u8 = [_]u8{0} ** 64,
+    key: [64]u8 = @splat(0),
     key_len: usize = 0,
-    label: [96]u8 = [_]u8{0} ** 96,
+    label: [96]u8 = @splat(0),
     label_len: usize = 0,
 };
 
 pub const NotificationEntry = struct {
     id: u32 = 0,
-    app: [64]u8 = [_]u8{0} ** 64,
+    app: [64]u8 = @splat(0),
     app_len: usize = 0,
-    summary: [160]u8 = [_]u8{0} ** 160,
+    summary: [160]u8 = @splat(0),
     summary_len: usize = 0,
-    body: [512]u8 = [_]u8{0} ** 512,
+    body: [512]u8 = @splat(0),
     body_len: usize = 0,
     expire_ms: i64 = 0,
     actions: [MAX_NOTIFICATION_ACTIONS]NotificationAction = undefined,
@@ -191,7 +191,7 @@ pub const NotificationEntry = struct {
     icon_w: u32 = 0,
     icon_h: u32 = 0,
     icon_len: usize = 0,
-    icon_data: [MAX_NOTIFICATION_ICON_BYTES]u8 = [_]u8{0} ** MAX_NOTIFICATION_ICON_BYTES,
+    icon_data: [MAX_NOTIFICATION_ICON_BYTES]u8 = @splat(0),
     icon_surface: ?*c.cairo_surface_t = null,
 };
 
@@ -225,15 +225,15 @@ pub fn toastHeight(n: *const NotificationEntry) i32 {
 }
 
 pub const TrayItem = struct {
-    title: [160]u8 = [_]u8{0} ** 160,
+    title: [160]u8 = @splat(0),
     title_len: usize = 0,
-    icon_name: [128]u8 = [_]u8{0} ** 128,
+    icon_name: [128]u8 = @splat(0),
     icon_name_len: usize = 0,
     status: u8 = 0,
     icon_w: u32 = 0,
     icon_h: u32 = 0,
     icon_len: usize = 0,
-    icon_data: [MAX_TRAY_ICON_BYTES]u8 = [_]u8{0} ** MAX_TRAY_ICON_BYTES,
+    icon_data: [MAX_TRAY_ICON_BYTES]u8 = @splat(0),
     icon_surface: ?*c.cairo_surface_t = null,
 };
 
@@ -258,29 +258,29 @@ pub const Panel = struct {
     overlay: ?*Surface = null,
     overlay_mode: OverlayMode = .none,
     toasts: ?*Surface = null,
-    toasts_output: [64]u8 = [_]u8{0} ** 64,
+    toasts_output: [64]u8 = @splat(0),
     toasts_output_len: usize = 0,
 
-    outputs: [MAX_OUTPUTS]OutputInfo = [_]OutputInfo{.{}} ** MAX_OUTPUTS,
+    outputs: [MAX_OUTPUTS]OutputInfo = @splat(.{}),
     output_count: usize = 0,
     target_output: ?*c.wl_output = null,
-    target_name: [64]u8 = [_]u8{0} ** 64,
+    target_name: [64]u8 = @splat(0),
     target_name_len: usize = 0,
-    target_make: [64]u8 = [_]u8{0} ** 64,
+    target_make: [64]u8 = @splat(0),
     target_make_len: usize = 0,
-    target_model: [64]u8 = [_]u8{0} ** 64,
+    target_model: [64]u8 = @splat(0),
     target_model_len: usize = 0,
-    target_serial: [64]u8 = [_]u8{0} ** 64,
+    target_serial: [64]u8 = @splat(0),
     target_serial_len: usize = 0,
-    focused_output_name: [64]u8 = [_]u8{0} ** 64,
+    focused_output_name: [64]u8 = @splat(0),
     focused_output_name_len: usize = 0,
     is_focused_output: bool = false,
     scale: i32 = 1,
 
     active_ws: usize = 1,
     ws_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8 = undefined,
-    ws_name_lens: [WS_COUNT]usize = [_]usize{0} ** WS_COUNT,
-    occ: [10]u32 = [_]u32{0} ** 10,
+    ws_name_lens: [WS_COUNT]usize = @splat(0),
+    occ: [10]u32 = @splat(0),
     focused_id: u64 = 0,
     windows: [MAX_WINDOWS]WindowInfo = undefined,
     window_count: usize = 0,
@@ -306,12 +306,12 @@ pub const Panel = struct {
     ipc_len: usize = 0,
     ipc_in_state: bool = false,
 
-    clock_buf: [8]u8 = [_]u8{0} ** 8,
-    date_buf: [20]u8 = [_]u8{0} ** 20,
+    clock_buf: [8]u8 = @splat(0),
+    date_buf: [20]u8 = @splat(0),
 
     cpu_percent: f32 = 0,
     mem_percent: f32 = 0,
-    cpu_hist: [40]f32 = [_]f32{0} ** 40,
+    cpu_hist: [40]f32 = @splat(0),
     prev_total: u64 = 0,
     prev_idle: u64 = 0,
     have_cpu_prev: bool = false,
@@ -319,14 +319,14 @@ pub const Panel = struct {
     battery_charging: bool = false,
     network_present: bool = false,
     network_wireless: bool = false,
-    network_label: [32]u8 = [_]u8{0} ** 32,
+    network_label: [32]u8 = @splat(0),
     network_label_len: usize = 0,
     media_status: u8 = 0,
-    media_title: [160]u8 = [_]u8{0} ** 160,
+    media_title: [160]u8 = @splat(0),
     media_title_len: usize = 0,
-    media_artist: [160]u8 = [_]u8{0} ** 160,
+    media_artist: [160]u8 = @splat(0),
     media_artist_len: usize = 0,
-    media_player: [64]u8 = [_]u8{0} ** 64,
+    media_player: [64]u8 = @splat(0),
     media_player_len: usize = 0,
     media_fd: c_int = -1,
     media_buf: [16384]u8 = undefined,
@@ -340,19 +340,19 @@ pub const Panel = struct {
     tray_selected: usize = 0,
     volume_percent: i32 = -1,
     volume_muted: bool = false,
-    volume_source: [16]u8 = [_]u8{0} ** 16,
+    volume_source: [16]u8 = @splat(0),
     volume_source_len: usize = 0,
     audio_fd: c_int = -1,
     audio_buf: [4096]u8 = undefined,
     audio_len: usize = 0,
     audio_ready: bool = false,
-    volume_status: [512]u8 = [_]u8{0} ** 512,
+    volume_status: [512]u8 = @splat(0),
     volume_status_len: usize = 0,
-    volume_up: [512]u8 = [_]u8{0} ** 512,
+    volume_up: [512]u8 = @splat(0),
     volume_up_len: usize = 0,
-    volume_down: [512]u8 = [_]u8{0} ** 512,
+    volume_down: [512]u8 = @splat(0),
     volume_down_len: usize = 0,
-    volume_mute: [512]u8 = [_]u8{0} ** 512,
+    volume_mute: [512]u8 = @splat(0),
     volume_mute_len: usize = 0,
 
     pointer_surface: ?*Surface = null,
@@ -374,13 +374,13 @@ pub const Panel = struct {
     calendar_year: i32 = 1970,
     calendar_month: i32 = 1,
     power_selected: usize = 0,
-    power_lock: [256]u8 = [_]u8{0} ** 256,
+    power_lock: [256]u8 = @splat(0),
     power_lock_len: usize = 0,
-    power_suspend: [256]u8 = [_]u8{0} ** 256,
+    power_suspend: [256]u8 = @splat(0),
     power_suspend_len: usize = 0,
-    power_reboot: [256]u8 = [_]u8{0} ** 256,
+    power_reboot: [256]u8 = @splat(0),
     power_reboot_len: usize = 0,
-    power_off: [256]u8 = [_]u8{0} ** 256,
+    power_off: [256]u8 = @splat(0),
     power_off_len: usize = 0,
 
     data_control_manager: ?*c.zwlr_data_control_manager_v1 = null,
@@ -388,17 +388,17 @@ pub const Panel = struct {
     data_control_listener: c.zwlr_data_control_device_v1_listener = undefined,
     data_offer: ?*c.zwlr_data_control_offer_v1 = null,
     data_offer_listener: c.zwlr_data_control_offer_v1_listener = undefined,
-    data_offer_mime: [128]u8 = [_]u8{0} ** 128,
+    data_offer_mime: [128]u8 = @splat(0),
     data_offer_mime_len: usize = 0,
     data_offer_mime_rank: i32 = 0,
     data_offer_selected: bool = false,
     clipboard_fd: c_int = -1,
-    clipboard_read_buf: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    clipboard_read_buf: [MAX_CLIPBOARD_BYTES]u8 = @splat(0),
     clipboard_read_len: usize = 0,
     clipboard_entries: [MAX_CLIPBOARD_ENTRIES]ClipboardEntry = undefined,
     clipboard_count: usize = 0,
     clipboard_selected: usize = 0,
-    clipboard_send_text: [MAX_CLIPBOARD_BYTES]u8 = [_]u8{0} ** MAX_CLIPBOARD_BYTES,
+    clipboard_send_text: [MAX_CLIPBOARD_BYTES]u8 = @splat(0),
     clipboard_send_len: usize = 0,
     clipboard_source: ?*c.zwlr_data_control_source_v1 = null,
     clipboard_source_listener: c.zwlr_data_control_source_v1_listener = undefined,
@@ -420,13 +420,13 @@ pub const Panel = struct {
     screenshot_start_y: f64 = 0,
     screenshot_end_x: f64 = 0,
     screenshot_end_y: f64 = 0,
-    screenshot_dir: [512]u8 = [_]u8{0} ** 512,
+    screenshot_dir: [512]u8 = @splat(0),
     screenshot_dir_len: usize = 0,
 
     launcher_open: bool = false,
-    query: [128]u8 = [_]u8{0} ** 128,
+    query: [128]u8 = @splat(0),
     query_len: usize = 0,
-    preedit: [128]u8 = [_]u8{0} ** 128,
+    preedit: [128]u8 = @splat(0),
     preedit_len: usize = 0,
     preedit_begin: i32 = 0,
     preedit_end: i32 = 0,
@@ -647,7 +647,7 @@ const OutputTheme = struct {
 var output_theme: OutputTheme = .{};
 
 const ThemeRole = struct {
-    name: [32]u8 = [_]u8{0} ** 32,
+    name: [32]u8 = @splat(0),
     name_len: usize = 0,
     color: [3]f64 = .{ 0, 0, 0 },
 };
@@ -1408,9 +1408,9 @@ pub fn updateClock() bool {
     var tm: c.tm = undefined;
     _ = c.localtime_r(&t, &tm);
 
-    var time_buf: [8]u8 = [_]u8{0} ** 8;
+    var time_buf: [8]u8 = @splat(0);
     _ = c.strftime(&time_buf, time_buf.len, "%H:%M", &tm);
-    var date_buf: [20]u8 = [_]u8{0} ** 20;
+    var date_buf: [20]u8 = @splat(0);
     _ = c.strftime(&date_buf, date_buf.len, "%a %d %b", &tm);
 
     var changed = false;
@@ -1497,7 +1497,7 @@ pub fn updateCpu() void {
     var it = std.mem.tokenizeAny(u8, raw, " \t\n");
     _ = it.next(); // cpu
 
-    var values: [8]u64 = [_]u64{0} ** 8;
+    var values: [8]u64 = @splat(0);
     var idx: usize = 0;
     while (it.next()) |tok| {
         if (idx >= values.len) break;

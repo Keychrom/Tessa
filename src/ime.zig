@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const window_effects = @import("window_effects.zig");
 
 const Server = types.Server;
 const TextInput = types.TextInput;
@@ -14,14 +15,14 @@ pub fn init(server: *Server) void {
     server.text_input_manager = c.wlr_text_input_manager_v3_create(server.display);
     if (server.text_input_manager) |mgr| {
         server.new_text_input.notify = onNewTextInput;
-        c.wl_signal_add(&mgr.events.text_input, &server.new_text_input);
+        c.wl_signal_add(&mgr.events.new_text_input, &server.new_text_input);
         core.logInfo("text-input-v3 enabled", .{});
     }
 
     server.input_method_manager = c.wlr_input_method_manager_v2_create(server.display);
     if (server.input_method_manager) |mgr| {
         server.new_input_method.notify = onNewInputMethod;
-        c.wl_signal_add(&mgr.events.input_method, &server.new_input_method);
+        c.wl_signal_add(&mgr.events.new_input_method, &server.new_input_method);
         core.logInfo("input-method-v2 enabled", .{});
     }
 }
@@ -469,6 +470,7 @@ fn positionPopups(server: *Server) void {
         }
         c.wlr_scene_node_set_position(&popup.scene.node, x, y);
         c.wlr_scene_node_set_enabled(&popup.scene.node, true);
+        window_effects.applyImPopup(popup);
         core.logDebug("im popup pos {d},{d} size {d}x{d} cursor {d},{d}", .{ x, y, pw, ph, cursor.x, cursor.y });
 
         var box = c.wlr_box{

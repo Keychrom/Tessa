@@ -20,7 +20,7 @@ For a debug build:
 ./scripts/build.sh
 ```
 
-Rounded corners and backdrop blur use scenefx 0.4.1. Install it, then build
+Rounded corners and backdrop blur use scenefx 0.5. Install it, then build
 with `-Dscenefx=true`. This binary uses the scenefx GLES2 renderer and cannot
 use the pixman renderer.
 
@@ -28,14 +28,14 @@ use the pixman renderer.
 ./scripts/build.sh -Dscenefx=true
 ```
 
-Prerequisites are listed in the main README. In short: Zig 0.16, wlroots 0.19,
+Prerequisites are listed in the main README. In short: Zig 0.17, wlroots 0.20,
 Wayland, xkbcommon, pixman, DRM/input/seat development headers, Cairo, Pango,
 and fonts. For X11 testing, also install `xwayland-satellite` in `PATH`.
 
 Check the libraries:
 
 ```sh
-pkg-config --modversion wlroots-0.19
+pkg-config --modversion wlroots-0.20
 ldconfig -p | grep wlroots
 fc-list | grep -i -E 'Inter|JetBrains|Noto Sans CJK'
 ```
@@ -499,7 +499,7 @@ sequences, validates each candidate with the offline `tessa --check-config`
 path, then sends malformed line and JSON-RPC payloads to a live headless
 compositor. It fails on panics, crash exit codes, timeouts, or a dead compositor.
 `tests/fuzz-asan.sh` repeats the pass with the system ASan runtime preloaded;
-Zig 0.16 has no compiler ASan instrumentation, so this is an allocator/
+Zig has no compiler ASan instrumentation, so this is an allocator/
 interceptor pass over the Debug-safety build.
 
 ```sh

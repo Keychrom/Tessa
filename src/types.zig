@@ -39,7 +39,7 @@ pub const LAYOUT_HELPER_BUFFER = 64 * 1024;
 pub const PERF_SAMPLES = 4096;
 
 pub const PerfStats = struct {
-    samples_us: [PERF_SAMPLES]u32 = [_]u32{0} ** PERF_SAMPLES,
+    samples_us: [PERF_SAMPLES]u32 = @splat(0),
     sample_count: usize = 0,
     sample_index: usize = 0,
     frames: u64 = 0,
@@ -187,10 +187,10 @@ pub const SavedLayout = struct {
 pub const MAX_SAVED_LAYOUTS = MAX_OUTPUTS * WS_COUNT;
 
 pub const ConfigIssue = struct {
-    path: [256]u8 = [_]u8{0} ** 256,
+    path: [256]u8 = @splat(0),
     path_len: usize = 0,
     line: u32 = 0,
-    message: [192]u8 = [_]u8{0} ** 192,
+    message: [192]u8 = @splat(0),
     message_len: usize = 0,
     is_error: bool = true,
 };
@@ -215,10 +215,10 @@ pub const InputClickMethod = enum { unset, none, button_areas, clickfinger };
 pub const InputButtonMap = enum { unset, lrm, lmr };
 
 pub const InputRule = struct {
-    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw: [MAX_COMMAND]u8 = @splat(0),
     raw_len: usize = 0,
     device_type: InputDeviceType = .any,
-    name: [128]u8 = [_]u8{0} ** 128,
+    name: [128]u8 = @splat(0),
     name_len: usize = 0,
     tap: RuleBool = .unset,
     tap_drag: RuleBool = .unset,
@@ -257,29 +257,29 @@ pub const AnimationOverride = struct {
     open_ms: i32 = -1,
     workspace_ms: i32 = -1,
     close_ms: i32 = -1,
-    curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    curve: [MAX_CURVE_NAME]u8 = @splat(0),
     curve_len: usize = 0,
-    open_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    open_curve: [MAX_CURVE_NAME]u8 = @splat(0),
     open_curve_len: usize = 0,
-    workspace_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    workspace_curve: [MAX_CURVE_NAME]u8 = @splat(0),
     workspace_curve_len: usize = 0,
-    close_curve: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    close_curve: [MAX_CURVE_NAME]u8 = @splat(0),
     close_curve_len: usize = 0,
 };
 
 pub const WindowRule = struct {
-    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw: [MAX_COMMAND]u8 = @splat(0),
     raw_len: usize = 0,
-    app_id: [MAX_APP_ID]u8 = [_]u8{0} ** MAX_APP_ID,
+    app_id: [MAX_APP_ID]u8 = @splat(0),
     app_id_len: usize = 0,
-    title: [MAX_TITLE]u8 = [_]u8{0} ** MAX_TITLE,
+    title: [MAX_TITLE]u8 = @splat(0),
     title_len: usize = 0,
-    output: [64]u8 = [_]u8{0} ** 64,
+    output: [64]u8 = @splat(0),
     output_len: usize = 0,
-    expr: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    expr: [MAX_COMMAND]u8 = @splat(0),
     expr_len: usize = 0,
     workspace: usize = 0,
-    workspace_name: [MAX_WORKSPACE_NAME]u8 = [_]u8{0} ** MAX_WORKSPACE_NAME,
+    workspace_name: [MAX_WORKSPACE_NAME]u8 = @splat(0),
     workspace_name_len: usize = 0,
     has_border_active: bool = false,
     border_active_rgb: [3]f32 = .{ 0, 0, 0 },
@@ -302,17 +302,17 @@ pub const WindowRule = struct {
     has_border_width: bool = false,
     border_width: i32 = 0,
     scratchpad: RuleBool = .unset,
-    special_workspace: [MAX_WORKSPACE_NAME]u8 = [_]u8{0} ** MAX_WORKSPACE_NAME,
+    special_workspace: [MAX_WORKSPACE_NAME]u8 = @splat(0),
     special_workspace_len: usize = 0,
     anim: AnimationOverride = .{},
 };
 
 pub const LayerRule = struct {
-    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw: [MAX_COMMAND]u8 = @splat(0),
     raw_len: usize = 0,
-    namespace: [64]u8 = [_]u8{0} ** 64,
+    namespace: [64]u8 = @splat(0),
     namespace_len: usize = 0,
-    output: [64]u8 = [_]u8{0} ** 64,
+    output: [64]u8 = @splat(0),
     output_len: usize = 0,
     /// zwlr_layer_shell_v1 layer (0 background .. 3 overlay), or -1 for any.
     layer: i32 = -1,
@@ -343,13 +343,13 @@ pub const LayoutTuning = struct {
 };
 
 pub const Profile = struct {
-    name: [32]u8 = [_]u8{0} ** 32,
+    name: [32]u8 = @splat(0),
     name_len: usize = 0,
     tuning: LayoutTuning = .{},
 };
 
 pub const CurveDef = struct {
-    name: [MAX_CURVE_NAME]u8 = [_]u8{0} ** MAX_CURVE_NAME,
+    name: [MAX_CURVE_NAME]u8 = @splat(0),
     name_len: usize = 0,
     curve: Curve = .{},
 };
@@ -375,16 +375,16 @@ pub const LayoutHelperState = struct {
     version_logged: bool = false,
     request_sig: u64 = 0,
     request_count: usize = 0,
-    request_ids: [MAX_LAYOUT_RECTS]u64 = [_]u64{0} ** MAX_LAYOUT_RECTS,
+    request_ids: [MAX_LAYOUT_RECTS]u64 = @splat(0),
     cache_sig: u64 = 0,
     cache_count: usize = 0,
-    rects: [MAX_LAYOUT_RECTS]LayoutRect = [_]LayoutRect{.{
+    rects: [MAX_LAYOUT_RECTS]LayoutRect = @splat(LayoutRect{
         .id = 0,
         .x = 0,
         .y = 0,
         .w = 0,
         .h = 0,
-    }} ** MAX_LAYOUT_RECTS,
+    }),
     read_len: usize = 0,
     read_buf: [LAYOUT_HELPER_BUFFER]u8 = undefined,
 };
@@ -402,7 +402,7 @@ pub const EffectHookState = struct {
     version_logged: bool = false,
     request_sig: u64 = 0,
     request_count: usize = 0,
-    request_ids: [MAX_CLIENTS]u64 = [_]u64{0} ** MAX_CLIENTS,
+    request_ids: [MAX_CLIENTS]u64 = @splat(0),
     cache_sig: u64 = 0,
     read_len: usize = 0,
     read_buf: [LAYOUT_HELPER_BUFFER]u8 = undefined,
@@ -410,24 +410,24 @@ pub const EffectHookState = struct {
 
 pub const WorkspaceRule = struct {
     ws: u8 = 0,
-    profile: [32]u8 = [_]u8{0} ** 32,
+    profile: [32]u8 = @splat(0),
     profile_len: usize = 0,
     tuning: LayoutTuning = .{},
 };
 
 pub const OutputRule = struct {
-    raw: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    raw: [MAX_COMMAND]u8 = @splat(0),
     raw_len: usize = 0,
-    output: [64]u8 = [_]u8{0} ** 64,
+    output: [64]u8 = @splat(0),
     output_len: usize = 0,
-    make: [64]u8 = [_]u8{0} ** 64,
+    make: [64]u8 = @splat(0),
     make_len: usize = 0,
-    model: [64]u8 = [_]u8{0} ** 64,
+    model: [64]u8 = @splat(0),
     model_len: usize = 0,
-    serial: [64]u8 = [_]u8{0} ** 64,
+    serial: [64]u8 = @splat(0),
     serial_len: usize = 0,
     adaptive_sync: RuleBool = .unset,
-    profile: [32]u8 = [_]u8{0} ** 32,
+    profile: [32]u8 = @splat(0),
     profile_len: usize = 0,
     ws: u8 = 0,
     has_gaps: bool = false,
@@ -478,18 +478,18 @@ pub const Hook = struct {
 };
 
 pub const EventRule = struct {
-    event: [32]u8 = [_]u8{0} ** 32,
+    event: [32]u8 = @splat(0),
     event_len: usize = 0,
-    expr: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    expr: [MAX_COMMAND]u8 = @splat(0),
     expr_len: usize = 0,
-    command: [MAX_COMMAND]u8 = [_]u8{0} ** MAX_COMMAND,
+    command: [MAX_COMMAND]u8 = @splat(0),
     command_len: usize = 0,
 };
 
 pub const ThemeRole = struct {
-    name: [32]u8 = [_]u8{0} ** 32,
+    name: [32]u8 = @splat(0),
     name_len: usize = 0,
-    color: [16]u8 = [_]u8{0} ** 16,
+    color: [16]u8 = @splat(0),
     color_len: usize = 0,
     rgb: [3]f32 = .{ 0, 0, 0 },
 };
@@ -704,6 +704,9 @@ pub const Client = struct {
     frame: *c.wlr_scene_tree,
     surface_tree: *c.wlr_scene_tree,
     content_buffer: ?*c.wlr_scene_buffer,
+    // scenefx 0.5: blur is a dedicated node behind the content. Kept as a
+    // generic scene node so the type exists in non-scenefx builds too.
+    blur_node: ?*c.wlr_scene_node,
     border_rect: *c.wlr_scene_rect,
     shadow_rects: [3]?*c.wlr_scene_rect,
 
@@ -840,6 +843,7 @@ pub const LayerSurface = struct {
     opacity: f32,
     corner_radius: i32,
     blur: RuleBool,
+    blur_node: ?*c.wlr_scene_node,
     visual_layer: i32,
     visual_idle: ?*c.wl_event_source,
 
@@ -882,6 +886,7 @@ pub const ImPopup = struct {
     server: *Server,
     popup: *c.wlr_input_popup_surface_v2,
     scene: *c.wlr_scene_tree,
+    blur_node: ?*c.wlr_scene_node,
     mapped: bool,
     commit: c.wl_listener,
     map: c.wl_listener,

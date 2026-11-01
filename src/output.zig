@@ -407,7 +407,7 @@ fn saveOutputConfig(server: *Server) void {
     var path_z: [512:0]u8 = undefined;
     var tmp_z: [520:0]u8 = undefined;
     core.copyZ(&path_z, path);
-    const tmp = std.fmt.bufPrintZ(&tmp_z, "{s}.tmp", .{path}) catch return;
+    const tmp = std.mem.printSentinel(&tmp_z, "{s}.tmp", .{path}, 0) catch return;
 
     const file = c.fopen(tmp.ptr, "w") orelse {
         core.logInfo("output config: cannot write {s}", .{path});

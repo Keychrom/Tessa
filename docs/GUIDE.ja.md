@@ -25,24 +25,25 @@ Tessa は **wlroots ベースのコンポジタ本体 `tessa`**、**タスクバ
 ### 必須
 
 Ubuntu 26.04 で通常利用する場合は、2.1 節のビルド済み `.deb` を使えます。
-Arch Linux では 2.2 節の PKGBUILD（AUR パッケージを利用）を使います。実行時
+Arch Linux では 2.2 節の PKGBUILD を使います。実行時
 ライブラリはパッケージマネージャーが導入します。以下の Zig / wlroots 開発
 環境はソースビルドとパッケージビルド時だけ必要です。
 
 - Linux（開発・検証は Ubuntu 26.04）
-- Zig **0.16.0**
-- wlroots **0.19** 開発ファイル
-- Wayland、wayland-protocols、xkbcommon、pixman、libdrm、libinput、
+- Zig **0.17.0**
+- wlroots **0.20** 開発ファイル
+- Wayland、wayland-protocols 1.47 以降、xkbcommon、pixman、libdrm、libinput、
   libseat、libudev、EGL/GLES
 - Cairo、Pango、GLib/GIO（パネルと通知用）
 - フォント: Inter、JetBrains Mono、Noto Sans CJK JP など
 - ターミナル: 既定は `kitty`。`terminal = foot` などで変更可能
 
-Ubuntu 26.04 の例:
+Ubuntu 26.04 の例（ディストリビューションの Zig が古い場合は上流の Zig 0.17
+を導入してください）:
 
 ```sh
 sudo apt install build-essential pkg-config git \
-  libwayland-dev wayland-protocols libwlroots-0.19-dev \
+  libwayland-dev wayland-protocols libwlroots-0.20-dev \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
@@ -50,15 +51,14 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-Arch Linux の公式 `zig`（0.17）と `wlroots0.20` は、Tessa が固定している
-Zig 0.16 / wlroots 0.19 ABI と一致しません。2.2 節に従い、AUR の
-`zig0.16-bin` と `wlroots0.19` を使ってください。
+Arch Linux の公式 `zig`（0.17）と `wlroots0.20` はこのツリーと一致します。
+2.2 節に従って導入してください。
 
 wlroots を `/usr/local` に自前ビルドした場合は、`.pc` と共有ライブラリが
 見えることを確認してください。
 
 ```sh
-pkg-config --modversion wlroots-0.19
+pkg-config --modversion wlroots-0.20
 ldconfig -p | grep wlroots
 ```
 
@@ -73,7 +73,7 @@ ldconfig -p | grep wlroots
 - `wpctl`（PipeWire）、`pactl`（PulseAudio）、`amixer`（ALSA）: 音量
 - `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire: 画面共有
 - Fcitx5 + Mozc: Wayland IME と XIM
-- scenefx **0.4.1**: 角丸と背景ブラーを使う場合のみ
+- scenefx **0.5**: 角丸と背景ブラーを使う場合のみ
 
 ---
 
@@ -93,9 +93,10 @@ sudo apt install ./tessa_0.2.4_amd64.deb
 ```
 
 > **0.2.4 が最後の `.deb` リリースになる可能性があります。** Zig 0.16 /
-> wlroots 0.19 を前提にした最後のパッケージとして計画しています。次の
-> バージョン以降は Zig 0.17 / wlroots 0.20 に移行する方針のため、移行後は
-> ソースビルドまたは Arch パッケージを使用してください。
+> wlroots 0.19 を前提にした最後のパッケージとして計画しています。現在の
+> ソースツリー（`0.2.5`）は Zig 0.17 / wlroots 0.20 / scenefx 0.5 を対象と
+> するため、新しいツールチェーンではソースビルドまたは Arch パッケージを
+> 使用してください。
 
 パッケージが導入するもの:
 
@@ -134,30 +135,15 @@ tessa-ctl config-check
 揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
 手動版が使われ続けます。
 
-### 2.2 Arch Linux（AUR）
+### 2.2 Arch Linux
 
 Arch の公式リポジトリは `zig` 0.17 と `wlroots0.20`（0.20 系）を提供して
-います。Tessa は Zig 0.16 と wlroots 0.19 ABI を前提とするため、先に AUR の
-`zig0.16-bin` と `wlroots0.19` を導入してください。公式 `zig` と
-`wlroots0.20` は使えません。
-
-paru / yay などの AUR ヘルパーを使う場合（ヘルパー導入済み）:
+おり、このツリーと一致します。ビルド依存を導入してください:
 
 ```sh
-sudo pacman -Syu --needed base-devel git
-paru -S --needed zig0.16-bin wlroots0.19
-```
-
-ヘルパーを使わない場合:
-
-```sh
-sudo pacman -S --needed base-devel git meson ninja glslang \
-  vulkan-headers wayland-protocols xorg-xwayland minisign
-mkdir -p ~/aur && cd ~/aur
-for pkg in zig0.16-bin wlroots0.19; do
-  git clone "https://aur.archlinux.org/$pkg.git"
-  (cd "$pkg" && makepkg -si)
-done
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+  wayland wayland-protocols libxkbcommon libinput pixman libdrm \
+  libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
 
 続いて Tessa を PKGBUILD からビルドします:
@@ -168,8 +154,7 @@ cd Tessa/packaging/arch
 makepkg -si
 ```
 
-`makepkg` は AUR 依存パッケージを自動取得しないため、先に 2 つを入れて
-おく必要があります。`tessa-git` は `.deb` と同じバイナリ、セッション
+`tessa-git` は `.deb` と同じバイナリ、セッション
 エントリ、設定例、ポータル設定、man ページ、ドキュメントを `/usr` 以下へ
 導入します。
 
@@ -188,12 +173,13 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 ```
 
 X11 アプリには AUR の `xwayland-satellite-git` を使います。
-`scenefx0.4` は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
-ビルドでは角丸もブラーも有効になりません。Arch のパッケージ経路は Arch Linux
-実機で AUR の `zig0.16-bin` と `wlroots0.19` を使ってビルド・実行し、通常
-セッションと plain／scenefx ビルドで確認しています。`makepkg` が ABI や依存
-関係のエラーを出した場合は、`zig-0.16 version` が 0.16.x、
-`pkg-config --modversion wlroots-0.19` が 0.19.x を返すことを確認して
+`scenefx` 0.5 は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
+ビルドでは角丸もブラーも有効になりません。0.2.4 の Arch パッケージは
+0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 は PKGBUILD を
+公式の `zig` と `wlroots0.20` に更新しているため、新しいツールチェーンは
+`makepkg -si` で確認してください。`makepkg` が ABI や依存関係のエラーを
+出した場合は、`zig version` が 0.17.x、
+`pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
 
 ### 2.3 ソースからビルド（開発向け）
@@ -211,9 +197,8 @@ chmod +x scripts/*.sh scripts/tessa-session
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-`scripts/build.sh` は `zig-0.16` があれば優先し、なければ `zig` を使います。
-`ZIG=/path/to/zig` で明示指定できます。Arch では `zig0.16-bin` の
-`/usr/bin/zig-0.16` が選ばれます。
+`scripts/build.sh` は Zig 0.17.x を要求します。
+`ZIG=/path/to/zig` で明示指定できます。Arch では公式の `zig` が対象です。
 
 生成物:
 
@@ -237,7 +222,7 @@ sh tests/config-watch.sh
 ### scenefx ビルド（角丸・背景ブラー）
 
 既定ビルドは upstream wlroots の scene を使い、pixman と GL の両方で動作
-します。角丸と背景ブラーを使う場合は scenefx 0.4.1 を導入し、次のように
+します。角丸と背景ブラーを使う場合は scenefx 0.5 を導入し、次のように
 ビルドします。
 
 ```sh
@@ -1894,20 +1879,18 @@ tessa-ctl config
 
 ### Arch のビルドで Zig / wlroots が違うと言われる
 
-Tessa は Zig 0.16 と wlroots 0.19 を要求します。Arch 公式の `zig` は 0.17、
-`wlroots0.20` は 0.20 系なので、AUR の `zig0.16-bin` と `wlroots0.19` を
-導入し、2.2 節の PKGBUILD でビルドしてください。
+Tessa は Zig 0.17 と wlroots 0.20 を要求します。どちらも Arch 公式の
+`zig` と `wlroots0.20` で提供されています。2.2 節の PKGBUILD でビルドして
+ください。
 
 ```sh
-zig-0.16 version
-pkg-config --modversion wlroots-0.19
+zig version
+pkg-config --modversion wlroots-0.20
 ```
 
-1 つ目が `0.16.x`、2 つ目が `0.19.x` を返す必要があります。`makepkg` が
-`zig0.16` を見つけられない場合は、Tessa のビルド前に AUR の
-`zig0.16-bin` を導入してください。pkg-config が `/usr/local` を拾っている
-場合は、ビルド環境からそのパスを外すか、`PKG_CONFIG_PATH` を AUR の
-インストール先へ向けてください。
+1 つ目が `0.17.x`、2 つ目が `0.20.x` を返す必要があります。pkg-config が
+`/usr/local` を拾っている場合は、ビルド環境からそのパスを外すか、
+`PKG_CONFIG_PATH` を公式インストール先へ向けてください。
 
 ### Arch の Debug ビルドが R_X86_64_PC64 で失敗する
 
@@ -1916,10 +1899,10 @@ fatal linker error: unhandled relocation type R_X86_64_PC64
 note: in .../Scrt1.o:.sframe
 ```
 
-Zig 0.16 のセルフホストリンカーは、Arch の glibc 2.43 / GCC 16 が
-`Scrt1.o` に入れる `.sframe` のリロケーションを処理できません。現在の
-`build.zig` は 3 つの実行ファイルすべてで LLVM/LLD を強制しているため、
-ビルド前にツリーを更新してください。古いクローンでは
+古い Zig のセルフホストリンカーは、Arch の glibc 2.43 / GCC 16 が
+`Scrt1.o` に入れる `.sframe` のリロケーションを処理できませんでした。
+現在の `build.zig` は 3 つの実行ファイルすべてで LLVM/LLD を強制している
+ため、このツリーでは発生しません。古いクローンでは
 `-Doptimize=ReleaseSafe`（LLVM/LLD を使用）で回避するか、各実行ファイルに
 `use_llvm = true` と `use_lld = true` を設定してください。
 
@@ -2090,16 +2073,17 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 
 - **物理 DRM/libinput は Arch Linux 実機で確認済みですが、デバイス固有の
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
-  DRM 出力、キーボード、マウス、IME、XWayland クライアントを実際に確認して
-  います。headless スイートは pixman、`wtype`、Fcitx5、
-  `xwayland-satellite` で回帰をカバーしています。タッチパッドのデバイス別
+  DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
+  確認しています。headless スイートは pixman、`wtype`、Fcitx5、
+  `xwayland-satellite` で回帰をカバーしています。0.2.5 ツリーは Zig 0.17 /
+  wlroots 0.20 / scenefx 0.5 でコンパイル確認済みですが、新しいツール
+  チェーンでの実セッション検証は未実施です。タッチパッドのデバイス別
   チューニング、VRR/Adaptive Sync のコミット、特殊なマルチ GPU／モニター
   構成は、対応する実機での追加確認が必要です。
-- **Arch パッケージには AUR ツールチェーンが必要**。PKGBUILD は AUR の
-  `zig0.16-bin` と `wlroots0.19` を前提にしており、公式リポジトリの新しい
-  バージョンは ABI が一致しません。`makepkg` が失敗した場合は、
-  トラブルシューティングにあるコンパイラと pkg-config のバージョンを
-  添えて報告してください。
+- **Arch パッケージは公式ツールチェーンを使用**。PKGBUILD は公式の `zig`
+  0.17 と `wlroots0.20` を前提とし、`scenefx` 0.5 はエフェクトビルドの
+  任意依存です。`makepkg` が失敗した場合は、トラブルシューティングにある
+  コンパイラと pkg-config のバージョンを添えて報告してください。
 - **フラクショナルスケーリングは部分的**。Wayland の対応クライアントには
   正確なスケールを通知しますが、パネルは整数 Cairo バッファでダウンサンプル
   され、非対応クライアントは切り上げスケールです。XWayland は
@@ -2118,7 +2102,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **メディアは最初の MPRIS プレイヤーのみ**。アルバムアートなし。
 - **システム表示は基本のみ**。バッテリーは `/sys/class/power_supply`、
   ネットワークはデフォルトルートと `operstate`。
-- **角丸・ブラーはオプトイン**。scenefx 0.4.1 と GLES2 が必要で、pixman
+- **角丸・ブラーはオプトイン**。scenefx 0.5 と GLES2 が必要で、pixman
   レンダラーは使えません。
 - **ウィンドウ効果はシンプル**。角丸・ブラーは scenefx ビルドのみ。閉じる
   アニメーションはコンポジタ起点の close のみで、クライアント自身の close は
