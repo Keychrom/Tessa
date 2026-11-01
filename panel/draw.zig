@@ -1419,6 +1419,29 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
     return .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+/// A compact audio mixer bar that drops down from the volume indicator.
+fn audioBarLayout(W: f64, H: f64) PopoverLayout {
+    const w = @min(452.0, @max(300.0, W - 16.0));
+    const h = 80.0;
+    const margin: f64 = @floatFromInt(g.bar_side_margin);
+    const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
+    var anchor_right = W - margin;
+
+    var i: usize = 0;
+    while (i < g.bar_hit_count) : (i += 1) {
+        const rect = g.bar_hits[i];
+        if (rect.hit.kind == .volume) {
+            anchor_right = margin + rect.x + rect.w;
+            break;
+        }
+    }
+
+    var x = anchor_right - w;
+    x = std.math.clamp(x, 8.0, @max(8.0, W - w - 8.0));
+    const y = std.math.clamp(bar_bottom + 8.0, 8.0, @max(8.0, H - h - 8.0));
+    return .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 fn drawPopoverCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
     const accent = g.accent;
     const bg = g.popover_bg;
@@ -2072,7 +2095,7 @@ fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
     const fam = m.popoverFont();
-    const p = popoverLayout(.audio, W, H);
+    const p = audioBarLayout(W, H);
     const x = p.x;
     const y = p.y;
     const w = p.w;
@@ -2087,17 +2110,40 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_push_group(cr);
     drawPopoverCard(cr, x, y, w, h);
 
-    drawPetal(cr, x + 30, y + 32, 7.0, .{ accent[0], accent[1], accent[2], 0.95 });
-    _ = drawText(cr, "AUDIO", x + 46, y + 18, fam, "Medium", 7.4, .{
-        0.64, 0.70, 0.80, 0.45,
-    }, 0, 1.6);
-    const source = g.volume_source[0..g.volume_source_len];
-    if (source.len > 0) {
-        const sw = textWidth(cr, source, MONO, "Medium", 7.0, 0.6);
-        _ = drawText(cr, source, x + w - 24 - sw, y + 18, MONO, "Medium", 7.0, .{
-            0.60, 0.66, 0.76, 0.45,
-        }, 0, 0.6);
+    const ix = x + 24.0;
+    const iy = y + h / 2.0 - 2.0;
+    const icon_col: [4]f64 = if (available and !g.volume_muted)
+        .{ accent[0], accent[1], accent[2], 0.92 }
+    else
+        .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.42 };
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, ix, iy - 3);
+    c.cairo_line_to(cr, ix + 5, iy - 3);
+    c.cairo_line_to(cr, ix + 10, iy - 7);
+    c.cairo_line_to(cr, ix + 10, iy + 7);
+    c.cairo_line_to(cr, ix + 5, iy + 3);
+    c.cairo_line_to(cr, ix, iy + 3);
+    c.cairo_close_path(cr);
+    setColor(cr, icon_col);
+    c.cairo_fill(cr);
+    if (available and !g.volume_muted) {
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, ix + 10.5, iy, 4.5, -0.85, 0.85);
+        setColor(cr, .{ icon_col[0], icon_col[1], icon_col[2], 0.72 });
+        c.cairo_set_line_width(cr, 1.3);
+        c.cairo_stroke(cr);
+    } else if (g.volume_muted) {
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, ix + 12, iy - 5);
+        c.cairo_line_to(cr, ix + 16, iy + 5);
+        setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+        c.cairo_set_line_width(cr, 1.3);
+        c.cairo_stroke(cr);
     }
+
+    _ = drawText(cr, "AUDIO", x + 44, y + 11, fam, "Medium", 7.2, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.5);
 
     if (available) {
         var value_buf: [16]u8 = undefined;
@@ -2106,89 +2152,88 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
             .{ 0.58, 0.63, 0.72, 0.55 }
         else
             .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98 };
-        const vw = drawText(cr, value, x + 24, y + 50, fam, "Semi-Bold", 46.0, value_col, w - 120, 0).w;
-        _ = drawText(cr, "%", x + 28 + vw, y + 76, fam, "Medium", 15.0, .{
+        const vw = drawText(cr, value, x + 44, y + 25, fam, "Semi-Bold", 27.0, value_col, 60, 0).w;
+        _ = drawText(cr, "%", x + 47 + vw, y + 39, fam, "Medium", 10.0, .{
             value_col[0], value_col[1], value_col[2], 0.62,
         }, 0, 0);
-        if (g.volume_muted) {
-            const muted_w = textWidth(cr, "MUTED", MONO, "Medium", 7.2, 1.0);
-            _ = drawText(cr, "MUTED", x + w - 24 - muted_w, y + 54, MONO, "Medium", 7.2, .{
-                accent[0], accent[1], accent[2], 0.92,
-            }, 0, 1.0);
-        } else {
-            const status_w = textWidth(cr, "OUTPUT VOLUME", MONO, "Medium", 7.0, 0.7);
-            _ = drawText(cr, "OUTPUT VOLUME", x + w - 24 - status_w, y + 54, MONO, "Medium", 7.0, .{
-                0.58, 0.64, 0.74, 0.42,
-            }, 0, 0.7);
-        }
-
-        const bar_x = x + 24;
-        const bar_y = y + 112;
-        const bar_w = w - 48;
-        fillRound(cr, bar_x, bar_y, bar_w, 8, 4, .{ 1, 1, 1, 0.07 });
-        const pct = std.math.clamp(@as(f64, @floatFromInt(g.volume_percent)) / 100.0, 0.0, 1.0);
-        if (pct > 0.005) {
-            const fill_col: [4]f64 = if (g.volume_muted)
-                .{ 0.56, 0.61, 0.70, 0.42 }
-            else
-                .{ accent[0], accent[1], accent[2], 0.92 };
-            fillRound(cr, bar_x, bar_y, bar_w * pct, 8, 4, fill_col);
-        }
-        if (!g.volume_muted) {
-            fillCircle(cr, bar_x + bar_w * pct, bar_y + 4, 4.5, .{ 1, 1, 1, 0.92 });
-        }
-        var tick: usize = 1;
-        while (tick < 4) : (tick += 1) {
-            fillRound(cr, bar_x + bar_w * @as(f64, @floatFromInt(tick)) / 4.0, bar_y + 13, 1, 3, 0.5, .{ 1, 1, 1, 0.06 });
-        }
     } else {
-        _ = drawText(cr, "No audio mixer found", x + 24, y + 58, fam, "Semi-Bold", 17.0, .{
+        _ = drawText(cr, "No audio", x + 44, y + 30, fam, "Semi-Bold", 12.0, .{
             0.86, 0.90, 0.96, 0.84,
-        }, w - 48, 0);
-        _ = drawText(cr, "Install wpctl (PipeWire), pactl (PulseAudio), or amixer.", x + 24, y + 86, fam, "Regular", 8.6, .{
-            0.60, 0.66, 0.76, 0.58,
-        }, w - 48, 0);
-        fillRound(cr, x + 24, y + 112, w - 48, 8, 4, .{ 1, 1, 1, 0.055 });
+        }, 80, 0);
     }
 
-    const labels = [_][]const u8{ "Vol -", if (g.volume_muted) "Unmute" else "Mute", "Vol +" };
+    const mid_x = x + 116;
+    const mid_w = @max(80.0, w - 276.0);
+    const muted = available and g.volume_muted;
+    _ = drawText(cr, if (muted) "MUTED" else "OUTPUT VOLUME", mid_x, y + 16, MONO, "Medium", 6.8, if (muted) .{
+        accent[0], accent[1], accent[2], 0.9,
+    } else .{
+        0.58, 0.64, 0.74, 0.42,
+    }, mid_w, 0.7);
+
+    const bar_x = mid_x;
+    const bar_y = y + 42;
+    const bar_w = mid_w;
+    fillRound(cr, bar_x, bar_y, bar_w, 8, 4, .{ 1, 1, 1, 0.07 });
+    const pct = if (available)
+        std.math.clamp(@as(f64, @floatFromInt(g.volume_percent)) / 100.0, 0.0, 1.0)
+    else
+        0.0;
+    if (pct > 0.005) {
+        const fill_col: [4]f64 = if (g.volume_muted)
+            .{ 0.56, 0.61, 0.70, 0.42 }
+        else
+            .{ accent[0], accent[1], accent[2], 0.92 };
+        fillRound(cr, bar_x, bar_y, bar_w * pct, 8, 4, fill_col);
+    }
+    if (available and !g.volume_muted) {
+        fillCircle(cr, bar_x + bar_w * pct, bar_y + 4, 4.5, .{ 1, 1, 1, 0.92 });
+    }
+    var tick: usize = 1;
+    while (tick < 4) : (tick += 1) {
+        fillRound(cr, bar_x + bar_w * @as(f64, @floatFromInt(tick)) / 4.0, bar_y + 13, 1, 3, 0.5, .{ 1, 1, 1, 0.06 });
+    }
+
+    const source = g.volume_source[0..g.volume_source_len];
+    if (source.len > 0) {
+        _ = drawText(cr, source, mid_x, y + 62, MONO, "Medium", 6.6, .{
+            0.60, 0.66, 0.76, 0.42,
+        }, mid_w, 0.5);
+    } else {
+        _ = drawText(cr, if (available) "\xe2\x86\x91/\xe2\x86\x93 volume   m mute   esc close" else "Install wpctl, pactl, or amixer", mid_x, y + 62, if (available) fam else MONO, "Medium", 6.6, .{
+            0.60, 0.66, 0.75, 0.38,
+        }, mid_w, 0.3);
+    }
+
+    const labels = [_][]const u8{ "-", if (g.volume_muted) "UNMUTE" else "MUTE", "+" };
     const hits = [_]m.HitKind{ .audio_down, .audio_mute, .audio_up };
-    const button_w = 100.0;
-    const button_h = 40.0;
-    const gap = 10.0;
+    const button_w = 38.0;
+    const button_h = 36.0;
+    const gap = 6.0;
     const total_w = button_w * 3.0 + gap * 2.0;
-    const start_x = x + (w - total_w) / 2.0;
-    const button_y = y + 142;
+    const start_x = x + w - 18.0 - total_w;
+    const button_y = y + 22.0;
     var i: usize = 0;
     while (i < 3) : (i += 1) {
         const bx = start_x + @as(f64, @floatFromInt(i)) * (button_w + gap);
         const hovered = g.overlay_row_hover == i;
         const primary = i == 1;
-        fillRound(cr, bx, button_y, button_w, button_h, 10, if (primary) .{
+        fillRound(cr, bx, button_y, button_w, button_h, 9, if (primary) .{
             accent[0], accent[1], accent[2], if (available) 0.88 else 0.25,
         } else .{
             1, 1, 1, if (hovered and available) 0.09 else 0.045,
         });
         if (!primary) {
-            strokeRound(cr, bx + 0.5, button_y + 0.5, button_w - 1, button_h - 1, 9.5, .{
+            strokeRound(cr, bx + 0.5, button_y + 0.5, button_w - 1, button_h - 1, 8.5, .{
                 1, 1, 1, 0.07,
             }, 1);
         }
-        _ = drawTextCentered(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, fam, "Semi-Bold", 9.6, if (primary) .{
+        const label_col: [4]f64 = if (primary) .{
             0.055, 0.075, 0.105, if (available) 1.0 else 0.5,
-        } else .{ 0.82, 0.87, 0.94, if (available) 0.9 else 0.4 }, 0, 0);
+        } else .{ 0.82, 0.87, 0.94, if (available) 0.9 else 0.4 };
+        _ = drawTextCentered(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, if (i == 1) MONO else fam, "Semi-Bold", if (i == 1) 6.4 else 15.0, label_col, 0, 0);
         addOverlayHit(bx - x, button_y - y, button_w, button_h, .{ .kind = hits[i] });
     }
-
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, x + 24, y + h - 46);
-    c.cairo_line_to(cr, x + w - 24, y + h - 46);
-    setColor(cr, .{ 1, 1, 1, 0.045 });
-    c.cairo_set_line_width(cr, 1);
-    c.cairo_stroke(cr);
-    _ = drawText(cr, "\xe2\x86\x91/\xe2\x86\x93  volume      m  mute      esc  close", x + 24, y + h - 32, fam, "Medium", 7.4, .{
-        0.60, 0.66, 0.75, 0.55,
-    }, w - 48, 0.3);
 
     c.cairo_pop_group_to_source(cr);
     c.cairo_paint_with_alpha(cr, t);
@@ -2420,13 +2465,17 @@ pub fn drawOverlay(s: *m.Surface) void {
 
     const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
 
-    fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });
-    const vp = c.cairo_pattern_create_radial(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.8);
-    c.cairo_pattern_add_color_stop_rgba(vp, 0, 0, 0, 0, 0);
-    c.cairo_pattern_add_color_stop_rgba(vp, 1, 0, 0, 0, 0.42 * t);
-    c.cairo_set_source(cr, vp);
-    c.cairo_paint(cr);
-    c.cairo_pattern_destroy(vp);
+    // The audio controls are a compact drop-down bar, so leave the desktop
+    // visible instead of dimming the whole overlay.
+    if (g.overlay_mode != .audio) {
+        fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });
+        const vp = c.cairo_pattern_create_radial(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.8);
+        c.cairo_pattern_add_color_stop_rgba(vp, 0, 0, 0, 0, 0);
+        c.cairo_pattern_add_color_stop_rgba(vp, 1, 0, 0, 0, 0.42 * t);
+        c.cairo_set_source(cr, vp);
+        c.cairo_paint(cr);
+        c.cairo_pattern_destroy(vp);
+    }
 
     if (g.overlay_mode == .launcher) {
         const l = m.launcherLayout(W, H);

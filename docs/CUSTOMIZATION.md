@@ -775,9 +775,10 @@ and the rest of the panel keeps running.
 ## Volume
 
 When `wpctl`, `pactl`, or `amixer` is available, the panel shows the default
-output volume in the bar. Click it or press `Super+Shift+A` to open the volume
-popover. `Up`/`Down` changes the volume, `m` toggles mute, and `Esc` closes.
-`tessa-ctl panel audio` opens the same popover, and `audio` is a key-binding
+output volume in the bar. Click it or press `Super+Shift+A` to open a compact
+volume bar just below the volume indicator without dimming the desktop.
+`Up`/`Down` changes the volume, `m` toggles mute, and `Esc` closes.
+`tessa-ctl panel audio` opens the same bar, and `audio` is a key-binding
 action:
 
 ```ini
