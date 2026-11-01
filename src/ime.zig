@@ -35,6 +35,9 @@ fn clientMatches(text_input: *c.wlr_text_input_v3, surface: *c.wlr_surface) bool
 }
 
 fn focusedTextInput(server: *Server) ?*TextInput {
+    // A client can own several text-input objects. Only the one attached to
+    // the current keyboard focus may receive commits; otherwise text goes to a
+    // stale widget after focus moved to another client.
     const surface = server.ime_focus_surface orelse return null;
     var i: usize = 0;
     while (i < server.text_input_count) : (i += 1) {
