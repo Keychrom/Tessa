@@ -119,7 +119,7 @@ X11 アプリケーションには AUR の `xwayland-satellite-git` を導入し
 0.2.4 の Arch パッケージは、0.16/0.19 の AUR ツールチェーンを使って Arch
 Linux 実機でビルドし、通常セッションと plain／scenefx ビルドで動作を確認して
 います。0.2.5 の PKGBUILD は公式の `zig` 0.17 と `wlroots0.20` で Arch Linux
-実機にビルド・インストールし、headless スイート全 63 テストが plain／scenefx
+実機にビルド・インストールし、headless スイートが plain／scenefx
 の両構成で成功しています。`makepkg` が依存関係や ABI の不一致を報告した場合は、
 `zig version` が `0.17.x` で、`pkg-config --modversion wlroots-0.20` が
 `0.20.x` を返すことを確認してください。
@@ -298,7 +298,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/helper-timeouts.sh`、`tests/fuzz-parsers.sh`、
 `tests/fuzz-asan.sh` で
 検証しています。0.2.5 のソースツリーは Zig 0.17.0、wlroots 0.20.2、
-scenefx 0.5 を対象とし、Arch Linux 実機の headless スイート全 63 テストが
+scenefx 0.5 を対象とし、Arch Linux 実機の headless スイートが
 plain／scenefx の両構成で成功しています。ポータルの ScreenCast、トレイ、
 通知、ポインタ操作、scenefx の角丸描画も含みます。新しいツールチェーンでの
 実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は

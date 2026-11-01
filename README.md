@@ -289,7 +289,7 @@ restarts were exercised by
 `tests/helper-timeouts.sh`, `tests/fuzz-parsers.sh`, and
 `tests/fuzz-asan.sh`.
 The 0.2.5 source tree targets Zig 0.17.0, wlroots 0.20.2, and scenefx 0.5. The
-full headless suite (63 tests) passes on Arch Linux against those libraries in
+full headless suite passes on Arch Linux against those libraries in
 both plain and scenefx builds, including end-to-end portal ScreenCast, tray,
 notifications, pointer interaction, and scenefx corner rendering. A real
 DRM/libinput session on the new toolchain is still pending.
