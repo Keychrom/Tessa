@@ -81,6 +81,16 @@ if ! grep -q '^scenefx 1$' "$runtime/config.out"; then
     exit 0
 fi
 
+# foot 1.26 added [colors-dark]/[colors-light] and 1.28 removed [colors].
+foot_version=$(foot --version 2>/dev/null | sed -n 's/^foot version: \([0-9]*\)\.\([0-9]*\).*/\1 \2/p')
+color_section=colors
+if [ -n "$foot_version" ]; then
+    set -- $foot_version
+    if [ "$1" -gt 1 ] || { [ "$1" -eq 1 ] && [ "$2" -ge 26 ]; }; then
+        color_section=colors-dark
+    fi
+fi
+
 wait_win() {
     i=0
     while [ "$i" -lt 100 ]; do
@@ -99,7 +109,7 @@ wait_win() {
     exit 1
 }
 
-tessa-ctl spawn foot -o colors.background=ffffff -o colors.foreground=000000 -T FXWhite
+tessa-ctl spawn foot -o "$color_section.background=ffffff" -o "$color_section.foreground=000000" -T FXWhite
 sleep 0.5
 line=$(wait_win)
 x=$(printf '%s\n' "$line" | cut -f 10)

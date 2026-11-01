@@ -185,17 +185,25 @@ if [ -z "$id" ]; then
     exit 1
 fi
 wait_log "notification: added id=$id total=1"
-wait_log "layer map: tessa-notifications layer=2 keyboard=0"
-tessa-ctl state | awk -F '\t' '
-    $1 == "LAYER" && $2 == "tessa-notifications" {
-        if ($5 == "0.650" && $6 == "17") found = 1
-    }
-    END { exit(found ? 0 : 1) }
-' || {
+i=0
+while [ "$i" -lt 100 ]; do
+    state=$(tessa-ctl state 2>/dev/null || true)
+    if printf '%s\n' "$state" | awk -F '\t' '
+        $1 == "LAYER" && $2 == "tessa-notifications" {
+            if ($5 == "0.650" && $6 == "17") found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    '; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+if [ "$i" -ge 100 ]; then
     echo "notification layer rule was not applied" >&2
     tessa-ctl state | grep -E '^LAYER' >&2 || true
     exit 1
-}
+fi
 echo "notification toast: ok (layer rule)"
 
 gdbus call --session \

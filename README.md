@@ -287,10 +287,11 @@ restarts were exercised by
 `tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
 `tests/helper-timeouts.sh`, `tests/fuzz-parsers.sh`, and
 `tests/fuzz-asan.sh`.
-The 0.2.5 source tree targets Zig 0.17.0, wlroots 0.20.2, and scenefx 0.5. All
-compositor, panel, and CLI modules and their tests compile against those
-libraries in both plain and scenefx configurations; live-session validation on
-the new toolchain is still pending.
+The 0.2.5 source tree targets Zig 0.17.0, wlroots 0.20.2, and scenefx 0.5. The
+full headless suite (63 tests) passes on Arch Linux against those libraries in
+both plain and scenefx builds, including end-to-end portal ScreenCast, tray,
+notifications, pointer interaction, and scenefx corner rendering. A real
+DRM/libinput session on the new toolchain is still pending.
 
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded

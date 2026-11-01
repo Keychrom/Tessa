@@ -2025,12 +2025,12 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
   output, keyboard, mouse, IME, and XWayland clients have been validated on
-  0.2.4. The headless suite uses pixman, `wtype`, Fcitx5, and
-  `xwayland-satellite` for regression coverage. The 0.2.5 tree compiles against
-  Zig 0.17 / wlroots 0.20 / scenefx 0.5, but live-session validation on those
-  versions is still pending. Per-device touchpad tuning, VRR/adaptive-sync
-  commits, and unusual multi-GPU/monitor combinations still need validation on
-  the matching hardware.
+  0.2.4. The 0.2.5 headless suite (63 tests) passes on Arch Linux with Zig 0.17,
+  wlroots 0.20, and scenefx 0.5 in both plain and scenefx builds, including
+  portal ScreenCast, tray, notifications, and pointer interaction. A real
+  DRM/libinput session on the new toolchain is still pending. Per-device
+  touchpad tuning, VRR/adaptive-sync commits, and unusual multi-GPU/monitor
+  combinations still need validation on the matching hardware.
 - **Arch packaging uses the official toolchain.** The PKGBUILD targets the
   official `zig` 0.17 and `wlroots0.20` packages; `scenefx` 0.5 is optional for
   the effects build. Report `makepkg` failures with the compiler and pkg-config

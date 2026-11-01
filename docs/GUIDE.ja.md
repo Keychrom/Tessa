@@ -2074,12 +2074,12 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **物理 DRM/libinput は Arch Linux 実機で確認済みですが、デバイス固有の
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
   DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
-  確認しています。headless スイートは pixman、`wtype`、Fcitx5、
-  `xwayland-satellite` で回帰をカバーしています。0.2.5 ツリーは Zig 0.17 /
-  wlroots 0.20 / scenefx 0.5 でコンパイル確認済みですが、新しいツール
-  チェーンでの実セッション検証は未実施です。タッチパッドのデバイス別
-  チューニング、VRR/Adaptive Sync のコミット、特殊なマルチ GPU／モニター
-  構成は、対応する実機での追加確認が必要です。
+  確認しています。0.2.5 は Arch Linux 実機で Zig 0.17 / wlroots 0.20 /
+  scenefx 0.5 の headless スイート全 63 テストが plain／scenefx の両構成で
+  成功しており、ポータルの ScreenCast、トレイ、通知、ポインタ操作も含みます。
+  新しいツールチェーンでの実 DRM/libinput セッション検証は未実施です。
+  タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、
+  特殊なマルチ GPU／モニター構成は、対応する実機での追加確認が必要です。
 - **Arch パッケージは公式ツールチェーンを使用**。PKGBUILD は公式の `zig`
   0.17 と `wlroots0.20` を前提とし、`scenefx` 0.5 はエフェクトビルドの
   任意依存です。`makepkg` が失敗した場合は、トラブルシューティングにある

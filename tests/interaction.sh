@@ -145,7 +145,7 @@ if [ -z "$bar_w" ] || [ -z "$bar_h" ]; then
     echo "could not parse bar size" >&2
     exit 1
 fi
-sleep 0.3
+wait_state "LAYER.*tessa-bar"
 ws_y=$((12 + bar_h / 2))
 ws1_x=$((16 + bar_w / 2 - 115 + 11))
 ws2_x=$((ws1_x + 26))

@@ -148,8 +148,8 @@ while [ ! -S "$runtime/pipewire-0" ]; do
     sleep 0.1
 done
 
-"$portal_bin" >"$runtime/portal.log" 2>&1 &
-dpid=$!
+# Start the backend first so xdg-desktop-portal sees the impl name while it
+# builds its portal interfaces.
 "$wlr_bin" -l DEBUG >"$runtime/xdpw.log" 2>&1 &
 wpid=$!
 
@@ -159,11 +159,53 @@ while :; do
         --object-path /org/freedesktop/DBus \
         --method org.freedesktop.DBus.ListNames 2>/dev/null || true)
     case "$names" in
-    *org.freedesktop.portal.Desktop*org.freedesktop.impl.portal.desktop.wlr*) break ;;
+    *org.freedesktop.impl.portal.desktop.wlr*) break ;;
+    esac
+    i=$((i + 1))
+    if [ "$i" -ge 100 ]; then
+        echo "xdg-desktop-portal-wlr did not acquire its bus name" >&2
+        cat "$runtime/xdpw.log" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+
+"$portal_bin" -r >"$runtime/portal.log" 2>&1 &
+dpid=$!
+
+i=0
+while :; do
+    names=$(gdbus call --session --dest org.freedesktop.DBus \
+        --object-path /org/freedesktop/DBus \
+        --method org.freedesktop.DBus.ListNames 2>/dev/null || true)
+    case "$names" in
+    *org.freedesktop.portal.Desktop*) ;;
+    *) names= ;;
+    esac
+    case "$names" in
+    *org.freedesktop.impl.portal.desktop.wlr*) break ;;
     esac
     i=$((i + 1))
     if [ "$i" -ge 100 ]; then
         echo "portal services did not appear" >&2
+        cat "$runtime/portal.log" >&2
+        cat "$runtime/xdpw.log" >&2
+        exit 1
+    fi
+    sleep 0.1
+done
+
+i=0
+while :; do
+    if gdbus introspect --session --dest org.freedesktop.portal.Desktop \
+        --object-path /org/freedesktop/portal/desktop 2>/dev/null |
+        grep -q 'interface org.freedesktop.portal.ScreenCast'
+    then
+        break
+    fi
+    i=$((i + 1))
+    if [ "$i" -ge 100 ]; then
+        echo "ScreenCast portal interface did not appear" >&2
         cat "$runtime/portal.log" >&2
         cat "$runtime/xdpw.log" >&2
         exit 1

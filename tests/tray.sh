@@ -160,7 +160,7 @@ echo "tray item registration and icon: ok"
 if command -v grim >/dev/null 2>&1 && command -v convert >/dev/null 2>&1; then
     sleep 0.3
     grim -o HEADLESS-1 "$runtime/bar.png"
-    if ! convert "$runtime/bar.png" -crop 900x44+1000+12 +repage txt:- |
+    if convert "$runtime/bar.png" -crop 900x44+1000+12 +repage txt:- |
         awk '
         /^#/ { next }
         {

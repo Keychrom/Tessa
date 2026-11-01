@@ -298,9 +298,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/helper-timeouts.sh`、`tests/fuzz-parsers.sh`、
 `tests/fuzz-asan.sh` で
 検証しています。0.2.5 のソースツリーは Zig 0.17.0、wlroots 0.20.2、
-scenefx 0.5 を対象とし、plain／scenefx の両構成でコンポジタ、パネル、CLI と
-各テストがコンパイルされることを確認しています。新しいツールチェーンでの
-実セッション検証は未実施です。`tests/effects.sh` は `-Dscenefx=true` ビルドでのみ角丸を
+scenefx 0.5 を対象とし、Arch Linux 実機の headless スイート全 63 テストが
+plain／scenefx の両構成で成功しています。ポータルの ScreenCast、トレイ、
+通知、ポインタ操作、scenefx の角丸描画も含みます。新しいツールチェーンでの
+実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は
+`-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
 Kitty、`wlr-randr`、`xwayland-satellite` が無い場合にスキップします。
 `tests/xwayland-ready.sh` は偽のサテライトを使うため、`DISPLAY` の準備待ちは
