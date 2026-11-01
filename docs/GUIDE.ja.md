@@ -175,10 +175,10 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 X11 アプリには AUR の `xwayland-satellite-git` を使います。
 `scenefx` 0.5 は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
 ビルドでは角丸もブラーも有効になりません。0.2.4 の Arch パッケージは
-0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 は PKGBUILD を
-公式の `zig` と `wlroots0.20` に更新しているため、新しいツールチェーンは
-`makepkg -si` で確認してください。`makepkg` が ABI や依存関係のエラーを
-出した場合は、`zig version` が 0.17.x、
+0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
+公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
+headless スイート全 63 テストが plain／scenefx の両構成で成功しています。
+`makepkg` が ABI や依存関係のエラーを出した場合は、`zig version` が 0.17.x、
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
 

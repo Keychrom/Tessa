@@ -118,11 +118,11 @@ X11 アプリケーションには AUR の `xwayland-satellite-git` を導入し
 
 0.2.4 の Arch パッケージは、0.16/0.19 の AUR ツールチェーンを使って Arch
 Linux 実機でビルドし、通常セッションと plain／scenefx ビルドで動作を確認して
-います。0.2.5 ツリーは PKGBUILD を公式の `zig` 0.17 と `wlroots0.20` に更新
-しているため、新しいツールチェーンは `makepkg -si` で確認してください。
-`makepkg` が依存関係や ABI の不一致を報告した場合は、`zig version` が
-`0.17.x` で、`pkg-config --modversion wlroots-0.20` が `0.20.x` を返すことを
-確認してください。
+います。0.2.5 の PKGBUILD は公式の `zig` 0.17 と `wlroots0.20` で Arch Linux
+実機にビルド・インストールし、headless スイート全 63 テストが plain／scenefx
+の両構成で成功しています。`makepkg` が依存関係や ABI の不一致を報告した場合は、
+`zig version` が `0.17.x` で、`pkg-config --modversion wlroots-0.20` が
+`0.20.x` を返すことを確認してください。
 
 `build.zig` はすべてのビルドモードで LLVM/LLD を強制するため、古い Zig の
 セルフホストリンカーと glibc 2.43 / GCC 16 の組み合わせで発生した

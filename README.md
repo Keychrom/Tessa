@@ -117,11 +117,12 @@ default wlroots scene and does not enable rounded corners or blur. Log in on a
 TTY and run `tessa`, or select **Tessa** in your display manager.
 
 The 0.2.4 Arch package was exercised on Arch Linux with the 0.16/0.19 AUR
-toolchain, including a real session and plain/scenefx builds. The 0.2.5 tree
-updates the PKGBUILD to the official `zig` 0.17 and `wlroots0.20` packages; run
-`makepkg -si` on your system to validate the new toolchain. If `makepkg`
-reports an ABI or dependency problem, confirm that `zig version` is `0.17.x`
-and `pkg-config --modversion wlroots-0.20` reports `0.20.x`.
+toolchain, including a real session and plain/scenefx builds. The 0.2.5
+PKGBUILD has been built and installed on Arch Linux with the official `zig`
+0.17 and `wlroots0.20` packages, and the full headless suite passes in both
+plain and scenefx builds. If `makepkg` reports an ABI or dependency problem,
+confirm that `zig version` is `0.17.x` and
+`pkg-config --modversion wlroots-0.20` reports `0.20.x`.
 
 `build.zig` forces LLVM/LLD for every build mode, so the glibc 2.43/GCC 16
 `R_X86_64_PC64` relocation problem seen with older Zig self-hosted linking

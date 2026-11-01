@@ -172,10 +172,10 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 For X11 applications, use AUR `xwayland-satellite-git`. `scenefx` 0.5 is only
 needed for a custom `-Dscenefx=true` build; the PKGBUILD's default build does
 not enable rounded corners or blur. The 0.2.4 Arch package was built and
-exercised with the 0.16/0.19 AUR toolchain; 0.2.5 updates the PKGBUILD to the
-official `zig` and `wlroots0.20`, so validate the new toolchain with
-`makepkg -si` on your system. If `makepkg` reports an ABI or dependency
-problem, confirm `zig version` is 0.17.x and
+exercised with the 0.16/0.19 AUR toolchain. The 0.2.5 PKGBUILD has been built
+and installed on Arch Linux with the official `zig` and `wlroots0.20`, and the
+full headless suite passes in plain and scenefx builds. If `makepkg` reports an
+ABI or dependency problem, confirm `zig version` is 0.17.x and
 `pkg-config --modversion wlroots-0.20` is 0.20.x.
 
 ### 2.3 Build from source (development)
