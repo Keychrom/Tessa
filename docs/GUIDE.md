@@ -1077,6 +1077,14 @@ wlr-randr --output eDP-1 --scale 1.5
 wlr-randr --output eDP-1 --transform 90
 ```
 
+To place a left monitor and a center monitor explicitly, use logical layout
+coordinates (take the connector names from `wlr-randr`):
+
+```sh
+wlr-randr --output DP-1 --pos 0,0
+wlr-randr --output HDMI-A-1 --pos 2560,0
+```
+
 Settings are saved to `outputs.conf` and restored on the next start. Override
 the path with `output_config` or `TESSA_OUTPUT_CONFIG`. The file is mode 0600.
 Disabled-output state is not persisted.
@@ -1438,6 +1446,11 @@ xim_start = fcitx5 -d
 ```
 
 `xim_start` runs after the X display socket appears.
+
+Fcitx5 keeps a keyboard grab while it runs. Tessa passes the input method's
+virtual-keyboard output back to the focused client, including clients that do
+not use `text-input-v3` (for example Firefox), and does not re-enter keyboard
+focus when that virtual keyboard is created or destroyed.
 
 ---
 
@@ -1976,6 +1989,10 @@ satellite they run immediately.
 - Ensure Fcitx5 is not started twice.
 - With XWayland disabled there is no X display, so `XMODIFIERS` is intentionally
   not exported.
+- If keys stop working in Firefox or another client after Fcitx5 starts, check
+  the log for repeated `virtual keyboard added` / `input method grabbed
+  keyboard` lines. Current builds avoid that text-input focus loop; restart the
+  session after updating.
 
 ### Screen sharing fails
 

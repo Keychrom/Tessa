@@ -274,7 +274,7 @@ restarts were exercised by
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
-`tests/input.sh`,
+`tests/input.sh`, `tests/ime-keyboard.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/cursor-theme.sh`,
 `tests/linux-dmabuf.sh`, `tests/spawn-signals.sh`,
@@ -543,6 +543,12 @@ protocol. For X11 clients, Tessa exports `XMODIFIERS=@im=fcitx` (adjust
 exists. Registration is verified with Fcitx5; toolkit-specific XIM behavior
 still depends on the application.
 
+Fcitx5 keeps a keyboard grab while it runs. Tessa forwards key events to that
+grab and passes the input method's virtual-keyboard output back to the focused
+client, so applications that do not use `text-input-v3` (for example Firefox)
+still receive keys. Creating or destroying that virtual keyboard does not
+re-enter keyboard focus, which avoids a text-input enable/activate loop.
+
 Open the launcher with `Super+D` and type; the preedit is drawn in the search
 field and the Fcitx candidate popup appears below it. `Enter` commits the
 selection, and the committed text becomes part of the launcher query.
@@ -626,7 +632,16 @@ Tessa implements `wlr-output-management-unstable-v1`. Applied settings are
 saved to `$XDG_CONFIG_HOME/tessa/outputs.conf` (or
 `~/.config/tessa/outputs.conf`) and restored when the outputs appear again.
 Override the path with `output_config` in the main config or
-`TESSA_OUTPUT_CONFIG`. Fractional-scale-aware Wayland clients receive the exact
+`TESSA_OUTPUT_CONFIG`. For an explicit left/center arrangement, set positions
+in logical layout coordinates (use the connector names printed by
+`wlr-randr`):
+
+```sh
+wlr-randr --output DP-1 --pos 0,0
+wlr-randr --output HDMI-A-1 --pos 2560,0
+```
+
+The change is saved immediately. Fractional-scale-aware Wayland clients receive the exact
 output scale from `wp_fractional_scale_v1`, including runtime changes. Clients
 without the protocol fall back to the ceiling of the output scale. Panels use
 the ceiling as their integer Cairo buffer scale, so integer scales are crisp
@@ -739,6 +754,9 @@ Copy the example:
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
 ```
+
+The full configuration used on the development machine is available as
+`examples/vermilion-ink.config`.
 
 The format is `key = value`. Comments are lines starting with `#`.
 At runtime `Super+R` reloads the config. A reload with errors is rejected and

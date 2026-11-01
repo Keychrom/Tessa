@@ -113,6 +113,12 @@ layout = master
 # output-rule = make=Dell Inc.; model=DELL U2723QE; adaptive-sync=on
 # output-rule = serial=ABC123; adaptive-sync=off
 
+# Monitor positions are runtime state, not output-rule fields. Arrange them
+# with wlr-randr; Tessa persists the result in outputs.conf:
+#   wlr-randr --output DP-1 --pos 0,0
+#   wlr-randr --output HDMI-A-1 --pos 2560,0
+# With Tessa stopped, the same output lines can be edited in outputs.conf.
+
 # External custom tiling. One long-lived helper runs per output and receives
 # asynchronous HELLO/LAYOUT/AREA/WINDOW/END requests with focus/urgent metadata,
 # returning VERSION/RECT/END responses. See docs/CUSTOMIZATION.md and

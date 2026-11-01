@@ -1101,6 +1101,14 @@ wlr-randr --output eDP-1 --scale 1.5
 wlr-randr --output eDP-1 --transform 90
 ```
 
+左と中央のように明示的に配置する場合は、論理レイアウト座標で位置を指定します
+（コネクタ名は `wlr-randr` の表示に合わせてください）:
+
+```sh
+wlr-randr --output DP-1 --pos 0,0
+wlr-randr --output HDMI-A-1 --pos 2560,0
+```
+
 設定は `outputs.conf` に保存され、次回起動時に復元されます。保存先は
 `output_config` または `TESSA_OUTPUT_CONFIG` で変更できます。ファイルは
 モード 0600 です。出力の無効化状態は保存されません。
@@ -1463,6 +1471,12 @@ xim_start = fcitx5 -d
 ```
 
 `xim_start` は X ディスプレイのソケットが現れてから実行されます。
+
+Fcitx5 は実行中キーボードグラブを保持します。Tessa は入力メソッドの仮想
+キーボード出力をフォーカス中のクライアントへ戻します。`text-input-v3` を
+使わないクライアント（Firefox など）も含みます。仮想キーボードの作成・破棄時に
+キーボードフォーカスを再入力しないため、text-input の enable/activate ループは
+発生しません。
 
 ---
 
@@ -2025,6 +2039,10 @@ XWayland が有効な場合、`startup` フックと `TESSA_STARTUP` は準備�
 - Fcitx5 を二重起動していないか
 - XWayland を無効にしている場合、X ディスプレイが無いため `XMODIFIERS` は
   意図的に設定されません
+- Fcitx5 起動後に Firefox などのキー入力が止まる場合は、ログに
+  `virtual keyboard added` / `input method grabbed keyboard` が繰り返し
+  出ていないか確認してください。現在のビルドはこの text-input フォーカス
+  ループを避けます。更新後はセッションを再起動してください。
 
 ### 画面共有できない
 

@@ -284,7 +284,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、
-`tests/input.sh`、`tests/pointer-constraints.sh`、
+`tests/input.sh`、`tests/ime-keyboard.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/cursor-theme.sh`、
 `tests/linux-dmabuf.sh`、`tests/spawn-signals.sh`、`tests/xwayland-ready.sh`、
 `tests/kitty-startup.sh`、
@@ -554,6 +554,12 @@ Tessa が `XMODIFIERS=@im=fcitx`（`xim_server` で変更可能）をエクス�
 自動起動します。Fcitx5 での登録は確認済みですが、実際の確定処理は各 X11
 ツールキットの XIM クライアントに依存します。
 
+Fcitx5 は実行中キーボードグラブを保持します。Tessa はキーイベントをグラブへ
+転送し、入力メソッドの仮想キーボード出力をフォーカス中のクライアントへ戻します。
+そのため `text-input-v3` を使わないアプリ（Firefox など）でもキー入力を受け取れ
+ます。仮想キーボードの作成・破棄時にキーボードフォーカスを再入力しないため、
+text-input の enable/activate ループも発生しません。
+
 `Super+D` でランチャーを開いて入力すると、プリエディットが検索欄に描画され、
 その下に Fcitx の候補ポップアップが表示されます。`Enter` で選択を確定し、
 確定した文字列がランチャーの検索語に追加されます。
@@ -642,7 +648,16 @@ TESSA_PANEL_OUTPUT=HEADLESS-1 tessa-panel
 `$XDG_CONFIG_HOME/tessa/outputs.conf`（または
 `~/.config/tessa/outputs.conf`）に保存され、出力が再び現れたときに復元
 されます。保存先はメイン設定の `output_config` または
-`TESSA_OUTPUT_CONFIG` で変更できます。`wp_fractional_scale_v1` に対応する
+`TESSA_OUTPUT_CONFIG` で変更できます。左と中央のように明示的に配置する場合は、
+論理レイアウト座標で位置を指定します（コネクタ名は `wlr-randr` の表示に
+合わせてください）:
+
+```sh
+wlr-randr --output DP-1 --pos 0,0
+wlr-randr --output HDMI-A-1 --pos 2560,0
+```
+
+変更は即座に保存されます。`wp_fractional_scale_v1` に対応する
 Wayland クライアントには、実行中の変更を含めて正確な出力スケールが通知
 されます。プロトコル非対応のクライアントは出力スケールの切り上げ値を
 使います。パネルは切り上げ値を Cairo の整数バッファスケールとして使うため、
@@ -763,6 +778,8 @@ include = /home/you/.config/tessa/launcher-entries.conf
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
 ```
+
+開発機で使っている完全な設定は `examples/vermilion-ink.config` にあります。
 
 形式は `key = value` です。`#` で始まる行はコメントです。実行中に `Super+R`
 で設定を再読み込みできます。エラーのあるリロードは拒否され、以前の設定が
