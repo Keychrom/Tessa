@@ -182,13 +182,50 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 サーフェス、キーボードのワークスペース操作には、コンポジタが保持する
 フォーカス中の出力が使われます。
 
-キーボード操作可能な layer は map 時にキーボードフォーカスを取得します
-（`keyboard_interactive != 0` かつ layer >= top）。unmap 時は、直前に
-フォーカスしていたトップレベルへフォーカスを戻します。ランチャーは
-`EXCLUSIVE`、バーは `NONE` を要求します。text-input のフォーカスも同じ
-遷移に従います。`layout.focusLayer()` と `layout.focusClient()` が
-サーフェスの原点を添えて `ime.focusSurface()` を呼ぶため、クライアントの
-アクティブな text-input が `enter`/`leave` を受け取ります。
+キーボードフォーカスは `EXCLUSIVE` layer の map 時に取得します
+（`keyboard_interactive == EXCLUSIVE` かつ layer >= top）。`ON_DEMAND` の
+layer（Quickshell の `focusable` パネルなど）は map 時ではなくクリック時に
+フォーカスします。layer 上のクリックはトップレベルのフォーカス処理より先に
+消費するため、非対話バーをクリックしてもアクティブウィンドウのフォーカスを
+奪いません。unmap または destroy 時は、直前にフォーカスしていたトップレベル
+へ戻します。text-input も同じ遷移に従い、`layout.focusLayer()` と
+`layout.focusClient()` がサーフェスの実際のシーン原点を添えて
+`ime.focusSurface()` を呼ぶため、セカンダリ出力でも IME ポップアップが正しい
+位置に表示されます。
+
+layer ポップアップは layer のシーンツリー配下に作成し、
+`wlr_xdg_popup_unconstrain_from_box()` で出力ボックス内に制約します。出力が
+消えるときは、その出力に属する layer サーフェスを `Output` の free 前に
+`wlr_layer_surface_v1_destroy()` で閉じます。プロトコルの `closed` が送られ、
+layer コールバックが古い出力を参照しません。外部の排他サーフェスは Tessa の
+バーと同じように領域を予約します。Tessa Panel は既定で起動され、外部バーの
+出現時に自動では無効になりません。同じ辺に 2 本置くと領域を二重に予約します。
+
+各パネルプロセスは明示的な出力オブジェクトを指定して layer サーフェスを
+作成するため、バーと壁紙はそれぞれのモニタに配置されます。ランチャーは
+フォーカス中の出力のパネルだけがイベントに応答して、その出力の上に
+オーバーレイを作成します。新しいトップレベル、出力未指定の layer
+サーフェス、キーボードのワークスペース操作には、コンポジタが保持する
+フォーカス中の出力が使われます。
+
+## ext-workspace とトップレベル状態
+
+`ext_workspace.zig` が `wlr_ext_workspace_manager_v1` を作成します。出力ごとに
+1 つのワークスペースグループと 9 個のワークスペースハンドルを持ちます。
+ハンドルは設定名（未設定なら番号）、1 次元の coordinates、active/urgent
+状態を公開し、capability は `activate` のみです。Tessa のワークスペース数は
+固定なので create/remove/assign は広告しません。commit リスナーは
+`layout.zig` の `initExtWorkspace()` に置き、activate 要求を
+`switchWorkspaceOnOutput()` へ渡します。ワークスペース切り替え、移動、
+urgent 変更、出力の追加/削除、設定リロードで `ext_workspace.syncOutput()` を
+呼びます。
+
+foreign-toplevel ハンドルはクライアントごとに作成し、作成時に
+`output_enter` を送ります。ウィンドウが出力間を移動したとき（出力切断時の
+フォールバックを含む）は `layout.retargetToplevel()` が
+`output_leave`/`output_enter` を送るため、タスクバーは正しいモニタに表示
+されます。Tessa に対応状態がないため minimize/maximize 要求は実装して
+いません。
 
 ## 入力
 

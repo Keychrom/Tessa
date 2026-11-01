@@ -1100,6 +1100,58 @@ Disabled-output state is not persisted.
 - XWayland scaling depends on `xwayland-satellite`
 - Fractional X11 behavior has not been validated on hardware
 
+### External bars and launchers
+
+Tessa Panel stays the default (`panel = true`). For a layer-shell bar or launcher
+from another desktop, disable the integrated panel and start the program from
+`startup`:
+
+```ini
+panel = false
+startup = waybar
+```
+
+`panel = false` also turns off Tessa's background, notifications, and built-in
+launcher. Use an external wallpaper and notification daemon if you need them.
+
+Waybar 0.15 uses layer-shell directly and can use the standard workspace and
+toplevel protocols:
+
+```jsonc
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "modules-left": ["ext/workspaces"],
+  "modules-center": ["wlr/taskbar"]
+}
+```
+
+Tessa exposes one `ext-workspace-v1` group per output with nine workspaces.
+Names come from `workspace-name` (or `1`…`9`); active and urgent state are
+updated live, and activating a workspace switches that output. Only the
+workspace `activate` capability is advertised because Tessa's workspace set is
+fixed. `wlr-foreign-toplevel-management` also follows windows when they move
+between outputs.
+
+Wofi and other layer-shell launchers need no compositor-specific setup. To
+replace the built-in launcher binding:
+
+```ini
+bind = SUPER+D spawn wofi --show drun
+```
+
+Use `layer=overlay` for Wofi if fullscreen windows should not cover it. A
+Quickshell `PanelWindow` uses layer-shell; `Quickshell.WindowManager` consumes
+the ext-workspace groups, and `ToplevelManager` consumes foreign-toplevel.
+`focusable: true` panels request `ON_DEMAND` keyboard focus and are focused on
+click.
+
+If Tessa Panel and an external bar use the same edge, both reserve space; disable
+one. Their trays also compete for the single `org.kde.StatusNotifierWatcher`, so
+only one tray is populated. Waybar minimize/maximize requests are no-ops because
+Tessa has no such window state.
+
 ### Output loss
 
 Clients move to the first remaining output. Removing the last output terminates
@@ -1993,6 +2045,25 @@ satellite they run immediately.
   the log for repeated `virtual keyboard added` / `input method grabbed
   keyboard` lines. Current builds avoid that text-input focus loop; restart the
   session after updating.
+
+### External bar or launcher does not work
+
+- Check that the surface exists: `tessa-ctl state | grep LAYER` should show its
+  namespace (for example `waybar` or `wofi`).
+- If both Tessa Panel and an external bar are anchored to the same edge, both
+  reserve space. Set `panel = false` when the external bar should be the only
+  bar.
+- On Waybar 0.14+ use `ext/workspaces`; the old `wlr/workspaces` module was
+  removed. `wlr/taskbar` needs `wlr-foreign-toplevel-management`, which Tessa
+  provides.
+- Wofi uses layer-shell by default. `--normal-window` is supported but keyboard
+  focus depends on the compositor's normal toplevel focus; layer mode is
+  recommended.
+- Layer surfaces that request `EXCLUSIVE` keyboard focus are focused on map;
+  `ON_DEMAND` surfaces are focused when clicked. A client that never requests
+  keyboard interactivity cannot receive typed input.
+- Tessa Panel, Waybar, and Quickshell all try to own
+  `org.kde.StatusNotifierWatcher`; only one tray will be populated.
 
 ### Screen sharing fails
 

@@ -177,18 +177,47 @@ height plus the
 `arrangeLayers()` only reflows tiled clients when the usable area changes. It is
 called on layer commit/map/unmap and output creation.
 
-Keyboard focus for an interactive layer is taken on map (`keyboard_interactive
-!= 0`, layer >= top). On unmap, focus is restored to the previously focused
-toplevel. The launcher requests `EXCLUSIVE`; the bar requests `NONE`. Text input
-focus follows the same transition: `layout.focusLayer()` and
-`layout.focusClient()` call `ime.focusSurface()` with the surface origin, so the
-client's active text input receives `enter`/`leave`.
+Keyboard focus is taken when an `EXCLUSIVE` layer maps
+(`keyboard_interactive == EXCLUSIVE`, layer >= top). `ON_DEMAND` layers, such as
+a focusable Quickshell panel, are focused when clicked instead of at map time.
+A click on any layer is handled before the toplevel focus path, so clicking a
+non-interactive bar does not steal focus from the active window. On unmap or
+destroy, focus returns to the previously focused toplevel. Text input focus
+follows the same transition: `layout.focusLayer()` and `layout.focusClient()`
+call `ime.focusSurface()` with the surface's actual scene origin, so text input
+and IME popups land correctly on secondary outputs.
+
+Layer popups are created under the layer's scene tree and constrained to the
+output box with `wlr_xdg_popup_unconstrain_from_box()`. When an output is
+removed, every layer surface bound to it is closed with
+`wlr_layer_surface_v1_destroy()` before the `Output` is freed; this sends the
+protocol `closed` event and prevents layer callbacks from using a stale output.
+External exclusive surfaces reserve space exactly like Tessa's own bar. Tessa
+Panel is still started by default, and the compositor does not auto-disable it
+when an external bar appears: two bars on the same edge reserve the area twice.
 
 Each panel process creates its layer surfaces with an explicit output object, so
 a bar/background is placed on its own monitor. The launcher is created on the
 panel's output when that panel receives the launcher event; panels for other
 outputs ignore it. The compositor uses the focused output for new toplevels,
 layer surfaces without an explicit output, and keyboard workspace bindings.
+
+## ext-workspace and toplevel state
+
+`ext_workspace.zig` creates a `wlr_ext_workspace_manager_v1`. Each output gets
+one workspace group and nine workspace handles. Handles carry the configured
+workspace name (or the number), one-dimensional coordinates, active/urgent
+state, and only the `activate` capability; Tessa's workspace set is fixed, so
+create/remove/assign are not advertised. The commit listener lives in
+`layout.zig` (`initExtWorkspace`) and routes an activate request through
+`switchWorkspaceOnOutput()`. Workspace switches, moves, urgency changes, output
+add/remove, and config reloads call `ext_workspace.syncOutput()`.
+
+Foreign-toplevel handles are created per client and receive `output_enter` at
+creation. `layout.retargetToplevel()` sends `output_leave`/`output_enter` when a
+window moves between outputs (including the fallback during output removal), so
+taskbars keep windows on the correct monitor. Minimize/maximize requests are not
+implemented because Tessa has no corresponding window state.
 
 ## Input
 

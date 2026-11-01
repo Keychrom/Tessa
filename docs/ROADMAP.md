@@ -30,6 +30,20 @@ a daily Japanese desktop, then by polish.
 0.2.4 remains the 0.16/0.19 maintenance point. New work targets 0.17/0.20 and
 must keep packaging, docs, and the compatibility matrix in sync.
 
+## External shell compatibility
+
+Migration users can keep a familiar bar or launcher while Tessa Panel remains
+the default.
+
+- [x] Layer-shell bars/launchers (Waybar, Wofi, Quickshell), exclusive zones,
+      popup unconstraining, `EXCLUSIVE`/`ON_DEMAND` keyboard focus, and safe
+      layer teardown on output removal.
+- [x] `ext-workspace-v1` groups with nine workspaces per output and an activate
+      request; Waybar `ext/workspaces` and Quickshell `WindowManager` work.
+- [x] Foreign-toplevel output enter/leave tracking for taskbars.
+- [ ] Optional Quickshell feature protocols: `keyboard-shortcuts-inhibit-v1`
+      and `wlr-gamma-control-v1`.
+
 ## 0.1.x — make the foundation trustworthy
 
 - [x] Run on DRM + libinput on the target machine and fix layout/input issues.

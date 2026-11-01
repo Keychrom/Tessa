@@ -6,8 +6,9 @@ wlroots の上に Zig で実装した、静かなタイル型 Wayland デスク�
 
 Tessa はコンポジタであり、小さなシェルでもあります。フローティングタスクバー、
 検索できるランチャー、壁紙、タイルレイアウト、ワークスペース、ウィンドウの
-ボーダーまで、すべてこのリポジトリに含まれています。Waybar / Rofi / wofi は
-必要ありません。
+ボーダーまで、すべてこのリポジトリに含まれています。既定は Tessa Panel で、
+Waybar / Rofi / wofi は必須ではありませんが、layer-shell 対応の外部バーや
+ランチャーに置き換えることもできます。
 
 ![Tessa のモザイクレイアウト](docs/images/mosaic.png)
 
@@ -224,6 +225,9 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   （筆圧、傾き、回転、ツールボタン、リング、ストリップ）
 - サードパーティクライアントの layer-shell ポップアップ（パネルのメニューや
   ドロップダウン）
+- 外部 layer-shell シェル: Waybar、Wofi、Quickshell 互換のバーとランチャー、
+  出力ごとに 9 ワークスペースを持つ `ext-workspace-v1` グループ、
+  foreign-toplevel の出力追従、`ON_DEMAND` クリックフォーカス
 - `ext-session-lock-v1` によるセッションロック。`ext-idle-notify-v1`、
   `idle-inhibit-v1`、出力電源管理にも対応し、swayidle や wlopm と連携可能
 - 設定ファイルでキーボードレイアウト/バリアント/オプションとキーリピートを
@@ -284,7 +288,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、
-`tests/input.sh`、`tests/ime-keyboard.sh`、`tests/pointer-constraints.sh`、
+`tests/input.sh`、`tests/ime-keyboard.sh`、`tests/ext-workspace.sh`、
+`tests/external-shell.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/cursor-theme.sh`、
 `tests/linux-dmabuf.sh`、`tests/spawn-signals.sh`、`tests/xwayland-ready.sh`、
 `tests/kitty-startup.sh`、
@@ -665,6 +670,66 @@ Wayland クライアントには、実行中の変更を含めて正確な出力
 スケーリングは `xwayland-satellite` が同じフラクショナルスケールを利用して
 処理します。
 
+## 外部バーとランチャー
+
+既定のシェルは引き続き Tessa Panel です（`panel = true`）。別デスクトップの
+layer-shell バーやランチャーを使う場合は、統合パネルを無効にして `startup`
+から起動します:
+
+```ini
+panel = false
+startup = waybar
+```
+
+`panel = false` にすると Tessa の壁紙、通知、内蔵ランチャーも無効になります。
+必要なら別の壁紙・通知デーモンを起動してください。
+
+Waybar 0.15 は標準の layer-shell と `ext-workspace-v1` で動作します。例:
+
+```jsonc
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "modules-left": ["ext/workspaces"],
+  "modules-center": ["wlr/taskbar"]
+}
+```
+
+Tessa は出力ごとに 1 つのワークスペースグループと、その中に 9 個の
+ワークスペースを公開します。名前（設定名、なければ `1`…`9`）、active/urgent
+状態、activate 要求をサポートします。`wlr-foreign-toplevel-management` は
+タスクバー向けに title、app_id、アクティブ化、close、fullscreen を提供し、
+ウィンドウが出力間を移動したときも追従します。
+
+Wofi などの layer-shell ランチャーは追加設定なしで動作します。内蔵ランチャー
+のキーバインドを置き換える例:
+
+```ini
+bind = SUPER+D spawn wofi --show drun
+```
+
+フルスクリーンより前面に表示したい場合は、Wofi の layer を `overlay` にして
+ください。
+
+Quickshell のパネルは layer-shell を使います。`Quickshell.WindowManager` は
+ext-workspace のグループを、`ToplevelManager` は foreign-toplevel を読みます。
+`focusable: true` の `PanelWindow` は `ON_DEMAND` キーボードフォーカスを要求し、
+map 時ではなくクリック時にフォーカスを得ます。
+
+共存時の注意:
+- Tessa Panel と外部バーを同じ辺に置くと、両方が領域を予約します。1 本の
+  バーにする場合は `panel = false` で片方を無効にしてください。別の辺なら
+  共存できます。
+- Tessa Panel、Waybar、Quickshell の `SystemTray` は
+  `org.kde.StatusNotifierWatcher` を所有しようとします。tray が埋まるのは
+  1 つだけです。外部シェル側で tray を持つ場合は Tessa Panel を無効にして
+  ください。
+- Waybar の minimize/maximize 要求はプロトコル上は受理しますが、Tessa に
+  minimize/maximize 状態がないため no-op です。
+- GTK3 のバー/ランチャーはフラクショナルスケーリング時に整数倍で描画されます。
+  これはクライアント側の制限です。
+
 ## 拡張
 
 ![外部ステータスとカスタムランチャー項目](docs/images/extensions.png)
@@ -1027,6 +1092,13 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、
   特殊なマルチ GPU／モニター構成は、対応する実機での追加確認が必要です。
   設定とプロトコルの経路は headless テストで検証しています。
+- **外部シェルは opt-in。** Tessa Panel が既定のままで、Waybar、Quickshell、
+  Wofi の起動時に自動では無効になりません。外部バーを使うときは
+  `panel = false` にしてください。同じ辺に 2 本のバーを置くと領域が二重に
+  予約されます。ext-workspace はワークスペースの activate だけを公開し
+  （Tessa は出力ごと固定 9 ワークスペース）、foreign-toplevel の
+  minimize/maximize 要求は no-op です。Tessa Panel、Waybar、Quickshell の
+  tray は単一の StatusNotifierWatcher を奪い合います。
 - **Kitty は EGL/GL が必要。** GPU アクセラレーションのない VM では、Tessa が
   動作していても Kitty がウィンドウを作れないことがあります。`foot`、
   ソフトウェア Mesa、または `terminal = foot` を使ってください。Tessa が

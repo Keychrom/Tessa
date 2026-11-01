@@ -6,7 +6,8 @@ A quiet, tiled Wayland desktop written in Zig on top of wlroots.
 
 Tessa is a compositor **and** a small shell: a floating taskbar, a searchable
 launcher, the wallpaper, tiling layouts, workspaces, and the window borders are
-all part of this repository. There is no Waybar/Rofi/wofi dependency.
+all part of this repository. Tessa Panel is the default; Waybar/Rofi/wofi are not
+required, but layer-shell-compatible external bars and launchers can replace it.
 
 ![Tessa mosaic layout](docs/images/mosaic.png)
 
@@ -219,6 +220,9 @@ Highlights include:
 - touch input, including the panel UI, and tablet-v2 pen/pad support (pressure,
   tilt, rotation, tool buttons, rings, and strips)
 - layer-shell popups from third-party clients (panel menus, dropdowns)
+- external layer-shell shells: Waybar, Wofi, and Quickshell-compatible bars and
+  launchers, `ext-workspace-v1` groups with nine workspaces per output,
+  foreign-toplevel output tracking, and `ON_DEMAND` click focus
 - `ext-session-lock-v1` session locking, plus `ext-idle-notify-v1`,
   `idle-inhibit-v1`, and output-power management for tools such as swayidle and
   wlopm
@@ -275,6 +279,7 @@ restarts were exercised by
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
 `tests/input.sh`, `tests/ime-keyboard.sh`,
+`tests/ext-workspace.sh`, `tests/external-shell.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/cursor-theme.sh`,
 `tests/linux-dmabuf.sh`, `tests/spawn-signals.sh`,
@@ -641,12 +646,70 @@ wlr-randr --output DP-1 --pos 0,0
 wlr-randr --output HDMI-A-1 --pos 2560,0
 ```
 
-The change is saved immediately. Fractional-scale-aware Wayland clients receive the exact
-output scale from `wp_fractional_scale_v1`, including runtime changes. Clients
-without the protocol fall back to the ceiling of the output scale. Panels use
-the ceiling as their integer Cairo buffer scale, so integer scales are crisp
-and fractional scales are downsampled. XWayland scaling is handled by
+The change is saved immediately. Fractional-scale-aware Wayland clients receive
+the exact output scale from `wp_fractional_scale_v1`, including runtime changes.
+Clients without the protocol fall back to the ceiling of the output scale.
+Panels use the ceiling as their integer Cairo buffer scale, so integer scales
+are crisp and fractional scales are downsampled. XWayland scaling is handled by
 `xwayland-satellite`, which can use the same fractional scale.
+
+## External bars and launchers
+
+Tessa Panel remains the default shell (`panel = true`). To use a layer-shell bar
+or launcher from another desktop, disable the integrated panel and start the
+program from `startup`:
+
+```ini
+panel = false
+startup = waybar
+```
+
+`panel = false` also disables Tessa's background, notifications, and built-in
+launcher; run your own wallpaper and notification daemon if needed.
+
+Waybar 0.15 works with the standard layer-shell and `ext-workspace-v1`
+protocols. For example:
+
+```jsonc
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "modules-left": ["ext/workspaces"],
+  "modules-center": ["wlr/taskbar"]
+}
+```
+
+Tessa exposes one workspace group per output and nine workspaces in each group.
+Workspaces carry their configured name (or `1`…`9`), active/urgent state, and an
+activate request. `wlr-foreign-toplevel-management` supplies the taskbar with
+title, app_id, activation, close, and fullscreen, and follows windows when they
+move between outputs.
+
+Wofi and other layer-shell launchers work without extra configuration. To
+replace the built-in launcher binding:
+
+```ini
+bind = SUPER+D spawn wofi --show drun
+```
+
+Set Wofi's layer to `overlay` if it should stay above fullscreen windows.
+
+Quickshell panels use layer-shell; `Quickshell.WindowManager` reads the
+ext-workspace groups and `ToplevelManager` reads foreign-toplevel. A
+`PanelWindow` with `focusable: true` requests `ON_DEMAND` keyboard focus and
+receives it on click rather than at map time.
+
+Coexistence notes:
+- Tessa Panel and an external bar anchored to the same edge both reserve space.
+  Disable one with `panel = false` for a single bar; different edges can coexist.
+- Tessa Panel's tray, Waybar's tray, and Quickshell's `SystemTray` all try to own
+  `org.kde.StatusNotifierWatcher`. Only one tray is populated; disable Tessa
+  Panel when the external shell should own the tray.
+- Waybar's minimize/maximize requests are accepted by the protocol but are
+  no-ops because Tessa has no minimize/maximize state.
+- GTK3 bars and launchers render at integer scale under fractional scaling; this
+  is a client limitation.
 
 ## Extensions
 
@@ -1001,6 +1064,12 @@ These are real and important:
   touchpad tuning, VRR/adaptive-sync commits, and unusual multi-GPU/monitor
   combinations still need validation on the matching hardware; headless tests
   cover the configuration and protocol paths.
+- **External shells are opt-in.** Tessa Panel remains the default and is not
+  auto-disabled when Waybar, Quickshell, or Wofi starts. Set `panel = false` for
+  an external bar; two bars on the same edge reserve space twice. Ext-workspace
+  advertises workspace activation only (Tessa has fixed nine-workspace groups),
+  and foreign-toplevel minimize/maximize requests are no-ops. Tessa Panel,
+  Waybar, and Quickshell trays compete for the single StatusNotifierWatcher.
 - **Kitty needs working EGL/GL.** On virtual machines without GPU acceleration,
   Kitty may fail to create a window even when Tessa runs. Use `foot`, software
   Mesa, or `terminal = foot`. Tessa falls back to foot only when Kitty is not

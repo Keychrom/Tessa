@@ -1124,7 +1124,59 @@ wlr-randr --output HDMI-A-1 --pos 2560,0
 - XWayland は `xwayland-satellite` の対応に依存
 - XWayland の実機検証は未実施
 
-### 9.4 出力故障時
+### 9.4 外部バーとランチャー
+
+Tessa Panel が既定です（`panel = true`）。別デスクトップの layer-shell バーや
+ランチャーを使う場合は、統合パネルを無効にして `startup` から起動します:
+
+```ini
+panel = false
+startup = waybar
+```
+
+`panel = false` にすると Tessa の壁紙、通知、内蔵ランチャーも無効になります。
+必要なら外部の壁紙・通知デーモンを使ってください。
+
+Waybar 0.15 は layer-shell を直接使い、標準のワークスペース/
+トップレベルプロトコルを利用できます:
+
+```jsonc
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "modules-left": ["ext/workspaces"],
+  "modules-center": ["wlr/taskbar"]
+}
+```
+
+Tessa は出力ごとに 1 つの `ext-workspace-v1` グループと 9 個の
+ワークスペースを公開します。名前は `workspace-name`（未設定なら `1`…`9`）、
+active/urgent 状態はライブ更新され、ワークスペースを activate するとその
+出力が切り替わります。Tessa のワークスペース数は固定なので、公開する
+capability は workspace の `activate` だけです。
+`wlr-foreign-toplevel-management` はウィンドウが出力間を移動したときも
+追従します。
+
+Wofi などの layer-shell ランチャーは Tessa 固有の設定なしで動作します。
+内蔵ランチャーのキーバインドを置き換える例:
+
+```ini
+bind = SUPER+D spawn wofi --show drun
+```
+
+フルスクリーンより前面に置きたい場合は Wofi の layer を `overlay` にして
+ください。Quickshell の `PanelWindow` は layer-shell を使い、
+`Quickshell.WindowManager` は ext-workspace、`ToplevelManager` は
+foreign-toplevel を読みます。`focusable: true` のパネルは `ON_DEMAND`
+キーボードフォーカスを要求し、クリック時にフォーカスされます。
+
+Tessa Panel と外部バーを同じ辺に置くと両方が領域を予約します。片方を無効に
+してください。tray は 1 つの `org.kde.StatusNotifierWatcher` を奪い合うため、
+埋まるのは 1 つだけです。Waybar の minimize/maximize 要求は Tessa に
+対応状態がないため no-op です。
+
+### 9.5 出力故障時
 
 出力が消えると、クライアントは残った先頭の出力へ移動します。最後の出力が
 消えた場合は Tessa が終了します。
@@ -2043,6 +2095,24 @@ XWayland が有効な場合、`startup` フックと `TESSA_STARTUP` は準備�
   `virtual keyboard added` / `input method grabbed keyboard` が繰り返し
   出ていないか確認してください。現在のビルドはこの text-input フォーカス
   ループを避けます。更新後はセッションを再起動してください。
+
+### 外部バー/ランチャーが動かない
+
+- サーフェスが存在するか確認: `tessa-ctl state | grep LAYER` に namespace
+  （`waybar` や `wofi` など）が出るか
+- Tessa Panel と外部バーを同じ辺にアンカーしている場合、両方が領域を予約
+  します。外部バーだけにするなら `panel = false` にしてください
+- Waybar 0.14 以降は `ext/workspaces` を使います。旧 `wlr/workspaces` は
+  削除されています。`wlr/taskbar` は `wlr-foreign-toplevel-management` が
+  必要で、Tessa はこれを提供します
+- Wofi は既定で layer-shell を使います。`--normal-window` も動作しますが、
+  キーボードフォーカスは通常トップレベルのフォーカス規則に依存します。
+  layer モードを推奨します
+- `EXCLUSIVE` キーボードを要求する layer は map 時にフォーカスされ、
+  `ON_DEMAND` はクリック時にフォーカスされます。キーボード対話を要求しない
+  クライアントはキー入力を受け取れません
+- Tessa Panel、Waybar、Quickshell は
+  `org.kde.StatusNotifierWatcher` を奪い合い、tray が埋まるのは 1 つだけです
 
 ### 画面共有できない
 

@@ -30,6 +30,21 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 0.2.4 は 0.16/0.19 の保守基準として残ります。新規作業は 0.17/0.20 を対象に、
 パッケージ、ドキュメント、互換性表をまとめて更新してください。
 
+## 外部シェル互換性
+
+移行ユーザーが使い慣れたバーやランチャーを維持しつつ、既定は Tessa Panel の
+ままにします。
+
+- [x] layer-shell のバー/ランチャー（Waybar、Wofi、Quickshell）、排他ゾーン、
+      ポップアップの画面内制約、`EXCLUSIVE`/`ON_DEMAND` キーボードフォーカス、
+      出力切断時の安全な layer teardown。
+- [x] 出力ごとに 9 ワークスペースを持つ `ext-workspace-v1` グループと
+      activate 要求。Waybar `ext/workspaces` と Quickshell `WindowManager` が
+      動作。
+- [x] タスクバー向け foreign-toplevel の output enter/leave 追従。
+- [ ] Quickshell の任意機能向け: `keyboard-shortcuts-inhibit-v1` と
+      `wlr-gamma-control-v1`。
+
 ## 0.1.x — 土台を信頼できるものにする
 
 - [x] 対象マシンで DRM + libinput を実行し、レイアウトと入力の問題を直す。
