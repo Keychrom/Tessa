@@ -399,7 +399,16 @@ fn attachKeyboard(server: *Server, wlr_kb: *c.wlr_keyboard, device: *c.wlr_input
 
     c.wlr_seat_set_keyboard(server.seat, wlr_kb);
     updateCapabilities(server);
-    layout.refreshKeyboardFocus(server);
+    if (virtual == null) {
+        layout.refreshKeyboardFocus(server);
+    } else if (server.seat.keyboard_state.focused_surface != null) {
+        // A virtual keyboard is owned by a client (an input method). Sending
+        // keyboard enter/leave here makes text-input clients disable and
+        // re-enable, which makes fcitx destroy and recreate its virtual
+        // keyboard in a loop. Keep the current focus and only refresh the
+        // modifier state.
+        c.wlr_seat_keyboard_notify_modifiers(server.seat, &wlr_kb.modifiers);
+    }
 }
 
 fn onNewVirtualKeyboard(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -448,7 +457,7 @@ fn onKeyboardKeymap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) v
     const kb: *Keyboard = @fieldParentPtr("keymap", listener.?);
     const server = kb.server;
     c.wlr_seat_set_keyboard(server.seat, kb.wlr);
-    layout.refreshKeyboardFocus(server);
+    if (kb.virtual_keyboard == null) layout.refreshKeyboardFocus(server);
     if (server.seat.keyboard_state.focused_surface != null) {
         c.wlr_seat_keyboard_notify_modifiers(server.seat, &kb.wlr.modifiers);
     }
@@ -459,6 +468,7 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     _ = data;
     const kb: *Keyboard = @fieldParentPtr("destroy", listener.?);
     const server = kb.server;
+    const was_virtual = kb.virtual_keyboard != null;
 
     c.wl_list_remove(&kb.modifiers.link);
     c.wl_list_remove(&kb.key.link);
@@ -494,7 +504,7 @@ fn onKeyboardDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     } else {
         c.wlr_seat_set_keyboard(server.seat, null);
     }
-    layout.refreshKeyboardFocus(server);
+    if (!was_virtual) layout.refreshKeyboardFocus(server);
 }
 
 pub fn reloadRuntime(server: *Server) void {

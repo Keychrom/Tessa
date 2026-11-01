@@ -35,10 +35,11 @@ fn clientMatches(text_input: *c.wlr_text_input_v3, surface: *c.wlr_surface) bool
 }
 
 fn focusedTextInput(server: *Server) ?*TextInput {
+    const surface = server.ime_focus_surface orelse return null;
     var i: usize = 0;
     while (i < server.text_input_count) : (i += 1) {
         const ti = server.text_inputs[i] orelse continue;
-        if (ti.input.focused_surface != null) return ti;
+        if (ti.input.focused_surface == surface) return ti;
     }
     return null;
 }
