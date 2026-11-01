@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
+const ext_workspace = @import("ext_workspace.zig");
 const effects = @import("effects.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -55,6 +56,9 @@ fn findOutput(server: *Server, wlr: *c.wlr_output) ?*Output {
 
 pub fn arrangeLayers(out: *Output) void {
     const server = out.server;
+    // During output teardown the output is removed from the list before its
+    // layer surfaces are closed. Do not reflow a dying output.
+    if (core.outputIndexOf(server, out) == null) return;
     var full: c.wlr_box = undefined;
     core.outputBox(server, out, &full);
     var usable = full;
@@ -526,11 +530,32 @@ pub fn initOutputManagement(server: *Server) void {
     core.logInfo("output-management-v1 enabled", .{});
 }
 
+/// Close every layer surface while its output is still alive. wlroots sends
+/// the protocol `closed` event, so external bars and launchers can tear their
+/// surfaces down instead of keeping a pointer to freed compositor state.
+fn destroyLayersForOutput(out: *Output) void {
+    const server = out.server;
+    var i: usize = 0;
+    while (i < server.layer_count) {
+        const ls = server.layers[i] orelse {
+            i += 1;
+            continue;
+        };
+        if (ls.output != out) {
+            i += 1;
+            continue;
+        }
+        c.wlr_layer_surface_v1_destroy(ls.wlr);
+        // onLayerDestroy() removes the entry by swapping the last one into
+        // this slot; retry the same index unless the entry is still there.
+        if (i < server.layer_count and server.layers[i] == ls) i += 1;
+    }
+}
+
 fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const out: *Output = @fieldParentPtr("destroy", listener.?);
     const server = out.server;
-
     layout_helper.destroyOutput(out);
     panel_supervisor.deinitOutput(out);
     c.wl_list_remove(&out.frame.link);
@@ -569,12 +594,17 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
                 cl.ws = fb.active_ws;
                 cl.float_x = fb.full.x;
                 cl.float_y = fb.full.y;
+                layout.retargetToplevel(cl, out, fb);
             }
         }
         if (server.focused_output == out) {
             server.focused_output = fb;
         }
+        ext_workspace.syncOutput(fb);
     }
+
+    destroyLayersForOutput(out);
+    ext_workspace.outputRemoved(out);
 
     core.logInfo("output removed: {s}", .{core.cstr(out.wlr.name)});
     var removed_buf: [64]u8 = undefined;
@@ -691,6 +721,8 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         out.full.y,
     });
 
+    ext_workspace.outputAdded(out);
+
     rules.applyOutputPolicy(server, out);
     if (server.focused_output == null) server.focused_output = out;
     panel_supervisor.start(out);
@@ -781,7 +813,9 @@ fn onLayerMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         layer_n,
         interactive,
     });
-    if (interactive != 0 and layer_n >= 2) {
+    // EXCLUSIVE surfaces take keyboard focus when they map. ON_DEMAND
+    // surfaces (for example a focusable Quickshell panel) wait for a click.
+    if (interactive == c.ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE and layer_n >= 2) {
         layout.focusLayer(ls.server, ls);
     }
 
@@ -808,6 +842,8 @@ fn onLayerNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     const base: *c.wlr_xdg_surface = @ptrCast(@alignCast(popup.base));
     const tree = lTree(ls.scene_layer);
     base.data = @ptrCast(c.wlr_scene_xdg_surface_create(tree, base));
+    var box = ls.output.full;
+    c.wlr_xdg_popup_unconstrain_from_box(popup, &box);
     core.logInfo("layer popup created", .{});
 }
 
@@ -828,6 +864,7 @@ fn onLayerDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
     }
 
     if (server.focused_layer == ls) {
+        layout.restoreFocusAfterLayer(server, ls);
         server.focused_layer = null;
     }
     if (server.lock_saved_layer == ls) {

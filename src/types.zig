@@ -686,6 +686,8 @@ pub const Output = struct {
     last_focused: [WS_COUNT + 1]?*Client,
     helper: LayoutHelperState,
     panel: PanelState,
+    ext_workspace_group: ?*c.wlr_ext_workspace_group_handle_v1,
+    ext_workspaces: [WS_COUNT]?*c.wlr_ext_workspace_handle_v1,
 
     last_scale: f32,
     adaptive_sync_base: bool,
@@ -1052,6 +1054,7 @@ pub const Server = struct {
     xdg_activation: ?*c.wlr_xdg_activation_v1,
     foreign_toplevel_manager: ?*c.wlr_foreign_toplevel_manager_v1,
     ext_foreign_toplevel_list: ?*c.wlr_ext_foreign_toplevel_list_v1,
+    ext_workspace_manager: ?*c.wlr_ext_workspace_manager_v1,
     cursor_shape_manager: ?*c.wlr_cursor_shape_manager_v1,
     text_input_manager: ?*c.wlr_text_input_manager_v3,
     input_method_manager: ?*c.wlr_input_method_manager_v2,
@@ -1201,6 +1204,7 @@ pub const Server = struct {
     im_destroy: c.wl_listener,
     im_grab_destroy: c.wl_listener,
     im_new_popup: c.wl_listener,
+    ext_workspace_commit: c.wl_listener,
 
     sigint: ?*c.wl_event_source,
     sigterm: ?*c.wl_event_source,

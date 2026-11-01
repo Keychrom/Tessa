@@ -464,7 +464,7 @@ fn positionPopups(server: *Server) void {
 
         var x = server.ime_focus_x + cursor.x;
         var y = server.ime_focus_y + cursor.y + cursor.height + 4;
-        if (core.firstOutput(server)) |out| {
+        if (core.outputAt(server, @floatFromInt(server.ime_focus_x), @floatFromInt(server.ime_focus_y))) |out| {
             const right = out.full.x + out.full.width;
             const bottom = out.full.y + out.full.height;
             if (x + pw > right) x = right - pw;

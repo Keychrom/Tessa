@@ -8,10 +8,12 @@ const scene_util = @import("scene_util.zig");
 const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const ext_workspace = @import("ext_workspace.zig");
 
 const Server = types.Server;
 const Client = types.Client;
 const Popup = types.Popup;
+const Output = types.Output;
 
 fn tBase(xdg: *c.wlr_xdg_toplevel) *c.wlr_xdg_surface {
     return @ptrCast(@alignCast(xdg.base));
@@ -375,6 +377,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         layout.focusClient(server, next);
     }
 
+    if (client.urgent) ext_workspace.syncOutput(client.output);
     c.free(client);
     layout.arrangeAll(server);
     core.markDirty(server);
@@ -564,6 +567,23 @@ fn layerSurfaceTree(server: *Server, surface: *c.wlr_surface) ?*c.wlr_scene_tree
     return null;
 }
 
+fn outputForSurface(server: *Server, surface: *c.wlr_surface) ?*Output {
+    const root = c.wlr_surface_get_root_surface(surface) orelse return null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (tSurface(cl.xdg) == root) return cl.output;
+    }
+    i = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        if (@as(*c.wlr_surface, @ptrCast(@alignCast(layer.wlr.surface))) == root) {
+            return layer.output;
+        }
+    }
+    return null;
+}
+
 fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server: *Server = @fieldParentPtr("new_xdg_popup", listener.?);
     const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data.?));
@@ -591,5 +611,9 @@ fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
 
     if (parent_tree) |tree| {
         pBase(xdg_popup).data = @ptrCast(c.wlr_scene_xdg_surface_create(tree, pBase(xdg_popup)));
+    }
+    if (outputForSurface(server, parent_surface)) |out| {
+        var box = out.full;
+        c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
     }
 }

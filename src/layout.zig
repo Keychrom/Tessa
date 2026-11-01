@@ -12,6 +12,8 @@ const event_names = @import("event_names.zig");
 const layout_helper = @import("layout_helper.zig");
 const effect_helper = @import("effect_helper.zig");
 const motion = @import("motion.zig");
+const scene_util = @import("scene_util.zig");
+const ext_workspace = @import("ext_workspace.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -53,6 +55,33 @@ fn keyboardEnter(server: *Server, surface: *c.wlr_surface) void {
 fn keyboardClear(server: *Server) void {
     if (server.focused_layer == null) c.wlr_seat_keyboard_clear_focus(server.seat);
     constraints.deactivate(server);
+}
+
+pub fn initExtWorkspace(server: *Server) void {
+    const manager = server.ext_workspace_manager orelse return;
+    server.ext_workspace_commit.notify = onExtWorkspaceCommit;
+    c.wl_signal_add(&manager.events.commit, &server.ext_workspace_commit);
+}
+
+fn onExtWorkspaceCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("ext_workspace_commit", listener.?);
+    const event: *c.wlr_ext_workspace_v1_commit_event = @ptrCast(@alignCast(data.?));
+    if (event.requests == null) return;
+    const requests: *c.wl_list = @ptrCast(event.requests);
+    var link_ptr: ?*c.wl_list = @ptrCast(requests.next);
+    while (link_ptr) |link| {
+        if (@intFromPtr(link) == @intFromPtr(requests)) break;
+        const next: ?*c.wl_list = @ptrCast(link.next);
+        const req: *c.wlr_ext_workspace_v1_request = @fieldParentPtr("link", link);
+        if (req.type == c.WLR_EXT_WORKSPACE_V1_REQUEST_ACTIVATE) {
+            if (req.unnamed_0.activate.workspace) |handle| {
+                if (ext_workspace.workspaceRef(server, handle)) |ref| {
+                    switchWorkspaceOnOutput(server, ref.out, ref.ws);
+                }
+            }
+        }
+        link_ptr = next;
+    }
 }
 
 pub fn borderWidth(cl: *Client) i32 {
@@ -175,16 +204,34 @@ pub fn refreshKeyboardFocus(server: *Server) void {
     }
 }
 
+pub fn retargetToplevel(cl: *Client, old_out: *Output, new_out: *Output) void {
+    if (old_out == new_out) return;
+    if (cl.foreign_toplevel) |handle| {
+        c.wlr_foreign_toplevel_handle_v1_output_leave(handle, old_out.wlr);
+        c.wlr_foreign_toplevel_handle_v1_output_enter(handle, new_out.wlr);
+    }
+}
+
 pub fn focusClient(server: *Server, target: ?*Client) void {
-    if (server.focused_layer != null) {
+    const had_layer = server.focused_layer != null;
+    if (had_layer) {
         server.focused_layer = null;
     }
 
     if (target) |cl| {
         activateGroupMember(cl);
-        if (!clientVisible(cl, cl.output)) return;
+        if (!clientVisible(cl, cl.output)) {
+            if (had_layer) {
+                keyboardClear(server);
+                ime.focusSurface(server, null, 0, 0);
+                updateBorders(server);
+                core.markDirty(server);
+            }
+            return;
+        }
         const was_urgent = cl.urgent;
         cl.urgent = false;
+        if (was_urgent) ext_workspace.syncOutput(cl.output);
         if (server.focused == cl) {
             server.focused_output = cl.output;
             server.active_ws = cl.output.active_ws;
@@ -192,6 +239,14 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
                 c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
             }
             raiseClient(cl);
+            if (had_layer) {
+                keyboardEnter(server, tSurface(cl.xdg));
+                const origin = clientSurfaceOrigin(cl);
+                ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
+                constraints.focusSurface(server, tSurface(cl.xdg));
+                updateBorders(server);
+                core.markDirty(server);
+            }
             if (was_urgent) layout_helper.focusChanged(server);
             effect_helper.refresh(server);
             return;
@@ -289,15 +344,20 @@ pub fn focusLayer(server: *Server, layer: *LayerSurface) void {
     }
     server.focused_layer = layer;
     server.focused_output = layer.output;
-    keyboardEnter(server, @ptrCast(@alignCast(layer.wlr.surface)));
-    const layer_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(layer.scene_layer.tree));
-    ime.focusSurface(
-        server,
-        @ptrCast(@alignCast(layer.wlr.surface)),
-        layer.output.full.x + layer_tree.node.x,
-        layer.output.full.y + layer_tree.node.y,
-    );
-    constraints.focusSurface(server, @ptrCast(@alignCast(layer.wlr.surface)));
+    const layer_surface: *c.wlr_surface = @ptrCast(@alignCast(layer.wlr.surface));
+    keyboardEnter(server, layer_surface);
+    // The scene layer tree is already positioned in layout coordinates. Use
+    // the actual surface origin so IME popups follow secondary outputs too.
+    const scene_layer: *c.wlr_scene_layer_surface_v1 = @ptrCast(@alignCast(layer.scene_layer));
+    const layer_tree: *c.wlr_scene_tree = @ptrCast(@alignCast(scene_layer.tree));
+    var ox: i32 = layer_tree.node.x;
+    var oy: i32 = layer_tree.node.y;
+    if (scene_util.surfaceOrigin(server, layer_surface)) |origin| {
+        ox = @intFromFloat(origin.x);
+        oy = @intFromFloat(origin.y);
+    }
+    ime.focusSurface(server, layer_surface, ox, oy);
+    constraints.focusSurface(server, layer_surface);
     updateBorders(server);
     core.markDirty(server);
 }
@@ -1110,11 +1170,14 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
         cur.output = out;
         cur.ws = out.active_ws;
         out.last_focused[cur.ws] = cur;
+        retargetToplevel(cur, old_out, out);
         server.focused_output = out;
         core.notifySurfaceScale(out, tSurface(cur.xdg));
         arrangeOutput(server, old_out);
         arrangeOutput(server, out);
         focusClient(server, cur);
+        ext_workspace.syncOutput(old_out);
+        ext_workspace.syncOutput(out);
         core.markDirty(server);
     }
 }
@@ -1194,6 +1257,7 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
     out.special_workspace_len = 0;
     server.focused_output = out;
     server.active_ws = ws;
+    ext_workspace.syncOutput(out);
     startWorkspaceAnimation(server, out, previous_ws, ws);
     arrangeOutput(server, out);
     if (previous_ws != ws) {
@@ -1238,8 +1302,11 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
         }
         cl.output = target_out;
         core.notifySurfaceScale(target_out, tSurface(cl.xdg));
+        retargetToplevel(cl, out, target_out);
     }
     cl.ws = ws;
+    ext_workspace.syncOutput(out);
+    if (target_out != out) ext_workspace.syncOutput(target_out);
     detachFromGroup(cl);
     if (cl.scratchpad) {
         cl.scratchpad = false;

@@ -20,6 +20,16 @@ pub fn surfaceAt(server: *Server, lx: f64, ly: f64, sx: *f64, sy: *f64) ?*c.wlr_
     return @ptrCast(@alignCast(scene_surface.surface));
 }
 
+/// Resolve a surface under the cursor to its owning layer surface. Popups
+/// report their own surface, so walk to the root surface first.
+pub fn layerAt(server: *Server, lx: f64, ly: f64) ?*LayerSurface {
+    var sx: f64 = 0;
+    var sy: f64 = 0;
+    const surface = surfaceAt(server, lx, ly, &sx, &sy) orelse return null;
+    const root = c.wlr_surface_get_root_surface(surface) orelse return null;
+    return layerForSurface(server, root);
+}
+
 pub fn clientAt(server: *Server, lx: f64, ly: f64) ?*Client {
     var sx: f64 = 0;
     var sy: f64 = 0;

@@ -20,6 +20,8 @@ const window_effects = @import("window_effects.zig");
 const input_policy = @import("input_policy.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const scene_util = @import("scene_util.zig");
+const ext_workspace = @import("ext_workspace.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -397,17 +399,17 @@ fn attachKeyboard(server: *Server, wlr_kb: *c.wlr_keyboard, device: *c.wlr_input
         core.logInfo("too many keyboards", .{});
     }
 
-    c.wlr_seat_set_keyboard(server.seat, wlr_kb);
-    updateCapabilities(server);
     if (virtual == null) {
+        c.wlr_seat_set_keyboard(server.seat, wlr_kb);
+        updateCapabilities(server);
         layout.refreshKeyboardFocus(server);
-    } else if (server.seat.keyboard_state.focused_surface != null) {
-        // A virtual keyboard is owned by a client (an input method). Sending
-        // keyboard enter/leave here makes text-input clients disable and
-        // re-enable, which makes fcitx destroy and recreate its virtual
-        // keyboard in a loop. Keep the current focus and only refresh the
-        // modifier state.
-        c.wlr_seat_keyboard_notify_modifiers(server.seat, &wlr_kb.modifiers);
+    } else {
+        // A virtual keyboard is created before its first keymap request.
+        // Making it the seat keyboard now would send a zero-length keymap to
+        // clients; GTK (Wofi, Waybar) fails to mmap it and stops handling
+        // input. onKeyboardKeymap() installs the keyboard once a real keymap
+        // has arrived.
+        updateCapabilities(server);
     }
 }
 
@@ -534,6 +536,7 @@ pub fn reloadRuntime(server: *Server) void {
     layout.applyConfigLayouts(server);
     layout.arrangeAll(server);
     layout.ensureVisibleFocus(server);
+    ext_workspace.syncAll(server);
     events.emit(server, .{ .name = event_names.config_reload });
     core.markDirty(server);
     core.logInfo("config reloaded", .{});
@@ -826,6 +829,17 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
 
     if (server.locked) {
         _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+        return;
+    }
+
+    // Layer surfaces own the click even when they are not keyboard
+    // interactive. Without this early return, clicking a bar would fall
+    // through to the output-focus path and steal focus from the window.
+    if (scene_util.layerAt(server, server.cursor.x, server.cursor.y)) |layer| {
+        _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+        if (layer.wlr.current.keyboard_interactive != 0 and server.focused_layer != layer) {
+            layout.focusLayer(server, layer);
+        }
         return;
     }
 

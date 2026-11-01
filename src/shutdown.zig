@@ -73,6 +73,9 @@ pub fn cleanupGlobals(server: *Server) void {
     if (server.xdg_activation != null) {
         c.wl_list_remove(&server.request_activate.link);
     }
+    if (server.ext_workspace_manager != null) {
+        c.wl_list_remove(&server.ext_workspace_commit.link);
+    }
 
     if (server.text_input_manager != null) {
         c.wl_list_remove(&server.new_text_input.link);

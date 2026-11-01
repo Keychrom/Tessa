@@ -10,6 +10,7 @@ const config = @import("config.zig");
 const modes = @import("modes.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
+const ext_workspace = @import("ext_workspace.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -548,6 +549,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
                         std.mem.eql(u8, value, "0"));
                 }
                 target.urgent = on;
+                ext_workspace.syncOutput(target.output);
                 layout.arrangeAll(server);
                 broadcastState(server);
             }

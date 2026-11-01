@@ -12,6 +12,7 @@ const input = @import("input.zig");
 const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
+const ext_workspace = @import("ext_workspace.zig");
 const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -372,13 +373,15 @@ pub fn main(init: std.process.Init.Minimal) !void {
         core.logInfo("failed to create xdg-shell", .{});
         return error.XdgShellFailed;
     };
-    server.layer_shell = c.wlr_layer_shell_v1_create(server.display, 4) orelse {
+    server.layer_shell = c.wlr_layer_shell_v1_create(server.display, 5) orelse {
         core.logInfo("failed to create layer-shell", .{});
         return error.LayerShellFailed;
     };
 
     input.init(server);
     output.init(server);
+    ext_workspace.init(server);
+    layout.initExtWorkspace(server);
     client.init(server);
     ime.init(server);
     lock.init(server);
