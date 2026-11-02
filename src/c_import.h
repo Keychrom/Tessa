@@ -61,6 +61,8 @@
 #include <wlr/types/wlr_idle_inhibit_v1.h>
 #include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_tearing_control_v1.h>
+#include <wlr/types/wlr_linux_drm_syncobj_v1.h>
 #include <wlr/util/log.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/region.h>

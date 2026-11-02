@@ -96,6 +96,41 @@ layer-shell のポップアップは、`xdg_popup` 作成時点では xdg の親
 layer サーフェスのツリーの下にポップアップのシーンツリーを作成します。
 これによりサードパーティパネルのメニューやドロップダウンが表示されます。
 
+## Direct scanout、tearing、explicit sync
+
+`src/render.zig` が出力コミット経路を担当します。`onOutputFrame` は
+アニメーション／エフェクトを進め、`render.refreshScanout()` を呼び、
+`wlr_scene_output_needs_frame()`（`wlr_scene_output_commit()` と同じ
+早期終了条件）を確認してから、`wlr_scene_output_build_state()` で出力状態を
+構築してコミットします。
+
+Direct scanout は render list が 1 エントリのときだけ成立します。出力全体を
+覆うフルスクリーンクライアントでは、`refreshScanout()` が `bg_rect`、
+background/bottom/top layer の layer-shell サーフェス、他の可視クライアントの
+フレーム、対象クライアントの blur node を無効化します。overlay と
+`tree_effects` はそのまま残すため、通知やランチャーが見えている間は自動的に
+compositing へ戻ります。復元時は背景、mapped な layer ツリー、可視クライアント
+のフレームを再び有効化し、ウィンドウエフェクトを再適用します。
+`direct_scanout=false` はこの状態機械全体を無効化します。
+
+Tearing は
+`wlr_tearing_control_manager_v1_surface_hint_from_surface()` が async ヒントを
+返した場合だけ要求します。コミット経路は `state.tearing_page_flip` を設定し、
+`wlr_output_test_state()` で事前検証して、バックエンドが拒否した場合はフラグを
+戻します。`tearing=off|fullscreen|force` とウィンドウルールの `tearing` で
+対象を選びます。
+
+Explicit sync は `explicit_sync=true` かつ
+`renderer.features.timeline` と `backend.features.timeline` が真で、
+renderer/backend の DRM fd がある場合だけ公開します。manager はクライアント
+接続前の `render.init()` で作成するため、設定変更には再起動が必要です。
+scenefx/GLES2 は timeline 対応を報告しない場合があります。
+
+出力別のフレーム時間サンプル、presented/zero-copy/vsync/missed、
+direct scanout サンプル、tearing 試行回数は `Output.perf` に保持し、
+グローバルの `Server.perf` はフレーム時間を集計します。`tessa-ctl perf` は
+両方を表示します。
+
 ## エフェクトバックエンド
 
 既定ビルドは upstream wlroots のシーン実装を使います。`-Dscenefx=true` では

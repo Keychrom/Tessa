@@ -169,6 +169,12 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   レイヤールール適用
 - フレームタイム計測（`tessa-ctl perf`）と設定可能な `frame_time_budget`、
   アニメーション／全エフェクトのヘッドレスベンチマーク
+- 出力全体を覆うフルスクリーンクライアントの direct scanout と、出力別の
+  scanout/zero-copy/present カウンタ（`tessa-ctl rendering`、`tessa-ctl perf`）。
+  ドライバーの test と通常 flip へのフォールバックを備えたオプトイン
+  `wp-tearing-control-v1`、条件付きの `linux-drm-syncobj-v1` explicit sync。
+  HDR color management は調査のみで未公開。詳細は
+  [docs/RENDERING.ja.md](docs/RENDERING.ja.md)
 - 検証と実効設定の差分プレビュー付き対話型設定編集
   （`tessa-ctl config-check <file>`、`config-diff <file>`、`config-edit`）と、
   コンポジタを起動せずに検証する `tessa --check-config [file]`
@@ -299,6 +305,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/shell-v2.sh`、`tests/effect-helper.sh`、`tests/performance.sh`、
+`tests/rendering.sh`、`tests/tearing.sh`、
 `tests/config-editor.sh`、`tests/panel-recovery.sh`、`tests/ipc-version.sh`、
 `tests/helper-timeouts.sh`、`tests/fuzz-parsers.sh`、
 `tests/fuzz-asan.sh` で

@@ -226,6 +226,9 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addRaw(buf, &off, ",\"effect_helper\":");
     addString(buf, &off, cfg.effect_helper[0..cfg.effect_helper_len]);
     add(buf, &off, ",\"effect_helper_timeout\":{d},\"frame_time_budget\":{d}", .{ cfg.effect_helper_timeout, cfg.frame_time_budget });
+    add(buf, &off, ",\"direct_scanout\":{d},\"tearing\":", .{@as(u8, if (cfg.direct_scanout) 1 else 0)});
+    addString(buf, &off, @tagName(cfg.tearing));
+    add(buf, &off, ",\"explicit_sync\":{d}", .{@as(u8, if (cfg.explicit_sync) 1 else 0)});
     addRaw(buf, &off, ",\"layout\":");
     addString(buf, &off, types.layoutName(cfg.layout_mode));
     addRaw(buf, &off, ",\"layouts\":[");

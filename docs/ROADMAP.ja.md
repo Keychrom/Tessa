@@ -20,7 +20,7 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [x] Zig 0.17 のビルドシステムへ更新し、削除された標準ライブラリ API を
       置き換える。
 - [x] Arch パッケージを公式の `zig` と `wlroots0.20` へ更新する。
-- [x] 新しいツールチェーンで 63 項目の headless スイートを plain／scenefx の
+- [x] 新しいツールチェーンで 65 項目の headless スイートを plain／scenefx の
       両構成で実行する（Arch Linux、Zig 0.17.0 / wlroots 0.20.2 / scenefx
       0.5）。ポータルの ScreenCast、トレイ、通知、ポインタ操作を含む。
 - [ ] 次のソースリリース前に、新しいツールチェーンで実機の DRM/libinput
@@ -44,6 +44,27 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [x] タスクバー向け foreign-toplevel の output enter/leave 追従。
 - [ ] Quickshell の任意機能向け: `keyboard-shortcuts-inhibit-v1` と
       `wlr-gamma-control-v1`。
+
+## 描画・ゲーム機能
+
+ゲームや全画面動画のためにコンポジタの差を縮めつつ、既定のデスクトップを
+安全に保ちます。
+
+- [x] 出力別のフレーム時間、presented/zero-copy/vsync/missed、scanout、
+      tearing カウンタ。`tessa-ctl perf --watch` と `tessa-ctl rendering`。
+- [x] 出力全体を覆うフルスクリーンクライアントの direct scanout。1 エントリ
+      で scanout できる間は背景、下位 layer、他の可視クライアント、対象の
+      blur node を退避。
+- [x] オプトインの `wp-tearing-control-v1`。ウィンドウルール、ドライバー
+      向け test-commit、通常 flip へのフォールバック付き。
+- [x] renderer/backend の timeline と DRM fd がある場合の
+      `linux-drm-syncobj-v1` explicit sync。
+- [x] HDR/color management の調査: wlroots 0.20 は color-management v1 と
+      出力色変換を提供するが、Tessa の GLES2/scenefx 経路と tone mapping の
+      不在のため、Vulkan renderer の設計が先。
+- [ ] Vulkan renderer での HDR 出力と tone mapping。
+- [ ] scanout、tearing、explicit sync の GPU/ドライバー検証マトリクス
+      （Intel i915、AMD、NVIDIA、vmwgfx）。
 
 ## 0.1.x — 土台を信頼できるものにする
 

@@ -461,6 +461,9 @@ edits are rejected and keep the previous configuration.
 | `effect_helper` | empty | Long-lived per-window visual effect helper |
 | `effect_helper_timeout` | `200` | Effect-helper timeout in ms (20–2000) |
 | `frame_time_budget` | `16` | Render-commit budget in ms; frames above it are counted by `tessa-ctl perf` |
+| `direct_scanout` | `true` | Hide compositor nodes for an opaque fullscreen client so wlroots can scan it out directly |
+| `tearing` | `off` | `off`, `fullscreen`, or `force`; always requires the client's async hint |
+| `explicit_sync` | `true` | Advertise `linux-drm-syncobj-v1` when renderer/backend timelines and a DRM fd are available; restart to change |
 | `output_config` | `~/.config/tessa/outputs.conf` | Output and layout persistence file |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` pin; repeatable |
 | `workspace-name` | — | `WORKSPACE NAME` display/command alias; repeatable |
@@ -825,6 +828,7 @@ Actions:
 | `corner-radius=0..64` | Per-window rounding (`rounding` is an alias) |
 | `blur=true/false` | Per-window backdrop blur |
 | `shadow=true/false` | Per-window layered shadow |
+| `tearing=true/false` | Allow async tearing for this client when `tearing` is `fullscreen` or `force` (or opt in while the global mode is `off`) |
 | `border-width=0..16` | Per-window border thickness; `0` hides it |
 | `animation=true/false` | Enable or disable motion for this window |
 | `animation-ms=N` | Base animation duration override (0–1000) |
@@ -838,7 +842,8 @@ effects. Invalid expressions or regexes are reported with file/line diagnostics
 and reject the reload. Structural actions (`float`, `workspace`, `size`,
 `position`, `fullscreen`) run at map time and on config reload. Decorative
 actions (`border-*`, `opacity`, `corner-radius`, `blur`, `shadow`,
-`border-width`) also re-evaluate immediately when the title or app-id changes.
+`tearing`, `border-width`) also re-evaluate immediately when the title or
+app-id changes.
 Motion rule keys (`animation*`) use the same pass and apply to the next
 transition. Per-rule colors, border width, opacity, rounding, and shadow state
 are carried into the close snapshot effect. `corner-radius` and `blur` require a
@@ -1630,6 +1635,8 @@ CMD config-compare <path>
 CMD perf
 CMD perf-json
 CMD perf-reset
+CMD rendering
+CMD rendering-json
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad
@@ -1678,6 +1685,8 @@ tessa-ctl config-check [file]
 tessa-ctl config-diff file
 tessa-ctl config-edit [file]
 tessa-ctl perf [--json] [--reset]
+tessa-ctl perf --watch=2
+tessa-ctl rendering [--json]
 tessa-ctl events [topic]
 tessa-ctl workspace 3 [output]
 tessa-ctl special notes
@@ -1703,8 +1712,30 @@ changed, it still offers to save and reload.
 `perf` reports render-commit timing from the compositor (`avg_us`, `p50_us`,
 `p95_us`, `max_us`, over-budget frames, and whether scenefx is active). The
 budget comes from `frame_time_budget`; `--reset` clears the sample window.
-`tests/performance.sh` uses this for the headless animation and full-effect
-benchmarks.
+`--json` includes an `outputs` array, and the text form appends one `OUTPUT`
+line per output. Per-output counters include `presented`, `zero_copy`, `vsync`,
+`missed`, `scanout`, `tearing`, and `tearing_fail`. `perf --watch[=SECS]`
+repeats the snapshot every second (or the requested interval). `--reset`
+clears both the global and per-output windows. `tests/performance.sh` uses this
+for the headless animation and full-effect benchmarks.
+
+`rendering [--json]` reports static and runtime rendering capabilities:
+direct-scanout mode, tearing mode and whether `wp-tearing-control-v1` is
+advertised, whether `linux-drm-syncobj-v1` is active, renderer/backend timeline
+support, output color-transform support, scenefx, DRM fds, and per-output
+scanout/zero-copy/tearing counters. Use `zero_copy` and `scanout_frames` to
+confirm that direct scanout actually happened on real DRM hardware; headless
+outputs exercise the state machine but cannot scan out. HDR color management is
+not advertised yet; `color_management 0` is expected, and the reason and future
+requirements are documented in [RENDERING.md](RENDERING.md).
+
+To disable a feature for troubleshooting:
+
+```ini
+direct_scanout = false
+tearing = off
+explicit_sync = false   # requires a compositor restart
+```
 
 ### 13.2 JSON and JSON-RPC
 

@@ -32,6 +32,9 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.layout_helper_timeout = 100;
     cfg.effect_helper_timeout = 200;
     cfg.frame_time_budget = 16;
+    cfg.direct_scanout = true;
+    cfg.tearing = .off;
+    cfg.explicit_sync = true;
     cfg.animations = true;
     cfg.reduce_motion = false;
     cfg.reduce_motion_animations = .none;
@@ -980,6 +983,12 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
                 return false;
             };
             rule.shadow = if (on) .on else .off;
+        } else if (std.ascii.eqlIgnoreCase(key, "tearing")) {
+            const on = parseRuleBool(val) orelse {
+                core.logInfo("config: invalid rule tearing value '{s}'", .{val});
+                return false;
+            };
+            rule.tearing = if (on) .on else .off;
         } else if (std.ascii.eqlIgnoreCase(key, "border-width") or
             std.ascii.eqlIgnoreCase(key, "border_width"))
         {
@@ -2302,6 +2311,33 @@ fn loadPath(
             std.mem.eql(u8, key, "frame_budget_ms"))
         {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.frame_time_budget = v;
+        } else if (std.mem.eql(u8, key, "direct_scanout") or std.mem.eql(u8, key, "direct-scanout")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.direct_scanout = v;
+        } else if (std.mem.eql(u8, key, "tearing")) {
+            if (std.ascii.eqlIgnoreCase(value, "off") or
+                std.ascii.eqlIgnoreCase(value, "false") or
+                std.ascii.eqlIgnoreCase(value, "no") or
+                std.ascii.eqlIgnoreCase(value, "none") or
+                std.ascii.eqlIgnoreCase(value, "disabled") or
+                std.mem.eql(u8, value, "0"))
+            {
+                server.config.tearing = .off;
+            } else if (std.ascii.eqlIgnoreCase(value, "fullscreen") or
+                std.ascii.eqlIgnoreCase(value, "true") or
+                std.ascii.eqlIgnoreCase(value, "yes") or
+                std.ascii.eqlIgnoreCase(value, "on") or
+                std.mem.eql(u8, value, "1"))
+            {
+                server.config.tearing = .fullscreen;
+            } else if (std.ascii.eqlIgnoreCase(value, "force") or
+                std.ascii.eqlIgnoreCase(value, "always"))
+            {
+                server.config.tearing = .force;
+            } else {
+                addIssue(server, path, line_no, "invalid tearing mode '{s}' (expected off, fullscreen, or force)", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "explicit_sync") or std.mem.eql(u8, key, "explicit-sync")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.explicit_sync = v;
         } else if (std.mem.eql(u8, key, "layout")) {
             if (types.layoutFromName(value)) |mode| {
                 server.config.layout_mode = mode;

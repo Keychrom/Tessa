@@ -9,6 +9,7 @@ const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
 const rules = @import("rules.zig");
+const render = @import("render.zig");
 const layout_helper = @import("layout_helper.zig");
 const panel_supervisor = @import("panel_supervisor.zig");
 
@@ -145,11 +146,23 @@ fn onOutputFrame(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const now_ms = core.timeNowMs();
     const animating = layout.tickAnimations(out.server, now_ms);
     const closing = effects.tick(out.server, now_ms);
-    const committed = c.wlr_scene_output_commit(so, null);
+    // Hiding the compositor's own scene nodes is what lets wlroots see a
+    // single render-list entry and attempt direct scanout.
+    render.refreshScanout(out);
+    if (!c.wlr_scene_output_needs_frame(so)) {
+        var now: c.timespec = undefined;
+        _ = c.clock_gettime(c.CLOCK_MONOTONIC, &now);
+        c.wlr_scene_output_send_frame_done(so, &now);
+        if (animating or closing) c.wlr_output_schedule_frame(out.wlr);
+        return;
+    }
+    const committed = render.commitOutput(out);
     var now: c.timespec = undefined;
     _ = c.clock_gettime(c.CLOCK_MONOTONIC, &now);
     if (committed) {
-        out.server.perf.record(elapsedUs(start, now), out.server.config.frame_time_budget);
+        const us = elapsedUs(start, now);
+        out.perf.record(us, out.server.config.frame_time_budget);
+        out.server.perf.record(us, out.server.config.frame_time_budget);
     }
     c.wlr_scene_output_send_frame_done(so, &now);
     if (animating or closing) c.wlr_output_schedule_frame(out.wlr);
@@ -561,6 +574,7 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     c.wl_list_remove(&out.frame.link);
     c.wl_list_remove(&out.request_state.link);
     c.wl_list_remove(&out.commit.link);
+    c.wl_list_remove(&out.present.link);
     c.wl_list_remove(&out.destroy.link);
     c.wlr_scene_node_destroy(&out.bg_rect.node);
 
@@ -686,6 +700,8 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     c.wl_signal_add(&wlr_out.events.request_state, &out.request_state);
     out.commit.notify = onOutputCommit;
     c.wl_signal_add(&wlr_out.events.commit, &out.commit);
+    out.present.notify = render.onOutputPresent;
+    c.wl_signal_add(&wlr_out.events.present, &out.present);
     out.destroy.notify = onOutputDestroy;
     c.wl_signal_add(&wlr_out.events.destroy, &out.destroy);
 

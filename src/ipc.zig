@@ -11,6 +11,7 @@ const modes = @import("modes.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
+const render = @import("render.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -413,7 +414,7 @@ fn handleHello(cl: *IpcClient, line: []const u8) void {
     cl.version = negotiated;
     cl.hello = true;
     sendRaw(cl, "VERSION\t1\n");
-    sendRaw(cl, "CAPABILITIES\tstate,config,events,subscriptions,config-compare,perf,special,groups\n");
+    sendRaw(cl, "CAPABILITIES\tstate,config,events,subscriptions,config-compare,perf,rendering,special,groups\n");
 }
 
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
@@ -616,8 +617,12 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "perf-json")) {
         sendPerf(server, cl, true);
     } else if (std.mem.eql(u8, cmd, "perf-reset")) {
-        server.perf.reset();
+        render.resetPerf(server);
         sendRaw(cl, "PERF_RESET\n");
+    } else if (std.mem.eql(u8, cmd, "rendering")) {
+        sendRendering(server, cl, false);
+    } else if (std.mem.eql(u8, cmd, "rendering-json")) {
+        sendRendering(server, cl, true);
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -854,6 +859,9 @@ fn buildConfigText(server: *Server, buf: []u8) usize {
     append(buf, &off, "effect_helper {s}\n", .{cfg.effect_helper[0..cfg.effect_helper_len]});
     append(buf, &off, "effect_helper_timeout {d}\n", .{cfg.effect_helper_timeout});
     append(buf, &off, "frame_time_budget {d}\n", .{cfg.frame_time_budget});
+    append(buf, &off, "direct_scanout {d}\n", .{@as(u8, if (cfg.direct_scanout) 1 else 0)});
+    append(buf, &off, "tearing {s}\n", .{@tagName(cfg.tearing)});
+    append(buf, &off, "explicit_sync {d}\n", .{@as(u8, if (cfg.explicit_sync) 1 else 0)});
     append(buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {
@@ -1169,42 +1177,183 @@ fn percentileUs(sorted: []const u32, pct: usize) u32 {
     return sorted[index];
 }
 
+const PerfSummary = struct {
+    avg: u64,
+    p50: u32,
+    p95: u32,
+};
+
+fn summarizePerf(perf: *const types.PerfStats, samples: []u32) PerfSummary {
+    @memcpy(samples[0..perf.sample_count], perf.samples_us[0..perf.sample_count]);
+    std.mem.sort(u32, samples[0..perf.sample_count], {}, std.sort.asc(u32));
+    return .{
+        .avg = if (perf.frames > 0) perf.total_us / perf.frames else 0,
+        .p50 = percentileUs(samples[0..perf.sample_count], 50),
+        .p95 = percentileUs(samples[0..perf.sample_count], 95),
+    };
+}
+
+fn appendOutputPerfJson(buf: []u8, off: *usize, first: *bool, out: *types.Output, summary: PerfSummary) void {
+    if (!first.*) append(buf, off, ",", .{});
+    first.* = false;
+    append(buf, off, "{{\"name\":\"{s}\",\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"over_budget\":{d},\"presented\":{d},\"zero_copy\":{d},\"vsync\":{d},\"missed\":{d},\"scanout_frames\":{d},\"tearing_requests\":{d},\"tearing_failures\":{d}}}", .{
+        core.outputName(out),
+        out.perf.frames,
+        out.perf.sample_count,
+        summary.avg,
+        summary.p50,
+        summary.p95,
+        out.perf.max_us,
+        out.perf.last_us,
+        out.perf.over_budget,
+        out.perf.presented,
+        out.perf.zero_copy,
+        out.perf.vsync,
+        out.perf.missed,
+        out.perf.scanout_frames,
+        out.perf.tearing_requests,
+        out.perf.tearing_failures,
+    });
+}
+
 fn sendPerf(server: *Server, cl: *IpcClient, json: bool) void {
     const perf = &server.perf;
     var samples: [types.PERF_SAMPLES]u32 = undefined;
-    @memcpy(samples[0..perf.sample_count], perf.samples_us[0..perf.sample_count]);
-    std.mem.sort(u32, samples[0..perf.sample_count], {}, std.sort.asc(u32));
-    const p50 = percentileUs(samples[0..perf.sample_count], 50);
-    const p95 = percentileUs(samples[0..perf.sample_count], 95);
-    const avg: u64 = if (perf.frames > 0) perf.total_us / perf.frames else 0;
+    const summary = summarizePerf(perf, &samples);
 
-    var buf: [4096]u8 = undefined;
+    var buf: [16384]u8 = undefined;
     var off: usize = 0;
     if (json) {
-        append(&buf, &off, "{{\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"budget_ms\":{d},\"over_budget\":{d},\"scenefx\":{d}}}\n", .{
+        append(&buf, &off, "{{\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"budget_ms\":{d},\"over_budget\":{d},\"scenefx\":{d},\"outputs\":[", .{
             perf.frames,
             perf.sample_count,
-            avg,
-            p50,
-            p95,
+            summary.avg,
+            summary.p50,
+            summary.p95,
             perf.max_us,
             perf.last_us,
             server.config.frame_time_budget,
             perf.over_budget,
             @as(u8, if (window_effects.available()) 1 else 0),
         });
+        var first = true;
+        var i: usize = 0;
+        while (i < server.outputs.len) : (i += 1) {
+            const out = server.outputs[i] orelse continue;
+            const out_summary = summarizePerf(&out.perf, &samples);
+            appendOutputPerfJson(&buf, &off, &first, out, out_summary);
+        }
+        append(&buf, &off, "]}}\n", .{});
     } else {
         append(&buf, &off, "PERF\n", .{});
         append(&buf, &off, "frames {d}\n", .{perf.frames});
         append(&buf, &off, "samples {d}\n", .{perf.sample_count});
-        append(&buf, &off, "avg_us {d}\n", .{avg});
-        append(&buf, &off, "p50_us {d}\n", .{p50});
-        append(&buf, &off, "p95_us {d}\n", .{p95});
+        append(&buf, &off, "avg_us {d}\n", .{summary.avg});
+        append(&buf, &off, "p50_us {d}\n", .{summary.p50});
+        append(&buf, &off, "p95_us {d}\n", .{summary.p95});
         append(&buf, &off, "max_us {d}\n", .{perf.max_us});
         append(&buf, &off, "last_us {d}\n", .{perf.last_us});
         append(&buf, &off, "budget_ms {d}\n", .{server.config.frame_time_budget});
         append(&buf, &off, "over_budget {d}\n", .{perf.over_budget});
         append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
+        var i: usize = 0;
+        while (i < server.outputs.len) : (i += 1) {
+            const out = server.outputs[i] orelse continue;
+            const out_summary = summarizePerf(&out.perf, &samples);
+            append(&buf, &off, "OUTPUT {s} frames={d} avg_us={d} p50_us={d} p95_us={d} max_us={d} last_us={d} over_budget={d} presented={d} zero_copy={d} vsync={d} missed={d} scanout={d} tearing={d} tearing_fail={d}\n", .{
+                core.outputName(out),
+                out.perf.frames,
+                out_summary.avg,
+                out_summary.p50,
+                out_summary.p95,
+                out.perf.max_us,
+                out.perf.last_us,
+                out.perf.over_budget,
+                out.perf.presented,
+                out.perf.zero_copy,
+                out.perf.vsync,
+                out.perf.missed,
+                out.perf.scanout_frames,
+                out.perf.tearing_requests,
+                out.perf.tearing_failures,
+            });
+        }
+        append(&buf, &off, "END\n", .{});
+    }
+    sendRaw(cl, buf[0..off]);
+}
+
+fn appendRenderingOutputsJson(buf: []u8, off: *usize, server: *Server) void {
+    append(buf, off, "\"outputs\":[", .{});
+    var first = true;
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        if (!first) append(buf, off, ",", .{});
+        first = false;
+        append(buf, off, "{{\"name\":\"{s}\",\"width\":{d},\"height\":{d},\"scanout_active\":{d},\"scanout_frames\":{d},\"zero_copy\":{d},\"tearing_requests\":{d},\"tearing_failures\":{d}}}", .{
+            core.outputName(out),
+            out.full.width,
+            out.full.height,
+            @as(u8, if (out.scanout_active) 1 else 0),
+            out.perf.scanout_frames,
+            out.perf.zero_copy,
+            out.perf.tearing_requests,
+            out.perf.tearing_failures,
+        });
+    }
+    append(buf, off, "]", .{});
+}
+
+fn sendRendering(server: *Server, cl: *IpcClient, json: bool) void {
+    var buf: [8192]u8 = undefined;
+    var off: usize = 0;
+    const tearing_protocol: u8 = if (server.tearing_manager != null) 1 else 0;
+    const explicit_active: u8 = if (server.explicit_sync_active) 1 else 0;
+    if (json) {
+        append(&buf, &off, "{{\"schema\":1,\"direct_scanout\":{d},\"tearing\":\"{s}\",\"tearing_protocol\":{d},\"explicit_sync\":{d},\"explicit_sync_active\":{d},\"renderer_timeline\":{d},\"backend_timeline\":{d},\"output_color_transform\":{d},\"color_management\":0,\"scenefx\":{d},\"drm_fd\":{d},\"backend_drm_fd\":{d},", .{
+            @as(u8, if (server.config.direct_scanout) 1 else 0),
+            @tagName(server.config.tearing),
+            tearing_protocol,
+            @as(u8, if (server.config.explicit_sync) 1 else 0),
+            explicit_active,
+            @as(u8, if (server.renderer_timeline) 1 else 0),
+            @as(u8, if (server.backend_timeline) 1 else 0),
+            @as(u8, if (server.renderer_output_color_transform) 1 else 0),
+            @as(u8, if (window_effects.available()) 1 else 0),
+            server.renderer_drm_fd,
+            server.backend_drm_fd,
+        });
+        appendRenderingOutputsJson(&buf, &off, server);
+        append(&buf, &off, "}}\n", .{});
+    } else {
+        append(&buf, &off, "RENDERING\n", .{});
+        append(&buf, &off, "direct_scanout {d}\n", .{@as(u8, if (server.config.direct_scanout) 1 else 0)});
+        append(&buf, &off, "tearing {s}\n", .{@tagName(server.config.tearing)});
+        append(&buf, &off, "tearing_protocol {d}\n", .{tearing_protocol});
+        append(&buf, &off, "explicit_sync {d}\n", .{@as(u8, if (server.config.explicit_sync) 1 else 0)});
+        append(&buf, &off, "explicit_sync_active {d}\n", .{explicit_active});
+        append(&buf, &off, "renderer_timeline {d}\n", .{@as(u8, if (server.renderer_timeline) 1 else 0)});
+        append(&buf, &off, "backend_timeline {d}\n", .{@as(u8, if (server.backend_timeline) 1 else 0)});
+        append(&buf, &off, "output_color_transform {d}\n", .{@as(u8, if (server.renderer_output_color_transform) 1 else 0)});
+        append(&buf, &off, "color_management 0\n", .{});
+        append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
+        append(&buf, &off, "drm_fd {d}\n", .{server.renderer_drm_fd});
+        append(&buf, &off, "backend_drm_fd {d}\n", .{server.backend_drm_fd});
+        var i: usize = 0;
+        while (i < server.outputs.len) : (i += 1) {
+            const out = server.outputs[i] orelse continue;
+            append(&buf, &off, "OUTPUT {s} {d}x{d} scanout_active={d} scanout_frames={d} zero_copy={d} tearing_requests={d} tearing_failures={d}\n", .{
+                core.outputName(out),
+                out.full.width,
+                out.full.height,
+                @as(u8, if (out.scanout_active) 1 else 0),
+                out.perf.scanout_frames,
+                out.perf.zero_copy,
+                out.perf.tearing_requests,
+                out.perf.tearing_failures,
+            });
+        }
         append(&buf, &off, "END\n", .{});
     }
     sendRaw(cl, buf[0..off]);

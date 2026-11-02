@@ -20,7 +20,7 @@ a daily Japanese desktop, then by polish.
 - [x] Update the Zig build system for 0.17 and replace removed standard-library
       APIs.
 - [x] Update Arch packaging to the official `zig` and `wlroots0.20` packages.
-- [x] Run the full 63-test headless suite on the new toolchain in both plain
+- [x] Run the full 65-test headless suite on the new toolchain in both plain
       and scenefx builds (Arch Linux, Zig 0.17.0 / wlroots 0.20.2 / scenefx
       0.5), including portal ScreenCast, tray, notifications, and interaction.
 - [ ] Run a real DRM/libinput session on the new toolchain before the next
@@ -43,6 +43,27 @@ the default.
 - [x] Foreign-toplevel output enter/leave tracking for taskbars.
 - [ ] Optional Quickshell feature protocols: `keyboard-shortcuts-inhibit-v1`
       and `wlr-gamma-control-v1`.
+
+## Rendering and game features
+
+Close the compositor gap for games and fullscreen video while keeping the
+default desktop safe.
+
+- [x] Per-output frame-time, presented/zero-copy/vsync/missed, scanout, and
+      tearing counters, with `tessa-ctl perf --watch` and `tessa-ctl rendering`.
+- [x] Direct scanout for full-output fullscreen clients, hiding the background,
+      lower layer surfaces, other visible clients, and the candidate's blur node
+      while a single render-list entry is possible.
+- [x] Opt-in `wp-tearing-control-v1` with per-window rules, a driver
+      test-commit, and a normal-flip fallback.
+- [x] Gated `linux-drm-syncobj-v1` explicit sync when renderer/backend timelines
+      and a DRM fd are available.
+- [x] Investigate HDR/color management: wlroots 0.20 exposes color-management
+      v1 and output color transforms, but Tessa's GLES2/scenefx path and the
+      absence of tone mapping require a Vulkan-renderer design first.
+- [ ] HDR output and tone mapping on a Vulkan renderer.
+- [ ] Record a GPU/driver validation matrix (Intel i915, AMD, NVIDIA, vmwgfx)
+      for scanout, tearing, and explicit sync.
 
 ## 0.1.x — make the foundation trustworthy
 

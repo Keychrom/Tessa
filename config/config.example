@@ -44,7 +44,9 @@ layout = master
 # (opacity, corner-radius, blur, shadow, border-width) re-evaluate when the
 # title or app-id changes; layout actions wait for map or config reload.
 # window-rule = title=Chat*; border-active=#4cc9f0; border-inactive=#1b2a41
-# window-rule = app-id=mpv; opacity=0.92; corner-radius=0; border-width=0; shadow=false
+# window-rule = app-id=mpv; opacity=1; corner-radius=0; border-width=0; shadow=false
+# Allow tearing for one fullscreen app while the global default stays off.
+# window-rule = app-id=gamescope; tearing=true
 # window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 # Per-window motion: animation=false disables all motion for matching windows.
 # animation-ms sets the base duration; open/workspace/close durations and curves
@@ -143,6 +145,21 @@ layout = master
 # The default targets a 60 Hz desktop (16 ms). On a software headless renderer,
 # set a larger budget for automated checks.
 frame_time_budget = 16
+
+# Rendering and game features. Direct scanout hides the compositor's own scene
+# nodes while an opaque fullscreen window covers an output, allowing the client
+# buffer to be scanned out without composition. It falls back automatically
+# when a popup, notification, or overlay is visible.
+direct_scanout = true
+
+# Tearing is opt-in and additionally requires the client to request async
+# presentation through wp-tearing-control-v1. off: never, fullscreen: only a
+# fullscreen client, force: any async-hinted client (expert).
+tearing = off
+
+# Advertise linux-drm-syncobj-v1 when the renderer and backend support
+# timelines. Disabling this requires a compositor restart.
+explicit_sync = true
 
 # Window motion. Open and workspace switches slide into place. Per-kind
 # durations override animation_ms; -1 inherits it. reduce_motion disables

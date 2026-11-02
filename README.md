@@ -167,6 +167,11 @@ Highlights include:
   bar, popovers, and toasts
 - frame-time instrumentation (`tessa-ctl perf`) with a configurable
   `frame_time_budget`, plus headless animation and full-effect benchmarks
+- direct scanout for full-output fullscreen clients, with per-output
+  scanout/zero-copy/present counters (`tessa-ctl rendering`, `tessa-ctl perf`);
+  opt-in `wp-tearing-control-v1` with a driver test and normal-flip fallback,
+  and gated `linux-drm-syncobj-v1` explicit sync. HDR color management is
+  investigated but not advertised yet; see [docs/RENDERING.md](docs/RENDERING.md)
 - interactive config editing with validation and effective-config diff preview
   (`tessa-ctl config-check <file>`, `config-diff <file>`, `config-edit`) and
   offline preflight with `tessa --check-config [file]`
@@ -290,6 +295,7 @@ restarts were exercised by
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
 `tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`,
+`tests/rendering.sh`, `tests/tearing.sh`,
 `tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
 `tests/helper-timeouts.sh`, `tests/fuzz-parsers.sh`, and
 `tests/fuzz-asan.sh`.

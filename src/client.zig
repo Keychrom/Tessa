@@ -9,6 +9,7 @@ const rules = @import("rules.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
+const render = @import("render.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -251,6 +252,7 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     client.announced = true;
     copyMeta(client);
     rules.applyToClient(client);
+    render.trackClientBuffer(client);
     layout.startOpenAnimation(client);
     layout.arrangeAll(client.server);
     events.emit(client.server, .{
@@ -271,6 +273,7 @@ fn onUnmap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const server = client.server;
     layout.clientClosing(client);
     client.mapped = false;
+    render.clientUnmapped(client);
     c.wlr_scene_node_set_enabled(&client.frame.node, false);
     effects.clientUnmapped(client);
 
@@ -309,6 +312,7 @@ fn onCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
             core.markDirty(client.server);
         }
     }
+    render.trackClientBuffer(client);
 }
 
 fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -329,6 +333,8 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         client.announced = false;
     }
 
+    render.clientDestroying(client);
+    render.untrackClientBuffer(client);
     c.wl_list_remove(&client.map.link);
     c.wl_list_remove(&client.unmap.link);
     c.wl_list_remove(&client.commit.link);
@@ -462,6 +468,7 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.corner_radius = -1;
     client.blur = .unset;
     client.shadow = .unset;
+    client.tearing = .unset;
     client.border_width = -1;
     client.hook_active = false;
     client.hook_opacity = 1.0;
@@ -542,14 +549,28 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
 fn onPopupCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const popup: *Popup = @fieldParentPtr("commit", listener.?);
-    if (pBase(popup.xdg_popup).initial_commit) {
+    if (pBase(popup.xdg_popup).initial_commit and pBase(popup.xdg_popup).initialized) {
         _ = c.wlr_xdg_surface_schedule_configure(pBase(popup.xdg_popup));
     }
+}
+
+fn onPopupConstrainIdle(data: ?*anyopaque) callconv(.c) void {
+    const popup: *Popup = @ptrCast(@alignCast(data.?));
+    popup.constrain_idle = null;
+    const out = popup.output orelse return;
+    if (core.outputIndexOf(popup.server, out) == null) return;
+    if (!pBase(popup.xdg_popup).initialized) return;
+    var box = out.full;
+    c.wlr_xdg_popup_unconstrain_from_box(popup.xdg_popup, &box);
 }
 
 fn onPopupDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     _ = data;
     const popup: *Popup = @fieldParentPtr("destroy", listener.?);
+    if (popup.constrain_idle) |idle| {
+        _ = c.wl_event_source_remove(idle);
+        popup.constrain_idle = null;
+    }
     c.wl_list_remove(&popup.commit.link);
     c.wl_list_remove(&popup.destroy.link);
     c.free(popup);
@@ -589,6 +610,7 @@ fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data.?));
 
     const popup = @as(*Popup, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Popup)).?)));
+    popup.server = server;
     popup.xdg_popup = xdg_popup;
 
     popup.commit.notify = onPopupCommit;
@@ -613,7 +635,12 @@ fn onNewPopup(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         pBase(xdg_popup).data = @ptrCast(c.wlr_scene_xdg_surface_create(tree, pBase(xdg_popup)));
     }
     if (outputForSurface(server, parent_surface)) |out| {
-        var box = out.full;
-        c.wlr_xdg_popup_unconstrain_from_box(xdg_popup, &box);
+        popup.output = out;
+        // wlr_xdg_popup_unconstrain_from_box() schedules a configure, which
+        // asserts until the popup's initial commit has been processed. Defer
+        // it to an idle callback so the unconstrain still happens in the same
+        // event-loop turn without touching an uninitialized xdg_surface.
+        const loop = c.wl_display_get_event_loop(server.display);
+        popup.constrain_idle = c.wl_event_loop_add_idle(loop, onPopupConstrainIdle, popup);
     }
 }

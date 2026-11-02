@@ -15,6 +15,8 @@ fn usage() void {
         "  config-diff <file>            preview effective changes from a candidate\n" ++
         "  config-edit [file]            edit, validate, diff, and apply config\n" ++
         "  perf [--json] [--reset]       print frame-time statistics\n" ++
+        "  perf --watch[=SECS]           stream frame-time statistics\n" ++
+        "  rendering [--json]            print renderer, scanout, and sync status\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
         "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
@@ -377,8 +379,7 @@ fn printHello() !void {
     return error.Closed;
 }
 
-fn printPerf(json: bool, reset: bool) !void {
-    if (reset) try sendCommand("CMD perf-reset\n");
+fn printPerfOnce(json: bool) !void {
     const fd = try connectSocket();
     defer _ = c.close(fd);
     try sendAll(fd, if (json) "CMD perf-json\n" else "CMD perf\n");
@@ -399,11 +400,20 @@ fn printPerf(json: bool, reset: bool) !void {
 fn runPerf(args: []const []const u8) !void {
     var json = false;
     var reset = false;
+    var watch_secs: u32 = 0;
+    var watch = false;
     for (args[1..]) |arg| {
         if (std.mem.eql(u8, arg, "--json")) {
             json = true;
         } else if (std.mem.eql(u8, arg, "--reset")) {
             reset = true;
+        } else if (std.mem.eql(u8, arg, "--watch")) {
+            watch = true;
+            watch_secs = 1;
+        } else if (std.mem.startsWith(u8, arg, "--watch=")) {
+            watch = true;
+            watch_secs = std.fmt.parseInt(u32, arg["--watch=".len..], 10) catch 0;
+            if (watch_secs == 0) watch_secs = 1;
         } else {
             return error.BadArguments;
         }
@@ -413,7 +423,46 @@ fn runPerf(args: []const []const u8) !void {
         writeLine("perf: reset");
         return;
     }
-    try printPerf(json, false);
+    if (watch) {
+        while (true) {
+            printPerfOnce(json) catch |err| {
+                if (err == error.Closed) return;
+                return err;
+            };
+            _ = c.usleep(watch_secs * 1_000_000);
+        }
+    }
+    try printPerfOnce(json);
+}
+
+fn printRendering(json: bool) !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, if (json) "CMD rendering-json\n" else "CMD rendering\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    if (json) {
+        const line = (try reader.next(&line_buf)) orelse return error.Closed;
+        writeLine(line);
+        return;
+    }
+    while (try reader.next(&line_buf)) |line| {
+        writeLine(line);
+        if (std.mem.eql(u8, line, "END")) return;
+    }
+    return error.Closed;
+}
+
+fn runRendering(args: []const []const u8) !void {
+    var json = false;
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--json")) {
+            json = true;
+        } else {
+            return error.BadArguments;
+        }
+    }
+    try printRendering(json);
 }
 
 const CompareResult = struct {
@@ -772,6 +821,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runConfigEdit(args)
     else if (std.mem.eql(u8, cmd, "perf"))
         runPerf(args)
+    else if (std.mem.eql(u8, cmd, "rendering"))
+        runRendering(args)
     else if (std.mem.eql(u8, cmd, "rpc"))
         runRpc(args)
     else if (std.mem.eql(u8, cmd, "events"))

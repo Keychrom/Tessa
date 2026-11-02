@@ -287,6 +287,7 @@ fn resetDecorations(client: *Client) void {
     client.corner_radius = -1;
     client.blur = .unset;
     client.shadow = .unset;
+    client.tearing = .unset;
     client.border_width = -1;
     client.anim = .{};
 }
@@ -329,6 +330,7 @@ fn applyVisual(rule: *const WindowRule, client: *Client) void {
     if (rule.has_corner_radius) client.corner_radius = rule.corner_radius;
     if (rule.blur != .unset) client.blur = rule.blur;
     if (rule.shadow != .unset) client.shadow = rule.shadow;
+    if (rule.tearing != .unset) client.tearing = rule.tearing;
     if (rule.has_border_width) client.border_width = rule.border_width;
     mergeAnimation(&client.anim, &rule.anim);
 }
@@ -416,6 +418,7 @@ pub fn applyVisualToClient(client: *Client) bool {
     const old_radius = client.corner_radius;
     const old_blur = client.blur;
     const old_shadow = client.shadow;
+    const old_tearing = client.tearing;
     const old_border_width = client.border_width;
     const old_active = client.border_active_override;
     const old_inactive = client.border_inactive_override;
@@ -429,6 +432,7 @@ pub fn applyVisualToClient(client: *Client) bool {
         old_radius != client.corner_radius or
         old_blur != client.blur or
         old_shadow != client.shadow or
+        old_tearing != client.tearing or
         old_border_width != client.border_width or
         !std.meta.eql(old_active, client.border_active_override) or
         !std.meta.eql(old_inactive, client.border_inactive_override);

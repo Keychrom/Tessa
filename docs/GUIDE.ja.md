@@ -474,6 +474,9 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `effect_helper` | 空 | ウィンドウ別の視覚効果を返す常駐ヘルパープロセス |
 | `effect_helper_timeout` | `200` | エフェクトヘルパー応答タイムアウト（20〜2000 ms） |
 | `frame_time_budget` | `16` | 描画コミットの予算（ms）。超過フレームを `tessa-ctl perf` が数える |
+| `direct_scanout` | `true` | 不透明なフルスクリーンクライアントでコンポジタのノードを隠し、wlroots の直接スキャンアウトを可能にする |
+| `tearing` | `off` | `off`、`fullscreen`、`force`。いずれもクライアントの async ヒントが必要 |
+| `explicit_sync` | `true` | renderer/backend の timeline と DRM fd がある場合に `linux-drm-syncobj-v1` を公開。変更には再起動が必要 |
 | `output_config` | `~/.config/tessa/outputs.conf` | 出力設定とレイアウト上書きの保存先 |
 | `workspace_pin` | — | `OUTPUT WORKSPACE` でワークスペースを出力に固定。複数行可 |
 | `workspace-name` | — | `WORKSPACE NAME` の表示名／コマンド別名。複数行可 |
@@ -842,6 +845,7 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `corner-radius=0..64` | ウィンドウ別の角丸（`rounding` も可） |
 | `blur=true/false` | ウィンドウ別の背景ブラー |
 | `shadow=true/false` | ウィンドウ別の影 |
+| `tearing=true/false` | `tearing` が `fullscreen`/`force` のとき、このクライアントの async tearing を許可（グローバルが `off` でも明示的に有効化可能） |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
 | `animation=true/false` | そのウィンドウのモーションを有効／無効化 |
 | `animation-ms=N` | 基本アニメーション時間の上書き（0〜1000） |
@@ -1656,6 +1660,8 @@ tessa-ctl config-check [file]
 tessa-ctl config-diff file
 tessa-ctl config-edit [file]
 tessa-ctl perf [--json] [--reset]
+tessa-ctl perf --watch=2
+tessa-ctl rendering [--json]
 tessa-ctl events [topic]
 tessa-ctl workspace 3 [output]
 tessa-ctl special notes
@@ -1679,7 +1685,27 @@ tessa-ctl quit
 
 `perf` は描画コミット時間（`avg_us`、`p50_us`、`p95_us`、`max_us`、
 予算超過フレーム数、scenefx の有無）を表示します。予算は
-`frame_time_budget` です。
+`frame_time_budget` です。`--json` には `outputs` 配列が含まれ、テキスト
+出力には出力ごとの `OUTPUT` 行が追加されます。出力別の `presented`、
+`zero_copy`、`vsync`、`missed`、`scanout`、`tearing`、`tearing_fail` を
+確認できます。`perf --watch[=秒]` は指定間隔（既定 1 秒）で繰り返します。
+`--reset` はグローバルと出力別の両方をリセットします。
+
+`rendering [--json]` は direct scanout、tearing、`wp-tearing-control-v1`、
+`linux-drm-syncobj-v1`、renderer/backend の timeline、出力色変換、
+scenefx、DRM fd、出力別の scanout/zero-copy/tearing カウンタを表示します。
+実機 DRM で直接スキャンアウトが起きたかは `zero_copy` と `scanout_frames`
+で確認してください。headless は状態遷移のみで、実際の scanout は行いません。
+HDR の color management はまだ公開しておらず、`color_management 0` が
+正常です。理由と将来の要件は [RENDERING.ja.md](RENDERING.ja.md) にあります。
+
+トラブルシュート時は次のように無効化できます:
+
+```ini
+direct_scanout = false
+tearing = off
+explicit_sync = false   # コンポジタの再起動が必要
+```
 
 生の IPC コマンド:
 
@@ -1694,6 +1720,8 @@ CMD config-compare <path>
 CMD perf
 CMD perf-json
 CMD perf-reset
+CMD rendering
+CMD rendering-json
 CMD workspace <1..9|name> [output]
 CMD move-workspace <1..9|name>
 CMD toggle-scratchpad

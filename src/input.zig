@@ -537,6 +537,16 @@ pub fn reloadRuntime(server: *Server) void {
     layout.arrangeAll(server);
     layout.ensureVisibleFocus(server);
     ext_workspace.syncAll(server);
+    if (previous.direct_scanout != server.config.direct_scanout) {
+        var oi: usize = 0;
+        while (oi < server.outputs.len) : (oi += 1) {
+            const out = server.outputs[oi] orelse continue;
+            c.wlr_output_schedule_frame(out.wlr);
+        }
+    }
+    if (!server.config.explicit_sync and server.explicit_sync_active) {
+        core.logInfo("explicit sync: changing this setting requires a compositor restart", .{});
+    }
     events.emit(server, .{ .name = event_names.config_reload });
     core.markDirty(server);
     core.logInfo("config reloaded", .{});

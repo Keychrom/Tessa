@@ -47,6 +47,17 @@ pub const PerfStats = struct {
     max_us: u32 = 0,
     last_us: u32 = 0,
     over_budget: u64 = 0,
+    // Output presentation and scanout counters. The global PerfStats instance
+    // aggregates frame timings; per-output instances also track these.
+    presented: u64 = 0,
+    zero_copy: u64 = 0,
+    vsync: u64 = 0,
+    missed: u64 = 0,
+    scanout_frames: u64 = 0,
+    tearing_requests: u64 = 0,
+    tearing_failures: u64 = 0,
+    last_seq: u64 = 0,
+    has_present_seq: bool = false,
 
     pub fn reset(self: *PerfStats) void {
         self.sample_count = 0;
@@ -56,6 +67,15 @@ pub const PerfStats = struct {
         self.max_us = 0;
         self.last_us = 0;
         self.over_budget = 0;
+        self.presented = 0;
+        self.zero_copy = 0;
+        self.vsync = 0;
+        self.missed = 0;
+        self.scanout_frames = 0;
+        self.tearing_requests = 0;
+        self.tearing_failures = 0;
+        self.last_seq = 0;
+        self.has_present_seq = false;
     }
 
     pub fn record(self: *PerfStats, us: u32, budget_ms: i32) void {
@@ -197,6 +217,10 @@ pub const ConfigIssue = struct {
 
 pub const RuleBool = enum { unset, on, off };
 
+/// Tearing requests are never enabled implicitly: the client must ask for
+/// async presentation through wp-tearing-control-v1 as well.
+pub const TearingMode = enum { off, fullscreen, force };
+
 pub const InputDeviceType = enum {
     any,
     keyboard,
@@ -299,6 +323,7 @@ pub const WindowRule = struct {
     corner_radius: i32 = 0,
     blur: RuleBool = .unset,
     shadow: RuleBool = .unset,
+    tearing: RuleBool = .unset,
     has_border_width: bool = false,
     border_width: i32 = 0,
     scratchpad: RuleBool = .unset,
@@ -522,6 +547,9 @@ pub const Config = struct {
     effect_helper_len: usize,
     effect_helper_timeout: i32,
     frame_time_budget: i32,
+    direct_scanout: bool,
+    tearing: TearingMode,
+    explicit_sync: bool,
     ws_gaps: [WS_COUNT]i32,
     ws_outer_gaps: [WS_COUNT]i32,
     ws_master_ratio: [WS_COUNT]f32,
@@ -692,9 +720,13 @@ pub const Output = struct {
     last_scale: f32,
     adaptive_sync_base: bool,
     adaptive_sync_policy: bool,
+    perf: PerfStats,
+    scanout_active: bool,
+    scanout_client: ?*Client,
     frame: c.wl_listener,
     request_state: c.wl_listener,
     commit: c.wl_listener,
+    present: c.wl_listener,
     destroy: c.wl_listener,
 };
 
@@ -751,6 +783,7 @@ pub const Client = struct {
     hook_blur: RuleBool,
     hook_shadow: RuleBool,
     hook_border_width: i32,
+    tearing: RuleBool,
     anim: AnimationOverride,
 
     x: i32,
@@ -777,6 +810,8 @@ pub const Client = struct {
     unmap: c.wl_listener,
     commit: c.wl_listener,
     destroy: c.wl_listener,
+    sample: c.wl_listener,
+    sample_linked: bool,
     request_move: c.wl_listener,
     request_resize: c.wl_listener,
     request_maximize: c.wl_listener,
@@ -915,6 +950,8 @@ pub const IpcClient = struct {
 pub const Popup = struct {
     server: *Server,
     xdg_popup: *c.wlr_xdg_popup,
+    output: ?*Output,
+    constrain_idle: ?*c.wl_event_source,
     commit: c.wl_listener,
     destroy: c.wl_listener,
 };
@@ -1055,6 +1092,14 @@ pub const Server = struct {
     foreign_toplevel_manager: ?*c.wlr_foreign_toplevel_manager_v1,
     ext_foreign_toplevel_list: ?*c.wlr_ext_foreign_toplevel_list_v1,
     ext_workspace_manager: ?*c.wlr_ext_workspace_manager_v1,
+    tearing_manager: ?*c.wlr_tearing_control_manager_v1,
+    explicit_sync_manager: ?*c.wlr_linux_drm_syncobj_manager_v1,
+    renderer_timeline: bool,
+    backend_timeline: bool,
+    renderer_output_color_transform: bool,
+    renderer_drm_fd: c_int,
+    backend_drm_fd: c_int,
+    explicit_sync_active: bool,
     cursor_shape_manager: ?*c.wlr_cursor_shape_manager_v1,
     text_input_manager: ?*c.wlr_text_input_manager_v3,
     input_method_manager: ?*c.wlr_input_method_manager_v2,

@@ -97,6 +97,38 @@ parent. `output.zig` listens for that event and creates the popup scene tree
 under the layer surface's tree. This is what makes third-party panel menus and
 dropdowns visible.
 
+## Direct scanout, tearing, and explicit sync
+
+`src/render.zig` owns the output commit path. `onOutputFrame` ticks
+animations/effects, calls `render.refreshScanout()`, checks
+`wlr_scene_output_needs_frame()` (the same early-out as
+`wlr_scene_output_commit()`), then builds an output state with
+`wlr_scene_output_build_state()` and commits it.
+
+Direct scanout requires a single render-list entry. For a fullscreen client that
+covers the output, `refreshScanout()` disables `bg_rect`, layer-shell surfaces in
+the background/bottom/top layers, other visible client frames, and the
+candidate's blur node. Overlay/effect nodes are left alone and force a
+composited fallback while visible. Restoring re-enables the background, mapped
+layer trees, visible client frames, and reapplies window effects.
+`direct_scanout=false` disables the whole state machine.
+
+Tearing is only requested with an async hint from
+`wlr_tearing_control_manager_v1_surface_hint_from_surface()`. The commit path
+sets `state.tearing_page_flip`, calls `wlr_output_test_state()` first, and
+clears the flag if the backend rejects the async flip. `tearing=off|fullscreen|
+force` and the per-window `tearing` rule select eligibility.
+
+Explicit sync is advertised only when `explicit_sync=true`, both
+`renderer.features.timeline` and `backend.features.timeline` are true, and a
+renderer/backend DRM fd is available. The manager is created in `render.init()`
+before clients connect; changing the setting requires a restart. Scenefx/GLES2
+may not report timeline support.
+
+Per-output frame-time samples, presented/zero-copy/vsync/missed counters,
+direct-scanout samples, and tearing attempts live in `Output.perf`; the global
+`Server.perf` aggregates frame times. `tessa-ctl perf` exposes both.
+
 ## Effects backend
 
 The default build uses the upstream wlroots scene implementation. With

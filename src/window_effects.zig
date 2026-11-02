@@ -39,6 +39,9 @@ fn configureImpl(server: *Server) void {
         const probe = c.wlr_scene_optimized_blur_create(&server.scene.tree, 1, 1);
         if (probe != null) {
             c.wlr_scene_optimized_blur_mark_dirty(probe);
+            // The probe only exists to allocate the shared blur buffer. It
+            // must not add a render-list entry above fullscreen clients.
+            c.wlr_scene_node_set_enabled(&@as(*c.wlr_scene_blur, @ptrCast(@alignCast(probe))).node, false);
             blur_probe_created = true;
         }
     }

@@ -13,6 +13,7 @@ const ipc = @import("ipc.zig");
 const ime = @import("ime.zig");
 const lock = @import("lock.zig");
 const ext_workspace = @import("ext_workspace.zig");
+const render = @import("render.zig");
 const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -378,6 +379,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
         return error.LayerShellFailed;
     };
 
+    render.init(server);
     input.init(server);
     output.init(server);
     ext_workspace.init(server);
