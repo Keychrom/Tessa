@@ -3,6 +3,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const rules = @import("rules.zig");
+const motion = @import("motion.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -662,7 +663,8 @@ pub fn tick(out: *Output, now: i64) bool {
         0.0,
         1.0,
     );
-    const eased = 1.0 - std.math.pow(f32, 1.0 - progress, 3.0);
+    const curve = motion.resolve(&out.server.config, out.server.config.animation_view_curve[0..out.server.config.animation_view_curve_len]) orelse motion.DEFAULT_OPEN;
+    const eased: f32 = @floatCast(motion.evaluate(curve, @floatCast(progress)));
     ws.view_offset = ws.view_from + (ws.view_target - ws.view_from) * eased;
     if (progress >= 1.0) {
         ws.view_offset = ws.view_target;

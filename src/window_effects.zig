@@ -1,3 +1,4 @@
+const std = @import("std");
 const build_options = @import("build_options");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
@@ -70,6 +71,7 @@ fn ensureClientBlur(client: *Client) ?*c.wlr_scene_blur {
     if (blur_raw == null) return null;
     const blur: *c.wlr_scene_blur = @ptrCast(@alignCast(blur_raw));
     client.blur_node = &blur.node;
+    client.server.perf.blur_nodes += 1;
     // The blur samples everything below it in the scene graph. Keep it below
     // the window's own border, shadow, and content.
     c.wlr_scene_node_lower_to_bottom(&blur.node);
@@ -80,7 +82,34 @@ pub fn applyClient(client: *Client, border_enabled: bool) void {
     if (ensureContentBuffer(client)) |buffer| {
         c.wlr_scene_buffer_set_opacity(buffer, types.effectiveClientOpacity(client));
     }
+    applyTint(client, border_enabled);
     if (comptime enabled) applyClientImpl(client, border_enabled);
+}
+
+fn applyTint(client: *Client, border_enabled: bool) void {
+    const configured_bw = types.effectiveClientBorderWidth(client);
+    const bw: i32 = if (!border_enabled)
+        0
+    else if (configured_bw >= 0)
+        configured_bw
+    else
+        client.server.config.border_width;
+    const tint = types.effectiveClientTint(client);
+    const visible = tint[3] > 0.001 and client.w > bw * 2 and client.h > bw * 2;
+    c.wlr_scene_node_set_enabled(&client.tint_rect.node, visible);
+    if (!visible) return;
+    const w = @max(1, client.w - bw * 2);
+    const h = @max(1, client.h - bw * 2);
+    c.wlr_scene_rect_set_size(client.tint_rect, w, h);
+    c.wlr_scene_node_set_position(&client.tint_rect.node, bw, bw);
+    c.wlr_scene_rect_set_color(client.tint_rect, &tint);
+    if (comptime enabled) {
+        const configured_radius = types.effectiveClientRadius(client);
+        const base_radius = if (configured_radius >= 0) configured_radius else client.server.config.corner_radius;
+        const max_radius = @divTrunc(@max(1, @min(client.w, client.h)), 2);
+        const radius: c_int = if (client.fullscreen or !border_enabled) 0 else @min(base_radius, max_radius);
+        c.wlr_scene_rect_set_corner_radius(client.tint_rect, @min(radius, @divTrunc(@max(1, @min(w, h)), 2)));
+    }
 }
 
 fn applyClientImpl(client: *Client, border_enabled: bool) void {
@@ -102,8 +131,25 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
     const content_max = @divTrunc(@max(1, @min(client.w - bw * 2, client.h - bw * 2)), 2);
     const content_radius: c_int = @min(radius, @max(0, content_max));
     const border_radius: c_int = if (radius > 0) @min(radius + bw, max_radius) else 0;
-
     const content = ensureContentBuffer(client);
+    const blur_on = clientBlur(client) and content != null;
+    const opacity = types.effectiveClientOpacity(client);
+    const tint = types.effectiveClientTint(client);
+
+    if (client.applied_valid and
+        client.applied_opacity == opacity and
+        client.applied_radius == radius and
+        client.applied_border_width == bw and
+        std.meta.eql(client.applied_tint, tint) and
+        client.applied_blur == blur_on and
+        client.applied_w == client.w and
+        client.applied_h == client.h and
+        client.applied_buffer == content)
+    {
+        client.server.perf.effect_skips += 1;
+        return;
+    }
+
     if (content) |buffer| {
         c.wlr_scene_buffer_set_corner_radius(buffer, content_radius);
     }
@@ -130,11 +176,22 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
         // A blur node without a transparency mask would also blur the window's
         // own transparent regions, so only enable it once the content buffer
         // exists and per-client blur resolves to on.
-        c.wlr_scene_node_set_enabled(&blur.node, clientBlur(client) and content != null);
+        c.wlr_scene_node_set_enabled(&blur.node, blur_on);
         if (content) |buffer| {
             c.wlr_scene_blur_set_transparency_mask_source(blur, buffer);
         }
     }
+
+    client.applied_opacity = opacity;
+    client.applied_radius = radius;
+    client.applied_border_width = bw;
+    client.applied_tint = tint;
+    client.applied_blur = blur_on;
+    client.applied_w = client.w;
+    client.applied_h = client.h;
+    client.applied_buffer = content;
+    client.applied_valid = true;
+    client.server.perf.effect_applies += 1;
 }
 
 const LayerState = struct {

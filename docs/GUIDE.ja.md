@@ -473,6 +473,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `column_width_presets` | `33.333%,50%,66.667%` | `column-width-cycle` で巡回するプリセット |
 | `center_focused_column` | `never` | Scrolling のフォーカススクロール。`never`、`always`、`on-overflow` |
 | `animation_view_ms` | `180` | Scrolling viewport のアニメーション時間 |
+| `animation_view_curve` | `ease-out-cubic` | Scrolling viewport のカーブ |
 | `layout_1` … `layout_9` | 継承 | 保存済み・実行中の上書きがないワークスペースの初期レイアウト |
 | `layout_helper` | 空 | 出力ごとに 1 つ起動する非同期カスタムレイアウトヘルパー |
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
@@ -549,6 +550,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_side_margin` | `16` | 左右マージン（0〜128） |
 | `panel_bg` | `#0e1320` | バー背景色 |
 | `panel_fg` | `#eef2f8` | バー主要テキスト色 |
+| `panel_modules` | 全部 | 有効にするパネル要素: `background`、`bar`、`launcher`、`popovers`、`notifications`、`toasts`、`tray`、`media`、`audio`。`all`/`none` も可 |
 | `bar_layout` | 全モジュール | カンマ／空白区切りのモジュール一覧。右側クラスタの表示と順序を決定 |
 | `bar-font`、`launcher-font`、`popover-font`、`toast-font` | `font` | サーフェス別フォント |
 | `bar-fg`、`launcher-fg`、`popover-fg`、`toast-fg` | `panel_fg` | サーフェス別前景色 |
@@ -912,6 +914,7 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `shadow=true/false` | ウィンドウ別の影 |
 | `tearing=true/false` | `tearing` が `fullscreen`/`force` のとき、このクライアントの async tearing を許可（グローバルが `off` でも明示的に有効化可能） |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
+| `tint=#RRGGBBAA` | コンテンツ上の半透明カラー。`none` で解除 |
 | `animation=true/false` | そのウィンドウのモーションを有効／無効化 |
 | `animation-ms=N` | 基本アニメーション時間の上書き（0〜1000） |
 | `animation-open-ms`、`animation-workspace-ms`、`animation-close-ms` | 種類別の時間上書き |
@@ -1118,33 +1121,32 @@ effect_helper = python3 ~/.config/tessa/effects.py
 effect_helper_timeout = 200
 ```
 
-エフェクトヘルパーは全出力で 1 つの常駐プロセスです。ウィンドウの
-メタデータやフォーカスが変わるたびに、合流された完全なスナップショットを
-送ります:
+エフェクトヘルパーは全出力で 1 つの常駐プロセスです。現在のプロトコルは
+v2 で、`VERSION 1` を返すヘルパーは従来の位置引数形式のまま動作します。
 
 ```text
-HELLO\t1
-EFFECT\t1
-WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+HELLO\t2
+EFFECT\t2
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
 ...
 END
 ```
 
-`focused`、`urgent`、`fullscreen`、`floating`、`visible` は `0`/`1` です。
-`opacity`、角丸、ボーダー幅は現在のルール適用後の値、`blur`/`shadow` は
-`on`、`off`、`unset` です。応答は任意の `VERSION\t1`、0 個以上の上書き、
-`END` です:
+`tint` は v2 交渉後のリクエストだけ末尾に付きます。応答は key=value 形式
+です:
 
 ```text
-VERSION\t1
-WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+VERSION\t2
+WINDOW\t<id>\topacity=0.9\tradius=16\tblur=on\tshadow=off\tborder-width=2\ttint=#ff8844aa\topen-ms=240\topen-curve=spring-soft
 END
 ```
 
-応答に含まれないウィンドウはルール適用値へ戻ります。範囲（opacity 0〜1、
-角丸 0〜64、ボーダー幅 0〜16）と ID を検証し、タイムアウト、クラッシュ、
-不正な応答では全上書きを破棄して 1 秒後に再試行します。stdout は
-プロトコル専用です。詳細とサンプルは
+v2 の各フィールドは任意で、省略した項目はルール値を使います。`tint` は
+`#RRGGBBAA` または `none`、アニメーションは `-1`〜`1000` ms と
+`bezier`/`spring` で登録したカーブ名を受け付けます。応答に含まれない
+ウィンドウは上書きを解除します。ID、範囲、カーブ名を検証し、タイムアウト、
+クラッシュ、不正な応答では全上書きを破棄して 1 秒後に再試行します。
+stdout はプロトコル専用です。詳細は
 [EXTENDING.ja.md](EXTENDING.ja.md#エフェクトヘルパープロトコル) を参照して
 ください。このプロトコルはコンポジタ内へコードを注入しません。
 
@@ -1204,7 +1206,21 @@ startup = waybar
 ```
 
 `panel = false` にすると Tessa の壁紙、通知、内蔵ランチャーも無効になります。
-必要なら外部の壁紙・通知デーモンを使ってください。
+Tessa Panel の一部だけを残す場合は `panel = true` のまま
+`panel_modules` を指定します:
+
+```ini
+# Waybar にバーを任せ、Tessa のランチャーと通知は残す
+panel = true
+panel_modules = launcher,notifications,toasts
+startup = waybar
+```
+
+`panel_modules` は `background`、`bar`、`launcher`、`popovers`、
+`notifications`、`toasts`、`tray`、`media`、`audio` を受け付けます
+（`all`/`none` も可）。マスクが変わるとスーパーバイザがパネルを再起動します。
+Tessa のバーと外部バーを同じ辺に置くと両方の予約領域が使われ、デスクトップが
+狭くなるため、どちらかを無効にしてください。
 
 Waybar 0.15 は layer-shell を直接使い、標準のワークスペース/
 トップレベルプロトコルを利用できます:
@@ -1310,7 +1326,7 @@ bar_fg = #eef2f8
 bar_bg = #0e1320
 ```
 
-`bar_layout` は表示するモジュールと右側クラスタの左→右順を指定します。
+`bar_layout` は表示するモジュールと右側クラスタの右→左順（先頭が右端）を指定します。
 `logo`、`workspaces`、`chips`、`clock`、`battery`、`network`、`volume`、
 `stats`、`media`、`tray`、`status` を認識し、未知の名前は無視します。
 ロゴ、ワークスペースピル、ウィンドウチップの位置は固定です。
@@ -1720,6 +1736,8 @@ Screenshot/ScreenCast は `XDG_CURRENT_DESKTOP=Tessa` で wlr バックエンド
 ```sh
 tessa-ctl state
 tessa-ctl hello
+tessa-ctl extensions [--json]
+tessa-ctl extension-enable weather off
 tessa-ctl config
 tessa-ctl config-check [file]
 tessa-ctl config-diff file
@@ -1783,12 +1801,15 @@ explicit_sync = false   # コンポジタの再起動が必要
 生の IPC コマンド:
 
 ```text
-HELLO <version>
+HELLO <version> [<extension-token>]
 CMD subscribe state|events|all
 CMD state
 CMD state-json
 CMD config
 CMD config-json
+CMD extensions
+CMD extensions-json
+CMD extension-enable <id> on|off
 CMD config-compare <path>
 CMD perf
 CMD perf-json
@@ -1828,12 +1849,16 @@ CMD notification-action <id> <key>
 CMD quit
 ```
 
-`HELLO <version>` は省略可能で、最初に送れます。Tessa は `VERSION\t1` と
-タブ区切りの `CAPABILITIES` 行を返し、接続を維持します。未知の新しい
-バージョンは 1 にネゴシエートし、数値でない場合は
-`ERR\tinvalid-version` を返します。HELLO なしでコマンドを送る従来クライアント
-（line protocol 0）も互換です。`tessa-ctl hello` でネゴシエート結果を表示
-できます。
+`HELLO <version> [<token>]` は省略可能で、最初に送れます。Tessa は
+`VERSION\t1` とタブ区切りの `CAPABILITIES` 行を返し、接続を維持します。
+ケイパビリティには `extensions`、`effects2`、`shell-modules` が含まれます。
+未知の新しいバージョンは 1 にネゴシエートし、数値でない場合は
+`ERR\tinvalid-version` を返します。監視付き拡張は
+`TESSA_EXTENSION_TOKEN` を付け、Tessa はケイパビリティ行の後に
+`EXTENSION\t<id>\t<permissions>` を返します。不正 token は
+`ERR\tunauthorized` です。HELLO なしでコマンドを送る従来クライアント
+（line protocol 0）も互換で、全権限のままです。`tessa-ctl hello` で
+ネゴシエート結果を表示できます。
 
 接続直後は何も届きません。`CMD subscribe ...` が必要です。`STATE` は
 `END` までで 1 スナップショットです。
@@ -1857,6 +1882,10 @@ COL  <output> <workspace> <index> <x> <width> <focused> <maximized> <tabbed> <wi
 
 `offset` はカラム列の水平スクロール位置、`x` はオフセット適用後の画面上の
 位置、`tabbed` はグループをタブ表示しているカラムであることを示します。
+
+`EXT` 行は監視対象の拡張機能を表します:
+`EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`。
+`ready` は拡張が token で認証したことを示し、認証前は `running` のままです。
 
 ### 13.2 JSON と JSON-RPC
 
@@ -1918,6 +1947,10 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
 | `animation-done` | 開く/WS スライド完了 | id, ws, output, arg |
 | `close-animation-start` | 閉じるスナップショット開始 | id, ws, output, arg (`close`) |
 | `close-animation-done` | 閉じるスナップショット完了 | id, ws, output, arg |
+| `extension-start` | 拡張プロセス開始 | arg（拡張 ID） |
+| `extension-ready` | 拡張が token で認証 | arg |
+| `extension-failed` | 拡張が異常終了 | arg |
+| `extension-stop` | 拡張を明示的に停止 | arg |
 
 ### 13.4 フック
 
@@ -1957,7 +1990,45 @@ tessa-ctl status weather --clear
 id は安定で、同じ id は上書きされます。最大 8 件、159 バイトまで、全出力
 共通です。クリックコマンドは `CMD spawn` 相当です。
 
-### 13.6 ランチャー項目
+### 13.6 監視付き拡張機能
+
+拡張は設定で宣言する監視プロセスです。通常のクライアントと同じ IPC
+ソケットを使います。
+
+```ini
+extension = id=weather; command=weatherd; api=1; permissions=read,status
+extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
+```
+
+`api` はコンポジタが対応する値（現在 1）でなければなりません。
+`permissions` は `read`、`events`、`status`、`window`、`workspace`、
+`layout`、`spawn`、`panel`、`control`、`extensions` のカンマ区切りで、
+`all`/`none` も使えます。既定は `read,status` です。`requires` と `after`
+は依存 ID で、未知の ID と循環は設定エラーになります。スーパーバイザは
+依存順に起動し、pidfd で終了を検知して指数バックオフで再起動します。
+子には `TESSA_EXTENSION_ID`、`TESSA_EXTENSION_TOKEN`、
+`TESSA_EXTENSION_API`、`TESSA_EXTENSION_PERMISSIONS` が渡されます。
+
+拡張はコマンド送信前に自分の token を通知します:
+
+```text
+HELLO 1 $TESSA_EXTENSION_TOKEN
+VERSION 1
+CAPABILITIES ...
+EXTENSION weather read,status
+```
+
+権限外のコマンドには `ERR forbidden <command>` を返します。これは
+サンドボックスではなく協調的なスコープ制御です。同じユーザーのプロセスは
+token やソケットを直接読めます。token を送らない既存クライアント
+（`tessa-panel`、`tessa-ctl`）は従来どおり全権限です。
+
+`CMD extensions` と `CMD extensions-json` で実行状態を取得できます。
+`CMD extension-enable <id> on|off` は現在のセッションだけ変更します。
+パネルの拡張一覧は `tessa-ctl panel extensions` で開き、Enter で選択項目を
+有効／無効にします。
+
+### 13.7 ランチャー項目
 
 ```ini
 launcher_entry = Notes | foot -e nvim ~/notes.md

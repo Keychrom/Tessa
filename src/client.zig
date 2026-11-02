@@ -478,12 +478,17 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.shadow = .unset;
     client.tearing = .unset;
     client.border_width = -1;
+    client.tint_rgba = .{ 0, 0, 0, 0 };
     client.hook_active = false;
     client.hook_opacity = 1.0;
     client.hook_corner_radius = -1;
     client.hook_blur = .unset;
     client.hook_shadow = .unset;
     client.hook_border_width = -1;
+    client.hook_tint_rgba = .{ 0, 0, 0, 0 };
+    client.hook_anim = .{};
+    client.hook_anim_active = false;
+    client.applied_valid = false;
     client.anim = .{};
     client.anim_curve = .{};
     client.id = server.next_client_id;
@@ -509,6 +514,10 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.surface_tree = c.wlr_scene_xdg_surface_create(client.frame, tBase(xdg));
     client.content_buffer = scene_util.surfaceBuffer(client.surface_tree, tSurface(xdg));
     tBase(xdg).data = @ptrCast(client.surface_tree);
+
+    const no_tint = [4]f32{ 0, 0, 0, 0 };
+    client.tint_rect = c.wlr_scene_rect_create(client.frame, 1, 1, &no_tint);
+    c.wlr_scene_node_set_enabled(&client.tint_rect.node, false);
 
     client.map.notify = onMap;
     c.wl_signal_add(&tSurface(xdg).events.map, &client.map);

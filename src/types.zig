@@ -56,6 +56,9 @@ pub const PerfStats = struct {
     scanout_frames: u64 = 0,
     tearing_requests: u64 = 0,
     tearing_failures: u64 = 0,
+    effect_applies: u64 = 0,
+    effect_skips: u64 = 0,
+    blur_nodes: u64 = 0,
     last_seq: u64 = 0,
     has_present_seq: bool = false,
 
@@ -74,6 +77,9 @@ pub const PerfStats = struct {
         self.scanout_frames = 0;
         self.tearing_requests = 0;
         self.tearing_failures = 0;
+        self.effect_applies = 0;
+        self.effect_skips = 0;
+        self.blur_nodes = 0;
         self.last_seq = 0;
         self.has_present_seq = false;
     }
@@ -96,6 +102,78 @@ pub const MAX_COMMAND = 512;
 pub const MAX_STATUS_ID = 48;
 pub const MAX_STATUS_TEXT = 160;
 pub const MAX_STATUS_COMMAND = 256;
+pub const MAX_EXTENSIONS = 16;
+pub const MAX_EXTENSION_ID = 32;
+pub const MAX_EXTENSION_DEPS = 8;
+pub const MAX_EXTENSION_TOKEN = 32;
+
+pub const EXT_PERM_READ: u16 = 1 << 0;
+pub const EXT_PERM_EVENTS: u16 = 1 << 1;
+pub const EXT_PERM_STATUS: u16 = 1 << 2;
+pub const EXT_PERM_WINDOW: u16 = 1 << 3;
+pub const EXT_PERM_WORKSPACE: u16 = 1 << 4;
+pub const EXT_PERM_LAYOUT: u16 = 1 << 5;
+pub const EXT_PERM_SPAWN: u16 = 1 << 6;
+pub const EXT_PERM_PANEL: u16 = 1 << 7;
+pub const EXT_PERM_CONTROL: u16 = 1 << 8;
+pub const EXT_PERM_EXTENSIONS: u16 = 1 << 9;
+pub const EXT_PERM_ALL: u16 = (1 << 10) - 1;
+pub const EXT_PERM_DEFAULT: u16 = EXT_PERM_READ | EXT_PERM_STATUS;
+
+pub const PANEL_MODULE_BACKGROUND: u16 = 1 << 0;
+pub const PANEL_MODULE_BAR: u16 = 1 << 1;
+pub const PANEL_MODULE_LAUNCHER: u16 = 1 << 2;
+pub const PANEL_MODULE_POPOVERS: u16 = 1 << 3;
+pub const PANEL_MODULE_NOTIFICATIONS: u16 = 1 << 4;
+pub const PANEL_MODULE_TOASTS: u16 = 1 << 5;
+pub const PANEL_MODULE_TRAY: u16 = 1 << 6;
+pub const PANEL_MODULE_MEDIA: u16 = 1 << 7;
+pub const PANEL_MODULE_AUDIO: u16 = 1 << 8;
+pub const PANEL_MODULE_ALL: u16 = (1 << 9) - 1;
+
+pub const ExtensionManifest = struct {
+    id: [MAX_EXTENSION_ID]u8 = @splat(0),
+    id_len: usize = 0,
+    command: [MAX_COMMAND]u8 = @splat(0),
+    command_len: usize = 0,
+    api: u8 = 1,
+    enabled: bool = true,
+    permissions: u16 = EXT_PERM_DEFAULT,
+    requires: [MAX_EXTENSION_DEPS][MAX_EXTENSION_ID]u8 = @splat(@as([MAX_EXTENSION_ID]u8, @splat(0))),
+    require_lens: [MAX_EXTENSION_DEPS]usize = @splat(0),
+    require_count: usize = 0,
+    after: [MAX_EXTENSION_DEPS][MAX_EXTENSION_ID]u8 = @splat(@as([MAX_EXTENSION_ID]u8, @splat(0))),
+    after_lens: [MAX_EXTENSION_DEPS]usize = @splat(0),
+    after_count: usize = 0,
+};
+
+pub const ExtensionState = enum {
+    disabled,
+    blocked,
+    stopped,
+    starting,
+    running,
+    ready,
+    failed,
+};
+
+pub const ExtensionRuntime = struct {
+    manifest: ExtensionManifest = .{},
+    server: ?*Server = null,
+    state: ExtensionState = .disabled,
+    pid: i32 = -1,
+    fd: i32 = -1,
+    source: ?*c.wl_event_source = null,
+    restart_timer: ?*c.wl_event_source = null,
+    failures: u32 = 0,
+    restarts: u32 = 0,
+    started_ms: i64 = 0,
+    ready: bool = false,
+    token: [MAX_EXTENSION_TOKEN]u8 = @splat(0),
+    token_len: usize = 0,
+    last_error: [128]u8 = @splat(0),
+    last_error_len: usize = 0,
+};
 
 pub const CursorMode = enum {
     passthrough,
@@ -391,6 +469,8 @@ pub const WindowRule = struct {
     tearing: RuleBool = .unset,
     has_border_width: bool = false,
     border_width: i32 = 0,
+    has_tint: bool = false,
+    tint_rgba: [4]f32 = .{ 0, 0, 0, 0 },
     scratchpad: RuleBool = .unset,
     special_workspace: [MAX_WORKSPACE_NAME]u8 = @splat(0),
     special_workspace_len: usize = 0,
@@ -494,6 +574,7 @@ pub const EffectHookState = struct {
     pending: bool = false,
     hello_sent: bool = false,
     version_logged: bool = false,
+    version: u8 = 0,
     request_sig: u64 = 0,
     request_count: usize = 0,
     request_ids: [MAX_CLIENTS]u64 = @splat(0),
@@ -619,6 +700,12 @@ pub const Config = struct {
     effect_helper: [MAX_COMMAND]u8,
     effect_helper_len: usize,
     effect_helper_timeout: i32,
+    extensions: [MAX_EXTENSIONS]ExtensionManifest,
+    extension_count: usize,
+    extension_order: [MAX_EXTENSIONS]u8,
+    extension_order_count: usize,
+    panel_modules: u16,
+    panel_modules_set: bool,
     frame_time_budget: i32,
     direct_scanout: bool,
     tearing: TearingMode,
@@ -651,6 +738,8 @@ pub const Config = struct {
     column_width_preset_count: usize,
     center_focused_column: CenterFocusedColumn,
     animation_view_ms: i32,
+    animation_view_curve: [MAX_CURVE_NAME]u8,
+    animation_view_curve_len: usize,
     workspace_pins: [MAX_WORKSPACE_PINS]WorkspacePin,
     workspace_pin_count: usize,
     workspace_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8,
@@ -773,6 +862,7 @@ pub const PanelState = struct {
     failures: u32 = 0,
     supervised: bool = false,
     notify_owner: bool = false,
+    modules: u16 = PANEL_MODULE_ALL,
 };
 
 pub const Output = struct {
@@ -823,6 +913,9 @@ pub const Client = struct {
     frame: *c.wlr_scene_tree,
     surface_tree: *c.wlr_scene_tree,
     content_buffer: ?*c.wlr_scene_buffer,
+    // A translucent colour overlay above the content, used by the tint rule
+    // and effect-helper v2. It is a scene rect so it works in both builds.
+    tint_rect: *c.wlr_scene_rect,
     // scenefx 0.5: blur is a dedicated node behind the content. Kept as a
     // generic scene node so the type exists in non-scenefx builds too.
     blur_node: ?*c.wlr_scene_node,
@@ -866,12 +959,27 @@ pub const Client = struct {
     blur: RuleBool,
     shadow: RuleBool,
     border_width: i32,
+    tint_rgba: [4]f32,
     hook_active: bool,
     hook_opacity: f32,
     hook_corner_radius: i32,
     hook_blur: RuleBool,
     hook_shadow: RuleBool,
     hook_border_width: i32,
+    hook_tint_rgba: [4]f32,
+    hook_anim: AnimationOverride,
+    hook_anim_active: bool,
+    // Last values applied by window_effects, used to skip redundant scene
+    // updates during repeated arrange/reload passes.
+    applied_opacity: f32,
+    applied_radius: i32,
+    applied_border_width: i32,
+    applied_tint: [4]f32,
+    applied_blur: bool,
+    applied_w: i32,
+    applied_h: i32,
+    applied_buffer: ?*c.wlr_scene_buffer,
+    applied_valid: bool,
     tearing: RuleBool,
     anim: AnimationOverride,
 
@@ -933,6 +1041,14 @@ pub fn effectiveClientShadow(cl: *const Client) RuleBool {
 
 pub fn effectiveClientBorderWidth(cl: *const Client) i32 {
     return if (cl.hook_active) cl.hook_border_width else cl.border_width;
+}
+
+pub fn effectiveClientTint(cl: *const Client) [4]f32 {
+    return if (cl.hook_active) cl.hook_tint_rgba else cl.tint_rgba;
+}
+
+pub fn effectiveClientAnim(cl: *const Client) AnimationOverride {
+    return if (cl.hook_anim_active) cl.hook_anim else cl.anim;
 }
 
 pub const InputPolicySnapshot = struct {
@@ -1034,6 +1150,10 @@ pub const IpcClient = struct {
     json_events: bool,
     rpc_subscription: [128]u8,
     rpc_subscription_len: usize,
+    extension_id: [MAX_EXTENSION_ID]u8,
+    extension_id_len: usize,
+    scopes: u16,
+    scoped: bool,
 };
 
 pub const Popup = struct {
@@ -1171,6 +1291,11 @@ pub const Server = struct {
     keyboard_count: usize,
     ipcs: [MAX_IPC]?*IpcClient,
     ipc_count: usize,
+    extensions: [MAX_EXTENSIONS]ExtensionRuntime,
+    extension_count: usize,
+    extension_order: [MAX_EXTENSIONS]u8,
+    extension_order_count: usize,
+    extensions_started: bool,
     statuses: [MAX_STATUS]StatusEntry,
     status_count: usize,
     text_inputs: [16]?*TextInput,

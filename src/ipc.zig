@@ -13,6 +13,8 @@ const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
 const render = @import("render.zig");
 const scrolling = @import("scrolling.zig");
+const api = @import("api.zig");
+const extension_manager = @import("extension_manager.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -129,6 +131,10 @@ fn onAccept(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
         cl.alive = true;
         cl.wants_state = false;
         cl.wants_events = false;
+        cl.json_events = false;
+        cl.extension_id_len = 0;
+        cl.scopes = types.EXT_PERM_ALL;
+        cl.scoped = false;
 
         if (server.ipc_count >= server.ipcs.len) {
             const msg = "ERR busy\n";
@@ -305,12 +311,23 @@ fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
     }
     if (count == 0) return false;
     if (std.mem.eql(u8, fields[0], "status")) {
+        if (!checkScope(cl, types.EXT_PERM_STATUS, "status")) return true;
         const id = if (count > 1) fields[1] else "";
         const text = if (count > 2) fields[2] else "";
         const command = if (count > 3) fields[3] else "";
         setStatus(cl.server, id, text, command);
         return true;
     }
+    return false;
+}
+
+fn checkRpcScope(cl: *IpcClient, id: []const u8, scope: u16, method: []const u8) bool {
+    if (!cl.scoped or (cl.scopes & scope) != 0) return true;
+    sendJsonError(cl, id, -32001, "forbidden");
+    core.logInfo("ipc: extension '{s}' denied rpc {s}", .{
+        cl.extension_id[0..cl.extension_id_len],
+        method,
+    });
     return false;
 }
 
@@ -361,23 +378,29 @@ fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
     };
 
     if (std.mem.eql(u8, method, "hello") or std.mem.eql(u8, method, "capabilities")) {
-        sendJsonResult(
-            cl,
-            id_text,
-            "{\"protocol\":\"tessa-jsonrpc\",\"version\":1,\"line_protocol\":1," ++
-                "\"capabilities\":[\"state\",\"config\",\"events\",\"subscriptions\",\"request-ids\"]}",
-        );
+        var hello_buf: [512]u8 = undefined;
+        const hello = std.fmt.bufPrint(
+            &hello_buf,
+            "{{\"protocol\":\"tessa-jsonrpc\",\"version\":{d},\"line_protocol\":{d}," ++
+                "\"tessa\":\"{s}\",\"extension_api\":{d},\"effect_api\":{d}," ++
+                "\"capabilities\":[\"state\",\"config\",\"events\",\"subscriptions\",\"request-ids\",\"extensions\",\"effects2\"]}}",
+            .{ api.jsonrpc, api.line_protocol, api.tessa_version, api.extension_api, api.effect_api },
+        ) catch "";
+        sendJsonResult(cl, id_text, hello);
     } else if (std.mem.eql(u8, method, "ping")) {
         sendJsonResult(cl, id_text, "{\"pong\":true}");
     } else if (std.mem.eql(u8, method, "state")) {
+        if (!checkRpcScope(cl, id_text, types.EXT_PERM_READ, method)) return;
         var result_buf: [131072]u8 = undefined;
         const len = json_snapshot.buildState(server, &result_buf);
         sendJsonResult(cl, id_text, result_buf[0..len]);
     } else if (std.mem.eql(u8, method, "config")) {
+        if (!checkRpcScope(cl, id_text, types.EXT_PERM_READ, method)) return;
         var result_buf: [131072]u8 = undefined;
         const len = json_snapshot.buildConfig(server, &result_buf);
         sendJsonResult(cl, id_text, result_buf[0..len]);
     } else if (std.mem.eql(u8, method, "subscribe")) {
+        if (!checkRpcScope(cl, id_text, types.EXT_PERM_EVENTS, method)) return;
         if (id_text.len > cl.rpc_subscription.len) {
             sendJsonError(cl, id_text, -32600, "subscription id is too long");
             return;
@@ -411,11 +434,100 @@ fn handleHello(cl: *IpcClient, line: []const u8) void {
         sendRaw(cl, "ERR\tinvalid-version\n");
         return;
     }
-    const negotiated: u8 = if (requested >= 1) 1 else 0;
+    const negotiated: u8 = if (requested >= api.line_protocol) api.line_protocol else @intCast(requested);
     cl.version = negotiated;
     cl.hello = true;
-    sendRaw(cl, "VERSION\t1\n");
-    sendRaw(cl, "CAPABILITIES\tstate,config,events,subscriptions,config-compare,perf,rendering,special,groups\n");
+
+    if (n > 2 and fields[2].len > 0) {
+        const ext = extension_manager.authenticate(cl.server, fields[2]) orelse {
+            sendRaw(cl, "ERR\tunauthorized\n");
+            cl.scoped = true;
+            cl.scopes = 0;
+            return;
+        };
+        cl.scoped = true;
+        cl.scopes = ext.manifest.permissions;
+        cl.extension_id_len = ext.manifest.id_len;
+        @memcpy(cl.extension_id[0..ext.manifest.id_len], ext.manifest.id[0..ext.manifest.id_len]);
+    }
+
+    var version_buf: [32]u8 = undefined;
+    const version_line = std.fmt.bufPrint(&version_buf, "VERSION\t{d}\n", .{api.line_protocol}) catch "VERSION\t1\n";
+    sendRaw(cl, version_line);
+    var caps_buf: [256]u8 = undefined;
+    const caps_line = std.fmt.bufPrint(&caps_buf, "CAPABILITIES\t{s}\n", .{api.capabilities}) catch "";
+    sendRaw(cl, caps_line);
+    if (cl.scoped and cl.extension_id_len > 0) {
+        var perm_buf: [128]u8 = undefined;
+        const perms = extension_manager.permissionsText(&perm_buf, cl.scopes);
+        var response_buf: [384]u8 = undefined;
+        const response = std.fmt.bufPrint(&response_buf, "EXTENSION\t{s}\t{s}\n", .{
+            cl.extension_id[0..cl.extension_id_len],
+            perms,
+        }) catch "";
+        sendRaw(cl, response);
+    }
+}
+
+fn scopeForCommand(cmd: []const u8) u16 {
+    if (std.mem.eql(u8, cmd, "state") or std.mem.eql(u8, cmd, "state-json") or
+        std.mem.eql(u8, cmd, "config") or std.mem.eql(u8, cmd, "config-json") or
+        std.mem.eql(u8, cmd, "config-compare") or std.mem.eql(u8, cmd, "perf") or
+        std.mem.eql(u8, cmd, "perf-json") or std.mem.eql(u8, cmd, "rendering") or
+        std.mem.eql(u8, cmd, "rendering-json"))
+    {
+        return types.EXT_PERM_READ;
+    }
+    if (std.mem.eql(u8, cmd, "subscribe")) return types.EXT_PERM_EVENTS;
+    if (std.mem.eql(u8, cmd, "status")) return types.EXT_PERM_STATUS;
+    if (std.mem.eql(u8, cmd, "workspace") or std.mem.eql(u8, cmd, "move-workspace") or
+        std.mem.eql(u8, cmd, "special") or std.mem.eql(u8, cmd, "toggle-special") or
+        std.mem.eql(u8, cmd, "move-to-special") or std.mem.eql(u8, cmd, "toggle-scratchpad") or
+        std.mem.eql(u8, cmd, "move-to-scratchpad"))
+    {
+        return types.EXT_PERM_WORKSPACE;
+    }
+    if (std.mem.eql(u8, cmd, "layout") or std.mem.eql(u8, cmd, "column-focus") or
+        std.mem.eql(u8, cmd, "column-move") or std.mem.eql(u8, cmd, "window-move") or
+        std.mem.eql(u8, cmd, "column-consume") or std.mem.eql(u8, cmd, "column-expel") or
+        std.mem.eql(u8, cmd, "column-width"))
+    {
+        return types.EXT_PERM_LAYOUT;
+    }
+    if (std.mem.eql(u8, cmd, "focus") or std.mem.eql(u8, cmd, "close") or
+        std.mem.eql(u8, cmd, "urgent") or std.mem.eql(u8, cmd, "float") or
+        std.mem.eql(u8, cmd, "swap") or std.mem.eql(u8, cmd, "reorder") or
+        std.mem.eql(u8, cmd, "resize") or std.mem.eql(u8, cmd, "toggle-group") or
+        std.mem.eql(u8, cmd, "group-next") or std.mem.eql(u8, cmd, "group-prev") or
+        std.mem.eql(u8, cmd, "group-add") or std.mem.eql(u8, cmd, "group-remove"))
+    {
+        return types.EXT_PERM_WINDOW;
+    }
+    if (std.mem.eql(u8, cmd, "spawn")) return types.EXT_PERM_SPAWN;
+    if (std.mem.eql(u8, cmd, "launcher") or std.mem.eql(u8, cmd, "panel") or
+        std.mem.eql(u8, cmd, "notification-action"))
+    {
+        return types.EXT_PERM_PANEL;
+    }
+    if (std.mem.eql(u8, cmd, "reload") or std.mem.eql(u8, cmd, "quit") or
+        std.mem.eql(u8, cmd, "mode"))
+    {
+        return types.EXT_PERM_CONTROL;
+    }
+    if (std.mem.eql(u8, cmd, "extensions") or std.mem.eql(u8, cmd, "extensions-json") or
+        std.mem.eql(u8, cmd, "extension-enable"))
+    {
+        return types.EXT_PERM_EXTENSIONS;
+    }
+    return 0;
+}
+
+fn checkScope(cl: *IpcClient, scope: u16, cmd: []const u8) bool {
+    if (!cl.scoped or scope == 0 or (cl.scopes & scope) != 0) return true;
+    var buf: [160]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, "ERR\tforbidden\t{s}\n", .{cmd}) catch "ERR\tforbidden\n";
+    sendRaw(cl, msg);
+    return false;
 }
 
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
@@ -446,6 +558,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     if (std.mem.eql(u8, toks[0], "CMD")) start = 1;
     if (start >= n) return;
     const cmd = toks[start];
+    if (!checkScope(cl, scopeForCommand(cmd), cmd)) return;
 
     if (std.mem.eql(u8, cmd, "state")) {
         sendState(server, cl);
@@ -654,6 +767,20 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             const dx = std.fmt.parseInt(i32, toks[start + 1], 10) catch return;
             const dy = std.fmt.parseInt(i32, toks[start + 2], 10) catch return;
             layout.keyboardResize(server, dx, dy);
+            broadcastState(server);
+        }
+    } else if (std.mem.eql(u8, cmd, "extensions")) {
+        sendExtensions(server, cl);
+    } else if (std.mem.eql(u8, cmd, "extensions-json")) {
+        sendExtensionsJson(server, cl);
+    } else if (std.mem.eql(u8, cmd, "extension-enable")) {
+        if (start + 2 < n) {
+            const enabled = std.ascii.eqlIgnoreCase(toks[start + 2], "on") or
+                std.ascii.eqlIgnoreCase(toks[start + 2], "true") or
+                std.mem.eql(u8, toks[start + 2], "1");
+            if (!extension_manager.setEnabled(server, toks[start + 1], enabled)) {
+                core.logInfo("extension: unknown id '{s}'", .{toks[start + 1]});
+            }
             broadcastState(server);
         }
     } else if (std.mem.eql(u8, cmd, "mode")) {
@@ -917,19 +1044,64 @@ fn buildState(server: *Server, buf: []u8) usize {
     }
 
     i = 0;
+    while (i < server.extension_count) : (i += 1) {
+        const ext = &server.extensions[i];
+        var perm_buf: [128]u8 = undefined;
+        const perms = extension_manager.permissionsText(&perm_buf, ext.manifest.permissions);
+        append(buf, &off, "EXT {s} {s} {d} {d} {d} {d} {d} {s}\n", .{
+            ext.manifest.id[0..ext.manifest.id_len],
+            extension_manager.stateName(ext.state),
+            ext.manifest.api,
+            ext.pid,
+            @as(u8, if (ext.ready) 1 else 0),
+            ext.restarts,
+            @as(u8, if (ext.manifest.enabled) 1 else 0),
+            perms,
+        });
+        if (off > buf.len - 512) break;
+    }
+
+    i = 0;
     while (i < server.outputs.len) : (i += 1) {
         const out = server.outputs[i] orelse continue;
         append(buf, &off, "PANEL\t{s}\t{d}\t{d}\t{d}\n", .{
             core.outputName(out),
             out.panel.pid,
             @as(u8, if (out.panel.supervised) 1 else 0),
-            @as(u8, if (out.panel.notify_owner) 1 else 0),
+            @as(u8, if (out.panel.notify_owner and
+                (server.config.panel_modules & types.PANEL_MODULE_NOTIFICATIONS) != 0) 1 else 0),
         });
         if (off > buf.len - 512) break;
     }
 
     append(buf, &off, "END\n", .{});
     return off;
+}
+
+fn panelModulesText(buf: []u8, modules: u16) []const u8 {
+    var off: usize = 0;
+    const items = [_]struct { bit: u16, name: []const u8 }{
+        .{ .bit = types.PANEL_MODULE_BACKGROUND, .name = "background" },
+        .{ .bit = types.PANEL_MODULE_BAR, .name = "bar" },
+        .{ .bit = types.PANEL_MODULE_LAUNCHER, .name = "launcher" },
+        .{ .bit = types.PANEL_MODULE_POPOVERS, .name = "popovers" },
+        .{ .bit = types.PANEL_MODULE_NOTIFICATIONS, .name = "notifications" },
+        .{ .bit = types.PANEL_MODULE_TOASTS, .name = "toasts" },
+        .{ .bit = types.PANEL_MODULE_TRAY, .name = "tray" },
+        .{ .bit = types.PANEL_MODULE_MEDIA, .name = "media" },
+        .{ .bit = types.PANEL_MODULE_AUDIO, .name = "audio" },
+    };
+    for (items) |item| {
+        if (modules & item.bit == 0) continue;
+        if (off > 0 and off < buf.len) {
+            buf[off] = ',';
+            off += 1;
+        }
+        if (off + item.name.len > buf.len) break;
+        @memcpy(buf[off .. off + item.name.len], item.name);
+        off += item.name.len;
+    }
+    return buf[0..off];
 }
 
 fn columnWidthText(buf: []u8, width: types.ColumnWidth) []const u8 {
@@ -981,6 +1153,7 @@ fn buildConfigText(server: *Server, buf: []u8) usize {
     append(buf, &off, "\n", .{});
     append(buf, &off, "center_focused_column {s}\n", .{@tagName(cfg.center_focused_column)});
     append(buf, &off, "animation_view_ms {d}\n", .{cfg.animation_view_ms});
+    append(buf, &off, "animation_view_curve {s}\n", .{cfg.animation_view_curve[0..cfg.animation_view_curve_len]});
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {
         append(buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
@@ -1010,6 +1183,20 @@ fn buildConfigText(server: *Server, buf: []u8) usize {
         append(buf, &off, "mode {s}\n", .{cfg.mode_names[mi][0..cfg.mode_name_lens[mi]]});
     }
     append(buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
+    var module_buf: [128]u8 = undefined;
+    append(buf, &off, "panel_modules {s}\n", .{panelModulesText(&module_buf, cfg.panel_modules)});
+    var ei: usize = 0;
+    while (ei < cfg.extension_count) : (ei += 1) {
+        const ext = &cfg.extensions[ei];
+        var perm_buf: [128]u8 = undefined;
+        append(buf, &off, "extension {s} {s} {d} {d} {s}\n", .{
+            ext.id[0..ext.id_len],
+            ext.command[0..ext.command_len],
+            ext.api,
+            @as(u8, if (ext.enabled) 1 else 0),
+            extension_manager.permissionsText(&perm_buf, ext.permissions),
+        });
+    }
     append(buf, &off, "xwayland {d}\n", .{@as(u8, if (cfg.xwayland) 1 else 0)});
     append(buf, &off, "xwayland_display {s}\n", .{cfg.xwayland_display[0..cfg.xwayland_display_len]});
     append(buf, &off, "animations {d}\n", .{@as(u8, if (cfg.animations) 1 else 0)});
@@ -1342,7 +1529,7 @@ fn sendPerf(server: *Server, cl: *IpcClient, json: bool) void {
     var buf: [16384]u8 = undefined;
     var off: usize = 0;
     if (json) {
-        append(&buf, &off, "{{\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"budget_ms\":{d},\"over_budget\":{d},\"scenefx\":{d},\"outputs\":[", .{
+        append(&buf, &off, "{{\"frames\":{d},\"samples\":{d},\"avg_us\":{d},\"p50_us\":{d},\"p95_us\":{d},\"max_us\":{d},\"last_us\":{d},\"budget_ms\":{d},\"over_budget\":{d},\"effect_applies\":{d},\"effect_skips\":{d},\"blur_nodes\":{d},\"scenefx\":{d},\"outputs\":[", .{
             perf.frames,
             perf.sample_count,
             summary.avg,
@@ -1352,6 +1539,9 @@ fn sendPerf(server: *Server, cl: *IpcClient, json: bool) void {
             perf.last_us,
             server.config.frame_time_budget,
             perf.over_budget,
+            perf.effect_applies,
+            perf.effect_skips,
+            perf.blur_nodes,
             @as(u8, if (window_effects.available()) 1 else 0),
         });
         var first = true;
@@ -1373,6 +1563,9 @@ fn sendPerf(server: *Server, cl: *IpcClient, json: bool) void {
         append(&buf, &off, "last_us {d}\n", .{perf.last_us});
         append(&buf, &off, "budget_ms {d}\n", .{server.config.frame_time_budget});
         append(&buf, &off, "over_budget {d}\n", .{perf.over_budget});
+        append(&buf, &off, "effect_applies {d}\n", .{perf.effect_applies});
+        append(&buf, &off, "effect_skips {d}\n", .{perf.effect_skips});
+        append(&buf, &off, "blur_nodes {d}\n", .{perf.blur_nodes});
         append(&buf, &off, "scenefx {d}\n", .{@as(u8, if (window_effects.available()) 1 else 0)});
         var i: usize = 0;
         while (i < server.outputs.len) : (i += 1) {
@@ -1489,6 +1682,38 @@ pub fn broadcastState(server: *Server) void {
         if (!cl.wants_state) continue;
         sendRaw(cl, buf[0..len]);
     }
+}
+
+fn sendExtensions(server: *Server, cl: *IpcClient) void {
+    var buf: [16384]u8 = undefined;
+    var off: usize = 0;
+    append(&buf, &off, "EXTENSIONS\n", .{});
+    var i: usize = 0;
+    while (i < server.extension_count) : (i += 1) {
+        const ext = &server.extensions[i];
+        var perm_buf: [128]u8 = undefined;
+        const perms = extension_manager.permissionsText(&perm_buf, ext.manifest.permissions);
+        append(&buf, &off, "EXT {s} {s} {d} {d} {d} {d} {d} {s}\n", .{
+            ext.manifest.id[0..ext.manifest.id_len],
+            extension_manager.stateName(ext.state),
+            ext.manifest.api,
+            ext.pid,
+            @as(u8, if (ext.ready) 1 else 0),
+            ext.restarts,
+            @as(u8, if (ext.manifest.enabled) 1 else 0),
+            perms,
+        });
+    }
+    append(&buf, &off, "END\n", .{});
+    sendRaw(cl, buf[0..off]);
+}
+
+fn sendExtensionsJson(server: *Server, cl: *IpcClient) void {
+    var buf: [32768]u8 = undefined;
+    const len = json_snapshot.buildExtensionsArray(server, &buf);
+    sendRaw(cl, "EXTENSIONS_JSON\n");
+    sendRaw(cl, buf[0..len]);
+    sendRaw(cl, "\nEND\n");
 }
 
 fn sendState(server: *Server, cl: *IpcClient) void {

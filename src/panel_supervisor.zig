@@ -105,6 +105,7 @@ pub fn start(out: *Output) void {
     const panel = &out.panel;
     if (panel.pid > 0) return;
     panel.supervised = true;
+    panel.modules = server.config.panel_modules;
     disarmRestart(out);
 
     var name_buf: [128:0]u8 = undefined;
@@ -134,7 +135,8 @@ pub fn start(out: *Output) void {
         _ = c.setenv("TESSA_PANEL_OUTPUT_MAKE", &make_buf, 1);
         _ = c.setenv("TESSA_PANEL_OUTPUT_MODEL", &model_buf, 1);
         _ = c.setenv("TESSA_PANEL_OUTPUT_SERIAL", &serial_buf, 1);
-        _ = c.setenv("TESSA_PANEL_NOTIFY_OWNER", if (panel.notify_owner) "1" else "0", 1);
+        _ = c.setenv("TESSA_PANEL_NOTIFY_OWNER", if (panel.notify_owner and
+            (server.config.panel_modules & types.PANEL_MODULE_NOTIFICATIONS) != 0) "1" else "0", 1);
         _ = c.execlp(bin, bin, @as(?[*:0]const u8, null));
         c._exit(127);
     }
@@ -207,7 +209,14 @@ pub fn reload(server: *Server) void {
     while (i < server.outputs.len) : (i += 1) {
         const out = server.outputs[i] orelse continue;
         if (want) {
-            if (!out.panel.supervised) start(out);
+            if (!out.panel.supervised) {
+                start(out);
+            } else if (out.panel.modules != server.config.panel_modules) {
+                // Surface and service ownership changed; restart so the panel
+                // reconstructs exactly the selected modules.
+                stop(out);
+                start(out);
+            }
         } else if (out.panel.supervised) {
             stop(out);
         }

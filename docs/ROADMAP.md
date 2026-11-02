@@ -89,6 +89,29 @@ default.
 - [ ] Validate Scrolling, drag reorder, and wheel scrolling in a real
       DRM/libinput session, including fractional scaling and touchpad gestures.
 
+## Extension and shell foundation
+
+Keep the process-based extension model while giving extensions identity,
+ordering, and visible state.
+
+- [x] Central API registry (`src/api.zig`) for line, JSON-RPC, state/config,
+      layout, effect, and extension protocol versions.
+- [x] Config-declared supervised extensions with API versions, token scopes,
+      `requires`/`after` dependency sorting, pidfd restart backoff, lifecycle
+      events, `tessa-ctl extensions`, and JSON state.
+- [x] Panel module ownership (`panel_modules`) for background, bar, launcher,
+      popovers, notifications, toasts, tray, media, and audio, including
+      notification-owner gating and supervisor restart on mask changes.
+- [x] Extensions popover with runtime enable/disable.
+- [x] Effect-helper protocol v2: key=value partial overrides, tint, per-window
+      animation durations/curves, and v1 compatibility.
+- [x] `animation_view_curve`, last-applied effect caching, and
+      `effect_applies`/`effect_skips`/`blur_nodes` counters.
+- [ ] Long-lived background shader frame stream with uniforms.
+- [ ] Per-window GPU shaders through a custom renderer design.
+- [ ] Schema-driven per-extension settings forms and persistent runtime toggles.
+- [ ] Sandboxing, signatures, and a marketplace/update mechanism.
+
 ## 0.1.x — make the foundation trustworthy
 
 - [x] Run on DRM + libinput on the target machine and fix layout/input issues.

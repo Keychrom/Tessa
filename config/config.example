@@ -42,6 +42,8 @@ layout = master
 # center_focused_column = never   # never | always | on-overflow
 # Viewport animation duration in milliseconds; 0 disables the slide.
 # animation_view_ms = 180
+# Curve used by the scrolling viewport (builtin or curve = name,...).
+# animation_view_curve = ease-out-cubic
 # The default cycle keeps the original four modes so existing setups behave the
 # same. Add the new modes explicitly:
 # layout_cycle = master,mosaic,grid,columns,scrolling,monocle,stacking
@@ -62,6 +64,8 @@ layout = master
 # Allow tearing for one fullscreen app while the global default stays off.
 # window-rule = app-id=gamescope; tearing=true
 # window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
+# A translucent colour overlay above the content; #RRGGBB or #RRGGBBAA.
+# window-rule = app-id=mpv; tint=#ff884422
 # Per-window motion: animation=false disables all motion for matching windows.
 # animation-ms sets the base duration; open/workspace/close durations and curves
 # can be overridden independently.
@@ -157,6 +161,14 @@ layout = master
 # effect_helper = python3 ~/.config/tessa/effects.py
 # effect_helper_timeout = 200
 
+# Supervised extensions. Each entry starts one long-lived process. The process
+# connects to the IPC socket and sends `HELLO 1 $TESSA_EXTENSION_TOKEN` to
+# identify itself. Permissions are cooperative scopes, not a sandbox:
+# read, events, status, window, workspace, layout, spawn, panel, control,
+# extensions (or all/none). requirements start after their dependencies.
+# extension = id=weather; command=weatherd; api=1; permissions=read,status
+# extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
+
 # Render-commit time budget in milliseconds. Frames above this budget are
 # counted by `tessa-ctl perf`; use `tessa-ctl perf --json` for benchmarks.
 # The default targets a 60 Hz desktop (16 ms). On a software headless renderer,
@@ -216,6 +228,12 @@ blur_passes = 3
 
 # Start tessa-panel together with the compositor.
 panel = true
+# Select the parts of Tessa Panel that run. Use this to keep Tessa
+# notifications while Waybar owns the bar, or to let an external launcher take
+# over. `all` (default) and `none` are accepted.
+# panel_modules = background,bar,launcher,popovers,notifications,toasts,tray,media,audio
+# For example, Tessa notifications and launcher with an external bar:
+# panel_modules = launcher,notifications,toasts
 # External layer-shell bars (Waybar, Quickshell) reserve their exclusive zone
 # automatically. To use one as the only bar, disable Tessa Panel here and start
 # it from `startup` below; the default stays the integrated panel.
@@ -229,7 +247,7 @@ bar_side_margin = 16
 panel_bg = #0e1320
 panel_fg = #eef2f8
 # Composable bar modules. The list selects visible modules and orders the
-# right-hand cluster (left to right). logo/workspaces/chips stay anchored.
+# right-hand cluster (first listed is closest to the right edge). logo/workspaces/chips stay anchored.
 # Names: logo, workspaces, chips, clock, battery, network, volume, stats, media,
 # tray, status. Unknown names are ignored for forward compatibility.
 # bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status

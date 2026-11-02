@@ -88,6 +88,8 @@ fn canScanout(client: *Client, out: *Output) bool {
     if (!types.clientVisible(client, out)) return false;
     if (client.animating or client.anim_off_x != 0 or client.anim_off_y != 0) return false;
     if (types.effectiveClientOpacity(client) < 0.999) return false;
+    const tint = types.effectiveClientTint(client);
+    if (tint[3] > 0.001) return false;
     if (!coversOutput(client, out)) return false;
     // wlr_buffer_is_opaque() is a false negative for many DMA-BUFs. The
     // scene's scanout check validates the actual plane format; requiring a

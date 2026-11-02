@@ -88,6 +88,29 @@ Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手
       ホイールスクロールを検証（フラクショナルスケーリングとタッチパッド
       ジェスチャを含む）。
 
+## 拡張 API とシェルの基盤
+
+プロセス方式の拡張モデルを維持しつつ、拡張に identity、順序、可視状態を
+与えます。
+
+- [x] line、JSON-RPC、state/config、layout、effect、extension の
+      バージョンを `src/api.zig` に集約。
+- [x] 設定で宣言する監視付き拡張: API バージョン、token スコープ、
+      `requires`/`after` の依存ソート、pidfd 再起動バックオフ、
+      ライフサイクルイベント、`tessa-ctl extensions`、JSON 状態。
+- [x] `panel_modules` による background、bar、launcher、popovers、
+      notifications、toasts、tray、media、audio の所有権分離。
+      通知所有者の制御と、マスク変更時の supervisor 再起動を含む。
+- [x] 拡張一覧ポップオーバーと実行時 enable/disable。
+- [x] effect helper v2: key=value の部分上書き、tint、ウィンドウ別
+      アニメーション時間/カーブ、v1 互換。
+- [x] `animation_view_curve`、effect の last-applied キャッシュ、
+      `effect_applies`/`effect_skips`/`blur_nodes` カウンタ。
+- [ ] uniform 付きの常駐背景シェーダーフレームストリーム。
+- [ ] custom renderer 設計によるウィンドウ単位 GPU シェーダー。
+- [ ] スキーマ駆動の拡張設定フォームと実行時設定の永続化。
+- [ ] サンドボックス、署名、marketplace/更新機構。
+
 ## 0.1.x — 土台を信頼できるものにする
 
 - [x] 対象マシンで DRM + libinput を実行し、レイアウトと入力の問題を直す。

@@ -460,6 +460,7 @@ edits are rejected and keep the previous configuration.
 | `column_width_presets` | `33.333%,50%,66.667%` | Presets cycled by `column-width-cycle` |
 | `center_focused_column` | `never` | Scrolling focus policy: `never`, `always`, `on-overflow` |
 | `animation_view_ms` | `180` | Scrolling viewport animation duration |
+| `animation_view_curve` | `ease-out-cubic` | Curve for the scrolling viewport |
 | `layout_1` … `layout_9` | inherited | Initial layout for a workspace without a saved/runtime override |
 | `layout_helper` | empty | One asynchronous custom layout helper per output |
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
@@ -531,6 +532,7 @@ motion.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `panel` / `autostart_panel` | `true` | Auto-start `tessa-panel` per output |
+| `panel_modules` | all | Enabled panel parts: `background`, `bar`, `launcher`, `popovers`, `notifications`, `toasts`, `tray`, `media`, `audio`; also `all`/`none` |
 | `bar_height` | `44` | Bar height (32–96) |
 | `bar_top_margin` | `12` | Distance from the top (0–64) |
 | `bar_side_margin` | `16` | Left/right margin (0–128) |
@@ -898,6 +900,7 @@ Actions:
 | `shadow=true/false` | Per-window layered shadow |
 | `tearing=true/false` | Allow async tearing for this client when `tearing` is `fullscreen` or `force` (or opt in while the global mode is `off`) |
 | `border-width=0..16` | Per-window border thickness; `0` hides it |
+| `tint=#RRGGBBAA` | Translucent colour overlay above the content; `none` clears it |
 | `animation=true/false` | Enable or disable motion for this window |
 | `animation-ms=N` | Base animation duration override (0–1000) |
 | `animation-open-ms`, `animation-workspace-ms`, `animation-close-ms` | Per-kind duration override |
@@ -1103,31 +1106,34 @@ effect_helper_timeout = 200
 ```
 
 The effect helper is one long-lived process for all outputs. Tessa sends a
-coalesced request whenever window metadata or focus changes:
+coalesced request whenever window metadata or focus changes. The current
+protocol is v2; helpers that reply `VERSION 1` keep using the v1 positional
+format.
 
 ```text
-HELLO 1
-EFFECT 1
-WINDOW <id> <app-id> <title> <output> <ws> <focused> <urgent> <fullscreen> <floating> <visible> <opacity> <radius> <blur> <shadow> <border-width> <x> <y> <w> <h>
+HELLO 2
+EFFECT 2
+WINDOW <id> <app-id> <title> <output> <ws> <focused> <urgent> <fullscreen> <floating> <visible> <opacity> <radius> <blur> <shadow> <border-width> <x> <y> <w> <h> [<tint>]
 END
 ```
 
-Fields after the title are tab-separated. The helper replies with an optional
-`VERSION 1`, zero or more overrides, and `END`:
+Fields after the title are tab-separated. `tint` is appended only after the
+helper has negotiated v2. Reply:
 
 ```text
-VERSION 1
-WINDOW <id> <opacity> <radius> <blur> <shadow> <border-width>
+VERSION 2
+WINDOW <id> opacity=0.9 radius=16 blur=on shadow=off border-width=2 tint=#ff8844aa open-ms=240 open-curve=spring-soft
 END
 ```
 
-`opacity` is 0–1, radius 0–64, blur/shadow are `on`, `off`, or `unset`, and
-border width is 0–16. Omitting a window removes any previous override. Tessa
-validates IDs and ranges; a timeout, crash, or malformed reply drops all
-overrides and returns to rule visuals, then retries after one second. `stdout`
-is reserved for the protocol. See
-[EXTENDING.md](EXTENDING.md#effect-helper-process-protocol) for a runnable
-example. The protocol never injects code into the compositor.
+Every v2 field is optional; omitted fields keep the rule value. `tint` is
+`#RRGGBBAA` or `none`; animation fields accept `-1`–`1000` ms and any curve
+registered by `bezier`/`spring` or the built-ins. Omitting a window removes its
+override. Tessa validates IDs, ranges, and curve names; a timeout, crash,
+malformed reply, unknown curve, or bad value drops all overrides and returns to
+rule visuals, then retries after one second. `stdout` is reserved for the
+protocol. See [EXTENDING.md](EXTENDING.md#effect-helper-process-protocol). The
+protocol never injects code into the compositor.
 
 ---
 
@@ -1185,7 +1191,21 @@ startup = waybar
 ```
 
 `panel = false` also turns off Tessa's background, notifications, and built-in
-launcher. Use an external wallpaper and notification daemon if you need them.
+launcher. To keep selected parts of Tessa Panel, leave `panel = true` and
+choose the pieces instead:
+
+```ini
+# Keep Tessa's launcher and notifications; let Waybar own the bar.
+panel = true
+panel_modules = launcher,notifications,toasts
+startup = waybar
+```
+
+`panel_modules` accepts `background`, `bar`, `launcher`, `popovers`,
+`notifications`, `toasts`, `tray`, `media`, and `audio` (`all`/`none` are
+aliases). The supervisor restarts the panel when the mask changes. If both
+Tessa's bar and an external bar reserve the same edge, both exclusive zones are
+honored and the desktop becomes shorter; disable one of them.
 
 Waybar 0.15 uses layer-shell directly and can use the standard workspace and
 toplevel protocols:
@@ -1292,7 +1312,8 @@ bar_bg = #0e1320
 ```
 
 `bar_layout` selects visible modules and orders the right-hand cluster from
-left to right. Recognized names are `logo`, `workspaces`, `chips`, `clock`,
+right to left (the first listed module is closest to the right edge). Recognized
+names are `logo`, `workspaces`, `chips`, `clock`,
 `battery`, `network`, `volume`, `stats`, `media`, `tray`, and `status`; unknown
 names are ignored. Logo, workspace pills, and window chips stay anchored.
 `bar-font`, `launcher-font`, `popover-font`, and `toast-font` fall back to
@@ -1693,12 +1714,15 @@ The socket is `$TESSA_IPC` or `$XDG_RUNTIME_DIR/tessa.sock`, mode 0600. A
 connection receives nothing until it subscribes.
 
 ```text
-HELLO <version>
+HELLO <version> [<extension-token>]
 CMD subscribe state|events|all
 CMD state
 CMD state-json
 CMD config
 CMD config-json
+CMD extensions
+CMD extensions-json
+CMD extension-enable <id> on|off
 CMD config-compare <path>
 CMD perf
 CMD perf-json
@@ -1738,12 +1762,16 @@ CMD notification-action <id> <key>
 CMD quit
 ```
 
-`HELLO <version>` is optional and may be sent first. Tessa replies
+`HELLO <version> [<token>]` is optional and may be sent first. Tessa replies
 `VERSION\t1` and a tab-separated `CAPABILITIES` line, then keeps the connection
-open for commands. Unknown/newer versions negotiate down to 1; a non-numeric
-version gets `ERR\tinvalid-version`. Clients that send commands directly remain
-compatible (line protocol 0). `tessa-ctl hello` prints the negotiated version
-and capability list.
+open for commands. The capability list includes `extensions`, `effects2`, and
+`shell-modules`. Unknown/newer versions negotiate down to 1; a non-numeric
+version gets `ERR\tinvalid-version`. A supervised extension appends its
+`TESSA_EXTENSION_TOKEN`; Tessa replies with `EXTENSION\t<id>\t<permissions>`
+after the capability line. An unknown token gets `ERR\tunauthorized`.
+Clients that send commands directly remain compatible (line protocol 0) and
+keep full access. `tessa-ctl hello` prints the negotiated version and
+capability list.
 
 `STATE`/`CONFIG` snapshots end with `END`. `OUT` is
 `name workspace focused layout`. `WIN` is tab-separated:
@@ -1768,11 +1796,18 @@ COL  <output> <workspace> <index> <x> <width> <focused> <maximized> <tabbed> <wi
 column's screen position (already offset), and `tabbed` marks a column that
 holds a window group.
 
+`EXT` lines describe supervised extensions:
+`EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`.
+A `ready` flag means the process authenticated with its token; a running
+process that has not done so is still `running`.
+
 `tessa-ctl` wraps the common operations:
 
 ```sh
 tessa-ctl state
 tessa-ctl hello
+tessa-ctl extensions [--json]
+tessa-ctl extension-enable weather off
 tessa-ctl config
 tessa-ctl config-check [file]
 tessa-ctl config-diff file
@@ -1896,6 +1931,10 @@ best-effort.
 | `animation-done` | Open/workspace slide finishes | id, ws, output, arg |
 | `close-animation-start` | Close snapshot starts | id, ws, output, arg (`close`) |
 | `close-animation-done` | Close snapshot finishes | id, ws, output, arg |
+| `extension-start` | Supervised extension process started | arg (extension id) |
+| `extension-ready` | Extension authenticated with its token | arg |
+| `extension-failed` | Extension exited unexpectedly | arg |
+| `extension-stop` | Extension disabled or stopped deliberately | arg |
 
 ### 13.4 Hooks
 
@@ -1923,7 +1962,49 @@ tessa-ctl status weather --clear
 An id is stable; updates replace in place. Max eight entries, up to 159 bytes,
 shared across outputs. Clicking sends `CMD spawn <command>`.
 
-### 13.6 Launcher entries
+### 13.6 Supervised extensions
+
+An extension is a config-declared, supervised process. It speaks the same
+control socket as other clients:
+
+```ini
+extension = id=weather; command=weatherd; api=1; permissions=read,status
+extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
+```
+
+`api` must be supported by the compositor (currently 1). `permissions` is a
+comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
+`layout`, `spawn`, `panel`, `control`, `extensions`; use `all` or `none` for the
+extremes. The default is `read,status`. `requires` and `after` are dependency
+ids; unknown ids and cycles are config errors. The supervisor starts extensions
+in dependency order, uses pidfd exit detection and exponential restart backoff,
+and passes `TESSA_EXTENSION_ID`, `TESSA_EXTENSION_TOKEN`,
+`TESSA_EXTENSION_API`, and `TESSA_EXTENSION_PERMISSIONS`.
+
+The process identifies itself before sending commands:
+
+```text
+HELLO 1 $TESSA_EXTENSION_TOKEN
+VERSION 1
+CAPABILITIES ...
+EXTENSION weather read,status
+```
+
+A missing or wrong permission gets `ERR forbidden <command>`. This is a
+cooperative scope check, not a sandbox: the extension runs as the same user and
+can read files, the token, or the socket directly. Clients that do not send a
+token keep the legacy full-access behavior, including `tessa-panel` and
+`tessa-ctl`.
+
+`CMD extensions` and `CMD extensions-json` list the runtime state. `EXT` state
+lines use
+`EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`;
+states are `disabled`, `blocked`, `stopped`, `running`, `ready`, and `failed`.
+`CMD extension-enable <id> on|off` changes the current session only. The
+panel's Extensions popover is opened with `tessa-ctl panel extensions` and
+toggles the selected entry with Enter.
+
+### 13.7 Launcher entries
 
 ```ini
 launcher_entry = Notes | foot -e nvim ~/notes.md

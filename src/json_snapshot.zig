@@ -3,6 +3,8 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const modes = @import("modes.zig");
 const scrolling = @import("scrolling.zig");
+const api = @import("api.zig");
+const extension_manager = @import("extension_manager.zig");
 
 const Server = types.Server;
 
@@ -52,7 +54,14 @@ fn addBool(buf: []u8, off: *usize, value: bool) void {
 
 pub fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
-    add(buf, &off, "{{\"schema\":1,\"active_workspace\":{d},\"active_workspace_name\":", .{server.active_ws});
+    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"effect_api\":{d},\"active_workspace\":{d},\"active_workspace_name\":", .{
+        api.state_schema,
+        api.tessa_version,
+        api.line_protocol,
+        api.extension_api,
+        api.effect_api,
+        server.active_ws,
+    });
     addString(buf, &off, types.workspaceName(&server.config, server.active_ws));
     addRaw(buf, &off, ",\"workspace_names\":[");
     var wn: usize = 0;
@@ -207,6 +216,20 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, blur);
         addRaw(buf, &off, ",\"shadow\":");
         addBool(buf, &off, shadow);
+        const tint = types.effectiveClientTint(cl);
+        add(buf, &off, ",\"tint\":[{d:.3},{d:.3},{d:.3},{d:.3}]", .{ tint[0], tint[1], tint[2], tint[3] });
+        const anim = types.effectiveClientAnim(cl);
+        add(buf, &off, ",\"animation\":{{\"open_ms\":{d},\"workspace_ms\":{d},\"close_ms\":{d},\"open_curve\":", .{
+            anim.open_ms,
+            anim.workspace_ms,
+            anim.close_ms,
+        });
+        addString(buf, &off, anim.open_curve[0..anim.open_curve_len]);
+        addRaw(buf, &off, ",\"workspace_curve\":");
+        addString(buf, &off, anim.workspace_curve[0..anim.workspace_curve_len]);
+        addRaw(buf, &off, ",\"close_curve\":");
+        addString(buf, &off, anim.close_curve[0..anim.close_curve_len]);
+        addRaw(buf, &off, "}");
         const tearing = switch (cl.tearing) {
             .on => true,
             .off => false,
@@ -245,8 +268,72 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, blur);
         addRaw(buf, &off, "}");
     }
-    addRaw(buf, &off, "]}");
+    addRaw(buf, &off, "],\"extensions\":");
+    if (off < buf.len) {
+        const written = buildExtensionsArray(server, buf[off..]);
+        off += written;
+    }
+    addRaw(buf, &off, "}");
     return off;
+}
+
+pub fn buildExtensionsArray(server: *Server, buf: []u8) usize {
+    var off: usize = 0;
+    addRaw(buf, &off, "[");
+    var i: usize = 0;
+    while (i < server.extension_count) : (i += 1) {
+        if (i > 0) addRaw(buf, &off, ",");
+        const ext = &server.extensions[i];
+        addRaw(buf, &off, "{\"id\":");
+        addString(buf, &off, ext.manifest.id[0..ext.manifest.id_len]);
+        addRaw(buf, &off, ",\"state\":");
+        addString(buf, &off, extension_manager.stateName(ext.state));
+        add(buf, &off, ",\"api\":{d},\"pid\":{d},\"ready\":", .{ ext.manifest.api, ext.pid });
+        addBool(buf, &off, ext.ready);
+        add(buf, &off, ",\"restarts\":{d},\"enabled\":", .{ext.restarts});
+        addBool(buf, &off, ext.manifest.enabled);
+        var perm_buf: [128]u8 = undefined;
+        addRaw(buf, &off, ",\"permissions\":");
+        addString(buf, &off, extension_manager.permissionsText(&perm_buf, ext.manifest.permissions));
+        addRaw(buf, &off, ",\"requires\":[");
+        var j: usize = 0;
+        while (j < ext.manifest.require_count) : (j += 1) {
+            if (j > 0) addRaw(buf, &off, ",");
+            addString(buf, &off, ext.manifest.requires[j][0..ext.manifest.require_lens[j]]);
+        }
+        addRaw(buf, &off, "],\"after\":[");
+        j = 0;
+        while (j < ext.manifest.after_count) : (j += 1) {
+            if (j > 0) addRaw(buf, &off, ",");
+            addString(buf, &off, ext.manifest.after[j][0..ext.manifest.after_lens[j]]);
+        }
+        addRaw(buf, &off, "]}");
+    }
+    addRaw(buf, &off, "]");
+    return off;
+}
+
+fn addPanelModules(buf: []u8, off: *usize, modules: u16) void {
+    addRaw(buf, off, "[");
+    const items = [_]struct { bit: u16, name: []const u8 }{
+        .{ .bit = types.PANEL_MODULE_BACKGROUND, .name = "background" },
+        .{ .bit = types.PANEL_MODULE_BAR, .name = "bar" },
+        .{ .bit = types.PANEL_MODULE_LAUNCHER, .name = "launcher" },
+        .{ .bit = types.PANEL_MODULE_POPOVERS, .name = "popovers" },
+        .{ .bit = types.PANEL_MODULE_NOTIFICATIONS, .name = "notifications" },
+        .{ .bit = types.PANEL_MODULE_TOASTS, .name = "toasts" },
+        .{ .bit = types.PANEL_MODULE_TRAY, .name = "tray" },
+        .{ .bit = types.PANEL_MODULE_MEDIA, .name = "media" },
+        .{ .bit = types.PANEL_MODULE_AUDIO, .name = "audio" },
+    };
+    var first = true;
+    for (items) |item| {
+        if (modules & item.bit == 0) continue;
+        if (!first) addRaw(buf, off, ",");
+        first = false;
+        addString(buf, off, item.name);
+    }
+    addRaw(buf, off, "]");
 }
 
 fn addColumnWidth(buf: []u8, off: *usize, width: types.ColumnWidth) void {
@@ -260,7 +347,14 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     const cfg = &server.config;
 
-    add(buf, &off, "{{\"schema\":1,\"errors\":{d},\"terminal\":", .{server.config_error_count});
+    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"effect_api\":{d},\"errors\":{d},\"terminal\":", .{
+        api.config_schema,
+        api.tessa_version,
+        api.line_protocol,
+        api.extension_api,
+        api.effect_api,
+        server.config_error_count,
+    });
     addString(buf, &off, cfg.terminal[0..cfg.terminal_len]);
     add(buf, &off, ",\"gaps\":{d},\"outer_gaps\":{d},\"border_width\":{d}", .{ cfg.gaps, cfg.outer_gaps, cfg.border_width });
     addRaw(buf, &off, ",\"border_active\":");
@@ -302,8 +396,39 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     }
     addRaw(buf, &off, "],\"center_focused_column\":");
     addString(buf, &off, @tagName(cfg.center_focused_column));
-    add(buf, &off, ",\"animation_view_ms\":{d}", .{cfg.animation_view_ms});
-    addRaw(buf, &off, ",\"modes\":[");
+    add(buf, &off, ",\"animation_view_ms\":{d},\"animation_view_curve\":", .{cfg.animation_view_ms});
+    addString(buf, &off, cfg.animation_view_curve[0..cfg.animation_view_curve_len]);
+    addRaw(buf, &off, ",\"panel_modules\":");
+    addPanelModules(buf, &off, cfg.panel_modules);
+    addRaw(buf, &off, ",\"extensions\":[");
+    wi = 0;
+    while (wi < cfg.extension_count) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        const ext = &cfg.extensions[wi];
+        addRaw(buf, &off, "{\"id\":");
+        addString(buf, &off, ext.id[0..ext.id_len]);
+        addRaw(buf, &off, ",\"command\":");
+        addString(buf, &off, ext.command[0..ext.command_len]);
+        add(buf, &off, ",\"api\":{d},\"enabled\":", .{ext.api});
+        addBool(buf, &off, ext.enabled);
+        var perm_buf: [128]u8 = undefined;
+        addRaw(buf, &off, ",\"permissions\":");
+        addString(buf, &off, extension_manager.permissionsText(&perm_buf, ext.permissions));
+        addRaw(buf, &off, ",\"requires\":[");
+        var di: usize = 0;
+        while (di < ext.require_count) : (di += 1) {
+            if (di > 0) addRaw(buf, &off, ",");
+            addString(buf, &off, ext.requires[di][0..ext.require_lens[di]]);
+        }
+        addRaw(buf, &off, "],\"after\":[");
+        di = 0;
+        while (di < ext.after_count) : (di += 1) {
+            if (di > 0) addRaw(buf, &off, ",");
+            addString(buf, &off, ext.after[di][0..ext.after_lens[di]]);
+        }
+        addRaw(buf, &off, "]}");
+    }
+    addRaw(buf, &off, "],\"modes\":[");
     wi = 0;
     while (wi < cfg.mode_count) : (wi += 1) {
         if (wi > 0) addRaw(buf, &off, ",");

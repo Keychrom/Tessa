@@ -12,6 +12,7 @@ const xim = @import("xim.zig");
 const effects = @import("effects.zig");
 const modes = @import("modes.zig");
 const config_watch = @import("config_watch.zig");
+const extension_manager = @import("extension_manager.zig");
 
 const Server = types.Server;
 
@@ -21,6 +22,7 @@ const Server = types.Server;
 pub fn cleanupGlobals(server: *Server) void {
     layout_helper.deinit(server);
     effect_helper.deinit(server);
+    extension_manager.shutdown(server);
     panel_supervisor.shutdown(server);
     input.cleanupTrackedInputs(server);
     var i: usize = 0;

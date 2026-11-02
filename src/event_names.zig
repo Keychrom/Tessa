@@ -20,6 +20,12 @@ pub const animation_done = "animation-done";
 pub const close_animation_start = "close-animation-start";
 pub const close_animation_done = "close-animation-done";
 
+pub const notification_action = "notification-action";
+pub const extension_start = "extension-start";
+pub const extension_ready = "extension-ready";
+pub const extension_failed = "extension-failed";
+pub const extension_stop = "extension-stop";
+
 pub const known = [_][]const u8{
     startup,
     shutdown,
@@ -34,12 +40,17 @@ pub const known = [_][]const u8{
     config_reload,
     launcher,
     panel,
+    notification_action,
     output_added,
     output_removed,
     animation_start,
     animation_done,
     close_animation_start,
     close_animation_done,
+    extension_start,
+    extension_ready,
+    extension_failed,
+    extension_stop,
 };
 
 pub fn isKnown(name: []const u8) bool {

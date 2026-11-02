@@ -4,12 +4,13 @@ const types = @import("types.zig");
 const core = @import("core.zig");
 const layout = @import("layout.zig");
 const window_effects = @import("window_effects.zig");
+const motion = @import("motion.zig");
 
 const Server = types.Server;
 const Client = types.Client;
 const MAX_REQUEST = types.LAYOUT_HELPER_BUFFER;
 const FAIL_BACKOFF_MS = 1000;
-const PROTOCOL_VERSION: u8 = 1;
+const PROTOCOL_VERSION: u8 = 2;
 
 fn hashBytes(data: []const u8) u64 {
     var h: u64 = 1469598103934665603;
@@ -72,6 +73,10 @@ fn clearHooks(server: *Server) bool {
             client.hook_active = false;
             changed = true;
         }
+        if (client.hook_anim_active) {
+            client.hook_anim_active = false;
+            changed = true;
+        }
     }
     return changed;
 }
@@ -99,6 +104,8 @@ fn stop(server: *Server, clear: bool) void {
     h.waiting = false;
     h.pending = false;
     h.hello_sent = false;
+    h.version = 0;
+    h.version_logged = false;
     h.request_sig = 0;
     h.request_count = 0;
     h.read_len = 0;
@@ -178,6 +185,8 @@ fn start(server: *Server, command: []const u8, hash: u64) bool {
     h.waiting = false;
     h.pending = false;
     h.hello_sent = false;
+    h.version = 0;
+    h.version_logged = false;
     h.request_sig = 0;
     h.request_count = 0;
     h.cache_sig = 0;
@@ -269,6 +278,18 @@ fn modeToken(mode: types.RuleBool) []const u8 {
     };
 }
 
+fn tintHex(buf: *[9]u8, tint: [4]f32) []const u8 {
+    const hex = "0123456789abcdef";
+    buf[0] = '#';
+    var i: usize = 0;
+    while (i < 4) : (i += 1) {
+        const value: u8 = @intFromFloat(@round(std.math.clamp(tint[i], 0.0, 1.0) * 255.0));
+        buf[1 + i * 2] = hex[value >> 4];
+        buf[2 + i * 2] = hex[value & 0x0f];
+    }
+    return buf[0..9];
+}
+
 fn buildRequest(server: *Server, buf: []u8, ids: []u64) ?usize {
     var off: usize = 0;
     if (!append(buf, &off, "HELLO\t{d}\n", .{PROTOCOL_VERSION})) return null;
@@ -296,7 +317,7 @@ fn buildRequest(server: *Server, buf: []u8, ids: []u64) ?usize {
             @as(u8, if (client.fullscreen) 1 else 0),
             @as(u8, if (client.floating) 1 else 0),
         })) return null;
-        if (!append(buf, &off, "{d}\t{d:.3}\t{d}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
+        if (!append(buf, &off, "{d}\t{d:.3}\t{d}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}", .{
             visible,
             client.opacity,
             client.corner_radius,
@@ -308,6 +329,12 @@ fn buildRequest(server: *Server, buf: []u8, ids: []u64) ?usize {
             client.w,
             client.h,
         })) return null;
+        if (server.effect_helper.version >= 2) {
+            const tint = types.effectiveClientTint(client);
+            var tint_buf: [9]u8 = undefined;
+            if (!append(buf, &off, "\t{s}", .{tintHex(&tint_buf, tint)})) return null;
+        }
+        if (!append(buf, &off, "\n", .{})) return null;
     }
     if (!append(buf, &off, "END\n", .{})) return null;
     return off;
@@ -325,12 +352,152 @@ fn sendAll(server: *Server, data: []const u8) bool {
 
 const Override = struct {
     id: u64,
-    opacity: f32,
-    radius: i32,
-    blur: types.RuleBool,
-    shadow: types.RuleBool,
-    border_width: i32,
+    has_opacity: bool = false,
+    opacity: f32 = 1.0,
+    has_radius: bool = false,
+    radius: i32 = -1,
+    has_blur: bool = false,
+    blur: types.RuleBool = .unset,
+    has_shadow: bool = false,
+    shadow: types.RuleBool = .unset,
+    has_border_width: bool = false,
+    border_width: i32 = -1,
+    has_tint: bool = false,
+    tint: [4]f32 = .{ 0, 0, 0, 0 },
+    has_anim: bool = false,
+    anim: types.AnimationOverride = .{},
+
+    fn hasVisual(self: *const Override) bool {
+        return self.has_opacity or self.has_radius or self.has_blur or
+            self.has_shadow or self.has_border_width or self.has_tint;
+    }
 };
+
+fn parseTint(text: []const u8, out: *[4]f32) bool {
+    if (std.ascii.eqlIgnoreCase(text, "none")) {
+        out.* = .{ 0, 0, 0, 0 };
+        return true;
+    }
+    var hex = text;
+    if (hex.len > 0 and hex[0] == '#') hex = hex[1..];
+    if (hex.len != 6 and hex.len != 8) return false;
+    var rgba: [4]f32 = .{ 0, 0, 0, 1 };
+    var i: usize = 0;
+    while (i < 4) : (i += 1) {
+        if (i == 3 and hex.len == 6) break;
+        const component = std.fmt.parseInt(u8, hex[i * 2 .. i * 2 + 2], 16) catch return false;
+        rgba[i] = @as(f32, @floatFromInt(component)) / 255.0;
+    }
+    out.* = rgba;
+    return true;
+}
+
+fn parseV1Override(fields: anytype) ?Override {
+    const id = std.fmt.parseInt(u64, fields.next() orelse "", 10) catch return null;
+    const opacity = std.fmt.parseFloat(f64, fields.next() orelse "") catch return null;
+    const radius = std.fmt.parseInt(i32, fields.next() orelse "", 10) catch return null;
+    const blur = parseMode(fields.next() orelse "") orelse return null;
+    const shadow = parseMode(fields.next() orelse "") orelse return null;
+    const border_width = std.fmt.parseInt(i32, fields.next() orelse "", 10) catch return null;
+    if (opacity < 0 or opacity > 1 or radius < 0 or radius > 64 or
+        border_width < 0 or border_width > 16)
+    {
+        return null;
+    }
+    return .{
+        .id = id,
+        .has_opacity = true,
+        .opacity = @floatCast(opacity),
+        .has_radius = true,
+        .radius = radius,
+        .has_blur = true,
+        .blur = blur,
+        .has_shadow = true,
+        .shadow = shadow,
+        .has_border_width = true,
+        .border_width = border_width,
+    };
+}
+
+fn parseV2Override(server: *Server, fields: anytype) ?Override {
+    var result = Override{ .id = std.fmt.parseInt(u64, fields.next() orelse "", 10) catch return null };
+    while (fields.next()) |token| {
+        const eq = std.mem.indexOfScalar(u8, token, '=') orelse return null;
+        const key = token[0..eq];
+        const value = token[eq + 1 ..];
+        if (value.len == 0) return null;
+        if (std.mem.eql(u8, key, "opacity")) {
+            result.opacity = @floatCast(std.fmt.parseFloat(f64, value) catch return null);
+            result.has_opacity = true;
+        } else if (std.mem.eql(u8, key, "radius")) {
+            result.radius = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_radius = true;
+        } else if (std.mem.eql(u8, key, "blur")) {
+            result.blur = parseMode(value) orelse return null;
+            result.has_blur = true;
+        } else if (std.mem.eql(u8, key, "shadow")) {
+            result.shadow = parseMode(value) orelse return null;
+            result.has_shadow = true;
+        } else if (std.mem.eql(u8, key, "border-width") or std.mem.eql(u8, key, "border_width")) {
+            result.border_width = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_border_width = true;
+        } else if (std.mem.eql(u8, key, "tint")) {
+            if (!parseTint(value, &result.tint)) return null;
+            result.has_tint = true;
+        } else if (std.mem.eql(u8, key, "animation-ms")) {
+            result.anim.animation_ms = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "open-ms")) {
+            result.anim.open_ms = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "workspace-ms")) {
+            result.anim.workspace_ms = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "close-ms")) {
+            result.anim.close_ms = std.fmt.parseInt(i32, value, 10) catch return null;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "curve")) {
+            if (value.len > result.anim.curve.len) return null;
+            std.mem.copyForwards(u8, &result.anim.curve, value);
+            result.anim.curve_len = value.len;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "open-curve")) {
+            if (value.len > result.anim.open_curve.len) return null;
+            std.mem.copyForwards(u8, &result.anim.open_curve, value);
+            result.anim.open_curve_len = value.len;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "workspace-curve")) {
+            if (value.len > result.anim.workspace_curve.len) return null;
+            std.mem.copyForwards(u8, &result.anim.workspace_curve, value);
+            result.anim.workspace_curve_len = value.len;
+            result.has_anim = true;
+        } else if (std.mem.eql(u8, key, "close-curve")) {
+            if (value.len > result.anim.close_curve.len) return null;
+            std.mem.copyForwards(u8, &result.anim.close_curve, value);
+            result.anim.close_curve_len = value.len;
+            result.has_anim = true;
+        } else {
+            return null;
+        }
+    }
+
+    if ((result.has_opacity and (result.opacity < 0 or result.opacity > 1)) or
+        (result.has_radius and (result.radius < 0 or result.radius > 64)) or
+        (result.has_border_width and (result.border_width < 0 or result.border_width > 16)) or
+        (result.has_anim and
+            (result.anim.animation_ms < -1 or result.anim.animation_ms > 1000 or
+                result.anim.open_ms < -1 or result.anim.open_ms > 1000 or
+                result.anim.workspace_ms < -1 or result.anim.workspace_ms > 1000 or
+                result.anim.close_ms < -1 or result.anim.close_ms > 1000)))
+    {
+        return null;
+    }
+    if (result.anim.curve_len > 0 and !motion.isKnown(&server.config, result.anim.curve[0..result.anim.curve_len])) return null;
+    if (result.anim.open_curve_len > 0 and !motion.isKnown(&server.config, result.anim.open_curve[0..result.anim.open_curve_len])) return null;
+    if (result.anim.workspace_curve_len > 0 and !motion.isKnown(&server.config, result.anim.workspace_curve[0..result.anim.workspace_curve_len])) return null;
+    if (result.anim.close_curve_len > 0 and !motion.isKnown(&server.config, result.anim.close_curve[0..result.anim.close_curve_len])) return null;
+    return result;
+}
 
 fn applyResponse(server: *Server, data: []const u8) bool {
     const h = &server.effect_helper;
@@ -338,6 +505,7 @@ fn applyResponse(server: *Server, data: []const u8) bool {
     var override_count: usize = 0;
     var matched: [types.MAX_CLIENTS]bool = @splat(false);
     var saw_end = false;
+    var response_version: u8 = if (h.version == 0) 1 else h.version;
 
     var lines = std.mem.splitScalar(u8, data, '\n');
     while (lines.next()) |raw| {
@@ -350,8 +518,12 @@ fn applyResponse(server: *Server, data: []const u8) bool {
             break;
         }
         if (std.mem.eql(u8, tag, "VERSION")) {
+            const value = fields.next() orelse "1";
+            const version = std.fmt.parseInt(u8, value, 10) catch 1;
+            response_version = @max(1, @min(version, PROTOCOL_VERSION));
+            h.version = response_version;
             if (!h.version_logged) {
-                core.logInfo("effect helper: protocol {s}", .{fields.next() orelse "?"});
+                core.logInfo("effect helper: protocol {d}", .{response_version});
                 h.version_logged = true;
             }
             continue;
@@ -365,41 +537,19 @@ fn applyResponse(server: *Server, data: []const u8) bool {
             fail(server, "too many window overrides");
             return false;
         }
-        const id = std.fmt.parseInt(u64, fields.next() orelse "", 10) catch {
-            fail(server, "invalid window id");
+        const parsed = if (response_version >= 2)
+            parseV2Override(server, &fields)
+        else
+            parseV1Override(&fields);
+        const override = parsed orelse {
+            fail(server, "invalid window override");
             return false;
         };
-        const opacity = std.fmt.parseFloat(f64, fields.next() orelse "") catch {
-            fail(server, "invalid opacity");
-            return false;
-        };
-        const radius = std.fmt.parseInt(i32, fields.next() orelse "", 10) catch {
-            fail(server, "invalid radius");
-            return false;
-        };
-        const blur = parseMode(fields.next() orelse "") orelse {
-            fail(server, "invalid blur mode");
-            return false;
-        };
-        const shadow = parseMode(fields.next() orelse "") orelse {
-            fail(server, "invalid shadow mode");
-            return false;
-        };
-        const border_width = std.fmt.parseInt(i32, fields.next() orelse "", 10) catch {
-            fail(server, "invalid border width");
-            return false;
-        };
-        if (opacity < 0 or opacity > 1 or radius < 0 or radius > 64 or
-            border_width < 0 or border_width > 16)
-        {
-            fail(server, "effect value out of range");
-            return false;
-        }
 
         var index: ?usize = null;
         var i: usize = 0;
         while (i < h.request_count) : (i += 1) {
-            if (h.request_ids[i] == id) {
+            if (h.request_ids[i] == override.id) {
                 index = i;
                 break;
             }
@@ -413,14 +563,7 @@ fn applyResponse(server: *Server, data: []const u8) bool {
             return false;
         }
         matched[idx] = true;
-        overrides[override_count] = .{
-            .id = id,
-            .opacity = @floatCast(opacity),
-            .radius = radius,
-            .blur = blur,
-            .shadow = shadow,
-            .border_width = border_width,
-        };
+        overrides[override_count] = override;
         override_count += 1;
     }
 
@@ -442,15 +585,54 @@ fn applyResponse(server: *Server, data: []const u8) bool {
             client.hook_active = false;
             changed = true;
         }
+        if (client.hook_anim_active) {
+            client.hook_anim_active = false;
+            changed = true;
+        }
     }
     for (overrides[0..override_count]) |override| {
         if (findClient(server, override.id)) |client| {
-            client.hook_active = true;
-            client.hook_opacity = override.opacity;
-            client.hook_corner_radius = override.radius;
-            client.hook_blur = override.blur;
-            client.hook_shadow = override.shadow;
-            client.hook_border_width = override.border_width;
+            // Start from the rule values so partial v2 replies leave omitted
+            // fields untouched.
+            client.hook_opacity = client.opacity;
+            client.hook_corner_radius = client.corner_radius;
+            client.hook_blur = client.blur;
+            client.hook_shadow = client.shadow;
+            client.hook_border_width = client.border_width;
+            client.hook_tint_rgba = client.tint_rgba;
+            client.hook_anim = client.anim;
+            if (override.hasVisual()) {
+                client.hook_active = true;
+                if (override.has_opacity) client.hook_opacity = override.opacity;
+                if (override.has_radius) client.hook_corner_radius = override.radius;
+                if (override.has_blur) client.hook_blur = override.blur;
+                if (override.has_shadow) client.hook_shadow = override.shadow;
+                if (override.has_border_width) client.hook_border_width = override.border_width;
+                if (override.has_tint) client.hook_tint_rgba = override.tint;
+            }
+            if (override.has_anim) {
+                client.hook_anim_active = true;
+                if (override.anim.animation_ms >= 0) client.hook_anim.animation_ms = override.anim.animation_ms;
+                if (override.anim.open_ms >= 0) client.hook_anim.open_ms = override.anim.open_ms;
+                if (override.anim.workspace_ms >= 0) client.hook_anim.workspace_ms = override.anim.workspace_ms;
+                if (override.anim.close_ms >= 0) client.hook_anim.close_ms = override.anim.close_ms;
+                if (override.anim.curve_len > 0) {
+                    @memcpy(client.hook_anim.curve[0..override.anim.curve_len], override.anim.curve[0..override.anim.curve_len]);
+                    client.hook_anim.curve_len = override.anim.curve_len;
+                }
+                if (override.anim.open_curve_len > 0) {
+                    @memcpy(client.hook_anim.open_curve[0..override.anim.open_curve_len], override.anim.open_curve[0..override.anim.open_curve_len]);
+                    client.hook_anim.open_curve_len = override.anim.open_curve_len;
+                }
+                if (override.anim.workspace_curve_len > 0) {
+                    @memcpy(client.hook_anim.workspace_curve[0..override.anim.workspace_curve_len], override.anim.workspace_curve[0..override.anim.workspace_curve_len]);
+                    client.hook_anim.workspace_curve_len = override.anim.workspace_curve_len;
+                }
+                if (override.anim.close_curve_len > 0) {
+                    @memcpy(client.hook_anim.close_curve[0..override.anim.close_curve_len], override.anim.close_curve[0..override.anim.close_curve_len]);
+                    client.hook_anim.close_curve_len = override.anim.close_curve_len;
+                }
+            }
             changed = true;
         }
     }

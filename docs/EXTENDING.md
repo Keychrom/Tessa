@@ -151,8 +151,11 @@ line protocol remains available; a connection can use either style.
 Responses are `{"jsonrpc":"2.0","id":<request id>,"result":...}` and errors use
 standard JSON-RPC codes. Supported methods are `hello` / `capabilities`,
 `ping`, `state`, `config`, `subscribe`, and `unsubscribe`. `hello` returns
-`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`, and the
-capabilities `state`, `config`, `events`, `subscriptions`, and `request-ids`.
+`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`,
+`tessa: "0.2.5"`, `extension_api: 1`, `effect_api: 2`, and the capabilities
+`state`, `config`, `events`, `subscriptions`, `request-ids`, `extensions`, and
+`effects2`. State/config JSON also carries `schema: 1`, `tessa`, and the API
+versions.
 
 After `subscribe`, every lifecycle event is sent as a notification:
 
@@ -292,6 +295,44 @@ truncated for display. If a click command is supplied, clicking the entry sends
 This is intentionally a text API, not an image/icon protocol. An extension can
 update text on a timer or in response to events.
 
+## Supervised extensions
+
+`extension` declares a supervised process. It uses the same control socket as
+other clients, but identifies itself with the token in its environment:
+
+```ini
+extension = id=weather; command=weatherd; api=1; permissions=read,status
+extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
+```
+
+`api` is checked against the compositor's extension API. `permissions` is a
+comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
+`layout`, `spawn`, `panel`, `control`, and `extensions` (`all`/`none` allowed).
+The default is `read,status`. `requires` and `after` are extension ids; unknown
+ids and cycles are config errors. The supervisor starts in dependency order,
+uses pidfd exit detection, and restarts with 500 ms→8 s backoff. A dependency
+that is disabled, blocked, or failed keeps its dependents blocked.
+
+```text
+HELLO 1 $TESSA_EXTENSION_TOKEN
+VERSION 1
+CAPABILITIES ...
+EXTENSION weather read,status
+```
+
+Commands outside the granted scopes return `ERR forbidden <command>`. A wrong
+token returns `ERR unauthorized` and leaves the connection with no scopes.
+This is a cooperative permission check, not a sandbox: extensions run as the
+same user and can read the token or call the socket directly. Clients that do
+not send a token, including `tessa-panel` and `tessa-ctl`, keep full access.
+
+`CMD extensions` lists runtime state; `CMD extensions-json` returns the same
+data as JSON. `CMD extension-enable <id> on|off` changes the current session
+only; a config reload restores the manifest's `enabled` value. Lifecycle
+events are `extension-start`, `extension-ready` (token accepted),
+`extension-failed`, and `extension-stop`. The panel opens the Extensions
+popover with `tessa-ctl panel extensions`; Enter toggles the selected row.
+
 ## External layout helper
 
 For custom tiling algorithms, set `layout = custom` and configure
@@ -308,35 +349,44 @@ complete window snapshot whenever metadata, focus, geometry, or rule visuals
 change. Requests are coalesced: while a reply is pending, only the latest state
 is sent afterward.
 
-The request uses tabs between fields:
+The current request is v2; helpers that answer `VERSION 1` keep using the old
+positional reply format. The request uses tabs between fields:
 
 ```text
-HELLO\t1
-EFFECT\t1
-WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+HELLO\t2
+EFFECT\t2
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
 ...
 END
 ```
 
 `focused`, `urgent`, `fullscreen`, `floating`, and `visible` are `0`/`1`.
 `opacity`, corner radius, and border width are the current rule results;
-`blur`/`shadow` are `on`, `off`, or `unset`. The helper replies:
+`blur`/`shadow` are `on`, `off`, or `unset`. `tint` is appended as
+`#RRGGBBAA` only after the helper has negotiated v2. A v2 reply uses
+`key=value` fields:
 
 ```text
-VERSION\t1
-WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+VERSION\t2
+WINDOW\t<id>\topacity=0.9\tradius=16\tblur=on\tshadow=off\tborder-width=2\ttint=#ff8844aa\topen-ms=240\topen-curve=spring-soft
 ...
 END
 ```
 
-Overrides are optional per window. Tessa validates IDs against the request and
-the ranges (opacity 0–1, radius 0–64, width 0–16). Returned windows not present
-in the reply, or a client omitted from the reply, fall back to rule visuals.
-Timeout, a crash, an unknown/duplicate ID, an invalid mode, or a missing `END`
-drops every override and retries after one second. stdout is protocol-only;
-write diagnostics to stderr.
+Every field is optional in v2; an omitted field keeps the rule value. `tint`
+accepts `#RRGGBBAA` or `none`. Animation keys are `animation-ms`, `open-ms`,
+`workspace-ms`, `close-ms` (`-1`–`1000`, where `-1` inherits), plus `curve`,
+`open-curve`, `workspace-curve`, and `close-curve`; curve names must be
+registered by `bezier`/`spring` or be a builtin. A window id with no fields
+clears that window's overrides. Omitted windows also fall back to rules.
 
-A minimal helper:
+Tessa validates IDs against the request, ranges, and curve names. Timeout, a
+crash, an unknown/duplicate ID, an invalid value, or a missing `END` drops
+every override and retries after one second. stdout is protocol-only; write
+diagnostics to stderr. The v1 positional reply
+(`WINDOW id opacity radius blur shadow border-width`) remains supported.
+
+A minimal v2 helper:
 
 ```python
 #!/usr/bin/env python3
@@ -352,13 +402,13 @@ while True:
         if line == "END":
             break
         lines.append(line.split("\t"))
-    out = ["VERSION\t1"]
+    out = ["VERSION\t2"]
     for fields in lines:
         if fields[0] != "WINDOW":
             continue
         window_id, app_id, title = fields[1], fields[2], fields[3]
         if app_id == "org.example.notes" or "notes" in title.lower():
-            out.append(f"WINDOW\t{window_id}\t0.92\t18\toff\toff\t3")
+            out.append(f"WINDOW\t{window_id}\topacity=0.92\tradius=18\topen-ms=220\topen-curve=spring-soft")
     out.append("END")
     sys.stdout.write("\n".join(out) + "\n")
     sys.stdout.flush()
@@ -370,9 +420,10 @@ effect_helper_timeout = 200
 ```
 
 The helper runs with the compositor's privileges and is not sandboxed. It can
-only adjust declared visual properties; it cannot inject shaders or execute
-code inside the compositor. `tests/effect-helper.sh` exercises overrides and
-live removal.
+only adjust declared visual and animation properties; it cannot inject shaders
+or execute code inside the compositor. `tests/effect-helper.sh` exercises v1
+compatibility, `tests/effect-v2.sh` exercises tint/animation overrides and the
+tint pixel result, and `tests/effect-cache.sh` checks repeated-apply reuse.
 
 ## Launcher entries and includes
 
@@ -426,7 +477,12 @@ lines to stderr.
 
 JSON snapshots are versioned with `schema: 1`. JSON-RPC provides read methods,
 request ids, capability negotiation, and JSON event subscriptions, but mutation
-still uses the line command plane. There is no extension ordering or sandbox,
-and fire-and-forget commands have no acknowledgement. Status entries are
-text-only. Layout-helper responses are complete snapshots; partial streaming
-rectangle updates are not supported.
+still uses the line command plane. Extensions have dependency ordering and
+cooperative token scopes, but no sandbox, signature, marketplace, or persistent
+per-extension settings form; `extension-enable` is runtime-only. Fire-and-forget
+commands have no acknowledgement. Status entries are text-only. Layout-helper
+responses are complete snapshots; partial streaming rectangle updates are not
+supported. There is no per-window GPU shader hook in the stock wlroots scene
+API; the effect helper adjusts declared visual and animation properties only.
+The next shader step is a long-lived background-frame process, and per-window
+shaders require a custom renderer design.

@@ -17,6 +17,8 @@ fn usage() void {
         "  perf [--json] [--reset]       print frame-time statistics\n" ++
         "  perf --watch[=SECS]           stream frame-time statistics\n" ++
         "  rendering [--json]            print renderer, scanout, and sync status\n" ++
+        "  extensions [--json]           list supervised extensions and scopes\n" ++
+        "  extension-enable <id> on|off  enable or disable an extension at runtime\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
         "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
@@ -461,6 +463,38 @@ fn printRendering(json: bool) !void {
     return error.Closed;
 }
 
+fn printExtensions(json: bool) !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, if (json) "CMD extensions-json\n" else "CMD extensions\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
+    if (json) {
+        // Skip the EXTENSIONS_JSON framing marker and print only the array.
+        _ = (try reader.next(&line_buf)) orelse return error.Closed;
+        const line = (try reader.next(&line_buf)) orelse return error.Closed;
+        writeLine(line);
+        return;
+    }
+    while (try reader.next(&line_buf)) |line| {
+        writeLine(line);
+        if (std.mem.eql(u8, line, "END")) return;
+    }
+    return error.Closed;
+}
+
+fn runExtensions(args: []const []const u8) !void {
+    var json = false;
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--json")) {
+            json = true;
+        } else {
+            return error.BadArguments;
+        }
+    }
+    try printExtensions(json);
+}
+
 fn runRendering(args: []const []const u8) !void {
     var json = false;
     for (args[1..]) |arg| {
@@ -471,6 +505,22 @@ fn runRendering(args: []const []const u8) !void {
         }
     }
     try printRendering(json);
+}
+
+fn runExtensionEnable(args: []const []const u8) !void {
+    if (args.len != 3) return error.BadArguments;
+    const state = if (std.ascii.eqlIgnoreCase(args[2], "on") or
+        std.ascii.eqlIgnoreCase(args[2], "true") or std.mem.eql(u8, args[2], "1"))
+        "on"
+    else if (std.ascii.eqlIgnoreCase(args[2], "off") or
+        std.ascii.eqlIgnoreCase(args[2], "false") or std.mem.eql(u8, args[2], "0"))
+        "off"
+    else
+        return error.BadArguments;
+    var line: [256]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD extension-enable {s} {s}\n", .{ args[1], state }) catch
+        return error.BadArguments;
+    try sendCommand(msg);
 }
 
 const CompareResult = struct {
@@ -894,6 +944,10 @@ pub fn main(init: std.process.Init.Minimal) void {
         runPerf(args)
     else if (std.mem.eql(u8, cmd, "rendering"))
         runRendering(args)
+    else if (std.mem.eql(u8, cmd, "extensions"))
+        runExtensions(args)
+    else if (std.mem.eql(u8, cmd, "extension-enable"))
+        runExtensionEnable(args)
     else if (std.mem.eql(u8, cmd, "rpc"))
         runRpc(args)
     else if (std.mem.eql(u8, cmd, "events"))

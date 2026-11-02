@@ -5,6 +5,7 @@ const core = @import("core.zig");
 const event_names = @import("event_names.zig");
 const rule_expr = @import("rule_expr.zig");
 const motion = @import("motion.zig");
+const api = @import("api.zig");
 
 const Server = types.Server;
 const Config = types.Config;
@@ -88,6 +89,10 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.column_width_preset_count = 3;
     cfg.center_focused_column = .never;
     cfg.animation_view_ms = 180;
+    copyDefault(&cfg.animation_view_curve, &cfg.animation_view_curve_len, "ease-out-cubic");
+    cfg.panel_modules = types.PANEL_MODULE_ALL;
+    cfg.extension_count = 0;
+    cfg.extension_order_count = 0;
     copyDefault(&cfg.mode_names[0], &cfg.mode_name_lens[0], "default");
     cfg.mode_count = 1;
     cfg.autostart_panel = true;
@@ -786,6 +791,334 @@ pub fn addEventRule(cfg: *Config, value: []const u8) bool {
     return true;
 }
 
+fn parseExtensionPermissions(value: []const u8) ?u16 {
+    var result: u16 = 0;
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |raw| {
+        const name = std.mem.trim(u8, raw, " \t");
+        if (name.len == 0) continue;
+        count += 1;
+        if (std.ascii.eqlIgnoreCase(name, "all")) {
+            result |= types.EXT_PERM_ALL;
+        } else if (std.ascii.eqlIgnoreCase(name, "none")) {
+            // no bit
+        } else if (std.ascii.eqlIgnoreCase(name, "read") or
+            std.ascii.eqlIgnoreCase(name, "state") or
+            std.ascii.eqlIgnoreCase(name, "config"))
+        {
+            result |= types.EXT_PERM_READ;
+        } else if (std.ascii.eqlIgnoreCase(name, "events")) {
+            result |= types.EXT_PERM_EVENTS;
+        } else if (std.ascii.eqlIgnoreCase(name, "status")) {
+            result |= types.EXT_PERM_STATUS;
+        } else if (std.ascii.eqlIgnoreCase(name, "window") or
+            std.ascii.eqlIgnoreCase(name, "windows"))
+        {
+            result |= types.EXT_PERM_WINDOW;
+        } else if (std.ascii.eqlIgnoreCase(name, "workspace") or
+            std.ascii.eqlIgnoreCase(name, "workspaces"))
+        {
+            result |= types.EXT_PERM_WORKSPACE;
+        } else if (std.ascii.eqlIgnoreCase(name, "layout")) {
+            result |= types.EXT_PERM_LAYOUT;
+        } else if (std.ascii.eqlIgnoreCase(name, "spawn")) {
+            result |= types.EXT_PERM_SPAWN;
+        } else if (std.ascii.eqlIgnoreCase(name, "panel")) {
+            result |= types.EXT_PERM_PANEL;
+        } else if (std.ascii.eqlIgnoreCase(name, "control")) {
+            result |= types.EXT_PERM_CONTROL;
+        } else if (std.ascii.eqlIgnoreCase(name, "extensions")) {
+            result |= types.EXT_PERM_EXTENSIONS;
+        } else {
+            return null;
+        }
+    }
+    if (count == 0) return null;
+    return result;
+}
+
+fn validExtensionId(value: []const u8) bool {
+    if (value.len == 0 or value.len >= types.MAX_EXTENSION_ID) return false;
+    for (value) |ch| {
+        if (!std.ascii.isAlphanumeric(ch) and ch != '_' and ch != '-' and ch != '.') return false;
+    }
+    return true;
+}
+
+fn addExtensionDeps(
+    dest: *[types.MAX_EXTENSION_DEPS][types.MAX_EXTENSION_ID]u8,
+    lens: *[types.MAX_EXTENSION_DEPS]usize,
+    count: *usize,
+    value: []const u8,
+) bool {
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |raw| {
+        const name = std.mem.trim(u8, raw, " \t");
+        if (name.len == 0) continue;
+        if (count.* >= types.MAX_EXTENSION_DEPS or !validExtensionId(name)) return false;
+        core.copyString(&dest[count.*], &lens[count.*], name);
+        count.* += 1;
+    }
+    return count.* > 0;
+}
+
+fn findExtensionIndex(cfg: *const Config, id: []const u8) ?usize {
+    var i: usize = 0;
+    while (i < cfg.extension_count) : (i += 1) {
+        const manifest = &cfg.extensions[i];
+        if (std.mem.eql(u8, manifest.id[0..manifest.id_len], id)) return i;
+    }
+    return null;
+}
+
+fn addExtension(server: *Server, path: []const u8, line: u32, value: []const u8) void {
+    const cfg = &server.config;
+    if (cfg.extension_count >= cfg.extensions.len) {
+        addIssue(server, path, line, "too many extensions (max {d})", .{cfg.extensions.len});
+        return;
+    }
+
+    var manifest = types.ExtensionManifest{};
+    var permissions_set = false;
+    var clauses = std.mem.splitScalar(u8, value, ';');
+    while (clauses.next()) |raw| {
+        const clause = std.mem.trim(u8, raw, " \t");
+        if (clause.len == 0) continue;
+        const eq = std.mem.indexOfScalar(u8, clause, '=') orelse {
+            addIssue(server, path, line, "extension clause needs '=': '{s}'", .{clause});
+            return;
+        };
+        const key = std.mem.trim(u8, clause[0..eq], " \t");
+        var val = std.mem.trim(u8, clause[eq + 1 ..], " \t");
+        if (val.len >= 2 and
+            ((val[0] == '"' and val[val.len - 1] == '"') or
+                (val[0] == '\'' and val[val.len - 1] == '\'')))
+        {
+            val = val[1 .. val.len - 1];
+        }
+        if (key.len == 0 or val.len == 0) {
+            addIssue(server, path, line, "invalid extension clause '{s}'", .{clause});
+            return;
+        }
+        if (std.ascii.eqlIgnoreCase(key, "id") or std.ascii.eqlIgnoreCase(key, "name")) {
+            if (!validExtensionId(val)) {
+                addIssue(server, path, line, "invalid extension id '{s}'", .{val});
+                return;
+            }
+            core.copyString(&manifest.id, &manifest.id_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "command") or
+            std.ascii.eqlIgnoreCase(key, "run") or
+            std.ascii.eqlIgnoreCase(key, "exec"))
+        {
+            if (val.len >= types.MAX_COMMAND) {
+                addIssue(server, path, line, "extension command too long", .{});
+                return;
+            }
+            core.copyString(&manifest.command, &manifest.command_len, val);
+        } else if (std.ascii.eqlIgnoreCase(key, "api")) {
+            manifest.api = std.fmt.parseInt(u8, val, 10) catch {
+                addIssue(server, path, line, "invalid extension api '{s}'", .{val});
+                return;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "enabled")) {
+            manifest.enabled = parseRuleBool(val) orelse {
+                addIssue(server, path, line, "invalid extension enabled '{s}'", .{val});
+                return;
+            };
+        } else if (std.ascii.eqlIgnoreCase(key, "permissions")) {
+            manifest.permissions = parseExtensionPermissions(val) orelse {
+                addIssue(server, path, line, "invalid extension permissions '{s}'", .{val});
+                return;
+            };
+            permissions_set = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "requires") or
+            std.ascii.eqlIgnoreCase(key, "require"))
+        {
+            if (!addExtensionDeps(&manifest.requires, &manifest.require_lens, &manifest.require_count, val)) {
+                addIssue(server, path, line, "invalid extension requires '{s}'", .{val});
+                return;
+            }
+        } else if (std.ascii.eqlIgnoreCase(key, "after")) {
+            if (!addExtensionDeps(&manifest.after, &manifest.after_lens, &manifest.after_count, val)) {
+                addIssue(server, path, line, "invalid extension after '{s}'", .{val});
+                return;
+            }
+        } else {
+            addIssue(server, path, line, "unknown extension key '{s}'", .{key});
+            return;
+        }
+    }
+
+    if (manifest.id_len == 0) {
+        addIssue(server, path, line, "extension needs id=<name>", .{});
+        return;
+    }
+    if (findExtensionIndex(cfg, manifest.id[0..manifest.id_len]) != null) {
+        addIssue(server, path, line, "duplicate extension id '{s}'", .{manifest.id[0..manifest.id_len]});
+        return;
+    }
+    if (manifest.api == 0 or manifest.api > api.extension_api) {
+        addIssue(server, path, line, "extension '{s}' requires unsupported api {d}", .{
+            manifest.id[0..manifest.id_len],
+            manifest.api,
+        });
+        return;
+    }
+    if (manifest.enabled and manifest.command_len == 0) {
+        addIssue(server, path, line, "extension '{s}' needs a command", .{manifest.id[0..manifest.id_len]});
+        return;
+    }
+    if (!permissions_set and manifest.permissions == 0) manifest.permissions = types.EXT_PERM_DEFAULT;
+    cfg.extensions[cfg.extension_count] = manifest;
+    cfg.extension_count += 1;
+}
+
+pub fn resolveExtensions(server: *Server) void {
+    const cfg = &server.config;
+    var path_buf: [512]u8 = undefined;
+    const path = resolvePath(&path_buf);
+    var indegree: [types.MAX_EXTENSIONS]usize = @splat(0);
+    var used: [types.MAX_EXTENSIONS]bool = @splat(false);
+    var i: usize = 0;
+    while (i < cfg.extension_count) : (i += 1) {
+        const manifest = &cfg.extensions[i];
+        var dep_i: usize = 0;
+        while (dep_i < manifest.require_count) : (dep_i += 1) {
+            const dep = manifest.requires[dep_i][0..manifest.require_lens[dep_i]];
+            if (findExtensionIndex(cfg, dep) == null) {
+                addIssue(server, path, 0, "extension '{s}' requires unknown '{s}'", .{
+                    manifest.id[0..manifest.id_len],
+                    dep,
+                });
+            } else {
+                indegree[i] += 1;
+            }
+        }
+        dep_i = 0;
+        while (dep_i < manifest.after_count) : (dep_i += 1) {
+            const dep = manifest.after[dep_i][0..manifest.after_lens[dep_i]];
+            if (findExtensionIndex(cfg, dep) == null) {
+                addIssue(server, path, 0, "extension '{s}' wants to run after unknown '{s}'", .{
+                    manifest.id[0..manifest.id_len],
+                    dep,
+                });
+            } else {
+                indegree[i] += 1;
+            }
+        }
+    }
+
+    cfg.extension_order_count = 0;
+    var remaining = cfg.extension_count;
+    while (remaining > 0) {
+        var picked: ?usize = null;
+        i = 0;
+        while (i < cfg.extension_count) : (i += 1) {
+            if (!used[i] and indegree[i] == 0) {
+                picked = i;
+                break;
+            }
+        }
+        if (picked == null) {
+            addIssue(server, path, 0, "extension dependency cycle", .{});
+            break;
+        }
+        const index = picked.?;
+        used[index] = true;
+        remaining -= 1;
+        cfg.extension_order[cfg.extension_order_count] = @intCast(index);
+        cfg.extension_order_count += 1;
+
+        const manifest = &cfg.extensions[index];
+        var j: usize = 0;
+        while (j < cfg.extension_count) : (j += 1) {
+            if (used[j] or j == index) continue;
+            const other = &cfg.extensions[j];
+            var dep_i: usize = 0;
+            while (dep_i < other.require_count) : (dep_i += 1) {
+                if (std.mem.eql(
+                    u8,
+                    other.requires[dep_i][0..other.require_lens[dep_i]],
+                    manifest.id[0..manifest.id_len],
+                )) {
+                    indegree[j] -|= 1;
+                }
+            }
+            dep_i = 0;
+            while (dep_i < other.after_count) : (dep_i += 1) {
+                if (std.mem.eql(
+                    u8,
+                    other.after[dep_i][0..other.after_lens[dep_i]],
+                    manifest.id[0..manifest.id_len],
+                )) {
+                    indegree[j] -|= 1;
+                }
+            }
+        }
+    }
+}
+
+fn parsePanelModules(value: []const u8) ?u16 {
+    var result: u16 = 0;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |raw| {
+        const name = std.mem.trim(u8, raw, " \t");
+        if (name.len == 0) continue;
+        if (std.ascii.eqlIgnoreCase(name, "all")) {
+            result |= types.PANEL_MODULE_ALL;
+        } else if (std.ascii.eqlIgnoreCase(name, "none")) {
+            // no bit
+        } else if (std.ascii.eqlIgnoreCase(name, "background") or
+            std.ascii.eqlIgnoreCase(name, "wallpaper"))
+        {
+            result |= types.PANEL_MODULE_BACKGROUND;
+        } else if (std.ascii.eqlIgnoreCase(name, "bar")) {
+            result |= types.PANEL_MODULE_BAR;
+        } else if (std.ascii.eqlIgnoreCase(name, "launcher")) {
+            result |= types.PANEL_MODULE_LAUNCHER;
+        } else if (std.ascii.eqlIgnoreCase(name, "popovers") or
+            std.ascii.eqlIgnoreCase(name, "popover"))
+        {
+            result |= types.PANEL_MODULE_POPOVERS;
+        } else if (std.ascii.eqlIgnoreCase(name, "notifications") or
+            std.ascii.eqlIgnoreCase(name, "notification"))
+        {
+            result |= types.PANEL_MODULE_NOTIFICATIONS;
+        } else if (std.ascii.eqlIgnoreCase(name, "toasts") or
+            std.ascii.eqlIgnoreCase(name, "toast"))
+        {
+            result |= types.PANEL_MODULE_TOASTS;
+        } else if (std.ascii.eqlIgnoreCase(name, "tray")) {
+            result |= types.PANEL_MODULE_TRAY;
+        } else if (std.ascii.eqlIgnoreCase(name, "media")) {
+            result |= types.PANEL_MODULE_MEDIA;
+        } else if (std.ascii.eqlIgnoreCase(name, "audio") or
+            std.ascii.eqlIgnoreCase(name, "volume"))
+        {
+            result |= types.PANEL_MODULE_AUDIO;
+        } else {
+            return null;
+        }
+    }
+    return result;
+}
+
+fn parseTintColor(value: []const u8, out: *[4]f32) bool {
+    var hex = std.mem.trim(u8, value, " \t");
+    if (hex.len > 0 and hex[0] == '#') hex = hex[1..];
+    if (hex.len != 6 and hex.len != 8) return false;
+    var rgba: [4]f32 = .{ 0, 0, 0, 1 };
+    var i: usize = 0;
+    while (i < 4) : (i += 1) {
+        if (i == 3 and hex.len == 6) break;
+        const component = std.fmt.parseInt(u8, hex[i * 2 .. i * 2 + 2], 16) catch return false;
+        rgba[i] = @as(f32, @floatFromInt(component)) / 255.0;
+    }
+    out.* = rgba;
+    return true;
+}
+
 fn parseRuleBool(value: []const u8) ?bool {
     if (std.ascii.eqlIgnoreCase(value, "true") or
         std.ascii.eqlIgnoreCase(value, "on") or
@@ -1077,6 +1410,17 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
             }
             rule.has_border_width = true;
             rule.border_width = width;
+        } else if (std.ascii.eqlIgnoreCase(key, "tint")) {
+            if (std.ascii.eqlIgnoreCase(val, "none")) {
+                rule.has_tint = true;
+                rule.tint_rgba = .{ 0, 0, 0, 0 };
+            } else {
+                if (!parseTintColor(val, &rule.tint_rgba)) {
+                    core.logInfo("config: invalid rule tint '{s}'", .{val});
+                    return false;
+                }
+                rule.has_tint = true;
+            }
         } else if (std.ascii.eqlIgnoreCase(key, "animation") or
             std.ascii.eqlIgnoreCase(key, "animations"))
         {
@@ -1727,11 +2071,12 @@ fn resolveTerminal(server: *Server) void {
 
 fn validateAnimationCurves(server: *Server) void {
     const cfg = &server.config;
-    const names = [4][]const u8{
+    const names = [5][]const u8{
         cfg.animation_curve[0..cfg.animation_curve_len],
         cfg.animation_open_curve[0..cfg.animation_open_curve_len],
         cfg.animation_workspace_curve[0..cfg.animation_workspace_curve_len],
         cfg.animation_close_curve[0..cfg.animation_close_curve_len],
+        cfg.animation_view_curve[0..cfg.animation_view_curve_len],
     };
     for (names) |name| {
         if (name.len > 0 and !motion.isKnown(cfg, name)) {
@@ -2526,6 +2871,15 @@ fn loadPath(
             parseSpecialWorkspace(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "panel") or std.mem.eql(u8, key, "autostart_panel")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.autostart_panel = v;
+        } else if (std.mem.eql(u8, key, "panel_modules") or std.mem.eql(u8, key, "panel-modules")) {
+            const modules = parsePanelModules(value) orelse {
+                addIssue(server, path, line_no, "invalid panel_modules '{s}'", .{value});
+                continue;
+            };
+            server.config.panel_modules = modules;
+            server.config.panel_modules_set = true;
+        } else if (std.mem.eql(u8, key, "extension") or std.mem.eql(u8, key, "plugin")) {
+            addExtension(server, path, line_no, value);
         } else if (std.mem.eql(u8, key, "animations")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.animations = v;
         } else if (std.mem.eql(u8, key, "reduce_motion")) {
@@ -2536,6 +2890,10 @@ fn loadPath(
             std.mem.eql(u8, key, "animation-view-ms"))
         {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_view_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_view_curve") or
+            std.mem.eql(u8, key, "animation-view-curve"))
+        {
+            core.copyString(&server.config.animation_view_curve, &server.config.animation_view_curve_len, value);
         } else if (std.mem.eql(u8, key, "animation_open_ms") or
             std.mem.eql(u8, key, "animation-open-ms"))
         {
@@ -2871,6 +3229,7 @@ pub fn load(server: *Server) void {
     resolveProfileReferences(server);
     resolveWorkspaceReferences(server);
     validateAnimationCurves(server);
+    resolveExtensions(server);
 
     if (server.config.gaps < 0) server.config.gaps = 0;
     if (server.config.outer_gaps < 0) server.config.outer_gaps = 0;

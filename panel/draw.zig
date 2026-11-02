@@ -995,7 +995,7 @@ pub fn drawBar(s: *m.Surface) void {
         switch (g.bar_modules[mi]) {
             .clock => {
                 if (!g.show_clock) continue;
-                const clock_right = W - 16.0;
+                const clock_right = right;
                 const time = std.mem.sliceTo(&g.clock_buf, 0);
                 const tw = textWidth(cr, time, MONO, "Medium", 12.0, 0);
                 const time_x = clock_right - tw;
@@ -1387,6 +1387,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
         .media => 380.0,
         .tray => 400.0,
         .audio => 380.0,
+        .extensions => 460.0,
         else => 336.0,
     };
     const h: f64 = switch (mode) {
@@ -1401,17 +1402,18 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
             210.0
         else
             92.0 + @as(f64, @floatFromInt(g.tray_count)) * 46.0,
+        .extensions => 128.0 + @as(f64, @floatFromInt(@min(g.extension_count, 6))) * 52.0,
         else => 360.0,
     };
     const margin: f64 = @floatFromInt(g.bar_side_margin);
     const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
     var x = switch (mode) {
         .calendar, .tray => W - margin - w,
-        .clipboard, .media, .audio => (W - w) / 2.0,
+        .clipboard, .media, .audio, .extensions => (W - w) / 2.0,
         else => margin,
     };
     var y = switch (mode) {
-        .clipboard, .media, .audio => (H - h) / 2.0,
+        .clipboard, .media, .audio, .extensions => (H - h) / 2.0,
         else => bar_bottom + 8.0,
     };
     x = std.math.clamp(x, 8.0, @max(8.0, W - w - 8.0));
@@ -2240,6 +2242,123 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+fn drawExtensionsPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = m.popoverFont();
+    const p = popoverLayout(.extensions, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    drawPetal(cr, x + 30, y + 32, 7.0, .{ accent[0], accent[1], accent[2], 0.95 });
+    _ = drawText(cr, "EXTENSIONS", x + 46, y + 18, fam, "Medium", 7.4, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.6);
+    var count_buf: [32]u8 = undefined;
+    const count_text = std.fmt.bufPrint(&count_buf, "{d} TOTAL", .{g.extension_count}) catch "0";
+    const count_w = textWidth(cr, count_text, MONO, "Medium", 7.0, 0.6);
+    _ = drawText(cr, count_text, x + w - 24 - count_w, y + 18, MONO, "Medium", 7.0, .{
+        0.60, 0.66, 0.76, 0.42,
+    }, 0, 0.6);
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 52);
+    c.cairo_line_to(cr, x + w - 24, y + 52);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    if (g.extension_count == 0) {
+        _ = drawTextCentered(cr, "No extensions configured", x + w / 2.0, y + 100, fam, "Semi-Bold", 12.0, .{
+            0.86, 0.90, 0.96, 0.82,
+        }, w - 48, 0);
+        _ = drawTextCentered(cr, "Add extension = id=...; command=...; state below.", x + w / 2.0, y + 124, fam, "Regular", 8.2, .{
+            0.60, 0.66, 0.76, 0.55,
+        }, w - 48, 0);
+    } else {
+        const max_visible: usize = 6;
+        const first: usize = if (g.extension_selected >= max_visible)
+            g.extension_selected - (max_visible - 1)
+        else
+            0;
+        var row: usize = 0;
+        while (row < max_visible and first + row < g.extension_count) : (row += 1) {
+            const i = first + row;
+            const ext = &g.extensions[i];
+            const row_y = y + 60.0 + @as(f64, @floatFromInt(row)) * 52.0;
+            const row_w = w - 40.0;
+            const selected = g.extension_selected == i;
+            const hovered = g.overlay_row_hover == i;
+            if (selected) {
+                fillRound(cr, x + 20, row_y, row_w, 46, 9, .{
+                    accent[0], accent[1], accent[2], 0.16,
+                });
+                strokeRound(cr, x + 20.5, row_y + 0.5, row_w - 1, 45, 8.5, .{
+                    accent[0], accent[1], accent[2], 0.34,
+                }, 1);
+            } else if (hovered) {
+                fillRound(cr, x + 20, row_y, row_w, 46, 9, .{ 1, 1, 1, 0.055 });
+            }
+
+            const state = ext.state[0..ext.state_len];
+            const failed = std.mem.eql(u8, state, "failed") or std.mem.eql(u8, state, "blocked");
+            const ready = ext.ready or std.mem.eql(u8, state, "ready");
+            const dot = if (failed)
+                [4]f32{ 0.90, 0.36, 0.32, 0.95 }
+            else if (ready)
+                [4]f32{ 0.42, 0.82, 0.58, 0.95 }
+            else
+                [4]f32{ 0.58, 0.64, 0.74, 0.55 };
+            c.cairo_set_source_rgba(cr, dot[0], dot[1], dot[2], dot[3]);
+            c.cairo_arc(cr, x + 30, row_y + 21, 4.0, 0, 2.0 * std.math.pi);
+            c.cairo_fill(cr);
+
+            _ = drawText(cr, ext.id[0..ext.id_len], x + 44, row_y + 9, fam, "Medium", 10.4, .{
+                g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.96,
+            }, row_w - 100, 0);
+            var detail_buf: [160]u8 = undefined;
+            const detail = std.fmt.bufPrint(&detail_buf, "{s}  api {d}  {s}", .{
+                state,
+                ext.api,
+                ext.permissions[0..ext.permissions_len],
+            }) catch state;
+            _ = drawText(cr, detail, x + 44, row_y + 26, MONO, "Medium", 7.0, .{
+                0.62, 0.68, 0.78, 0.60,
+            }, row_w - 100, 0.2);
+
+            const enabled_text = if (ext.enabled) "ON" else "OFF";
+            const enabled_w = textWidth(cr, enabled_text, MONO, "Medium", 6.8, 0.5);
+            _ = drawText(cr, enabled_text, x + w - 32 - enabled_w, row_y + 15, MONO, "Medium", 6.8, if (ext.enabled) .{
+                accent[0], accent[1], accent[2], 0.90,
+            } else .{ 0.58, 0.64, 0.74, 0.45 }, 0, 0.5);
+            addOverlayHit(20, row_y - y, row_w, 46, .{ .kind = .extension, .value = i });
+        }
+    }
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + h - 42);
+    c.cairo_line_to(cr, x + w - 24, y + h - 42);
+    setColor(cr, .{ 1, 1, 1, 0.045 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+    _ = drawText(cr, "\xe2\x86\x91/\xe2\x86\x93  select      enter  enable/disable      esc  close", x + 24, y + h - 30, fam, "Medium", 7.4, .{
+        0.60, 0.66, 0.75, 0.55,
+    }, w - 48, 0.3);
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 fn drawTrayPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
     const fam = m.popoverFont();
@@ -2511,6 +2630,8 @@ pub fn drawOverlay(s: *m.Surface) void {
         drawTrayPopover(cr, W, H, t);
     } else if (g.overlay_mode == .audio) {
         drawAudioPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .extensions) {
+        drawExtensionsPopover(cr, W, H, t);
     }
 
     end(s, d);

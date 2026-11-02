@@ -527,6 +527,7 @@ pub fn reloadRuntime(server: *Server) void {
     layout_helper.reload(server);
     effect_helper.reload(server);
     panel_supervisor.reload(server);
+    @import("extension_manager.zig").reload(server);
     rules.applyAll(server);
     rules.applyOutputThemes(server);
     rules.applyOutputPolicies(server);

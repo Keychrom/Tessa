@@ -58,7 +58,10 @@ done
 tessa-ctl rpc '{"jsonrpc":"2.0","id":1,"method":"hello"}' >"$runtime/hello.out"
 grep -q '"id":1' "$runtime/hello.out"
 grep -q '"protocol":"tessa-jsonrpc","version":1' "$runtime/hello.out"
-grep -q '"capabilities":\["state","config","events","subscriptions","request-ids"\]' "$runtime/hello.out"
+grep -q '"tessa":"0.2.5"' "$runtime/hello.out"
+grep -q '"extension_api":1' "$runtime/hello.out"
+grep -q '"effect_api":2' "$runtime/hello.out"
+grep -q '"capabilities":\["state","config","events","subscriptions","request-ids","extensions","effects2"\]' "$runtime/hello.out"
 echo "capability negotiation: ok"
 
 tessa-ctl rpc '{"jsonrpc":"2.0","id":7,"method":"state"}' >"$runtime/state.out"

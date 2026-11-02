@@ -19,8 +19,9 @@ pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION
 pub const MAX_TRAY_ITEMS = 8;
 pub const MAX_TRAY_ICON = 32;
 pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
+pub const MAX_EXTENSIONS = 16;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions };
 pub const WallpaperFit = enum { cover, contain, stretch };
 pub const BarModule = enum {
     logo,
@@ -36,6 +37,67 @@ pub const BarModule = enum {
     status,
 };
 pub const BAR_MODULE_COUNT = @typeInfo(BarModule).@"enum".field_names.len;
+
+pub const MODULE_BACKGROUND: u16 = 1 << 0;
+pub const MODULE_BAR: u16 = 1 << 1;
+pub const MODULE_LAUNCHER: u16 = 1 << 2;
+pub const MODULE_POPOVERS: u16 = 1 << 3;
+pub const MODULE_NOTIFICATIONS: u16 = 1 << 4;
+pub const MODULE_TOASTS: u16 = 1 << 5;
+pub const MODULE_TRAY: u16 = 1 << 6;
+pub const MODULE_MEDIA: u16 = 1 << 7;
+pub const MODULE_AUDIO: u16 = 1 << 8;
+pub const MODULE_ALL: u16 = (1 << 9) - 1;
+
+pub fn moduleEnabled(bit: u16) bool {
+    return (g.modules & bit) != 0;
+}
+
+fn parsePanelModules(value: []const u8) bool {
+    var result: u16 = 0;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |raw| {
+        const name = std.mem.trim(u8, raw, " \t");
+        if (name.len == 0) continue;
+        if (std.ascii.eqlIgnoreCase(name, "all")) {
+            result |= MODULE_ALL;
+        } else if (std.ascii.eqlIgnoreCase(name, "none")) {
+            // no bit
+        } else if (std.ascii.eqlIgnoreCase(name, "background") or
+            std.ascii.eqlIgnoreCase(name, "wallpaper"))
+        {
+            result |= MODULE_BACKGROUND;
+        } else if (std.ascii.eqlIgnoreCase(name, "bar")) {
+            result |= MODULE_BAR;
+        } else if (std.ascii.eqlIgnoreCase(name, "launcher")) {
+            result |= MODULE_LAUNCHER;
+        } else if (std.ascii.eqlIgnoreCase(name, "popovers") or
+            std.ascii.eqlIgnoreCase(name, "popover"))
+        {
+            result |= MODULE_POPOVERS;
+        } else if (std.ascii.eqlIgnoreCase(name, "notifications") or
+            std.ascii.eqlIgnoreCase(name, "notification"))
+        {
+            result |= MODULE_NOTIFICATIONS;
+        } else if (std.ascii.eqlIgnoreCase(name, "toasts") or
+            std.ascii.eqlIgnoreCase(name, "toast"))
+        {
+            result |= MODULE_TOASTS;
+        } else if (std.ascii.eqlIgnoreCase(name, "tray")) {
+            result |= MODULE_TRAY;
+        } else if (std.ascii.eqlIgnoreCase(name, "media")) {
+            result |= MODULE_MEDIA;
+        } else if (std.ascii.eqlIgnoreCase(name, "audio") or
+            std.ascii.eqlIgnoreCase(name, "volume"))
+        {
+            result |= MODULE_AUDIO;
+        } else {
+            return false;
+        }
+    }
+    g.modules = result;
+    return true;
+}
 
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
@@ -80,6 +142,7 @@ pub const HitKind = enum {
     audio_down,
     audio_mute,
     audio_up,
+    extension,
 };
 
 pub const Hit = struct {
@@ -118,6 +181,20 @@ pub const StatusInfo = struct {
     text_len: usize = 0,
     command: [256]u8 = @splat(0),
     command_len: usize = 0,
+};
+
+pub const ExtensionInfo = struct {
+    id: [32]u8 = @splat(0),
+    id_len: usize = 0,
+    state: [16]u8 = @splat(0),
+    state_len: usize = 0,
+    api: u8 = 1,
+    pid: i32 = -1,
+    ready: bool = false,
+    restarts: u32 = 0,
+    enabled: bool = true,
+    permissions: [96]u8 = @splat(0),
+    permissions_len: usize = 0,
 };
 
 pub const CustomApp = struct {
@@ -338,6 +415,9 @@ pub const Panel = struct {
     tray_len: usize = 0,
     tray_ready: bool = false,
     tray_selected: usize = 0,
+    extensions: [MAX_EXTENSIONS]ExtensionInfo = undefined,
+    extension_count: usize = 0,
+    extension_selected: usize = 0,
     volume_percent: i32 = -1,
     volume_muted: bool = false,
     volume_source: [16]u8 = @splat(0),
@@ -490,6 +570,7 @@ pub const Panel = struct {
     bar_layout: [256]u8 = undefined,
     bar_layout_len: usize = 0,
     bar_layout_set: bool = false,
+    modules: u16 = MODULE_ALL,
     bar_modules: [BAR_MODULE_COUNT]BarModule = .{
         .logo,
         .workspaces,
@@ -1035,6 +1116,8 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             copyTrunc(&g.bar_layout, &g.bar_layout_len, val);
             g.bar_layout_set = true;
             parseBarLayout(val);
+        } else if (std.mem.eql(u8, key, "panel_modules") or std.mem.eql(u8, key, "panel-modules")) {
+            _ = parsePanelModules(val);
         } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
             hexColor(val, &g.bar_bg);
             g.bar_bg_set = true;
@@ -1278,6 +1361,7 @@ pub fn loadConfig() void {
     g.toast_font_len = 0;
     g.bar_layout_len = 0;
     g.bar_layout_set = false;
+    g.modules = MODULE_ALL;
     g.bar_modules = .{
         .logo,
         .workspaces,
@@ -1390,6 +1474,26 @@ pub fn printConfigSummary() void {
         g.toast_fg[0],    g.toast_fg[1],    g.toast_fg[2],
     });
     std.debug.print("panel bar-layout={s}\n", .{g.bar_layout[0..g.bar_layout_len]});
+    std.debug.print("panel panel-modules=", .{});
+    const module_items = [_]struct { bit: u16, name: []const u8 }{
+        .{ .bit = MODULE_BACKGROUND, .name = "background" },
+        .{ .bit = MODULE_BAR, .name = "bar" },
+        .{ .bit = MODULE_LAUNCHER, .name = "launcher" },
+        .{ .bit = MODULE_POPOVERS, .name = "popovers" },
+        .{ .bit = MODULE_NOTIFICATIONS, .name = "notifications" },
+        .{ .bit = MODULE_TOASTS, .name = "toasts" },
+        .{ .bit = MODULE_TRAY, .name = "tray" },
+        .{ .bit = MODULE_MEDIA, .name = "media" },
+        .{ .bit = MODULE_AUDIO, .name = "audio" },
+    };
+    var first_module = true;
+    for (module_items) |item| {
+        if (g.modules & item.bit == 0) continue;
+        if (!first_module) std.debug.print(",", .{});
+        first_module = false;
+        std.debug.print("{s}", .{item.name});
+    }
+    std.debug.print("\n", .{});
     std.debug.print("panel modules=", .{});
     for (g.bar_modules[0..g.bar_module_count], 0..) |module, i| {
         if (i > 0) std.debug.print(",", .{});

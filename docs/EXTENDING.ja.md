@@ -151,9 +151,11 @@ END
 応答は `{"jsonrpc":"2.0","id":<リクエスト ID>,"result":...}` で、エラーは
 標準 JSON-RPC コードです。メソッドは `hello` / `capabilities`、`ping`、
 `state`、`config`、`subscribe`、`unsubscribe` です。`hello` は
-`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1` と、
-`state`、`config`、`events`、`subscriptions`、`request-ids` の
-ケイパビリティを返します。
+`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1`、
+`tessa: "0.2.5"`、`extension_api: 1`、`effect_api: 2` と、
+`state`、`config`、`events`、`subscriptions`、`request-ids`、
+`extensions`、`effects2` のケイパビリティを返します。state/config JSON も
+`schema: 1`、`tessa`、API バージョンを含みます。
 
 `subscribe` 後、ライフサイクルイベントは通知として届きます:
 
@@ -306,35 +308,39 @@ Tessa はヘルパープロセスを保持し、使用可能領域、ウィン�
 
 ## エフェクトヘルパープロトコル
 
-`effect_helper` はコンポジタごとに 1 つの常駐プロセスを起動します。ウィンドウの
-メタデータ、フォーカス、ジオメトリ、ルール適用後の見た目が変わるたびに、
-タブ区切りの完全なスナップショットを送ります:
+`effect_helper` はコンポジタごとに 1 つの常駐プロセスを起動します。現在は
+v2 で、`VERSION 1` を返すヘルパーは従来の位置引数形式のまま動作します。
+リクエストはタブ区切りです:
 
 ```text
-HELLO\t1
-EFFECT\t1
-WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>
+HELLO\t2
+EFFECT\t2
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
 ...
 END
 ```
 
-`focused`、`urgent`、`fullscreen`、`floating`、`visible` は `0`/`1`。
-`opacity`、角丸、ボーダー幅はルール適用後の値、`blur`/`shadow` は `on`、
-`off`、`unset` です。応答:
+`tint` は v2 交渉後のリクエストだけ末尾に付きます。v2 応答は key=value
+形式です:
 
 ```text
-VERSION\t1
-WINDOW\t<id>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>
+VERSION\t2
+WINDOW\t<id>\topacity=0.9\tradius=16\tblur=on\tshadow=off\tborder-width=2\ttint=#ff8844aa\topen-ms=240\topen-curve=spring-soft
 ...
 END
 ```
 
-上書きはウィンドウごとに任意です。Tessa はリクエスト内の ID、重複、範囲
-（opacity 0〜1、角丸 0〜64、ボーダー幅 0〜16）を検証します。応答にない
-ウィンドウはルール適用値へ戻ります。タイムアウト、クラッシュ、未知の ID、
-不正なモード、`END` 欠落では全上書きを破棄し、1 秒後に再試行します。
-stdout はプロトコル専用で、診断は stderr に出してください。リクエストは
-合流され、応答待ちの間は最新状態だけが次に送られます。
+各フィールドは任意で、省略時はルール値を使います。`tint` は
+`#RRGGBBAA`/`none`、アニメーションは `animation-ms`、`open-ms`、
+`workspace-ms`、`close-ms`（-1〜1000、-1 は継承）と `curve`、
+`open-curve`、`workspace-curve`、`close-curve` を受け付けます。カーブ名は
+`bezier`/`spring` 登録済みか組み込み名でなければなりません。ID だけの
+WINDOW はそのウィンドウの上書きを解除します。
+
+Tessa は ID、重複、範囲、カーブ名を検証します。タイムアウト、クラッシュ、
+未知の ID、不正値、`END` 欠落では全上書きを破棄し、1 秒後に再試行します。
+stdout はプロトコル専用で、診断は stderr に出してください。v1 の位置引数
+応答も引き続き受理します。
 
 最小例:
 
@@ -352,13 +358,13 @@ while True:
         if line == "END":
             break
         lines.append(line.split("\t"))
-    out = ["VERSION\t1"]
+    out = ["VERSION\t2"]
     for fields in lines:
         if fields[0] != "WINDOW":
             continue
         window_id, app_id, title = fields[1], fields[2], fields[3]
         if app_id == "org.example.notes" or "notes" in title.lower():
-            out.append(f"WINDOW\t{window_id}\t0.92\t18\toff\toff\t3")
+            out.append(f"WINDOW\t{window_id}\topacity=0.92\tradius=18\topen-ms=220\topen-curve=spring-soft")
     out.append("END")
     sys.stdout.write("\n".join(out) + "\n")
     sys.stdout.flush()
@@ -370,8 +376,45 @@ effect_helper_timeout = 200
 ```
 
 ヘルパーはコンポジタと同じ権限で動き、サンドボックスはありません。調整
-できるのは宣言済みの視覚プロパティだけで、コンポジタ内へのシェーダー注入や
-コード実行はできません。`tests/effect-helper.sh` が上書きと解除を検証します。
+できるのは宣言済みの視覚・アニメーションプロパティだけで、コンポジタ内への
+シェーダー注入やコード実行はできません。`tests/effect-helper.sh` が v1
+互換性、`tests/effect-v2.sh` が tint/アニメーションとピクセル、
+`tests/effect-cache.sh` が再適用の再利用を検証します。
+
+## 監視付き拡張機能
+
+`extension` は監視対象のプロセスを宣言します。通常の IPC クライアントと
+同じソケットを使い、環境変数の token で自分を通知します。
+
+```ini
+extension = id=weather; command=weatherd; api=1; permissions=read,status
+extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
+```
+
+`api` はコンポジタの拡張 API と照合されます。`permissions` は `read`、
+`events`、`status`、`window`、`workspace`、`layout`、`spawn`、`panel`、
+`control`、`extensions` のカンマ区切り（`all`/`none` 可）で、既定は
+`read,status` です。`requires`/`after` は拡張 ID で、未知 ID と循環は設定
+エラーです。依存順に起動し、pidfd で終了を検知して 500ms〜8s の
+バックオフで再起動します。依存先が無効・blocked・failed の間、依存元は
+`blocked` のままです。
+
+```text
+HELLO 1 $TESSA_EXTENSION_TOKEN
+VERSION 1
+CAPABILITIES ...
+EXTENSION weather read,status
+```
+
+権限外は `ERR forbidden <command>`、不正 token は `ERR unauthorized` を返し、
+その接続は権限なしになります。これはサンドボックスではなく協調的な制御です。
+token を送らない `tessa-panel` と `tessa-ctl` は従来どおり全権限です。
+
+`CMD extensions`/`CMD extensions-json` で状態一覧、
+`CMD extension-enable <id> on|off` で現在のセッションだけ切り替えます。
+イベントは `extension-start`、`extension-ready`、`extension-failed`、
+`extension-stop` です。パネルの一覧は `tessa-ctl panel extensions` で開き、
+Enter で選択項目を切り替えます。
 
 ## ランチャー項目と include
 
@@ -425,7 +468,13 @@ sh tests/smoke.sh
 
 JSON スナップショットは `schema: 1` でバージョン管理しています。JSON-RPC は
 読み取り、リクエスト ID、ケイパビリティ交渉、JSON イベント購読を提供します
-が、変更操作は行コマンドを使います。拡張間の順序制御、サンドボックス、
-投げっぱなしコマンドの ACK はありません。ステータスはテキストのみです。
+が、変更操作は行コマンドを使います。拡張には依存順序と協調的な token
+スコープがありますが、サンドボックス、署名、marketplace、拡張ごとの設定
+フォームはありません。`extension-enable` はセッション内だけです。
+投げっぱなしコマンドの ACK はなく、ステータスはテキストのみです。
 レイアウトヘルパーの応答は完成したスナップショットで、矩形の部分
-ストリーミング更新には対応していません。
+ストリーミング更新には対応していません。在庫 wlroots の scene API には
+ウィンドウ単位の GPU シェーダーフックがないため、エフェクトヘルパーは
+宣言済みの視覚・アニメーションプロパティだけを扱います。次段階は
+背景フレームの常駐シェーダー、将来のウィンドウシェーダーは custom
+renderer の設計が必要です。

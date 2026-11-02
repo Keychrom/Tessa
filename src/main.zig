@@ -15,6 +15,7 @@ const lock = @import("lock.zig");
 const ext_workspace = @import("ext_workspace.zig");
 const render = @import("render.zig");
 const scrolling = @import("scrolling.zig");
+const extension_manager = @import("extension_manager.zig");
 const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
@@ -86,6 +87,7 @@ fn finishStartup(server: *Server) void {
         core.spawn(core.cstr(cmd));
     }
     events.emit(server, .{ .name = event_names.startup });
+    if (!server.extensions_started) extension_manager.startAll(server);
     core.markDirty(server);
 }
 

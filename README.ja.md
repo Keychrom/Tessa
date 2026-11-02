@@ -156,7 +156,7 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   カラムの挿入になり、`Super`+ホイールで viewport をスクロールします
 - app-id/タイトル/出力、または真偽値と POSIX 正規表現の式でマッチする
   宣言的ウィンドウルール。フローティング、ワークスペース、フルスクリーン、
-  サイズ、位置、ウィンドウ別ボーダー色、不透明度、角丸、ブラー、影、
+  サイズ、位置、ウィンドウ別ボーダー色、不透明度、角丸、ブラー、影、tint、
   ボーダー幅を指定可能。namespace/出力/レイヤーでマッチするレイヤーシェル
   ルールにも対応
 - 独自タイルアルゴリズム向けの外部レイアウトヘルパー v2。出力ごとの非同期
@@ -165,9 +165,15 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
 - 名前付き special ワークスペース: ルールまたはコマンドで割り当てる出力別の
   非表示オーバーレイ。バインド/IPC による表示切替と移動、フォーカス処理、
   スクラッチパッドとは独立した可視状態
-- 常駐エフェクトヘルパープロセス: ウィンドウ状態を受け取り、ウィンドウ別の
-  不透明度、角丸、ブラー/影、ボーダー幅の上書きを返す。リクエストは合流され、
-  プロセス内プラグイン VM は使わない
+- 常駐エフェクトヘルパー v2: ウィンドウ状態を受け取り、ウィンドウ別の
+  不透明度、角丸、ブラー/影、ボーダー幅、tint、アニメーション上書きを返す。
+  リクエストは合流され、v1 ヘルパーとも互換。プロセス内プラグイン VM は
+  使わない
+- 設定で宣言する監視付き拡張機能: API バージョン、権限スコープ、
+  `requires`/`after` 依存、pidfd 監視、再起動バックオフ、ライフサイクル
+  イベント、`tessa-ctl extensions`、パネルの拡張一覧
+- `panel_modules` でバー/ランチャー/通知/ポップオーバーなどを選択でき、
+  Waybar/Quickshell のバーと Tessa の通知やランチャーを共存可能
 - 組み合わせ可能なシェル v2 バーモジュール（表示/順序を設定可能）、
   バー/ランチャー/ポップオーバー/トースト別のフォントと前景/背景色、
   PNG または PPM シェーダー壁紙、バー・ポップオーバー・トーストへの
@@ -291,6 +297,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
 `tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
 `tests/layout-reorder.sh`、`tests/layout-config.sh`、
+`tests/extensions.sh`、`tests/panel-modules.sh`、`tests/effect-v2.sh`、
+`tests/effect-cache.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、
 `tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
@@ -883,7 +891,10 @@ cp config/config.example ~/.config/tessa/config
 | `column_width_presets` | `column-width-cycle` が使うカンマ区切りの幅 |
 | `center_focused_column` | Scrolling のフォーカス方針: `never`、`always`、`on-overflow` |
 | `animation_view_ms` | Scrolling viewport のスライド時間（0–1000 ms） |
+| `animation_view_curve` | Scrolling viewport のカーブ |
 | `layout_cycle` | `Super+T` が巡回するレイアウトのカンマ区切りリスト |
+| `extension` | 監視付き拡張のマニフェスト（`id=…; command=…; permissions=…`） |
+| `panel_modules` | 作成するパネル要素（`bar`、`launcher`、`notifications`、`popovers` など） |
 | `layout_helper` | 出力ごとに 1 つ起動する非同期レイアウトヘルパーのコマンド |
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
 | `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`scrolling`、`monocle`、`stacking`/`deck`、`custom` |

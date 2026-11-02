@@ -154,17 +154,23 @@ Highlights include:
   column and `Super`+wheel scrolls the viewport
 - declarative window rules matched by app-id/title/output or boolean
   POSIX-regex expressions, with floating, workspace, fullscreen, size,
-  position, per-window border colors, opacity, rounding, blur, shadow, and
-  border width; layer-shell rules by namespace, output, and layer
+  position, per-window border colors, opacity, rounding, blur, shadow, tint,
+  and border width; layer-shell rules by namespace, output, and layer
 - external layout-helper v2 for custom tiling algorithms: one asynchronous
   process per output, coalesced requests, focus/urgent metadata, version
   negotiation, timeout, restart, and built-in fallback
 - named special workspaces: hidden per-output overlays assigned by rule or
   command, with toggle/move bindings, IPC control, focus handling, and separate
   visibility from the scratchpad
-- long-lived effect-helper process that receives window state and returns
-  per-window opacity, corner radius, blur/shadow, and border-width overrides;
-  requests are coalesced and there is no in-process plugin VM
+- long-lived effect-helper protocol v2 that receives window state and returns
+  per-window opacity, corner radius, blur/shadow, border-width, tint, and
+  animation overrides; requests are coalesced, v1 helpers remain compatible,
+  and there is no in-process plugin VM
+- supervised extensions declared in config with API version, capability
+  scopes, and `requires`/`after` dependencies; pidfd supervision, restart
+  backoff, lifecycle events, `tessa-ctl extensions`, and an Extensions popover
+- selectable panel modules (`panel_modules`) so an external Waybar/Quickshell
+  bar can coexist with Tessa notifications, launcher, or popovers
 - composable shell v2 bar modules with configurable order and visibility,
   per-surface bar/launcher/popover/toast fonts and foreground/background
   colors, PNG or PPM-shader wallpaper sources, and layer-rule styling for the
@@ -279,7 +285,8 @@ scale changes, and output mode/position/scale and layout persistence across
 restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
 `tests/layout-scrolling.sh`, `tests/layout-modes.sh`, `tests/layout-reorder.sh`,
-`tests/layout-config.sh`,
+`tests/layout-config.sh`, `tests/extensions.sh`, `tests/panel-modules.sh`,
+`tests/effect-v2.sh`, `tests/effect-cache.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
@@ -857,7 +864,10 @@ diagnostics. Selected keys:
 | `column_width_presets` | comma-separated widths for `column-width-cycle` |
 | `center_focused_column` | scrolling focus policy: `never`, `always`, `on-overflow` |
 | `animation_view_ms` | scrolling viewport slide duration (0–1000 ms) |
+| `animation_view_curve` | curve used by the scrolling viewport |
 | `layout_cycle` | comma-separated layouts visited by `Super+T` |
+| `extension` | supervised extension manifest (`id=…; command=…; permissions=…`) |
+| `panel_modules` | panel parts to create: `bar`, `launcher`, `notifications`, `popovers`, etc. |
 | `layout_helper` | command for one long-lived asynchronous helper per output |
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
 | `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, `scrolling`, `monocle`, `stacking`/`deck`, or `custom` |

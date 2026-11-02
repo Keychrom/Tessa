@@ -220,23 +220,25 @@ fn destroyBar() void {
 }
 
 fn createChrome() void {
-    _ = createLayerSurface(
-        &g.bg,
-        g.target_output,
-        .background,
-        0,
-        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        -1,
-        0,
-        "tessa-background",
-    );
-    createBar();
+    if (m.moduleEnabled(m.MODULE_BACKGROUND)) {
+        _ = createLayerSurface(
+            &g.bg,
+            g.target_output,
+            .background,
+            0,
+            @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            -1,
+            0,
+            "tessa-background",
+        );
+    }
+    if (m.moduleEnabled(m.MODULE_BAR)) createBar();
 }
 
 fn computeSearchRect() void {
@@ -447,6 +449,7 @@ fn beginOverlay(mode: m.OverlayMode) void {
 }
 
 fn openLauncher(query_arg: []const u8) void {
+    if (!m.moduleEnabled(m.MODULE_LAUNCHER)) return;
     if (g.overlay != null and
         (g.overlay_mode != .launcher or !g.launcher_open or g.menu_target == 0))
     {
@@ -472,6 +475,7 @@ fn openLauncher(query_arg: []const u8) void {
 }
 
 fn openCalendar() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
     if (g.overlay != null and g.overlay_mode == .calendar and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -484,6 +488,7 @@ fn openCalendar() void {
 }
 
 fn openPower() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
     if (g.overlay != null and g.overlay_mode == .power and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -496,6 +501,7 @@ fn openPower() void {
 }
 
 fn openMedia() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS) or !m.moduleEnabled(m.MODULE_MEDIA)) return;
     if (g.overlay != null and g.overlay_mode == .media and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -507,6 +513,7 @@ fn openMedia() void {
 }
 
 fn openClipboard() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
     if (g.overlay != null and g.overlay_mode == .clipboard and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -516,6 +523,38 @@ fn openClipboard() void {
     g.clipboard_selected = 0;
     beginOverlay(.clipboard);
     logDebug("clipboard open ({d} entries)", .{g.clipboard_count});
+}
+
+fn moveExtensionSelection(delta: isize) void {
+    if (g.extension_count == 0) return;
+    const count: isize = @intCast(g.extension_count);
+    var next = @as(isize, @intCast(g.extension_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.extension_selected = @intCast(next);
+    refreshOverlay();
+}
+
+fn toggleExtensionSelection() void {
+    if (g.extension_selected >= g.extension_count) return;
+    const ext = &g.extensions[g.extension_selected];
+    sendCmd("CMD extension-enable {s} {s}\n", .{
+        ext.id[0..ext.id_len],
+        if (ext.enabled) "off" else "on",
+    });
+}
+
+fn openExtensions() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (g.overlay != null and g.overlay_mode == .extensions and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    if (g.extension_selected >= g.extension_count) g.extension_selected = 0;
+    beginOverlay(.extensions);
+    logDebug("extensions open ({d})", .{g.extension_count});
 }
 
 fn openPanel(name: []const u8) void {
@@ -533,6 +572,8 @@ fn openPanel(name: []const u8) void {
         openTray();
     } else if (std.mem.eql(u8, name, "audio")) {
         openAudio();
+    } else if (std.mem.eql(u8, name, "extensions")) {
+        openExtensions();
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -646,6 +687,10 @@ fn activateOverlayHit(h: m.Hit) void {
         .media_toggle => mediaCommand(1),
         .media_next => mediaCommand(2),
         .tray_entry => trayActivate(h.value, 1),
+        .extension => {
+            g.extension_selected = h.value;
+            toggleExtensionSelection();
+        },
         .audio_down => audioCommand(2),
         .audio_mute => audioCommand(3),
         .audio_up => audioCommand(1),
@@ -1049,6 +1094,25 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             refreshOverlay();
         } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
             activateTraySelection();
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .extensions) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up) {
+            moveExtensionSelection(-1);
+        } else if (sym == c.XKB_KEY_Down) {
+            moveExtensionSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.extension_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.extension_count > 0) g.extension_selected = g.extension_count - 1;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            toggleExtensionSelection();
         }
         return;
     }
@@ -1459,6 +1523,7 @@ fn onScreenshotFailed(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1) ca
 }
 
 fn openScreenshot() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
     if (g.overlay != null) {
         logMsg("screenshot: close the current overlay first", .{});
         return;
@@ -1540,6 +1605,10 @@ fn destroyToasts() void {
 }
 
 fn updateToastsSurface() void {
+    if (!m.moduleEnabled(m.MODULE_TOASTS)) {
+        destroyToasts();
+        return;
+    }
     if (g.notification_count == 0) {
         destroyToasts();
         return;
@@ -2302,6 +2371,7 @@ fn activateTraySelection() void {
 }
 
 fn openTray() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS) or !m.moduleEnabled(m.MODULE_TRAY)) return;
     if (g.overlay != null and g.overlay_mode == .tray and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -2410,6 +2480,7 @@ fn audioCommand(code: u32) void {
 }
 
 fn openAudio() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS) or !m.moduleEnabled(m.MODULE_AUDIO)) return;
     if (g.overlay != null and g.overlay_mode == .audio and g.menu_target == 1) {
         closeOverlay();
         return;
@@ -3155,6 +3226,7 @@ fn handleStateLine(line: []const u8) void {
         g.focused_id = 0;
         g.is_focused_output = false;
         g.status_count = 0;
+        g.extension_count = 0;
         g.ipc_in_state = true;
         return;
     }
@@ -3167,6 +3239,7 @@ fn handleStateLine(line: []const u8) void {
             if (ws >= 1 and ws <= 9) g.occ[ws] += 1;
         }
         g.bar.dirty = true;
+        if (g.overlay) |ov| ov.dirty = true;
         if (c.getenv("TESSA_PANEL_DEBUG") != null) {
             logMsg("state: output={s} ws={d} windows={d}", .{
                 g.target_name[0..g.target_name_len],
@@ -3188,6 +3261,31 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&st.text, &st.text_len, fields[2]);
         m.decodeEscapes(&st.command, &st.command_len, fields[3]);
         g.status_count += 1;
+        return;
+    }
+
+    if (std.mem.startsWith(u8, line, "EXT ")) {
+        var it_ext = std.mem.tokenizeAny(u8, line, " \t");
+        _ = it_ext.next();
+        const id = it_ext.next() orelse return;
+        const state = it_ext.next() orelse return;
+        const api = std.fmt.parseInt(u8, it_ext.next() orelse "1", 10) catch 1;
+        _ = it_ext.next() orelse return;
+        const ready = std.mem.eql(u8, it_ext.next() orelse "0", "1");
+        const restarts = std.fmt.parseInt(u32, it_ext.next() orelse "0", 10) catch 0;
+        const enabled = std.mem.eql(u8, it_ext.next() orelse "1", "1");
+        const permissions = it_ext.next() orelse "";
+        if (g.extension_count >= g.extensions.len) return;
+        const ext = &g.extensions[g.extension_count];
+        ext.* = std.mem.zeroes(m.ExtensionInfo);
+        m.copyTrunc(&ext.id, &ext.id_len, id);
+        m.copyTrunc(&ext.state, &ext.state_len, state);
+        m.copyTrunc(&ext.permissions, &ext.permissions_len, permissions);
+        ext.api = api;
+        ext.ready = ready;
+        ext.restarts = restarts;
+        ext.enabled = enabled;
+        g.extension_count += 1;
         return;
     }
 
@@ -3651,10 +3749,10 @@ pub fn main(init: std.process.Init.Minimal) !void {
     }
 
     createChrome();
-    if (g.notification_owner) startNotificationService();
-    startMediaService();
-    startTrayService();
-    startAudioService();
+    if (g.notification_owner and m.moduleEnabled(m.MODULE_NOTIFICATIONS)) startNotificationService();
+    if (m.moduleEnabled(m.MODULE_MEDIA)) startMediaService();
+    if (m.moduleEnabled(m.MODULE_TRAY)) startTrayService();
+    if (m.moduleEnabled(m.MODULE_AUDIO)) startAudioService();
 
     const now = m.nowMs();
     g.next_clock_ms = now + 1000;

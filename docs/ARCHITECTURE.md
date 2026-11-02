@@ -575,26 +575,43 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   back to master. Helpers are restarted when their command changes and stopped
   during output destruction and shutdown.
 - `effect_helper.zig` owns one optional long-lived child process for all
-  outputs. It sends a complete tab-separated `EFFECT`/`WINDOW` snapshot when
-  window metadata, focus, geometry, or rule visuals change, and applies
-  validated `WINDOW` overrides (opacity, corner radius, blur, shadow, border
-  width). Overrides live separately from rule fields, so removing the helper
+  outputs. Protocol 2 sends a complete tab-separated `EFFECT`/`WINDOW` snapshot
+  plus the current tint after negotiation, and accepts key=value overrides for
+  opacity, corner radius, blur, shadow, border width, tint, and per-window
+  animation durations/curves. A `VERSION 1` reply keeps the positional v1
+  parser. Overrides live separately from rule fields, so removing the helper
   or a bad reply restores them. Requests are coalesced; timeout or protocol
   errors stop the child and retry after one second.
+- `window_effects.zig` caches the last applied client opacity, radius, border
+  width, tint, blur state, size, and content buffer. Repeated arrange passes
+  skip redundant scene setters and increment `effect_skips`; changed values
+  increment `effect_applies`. Both counters, plus `blur_nodes`, are exported by
+  `perf` and `rendering`.
+- `extension_manager.zig` owns supervised extension processes. Config
+  manifests carry an id, command, API version, permission scopes, and
+  `requires`/`after` dependencies. `config.resolveExtensions` topologically
+  sorts them and reports unknown ids/cycles. Each child gets a token in its
+  environment; `HELLO 1 <token>` maps the IPC client to its scopes. Timeout-free
+  lifecycle supervision uses pidfd and 500 ms→8 s restart backoff. The token is
+  a cooperative guardrail, not a sandbox.
 - `panel_supervisor.zig` owns one panel child per output. A Linux pidfd is
   attached to the Wayland event loop, so an exit is detected without changing
   the compositor's global `SIGCHLD` handling. Restarts use bounded exponential
   backoff (500 ms to 8 s); a panel that ran for ten seconds resets the failure
   count. Intentional output removal and compositor shutdown stop supervision
   and terminate the child. The notification-owner role is retained across a
-  restart.
+  restart. `panel_modules` selects which surfaces/services the panel creates;
+  changing the mask restarts the child, and notification ownership is only
+  advertised while the `notifications` module is enabled.
 - `ipc.zig` exposes `config-compare` by loading a candidate path into a
   temporary configuration, building the effective config text for both, and
   emitting diagnostics plus changed lines. The live config and environment are
   restored before the reply is sent. `perf` reports samples collected around
   the scene-output commit in `output.zig`. Optional `HELLO` negotiates line
-  protocol 1 and advertises capabilities; clients that skip it remain on the
-  legacy command path.
+  protocol 1, advertises capabilities, and accepts an extension token; clients
+  that skip it remain on the legacy full-access path. `src/api.zig` is the
+  single version registry for line, JSON-RPC, state/config, layout, effect, and
+  extension APIs.
 - Offline validation uses `tessa --check-config`: it allocates only parser
   state, calls `config.load`, prints diagnostics, and never creates a Wayland
   display. This path is also the entry point for the config fuzz harness.

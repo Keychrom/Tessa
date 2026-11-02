@@ -38,6 +38,10 @@ import sys
 
 state = json.load(open(sys.argv[1]))
 assert state["schema"] == 1
+assert state["tessa"] == "0.2.5"
+assert state["extension_api"] == 1
+assert state["effect_api"] == 2
+assert state["extensions"] == []
 assert state["active_workspace"] == 1
 assert len(state["outputs"]) == 1
 assert state["outputs"][0]["name"] == "HEADLESS-1"
@@ -46,11 +50,16 @@ window = next(w for w in state["windows"] if w["title"] == "JsonTest")
 assert window["workspace"] == 1
 assert window["width"] > 0 and window["height"] > 0
 assert window["app_id"] == "foot"
+assert window["tint"] == [0.0, 0.0, 0.0, 0.0]
+assert "open_ms" in window["animation"]
 
 config = json.load(open(sys.argv[2]))
 assert config["schema"] == 1
 assert config["gaps"] == 12
 assert len(config["layouts"]) == 9
+assert config["extensions"] == []
+assert config["panel_modules"] == ["background", "bar", "launcher", "popovers", "notifications", "toasts", "tray", "media", "audio"]
+assert config["animation_view_curve"] == "ease-out-cubic"
 assert config["diagnostics"] == []
 assert config["errors"] == 0
 PY
