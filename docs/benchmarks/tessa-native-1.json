@@ -1,0 +1,2232 @@
+{
+  "schema_version": 3,
+  "label": "tessa-native",
+  "compositor": "tessa-ink",
+  "compositor_version": null,
+  "compositor_pid": 684,
+  "compositor_source": "socket",
+  "when": "2026-11-03T03:22:14+09:00",
+  "desktop": "unknown",
+  "desktop_env": "",
+  "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/session-505.scope + /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+  "cgroup_exact": true,
+  "cgroup_kind": "login-session+user-manager",
+  "stack_style": "modular",
+  "profile": "native",
+  "blur": "on",
+  "confidence": "high",
+  "checks": [
+    {
+      "name": "session cgroup",
+      "ok": true,
+      "detail": "/sys/fs/cgroup/user.slice/user-1000.slice/session-505.scope + /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service"
+    },
+    {
+      "name": "compositor process",
+      "ok": true,
+      "detail": "tessa-ink (pid 684, via socket)"
+    },
+    {
+      "name": "desktop identity",
+      "ok": true,
+      "detail": "unknown"
+    },
+    {
+      "name": "display refresh",
+      "ok": true,
+      "detail": "59.9 Hz EDID, 59.9 Hz compositor"
+    },
+    {
+      "name": "RAPL power",
+      "ok": false,
+      "detail": "unreadable (root-only)"
+    },
+    {
+      "name": "battery discharging",
+      "ok": false,
+      "detail": "Charging"
+    },
+    {
+      "name": "clean session",
+      "ok": true,
+      "detail": "nothing over 150 MiB"
+    },
+    {
+      "name": "quiet cpu",
+      "ok": true,
+      "detail": "0.6% outside the declared stack and this tool: wireplumber 0.3%, dbus-broker 0.1%"
+    },
+    {
+      "name": "presentation feedback",
+      "ok": true,
+      "detail": "presentation"
+    },
+    {
+      "name": "GPU counters",
+      "ok": true,
+      "detail": "DRM fdinfo"
+    }
+  ],
+  "clean": true,
+  "contaminants": [],
+  "env": {
+    "cpu": "Intel(R) Core(TM) i5-6300U CPU @ 2.40GHz",
+    "cpu_cores": 2,
+    "cpu_threads": 4,
+    "cpu_max_ghz": 3.0,
+    "gpu": "Skylake-U GT2 [HD Graphics 520]",
+    "gpu_driver": "i915",
+    "gpu_pci": "8086:1916",
+    "mesa": "26.2.6",
+    "os": "Arch Linux",
+    "kernel": "7.2.11-arch1-1",
+    "display": {
+      "connector": "card1-eDP-1",
+      "mode": "1920x1080",
+      "refresh_hz": 59.93387800318494,
+      "compositor_hz": 59.934,
+      "logical_w": 1920,
+      "logical_h": 1080,
+      "scale": 1.0,
+      "outputs": 1,
+      "brightness": 99,
+      "brightness_max": 937
+    },
+    "profile": "powersave",
+    "governor": "powersave",
+    "epp": "balance_performance",
+    "temp_c": 40.0,
+    "cpu_ghz": 1.80043,
+    "throttled": false,
+    "config_hash": null
+  },
+  "features": {
+    "supported": 23,
+    "total": 31,
+    "supported_all": 30,
+    "total_all": 46,
+    "extra": 5,
+    "stale": 1,
+    "percent": 74.19354838709677,
+    "items": [
+      {
+        "name": "wl_compositor",
+        "label": "compositor",
+        "tier": "core",
+        "version": 6,
+        "since": 4,
+        "stale": false
+      },
+      {
+        "name": "wl_subcompositor",
+        "label": "subsurfaces",
+        "tier": "core",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wl_shm",
+        "label": "shared memory buffers",
+        "tier": "core",
+        "version": 2,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wl_seat",
+        "label": "input seats",
+        "tier": "core",
+        "version": 9,
+        "since": 5,
+        "stale": false
+      },
+      {
+        "name": "wl_output",
+        "label": "outputs",
+        "tier": "core",
+        "version": 4,
+        "since": 4,
+        "stale": false
+      },
+      {
+        "name": "xdg_wm_base",
+        "label": "xdg-shell",
+        "tier": "core",
+        "version": 5,
+        "since": 2,
+        "stale": false
+      },
+      {
+        "name": "xdg_activation_v1",
+        "label": "activation / focus stealing",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zxdg_decoration_manager_v1",
+        "label": "server-side decorations",
+        "tier": "core",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "xdg_wm_dialog_v1",
+        "label": "modal dialogs",
+        "tier": "desktop",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "xwayland_shell_v1",
+        "label": "XWayland",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_linux_dmabuf_v1",
+        "label": "dmabuf (zero-copy)",
+        "tier": "rendering",
+        "version": 5,
+        "since": 4,
+        "stale": false
+      },
+      {
+        "name": "wp_single_pixel_buffer_manager_v1",
+        "label": "solid colour buffers",
+        "tier": "rendering",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_viewporter",
+        "label": "cropping / scaling",
+        "tier": "rendering",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_fractional_scale_manager_v1",
+        "label": "fractional scaling",
+        "tier": "rendering",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_presentation",
+        "label": "presentation timing",
+        "tier": "rendering",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_linux_drm_syncobj_manager_v1",
+        "label": "explicit sync",
+        "tier": "rendering",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_tearing_control_manager_v1",
+        "label": "tearing control",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_color_representation_manager_v1",
+        "label": "colour representation",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_alpha_modifier_v1",
+        "label": "per-surface alpha",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_background_effect_manager_v1",
+        "label": "native blur",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_relative_pointer_manager_v1",
+        "label": "relative pointer",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_pointer_constraints_v1",
+        "label": "pointer constraints",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_pointer_gestures_v1",
+        "label": "touchpad gestures",
+        "tier": "desktop",
+        "version": 3,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_cursor_shape_manager_v1",
+        "label": "cursor shapes",
+        "tier": "desktop",
+        "version": 1,
+        "since": 2,
+        "stale": true
+      },
+      {
+        "name": "zwp_text_input_manager_v3",
+        "label": "text input / IME",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_input_method_manager_v2",
+        "label": "input methods",
+        "tier": "optional",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwp_tablet_manager_v2",
+        "label": "graphics tablets",
+        "tier": "optional",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wl_data_device_manager",
+        "label": "clipboard / DnD",
+        "tier": "core",
+        "version": 3,
+        "since": 3,
+        "stale": false
+      },
+      {
+        "name": "wp_primary_selection_device_manager_v1",
+        "label": "primary selection",
+        "tier": "desktop",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_data_control_manager_v1",
+        "label": "clipboard managers",
+        "tier": "desktop",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwlr_layer_shell_v1",
+        "label": "layer shell (panels, launchers)",
+        "tier": "wlroots",
+        "version": 4,
+        "since": 4,
+        "stale": false
+      },
+      {
+        "name": "zwlr_foreign_toplevel_manager_v1",
+        "label": "window list",
+        "tier": "wlroots",
+        "version": 3,
+        "since": 3,
+        "stale": false
+      },
+      {
+        "name": "ext_foreign_toplevel_list_v1",
+        "label": "window list (new)",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_workspace_manager_v1",
+        "label": "workspace protocol",
+        "tier": "desktop",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwlr_output_manager_v1",
+        "label": "output configuration",
+        "tier": "wlroots",
+        "version": 4,
+        "since": 4,
+        "stale": false
+      },
+      {
+        "name": "zxdg_output_manager_v1",
+        "label": "output names / positions",
+        "tier": "desktop",
+        "version": 3,
+        "since": 3,
+        "stale": false
+      },
+      {
+        "name": "zwlr_screencopy_manager_v1",
+        "label": "screencopy",
+        "tier": "wlroots",
+        "version": 3,
+        "since": 3,
+        "stale": false
+      },
+      {
+        "name": "ext_image_copy_capture_manager_v1",
+        "label": "screen capture (new)",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_output_image_capture_source_manager_v1",
+        "label": "capture sources",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwlr_gamma_control_manager_v1",
+        "label": "gamma / night light",
+        "tier": "wlroots",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_idle_notifier_v1",
+        "label": "idle notification",
+        "tier": "desktop",
+        "version": 2,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_idle_inhibit_manager_v1",
+        "label": "idle inhibit",
+        "tier": "desktop",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "ext_session_lock_manager_v1",
+        "label": "session lock",
+        "tier": "desktop",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "zwlr_output_power_manager_v1",
+        "label": "output power",
+        "tier": "optional",
+        "version": 1,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_drm_lease_device_v1",
+        "label": "DRM leasing (VR)",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      },
+      {
+        "name": "wp_security_context_manager_v1",
+        "label": "sandboxed clients",
+        "tier": "optional",
+        "version": null,
+        "since": 1,
+        "stale": false
+      }
+    ]
+  },
+  "idle": {
+    "dur_s": 20.0,
+    "measured_s": 20.001155784,
+    "settle_s": 8.005311974,
+    "mem_mib": 191.25,
+    "total_mib": 237.390625,
+    "peak_mib": 191.25,
+    "peak_method": "polled every 25 ms",
+    "anon_mib": 144.95703125,
+    "shmem_mib": 46.29296875,
+    "file_mib": 80.9453125,
+    "kernel_mib": 8.4609375,
+    "swap_mib": 0.0,
+    "procs": 19,
+    "cpu_pct": 3.2948695921221667,
+    "comp_cpu_pct": 0.17279737417798416,
+    "stack_cpu_pct": 0.2625021902084296,
+    "unrelated_cpu_pct": 0.6053150193292851,
+    "other_cpu_pct": 0.6950198353597306,
+    "wakeups_per_s": 2.6498468674694062,
+    "comp_pss_mib": 516.052734375,
+    "stack_pss_mib": 518.8115234375,
+    "stack_style": "modular",
+    "stack_declared": "auto",
+    "stack_processes": [
+      {
+        "pid": 438136,
+        "name": "xdg-desktop-portal",
+        "pss_mib": 2.8,
+        "cpu_pct": 0.09
+      }
+    ],
+    "stack_wakeups_per_s": 15.999075426230378,
+    "self_pss_mib": 138.11328125,
+    "mem_excl_self_mib": 53.13671875,
+    "psys_w": null,
+    "pkg_w": null,
+    "batt_w": null,
+    "batt_status": "Charging",
+    "threads": [
+      {
+        "name": "tessa-ink",
+        "tid": 684,
+        "share_pct": 91.97748869029652
+      },
+      {
+        "name": "tessa-in:gdrv0",
+        "tid": 718,
+        "share_pct": 8.022511309703475
+      }
+    ]
+  },
+  "windows": {
+    "extra": 6,
+    "settle_s": 3.0,
+    "method": "same-process GTK toplevels",
+    "baseline_mib": 229.47265625,
+    "baseline_drift_mib": 0.0,
+    "with_windows_mib": 326.58984375,
+    "delta_mib": 97.1171875,
+    "delta_valid": true,
+    "client_gpu_mib": 171.921875,
+    "comp_gpu_mib": 33.796875,
+    "per_window_mib": 16.186197916666668,
+    "comp_delta_mib": 2.078125,
+    "client_delta_mib": 95.0390625,
+    "residual_mib": 26.22265625,
+    "post_close_drift_mib": 0.0
+  },
+  "render": {
+    "scenario": "single",
+    "dur_s": 6.0,
+    "measured_s": 6.001291126,
+    "frames": 358,
+    "dropped": 1,
+    "fps": 59.69443472296515,
+    "target_hz": 59.93407252022775,
+    "workload_hz": null,
+    "cadence_hz": 59.93407252022775,
+    "pacing_vs_panel": 0.9960016433526735,
+    "dropped_vs_panel": 1,
+    "p95_over_panel": 1.0623913694935572,
+    "comp_cpu_pct_load": 14.397101154729084,
+    "comp_cpu_pct_at_60hz": 14.412937965999285,
+    "p50_ms": 16.73,
+    "p95_ms": 17.726,
+    "max_ms": 39.343,
+    "pacing_source": "presentation",
+    "comp_ms_per_frame": 2.4134412122905027,
+    "comp_ns_per_frame": 2413441.2122905026,
+    "gpu_ms_per_frame": 0.7576339692737429,
+    "comp_gpu_ms_per_frame": 0.7576339692737429,
+    "app_gpu_ms_per_frame": 11.436403768156424,
+    "app_ms_per_frame": 4.225290720670391,
+    "session_cpu_s": 1.590052,
+    "self_cpu_s": 1.512654078,
+    "session_cpu_excl_self_s": 0.07739792200000006,
+    "psys_w": null,
+    "pkg_w": null,
+    "batt_w": null,
+    "threads": [
+      {
+        "name": "tessa-ink",
+        "tid": 684,
+        "share_pct": 99.62445253390557
+      },
+      {
+        "name": "tessa-in:gdrv0",
+        "tid": 718,
+        "share_pct": 0.37554746609443324
+      }
+    ]
+  },
+  "multi": {
+    "scenario": "multi",
+    "dur_s": 6.0,
+    "measured_s": 6.001577267,
+    "frames": 316,
+    "dropped": 42,
+    "fps": 52.818610662618696,
+    "target_hz": 59.93407252022775,
+    "workload_hz": null,
+    "cadence_hz": 59.93407252022775,
+    "pacing_vs_panel": 0.8812785189057929,
+    "dropped_vs_panel": 42,
+    "p95_over_panel": 2.0388972130656278,
+    "comp_cpu_pct_load": 24.192587071794506,
+    "comp_cpu_pct_at_60hz": 24.21919891757348,
+    "p50_ms": 16.703,
+    "p95_ms": 34.019,
+    "max_ms": 40.312,
+    "pacing_source": "presentation",
+    "comp_ms_per_frame": 4.594736727848101,
+    "comp_ns_per_frame": 4594736.727848101,
+    "gpu_ms_per_frame": 4.233723098101266,
+    "comp_gpu_ms_per_frame": 4.233723098101266,
+    "app_gpu_ms_per_frame": 12.282595829113925,
+    "app_ms_per_frame": 7.818906936708862,
+    "session_cpu_s": 2.549788,
+    "self_cpu_s": 2.470774592,
+    "session_cpu_excl_self_s": 0.07901340799999979,
+    "psys_w": null,
+    "pkg_w": null,
+    "batt_w": null,
+    "threads": [
+      {
+        "name": "tessa-ink",
+        "tid": 684,
+        "share_pct": 85.78501425495236
+      },
+      {
+        "name": "tessa-in:gdrv0",
+        "tid": 718,
+        "share_pct": 14.21498574504764
+      }
+    ]
+  },
+  "peaks": {
+    "dur_s": 48.452526262,
+    "ram_before_mib": 191.25,
+    "ram_peak_mib": 344.58984375,
+    "ram_peak_method": "polled every 25 ms",
+    "cpu_idle_pct": 3.2948695921221667,
+    "cpu_avg_pct": 15.235816094736412,
+    "cpu_peak_pct": 103.9538908181257,
+    "cpu_series": [
+      {
+        "t_s": 0.11318558,
+        "pct": 23.016308
+      },
+      {
+        "t_s": 0.21583298,
+        "pct": 1.5158689
+      },
+      {
+        "t_s": 0.32006505,
+        "pct": 2.7659428
+      },
+      {
+        "t_s": 0.42421225,
+        "pct": 2.6577773
+      },
+      {
+        "t_s": 0.5281971,
+        "pct": 3.3928018
+      },
+      {
+        "t_s": 0.6324708,
+        "pct": 2.9384217
+      },
+      {
+        "t_s": 0.7362387,
+        "pct": 2.5817225
+      },
+      {
+        "t_s": 0.84034127,
+        "pct": 3.4898276
+      },
+      {
+        "t_s": 0.94328386,
+        "pct": 9.519872
+      },
+      {
+        "t_s": 1.0475146,
+        "pct": 2.6307023
+      },
+      {
+        "t_s": 1.1499035,
+        "pct": 1.7892554
+      },
+      {
+        "t_s": 1.2533567,
+        "pct": 2.3111918
+      },
+      {
+        "t_s": 1.3571959,
+        "pct": 2.4586077
+      },
+      {
+        "t_s": 1.4610511,
+        "pct": 3.1726859
+      },
+      {
+        "t_s": 1.5649114,
+        "pct": 3.077212
+      },
+      {
+        "t_s": 1.6690681,
+        "pct": 2.6469712
+      },
+      {
+        "t_s": 1.7733427,
+        "pct": 2.7887902
+      },
+      {
+        "t_s": 1.876961,
+        "pct": 2.8421633
+      },
+      {
+        "t_s": 1.9792618,
+        "pct": 8.051748
+      },
+      {
+        "t_s": 2.082835,
+        "pct": 2.3249242
+      },
+      {
+        "t_s": 2.1863358,
+        "pct": 2.0598884
+      },
+      {
+        "t_s": 2.2906823,
+        "pct": 3.882256
+      },
+      {
+        "t_s": 2.3949225,
+        "pct": 2.6717145
+      },
+      {
+        "t_s": 2.4991112,
+        "pct": 3.051193
+      },
+      {
+        "t_s": 2.602974,
+        "pct": 2.7083848
+      },
+      {
+        "t_s": 2.7071252,
+        "pct": 2.706639
+      },
+      {
+        "t_s": 2.8111734,
+        "pct": 2.673757
+      },
+      {
+        "t_s": 2.915138,
+        "pct": 4.146613
+      },
+      {
+        "t_s": 3.0187674,
+        "pct": 8.69444
+      },
+      {
+        "t_s": 3.1216736,
+        "pct": 1.9367142
+      },
+      {
+        "t_s": 3.2250257,
+        "pct": 1.9931885
+      },
+      {
+        "t_s": 3.3289537,
+        "pct": 2.6960945
+      },
+      {
+        "t_s": 3.432811,
+        "pct": 2.7065988
+      },
+      {
+        "t_s": 3.5365658,
+        "pct": 2.5203664
+      },
+      {
+        "t_s": 3.6399097,
+        "pct": 2.5758634
+      },
+      {
+        "t_s": 3.7437673,
+        "pct": 2.6892617
+      },
+      {
+        "t_s": 3.8479195,
+        "pct": 2.6509285
+      },
+      {
+        "t_s": 3.9506543,
+        "pct": 9.1342
+      },
+      {
+        "t_s": 4.0542364,
+        "pct": 2.1943932
+      },
+      {
+        "t_s": 4.156616,
+        "pct": 1.9330007
+      },
+      {
+        "t_s": 4.260583,
+        "pct": 2.2353241
+      },
+      {
+        "t_s": 4.363995,
+        "pct": 2.9561384
+      },
+      {
+        "t_s": 4.4681654,
+        "pct": 3.1496553
+      },
+      {
+        "t_s": 4.572247,
+        "pct": 2.953444
+      },
+      {
+        "t_s": 4.676189,
+        "pct": 2.4398198
+      },
+      {
+        "t_s": 4.7804723,
+        "pct": 3.0110285
+      },
+      {
+        "t_s": 4.8841267,
+        "pct": 2.46879
+      },
+      {
+        "t_s": 4.986773,
+        "pct": 9.295974
+      },
+      {
+        "t_s": 5.0893273,
+        "pct": 1.9180053
+      },
+      {
+        "t_s": 5.1932173,
+        "pct": 2.2186937
+      },
+      {
+        "t_s": 5.2969337,
+        "pct": 2.8491263
+      },
+      {
+        "t_s": 5.400912,
+        "pct": 2.691902
+      },
+      {
+        "t_s": 5.5048723,
+        "pct": 3.1377325
+      },
+      {
+        "t_s": 5.6085043,
+        "pct": 2.2193923
+      },
+      {
+        "t_s": 5.712611,
+        "pct": 3.4541364
+      },
+      {
+        "t_s": 5.8162956,
+        "pct": 1.9597973
+      },
+      {
+        "t_s": 5.9195104,
+        "pct": 3.6564608
+      },
+      {
+        "t_s": 6.0230618,
+        "pct": 7.225374
+      },
+      {
+        "t_s": 6.127065,
+        "pct": 2.6720304
+      },
+      {
+        "t_s": 6.2309966,
+        "pct": 3.061639
+      },
+      {
+        "t_s": 6.335209,
+        "pct": 2.7530332
+      },
+      {
+        "t_s": 6.43913,
+        "pct": 3.5199823
+      },
+      {
+        "t_s": 6.542892,
+        "pct": 3.1157825
+      },
+      {
+        "t_s": 6.6472287,
+        "pct": 2.6433585
+      },
+      {
+        "t_s": 6.7515903,
+        "pct": 3.1371763
+      },
+      {
+        "t_s": 6.8553104,
+        "pct": 2.5983393
+      },
+      {
+        "t_s": 6.95796,
+        "pct": 9.382391
+      },
+      {
+        "t_s": 7.0612836,
+        "pct": 2.0440643
+      },
+      {
+        "t_s": 7.164912,
+        "pct": 2.6951945
+      },
+      {
+        "t_s": 7.2691283,
+        "pct": 2.7443068
+      },
+      {
+        "t_s": 7.372879,
+        "pct": 2.9300957
+      },
+      {
+        "t_s": 7.476829,
+        "pct": 3.012986
+      },
+      {
+        "t_s": 7.5801597,
+        "pct": 1.9587599
+      },
+      {
+        "t_s": 7.684049,
+        "pct": 2.5931463
+      },
+      {
+        "t_s": 7.788004,
+        "pct": 2.6877007
+      },
+      {
+        "t_s": 7.8920155,
+        "pct": 3.0140977
+      },
+      {
+        "t_s": 7.9948006,
+        "pct": 8.437991
+      },
+      {
+        "t_s": 8.098401,
+        "pct": 2.1380188
+      },
+      {
+        "t_s": 8.202175,
+        "pct": 2.5064125
+      },
+      {
+        "t_s": 8.305921,
+        "pct": 2.9042118
+      },
+      {
+        "t_s": 8.41002,
+        "pct": 2.675334
+      },
+      {
+        "t_s": 8.513956,
+        "pct": 3.2702794
+      },
+      {
+        "t_s": 8.617913,
+        "pct": 2.6722434
+      },
+      {
+        "t_s": 8.721988,
+        "pct": 2.6769414
+      },
+      {
+        "t_s": 8.825914,
+        "pct": 2.7057462
+      },
+      {
+        "t_s": 8.928921,
+        "pct": 5.210345
+      },
+      {
+        "t_s": 9.032528,
+        "pct": 5.676261
+      },
+      {
+        "t_s": 9.1361475,
+        "pct": 2.731157
+      },
+      {
+        "t_s": 9.240241,
+        "pct": 3.1394775
+      },
+      {
+        "t_s": 9.344327,
+        "pct": 2.8303607
+      },
+      {
+        "t_s": 9.448247,
+        "pct": 3.1726148
+      },
+      {
+        "t_s": 9.552089,
+        "pct": 2.6213
+      },
+      {
+        "t_s": 9.656177,
+        "pct": 2.6852438
+      },
+      {
+        "t_s": 9.760056,
+        "pct": 2.7175858
+      },
+      {
+        "t_s": 9.8639555,
+        "pct": 2.6438792
+      },
+      {
+        "t_s": 9.967632,
+        "pct": 9.5932665
+      },
+      {
+        "t_s": 10.07123,
+        "pct": 2.0116374
+      },
+      {
+        "t_s": 10.175089,
+        "pct": 2.8336284
+      },
+      {
+        "t_s": 10.278716,
+        "pct": 2.6720853
+      },
+      {
+        "t_s": 10.38196,
+        "pct": 2.0863178
+      },
+      {
+        "t_s": 10.486366,
+        "pct": 3.245977
+      },
+      {
+        "t_s": 10.589928,
+        "pct": 2.693083
+      },
+      {
+        "t_s": 10.693761,
+        "pct": 2.9845994
+      },
+      {
+        "t_s": 10.797239,
+        "pct": 2.0139616
+      },
+      {
+        "t_s": 10.900951,
+        "pct": 2.6910906
+      },
+      {
+        "t_s": 11.002939,
+        "pct": 8.401946
+      },
+      {
+        "t_s": 11.105274,
+        "pct": 1.4452581
+      },
+      {
+        "t_s": 11.2094145,
+        "pct": 2.6339486
+      },
+      {
+        "t_s": 11.313195,
+        "pct": 2.9880257
+      },
+      {
+        "t_s": 11.416605,
+        "pct": 2.866269
+      },
+      {
+        "t_s": 11.520485,
+        "pct": 2.4923131
+      },
+      {
+        "t_s": 11.624258,
+        "pct": 2.4514978
+      },
+      {
+        "t_s": 11.727895,
+        "pct": 2.6679757
+      },
+      {
+        "t_s": 11.831727,
+        "pct": 2.7351825
+      },
+      {
+        "t_s": 11.935277,
+        "pct": 9.090306
+      },
+      {
+        "t_s": 12.038169,
+        "pct": 1.6833074
+      },
+      {
+        "t_s": 12.14221,
+        "pct": 2.730658
+      },
+      {
+        "t_s": 12.24666,
+        "pct": 3.6198988
+      },
+      {
+        "t_s": 12.350401,
+        "pct": 1.9635609
+      },
+      {
+        "t_s": 12.454216,
+        "pct": 3.040012
+      },
+      {
+        "t_s": 12.55811,
+        "pct": 2.879851
+      },
+      {
+        "t_s": 12.662347,
+        "pct": 2.819546
+      },
+      {
+        "t_s": 12.766289,
+        "pct": 3.0574646
+      },
+      {
+        "t_s": 12.870412,
+        "pct": 2.8504827
+      },
+      {
+        "t_s": 12.973137,
+        "pct": 8.655117
+      },
+      {
+        "t_s": 13.076369,
+        "pct": 2.3141947
+      },
+      {
+        "t_s": 13.180195,
+        "pct": 2.0890872
+      },
+      {
+        "t_s": 13.284477,
+        "pct": 3.0206366
+      },
+      {
+        "t_s": 13.38813,
+        "pct": 2.4649682
+      },
+      {
+        "t_s": 13.492072,
+        "pct": 3.539473
+      },
+      {
+        "t_s": 13.59614,
+        "pct": 2.5800538
+      },
+      {
+        "t_s": 13.700355,
+        "pct": 2.836437
+      },
+      {
+        "t_s": 13.803898,
+        "pct": 2.697425
+      },
+      {
+        "t_s": 13.907654,
+        "pct": 2.72854
+      },
+      {
+        "t_s": 14.010032,
+        "pct": 8.036869
+      },
+      {
+        "t_s": 14.113336,
+        "pct": 2.6310756
+      },
+      {
+        "t_s": 14.217055,
+        "pct": 2.4710636
+      },
+      {
+        "t_s": 14.321316,
+        "pct": 2.7613528
+      },
+      {
+        "t_s": 14.4251,
+        "pct": 2.7239215
+      },
+      {
+        "t_s": 14.529,
+        "pct": 3.2810338
+      },
+      {
+        "t_s": 14.632744,
+        "pct": 2.7144027
+      },
+      {
+        "t_s": 14.736388,
+        "pct": 2.1515753
+      },
+      {
+        "t_s": 14.840558,
+        "pct": 3.138145
+      },
+      {
+        "t_s": 14.943527,
+        "pct": 8.914316
+      },
+      {
+        "t_s": 15.046552,
+        "pct": 1.3870592
+      },
+      {
+        "t_s": 15.150278,
+        "pct": 2.6406014
+      },
+      {
+        "t_s": 15.254123,
+        "pct": 2.8744757
+      },
+      {
+        "t_s": 15.35825,
+        "pct": 2.8215427
+      },
+      {
+        "t_s": 15.462404,
+        "pct": 3.2816868
+      },
+      {
+        "t_s": 15.566412,
+        "pct": 3.2113004
+      },
+      {
+        "t_s": 15.670341,
+        "pct": 2.593108
+      },
+      {
+        "t_s": 15.773914,
+        "pct": 2.692777
+      },
+      {
+        "t_s": 15.877714,
+        "pct": 2.7562668
+      },
+      {
+        "t_s": 15.980083,
+        "pct": 7.899859
+      },
+      {
+        "t_s": 16.083822,
+        "pct": 2.5506284
+      },
+      {
+        "t_s": 16.18749,
+        "pct": 2.1790674
+      },
+      {
+        "t_s": 16.291481,
+        "pct": 2.9214346
+      },
+      {
+        "t_s": 16.394678,
+        "pct": 2.6347623
+      },
+      {
+        "t_s": 16.497849,
+        "pct": 2.1643674
+      },
+      {
+        "t_s": 16.60159,
+        "pct": 2.1881568
+      },
+      {
+        "t_s": 16.705719,
+        "pct": 3.288178
+      },
+      {
+        "t_s": 16.809525,
+        "pct": 2.1183836
+      },
+      {
+        "t_s": 16.913092,
+        "pct": 2.8348906
+      },
+      {
+        "t_s": 17.015474,
+        "pct": 7.9125395
+      },
+      {
+        "t_s": 17.119303,
+        "pct": 2.5214405
+      },
+      {
+        "t_s": 17.223524,
+        "pct": 2.9236093
+      },
+      {
+        "t_s": 17.326914,
+        "pct": 2.639496
+      },
+      {
+        "t_s": 17.430174,
+        "pct": 2.0433817
+      },
+      {
+        "t_s": 17.53385,
+        "pct": 3.0643733
+      },
+      {
+        "t_s": 17.637144,
+        "pct": 2.2721653
+      },
+      {
+        "t_s": 17.74131,
+        "pct": 2.9270437
+      },
+      {
+        "t_s": 17.845158,
+        "pct": 2.850341
+      },
+      {
+        "t_s": 17.948265,
+        "pct": 9.166115
+      },
+      {
+        "t_s": 18.05171,
+        "pct": 2.172172
+      },
+      {
+        "t_s": 18.155739,
+        "pct": 2.669467
+      },
+      {
+        "t_s": 18.259762,
+        "pct": 2.6811056
+      },
+      {
+        "t_s": 18.363255,
+        "pct": 2.4881306
+      },
+      {
+        "t_s": 18.467024,
+        "pct": 2.7946413
+      },
+      {
+        "t_s": 18.570627,
+        "pct": 2.8541405
+      },
+      {
+        "t_s": 18.674145,
+        "pct": 2.037338
+      },
+      {
+        "t_s": 18.77832,
+        "pct": 2.9248674
+      },
+      {
+        "t_s": 18.881878,
+        "pct": 2.6197963
+      },
+      {
+        "t_s": 18.983955,
+        "pct": 8.44364
+      },
+      {
+        "t_s": 19.086832,
+        "pct": 2.3620565
+      },
+      {
+        "t_s": 19.190367,
+        "pct": 2.248509
+      },
+      {
+        "t_s": 19.293913,
+        "pct": 2.468464
+      },
+      {
+        "t_s": 19.397522,
+        "pct": 2.3521347
+      },
+      {
+        "t_s": 19.501354,
+        "pct": 2.727454
+      },
+      {
+        "t_s": 19.605772,
+        "pct": 3.4333274
+      },
+      {
+        "t_s": 19.70929,
+        "pct": 2.4314528
+      },
+      {
+        "t_s": 19.81332,
+        "pct": 2.635796
+      },
+      {
+        "t_s": 19.917091,
+        "pct": 2.7550895
+      },
+      {
+        "t_s": 20.01926,
+        "pct": 8.207059
+      },
+      {
+        "t_s": 20.120487,
+        "pct": 52.325146
+      },
+      {
+        "t_s": 20.222828,
+        "pct": 24.8408
+      },
+      {
+        "t_s": 20.325212,
+        "pct": 24.694944
+      },
+      {
+        "t_s": 20.427748,
+        "pct": 26.94615
+      },
+      {
+        "t_s": 20.530272,
+        "pct": 26.442339
+      },
+      {
+        "t_s": 20.632673,
+        "pct": 24.165846
+      },
+      {
+        "t_s": 20.73523,
+        "pct": 23.213491
+      },
+      {
+        "t_s": 20.837646,
+        "pct": 23.610483
+      },
+      {
+        "t_s": 20.94016,
+        "pct": 25.310535
+      },
+      {
+        "t_s": 21.043169,
+        "pct": 34.912586
+      },
+      {
+        "t_s": 21.145306,
+        "pct": 22.953806
+      },
+      {
+        "t_s": 21.247854,
+        "pct": 27.591421
+      },
+      {
+        "t_s": 21.350155,
+        "pct": 24.019358
+      },
+      {
+        "t_s": 21.452961,
+        "pct": 24.83447
+      },
+      {
+        "t_s": 21.555683,
+        "pct": 27.215958
+      },
+      {
+        "t_s": 21.658125,
+        "pct": 25.29514
+      },
+      {
+        "t_s": 21.760647,
+        "pct": 25.732328
+      },
+      {
+        "t_s": 21.863089,
+        "pct": 27.607937
+      },
+      {
+        "t_s": 21.964914,
+        "pct": 28.728592
+      },
+      {
+        "t_s": 22.068203,
+        "pct": 25.278435
+      },
+      {
+        "t_s": 22.17088,
+        "pct": 26.605085
+      },
+      {
+        "t_s": 22.273628,
+        "pct": 27.105795
+      },
+      {
+        "t_s": 22.375988,
+        "pct": 25.625496
+      },
+      {
+        "t_s": 22.47872,
+        "pct": 26.408243
+      },
+      {
+        "t_s": 22.58137,
+        "pct": 27.306757
+      },
+      {
+        "t_s": 22.683865,
+        "pct": 26.840237
+      },
+      {
+        "t_s": 22.786217,
+        "pct": 24.613033
+      },
+      {
+        "t_s": 22.888897,
+        "pct": 24.359226
+      },
+      {
+        "t_s": 22.990963,
+        "pct": 34.13957
+      },
+      {
+        "t_s": 23.093496,
+        "pct": 22.14969
+      },
+      {
+        "t_s": 23.196096,
+        "pct": 23.860693
+      },
+      {
+        "t_s": 23.298824,
+        "pct": 27.504784
+      },
+      {
+        "t_s": 23.401163,
+        "pct": 24.435362
+      },
+      {
+        "t_s": 23.503786,
+        "pct": 24.051378
+      },
+      {
+        "t_s": 23.606407,
+        "pct": 24.223087
+      },
+      {
+        "t_s": 23.708778,
+        "pct": 24.663874
+      },
+      {
+        "t_s": 23.811142,
+        "pct": 25.646973
+      },
+      {
+        "t_s": 23.913675,
+        "pct": 26.315273
+      },
+      {
+        "t_s": 24.016184,
+        "pct": 39.97959
+      },
+      {
+        "t_s": 24.11866,
+        "pct": 27.796566
+      },
+      {
+        "t_s": 24.220995,
+        "pct": 25.959866
+      },
+      {
+        "t_s": 24.323486,
+        "pct": 26.40794
+      },
+      {
+        "t_s": 24.425892,
+        "pct": 26.245811
+      },
+      {
+        "t_s": 24.52822,
+        "pct": 26.509722
+      },
+      {
+        "t_s": 24.630838,
+        "pct": 26.201729
+      },
+      {
+        "t_s": 24.733517,
+        "pct": 27.383703
+      },
+      {
+        "t_s": 24.836058,
+        "pct": 28.222794
+      },
+      {
+        "t_s": 24.938536,
+        "pct": 25.571608
+      },
+      {
+        "t_s": 25.040604,
+        "pct": 35.174274
+      },
+      {
+        "t_s": 25.143064,
+        "pct": 27.10226
+      },
+      {
+        "t_s": 25.245518,
+        "pct": 23.93663
+      },
+      {
+        "t_s": 25.347992,
+        "pct": 24.16433
+      },
+      {
+        "t_s": 25.450659,
+        "pct": 27.189724
+      },
+      {
+        "t_s": 25.5534,
+        "pct": 23.855036
+      },
+      {
+        "t_s": 25.655754,
+        "pct": 26.12772
+      },
+      {
+        "t_s": 25.75831,
+        "pct": 24.200823
+      },
+      {
+        "t_s": 25.86088,
+        "pct": 24.128632
+      },
+      {
+        "t_s": 25.962997,
+        "pct": 37.838017
+      },
+      {
+        "t_s": 26.065697,
+        "pct": 27.545221
+      },
+      {
+        "t_s": 26.169024,
+        "pct": 17.403185
+      },
+      {
+        "t_s": 26.273085,
+        "pct": 2.6859446
+      },
+      {
+        "t_s": 26.377151,
+        "pct": 2.6914968
+      },
+      {
+        "t_s": 26.48117,
+        "pct": 3.3330922
+      },
+      {
+        "t_s": 26.585052,
+        "pct": 2.5865889
+      },
+      {
+        "t_s": 26.687447,
+        "pct": 1.8467711
+      },
+      {
+        "t_s": 26.791107,
+        "pct": 2.3760061
+      },
+      {
+        "t_s": 26.895107,
+        "pct": 2.826948
+      },
+      {
+        "t_s": 26.997604,
+        "pct": 9.937829
+      },
+      {
+        "t_s": 27.101025,
+        "pct": 24.032904
+      },
+      {
+        "t_s": 27.202759,
+        "pct": 29.151855
+      },
+      {
+        "t_s": 27.30654,
+        "pct": 2.225833
+      },
+      {
+        "t_s": 27.410086,
+        "pct": 2.447204
+      },
+      {
+        "t_s": 27.514061,
+        "pct": 3.3248289
+      },
+      {
+        "t_s": 27.618141,
+        "pct": 2.7498035
+      },
+      {
+        "t_s": 27.722067,
+        "pct": 2.8126101
+      },
+      {
+        "t_s": 27.825726,
+        "pct": 2.7725456
+      },
+      {
+        "t_s": 27.929836,
+        "pct": 5.0561967
+      },
+      {
+        "t_s": 28.032415,
+        "pct": 7.886527
+      },
+      {
+        "t_s": 28.136103,
+        "pct": 8.076252
+      },
+      {
+        "t_s": 28.237635,
+        "pct": 98.390526
+      },
+      {
+        "t_s": 28.3387,
+        "pct": 101.027306
+      },
+      {
+        "t_s": 28.439844,
+        "pct": 100.343124
+      },
+      {
+        "t_s": 28.540936,
+        "pct": 100.35675
+      },
+      {
+        "t_s": 28.642115,
+        "pct": 101.85192
+      },
+      {
+        "t_s": 28.743223,
+        "pct": 100.486626
+      },
+      {
+        "t_s": 28.844515,
+        "pct": 103.95389
+      },
+      {
+        "t_s": 28.945894,
+        "pct": 55.809982
+      },
+      {
+        "t_s": 29.047604,
+        "pct": 21.955849
+      },
+      {
+        "t_s": 29.150673,
+        "pct": 9.85929
+      },
+      {
+        "t_s": 29.254402,
+        "pct": 2.0399444
+      },
+      {
+        "t_s": 29.35839,
+        "pct": 2.6156597
+      },
+      {
+        "t_s": 29.462172,
+        "pct": 2.7365372
+      },
+      {
+        "t_s": 29.566034,
+        "pct": 3.1185067
+      },
+      {
+        "t_s": 29.670017,
+        "pct": 2.690845
+      },
+      {
+        "t_s": 29.773994,
+        "pct": 2.6948092
+      },
+      {
+        "t_s": 29.877382,
+        "pct": 2.5419102
+      },
+      {
+        "t_s": 29.980225,
+        "pct": 9.08468
+      },
+      {
+        "t_s": 30.084072,
+        "pct": 2.3573103
+      },
+      {
+        "t_s": 30.187859,
+        "pct": 2.7335334
+      },
+      {
+        "t_s": 30.292095,
+        "pct": 3.1581917
+      },
+      {
+        "t_s": 30.395971,
+        "pct": 2.743612
+      },
+      {
+        "t_s": 30.499878,
+        "pct": 2.7207422
+      },
+      {
+        "t_s": 30.603321,
+        "pct": 2.208946
+      },
+      {
+        "t_s": 30.706152,
+        "pct": 2.0713663
+      },
+      {
+        "t_s": 30.80977,
+        "pct": 2.5420008
+      },
+      {
+        "t_s": 30.91353,
+        "pct": 2.5742118
+      },
+      {
+        "t_s": 31.016024,
+        "pct": 8.748897
+      },
+      {
+        "t_s": 31.119326,
+        "pct": 2.269067
+      },
+      {
+        "t_s": 31.223345,
+        "pct": 16.495888
+      },
+      {
+        "t_s": 31.324657,
+        "pct": 72.76417
+      },
+      {
+        "t_s": 31.425909,
+        "pct": 32.24235
+      },
+      {
+        "t_s": 31.527166,
+        "pct": 38.582115
+      },
+      {
+        "t_s": 31.628672,
+        "pct": 43.955555
+      },
+      {
+        "t_s": 31.73048,
+        "pct": 41.978382
+      },
+      {
+        "t_s": 31.831797,
+        "pct": 33.786427
+      },
+      {
+        "t_s": 31.933334,
+        "pct": 42.42334
+      },
+      {
+        "t_s": 32.034687,
+        "pct": 41.926357
+      },
+      {
+        "t_s": 32.136242,
+        "pct": 34.086357
+      },
+      {
+        "t_s": 32.237682,
+        "pct": 48.266693
+      },
+      {
+        "t_s": 32.339252,
+        "pct": 36.925884
+      },
+      {
+        "t_s": 32.44071,
+        "pct": 36.835194
+      },
+      {
+        "t_s": 32.54285,
+        "pct": 34.15746
+      },
+      {
+        "t_s": 32.64449,
+        "pct": 43.28676
+      },
+      {
+        "t_s": 32.745754,
+        "pct": 31.957825
+      },
+      {
+        "t_s": 32.84739,
+        "pct": 45.983368
+      },
+      {
+        "t_s": 32.948757,
+        "pct": 48.32948
+      },
+      {
+        "t_s": 33.050594,
+        "pct": 34.67522
+      },
+      {
+        "t_s": 33.152416,
+        "pct": 32.01378
+      },
+      {
+        "t_s": 33.25462,
+        "pct": 58.66718
+      },
+      {
+        "t_s": 33.356285,
+        "pct": 44.50087
+      },
+      {
+        "t_s": 33.457947,
+        "pct": 42.956577
+      },
+      {
+        "t_s": 33.559605,
+        "pct": 42.795143
+      },
+      {
+        "t_s": 33.66121,
+        "pct": 44.35467
+      },
+      {
+        "t_s": 33.763416,
+        "pct": 44.299156
+      },
+      {
+        "t_s": 33.865364,
+        "pct": 39.60121
+      },
+      {
+        "t_s": 33.967304,
+        "pct": 71.88915
+      },
+      {
+        "t_s": 34.068947,
+        "pct": 39.75507
+      },
+      {
+        "t_s": 34.17067,
+        "pct": 38.887234
+      },
+      {
+        "t_s": 34.272102,
+        "pct": 38.542572
+      },
+      {
+        "t_s": 34.373478,
+        "pct": 45.40325
+      },
+      {
+        "t_s": 34.47525,
+        "pct": 42.92728
+      },
+      {
+        "t_s": 34.576694,
+        "pct": 37.360455
+      },
+      {
+        "t_s": 34.678265,
+        "pct": 43.3779
+      },
+      {
+        "t_s": 34.780212,
+        "pct": 39.884235
+      },
+      {
+        "t_s": 34.88164,
+        "pct": 37.58383
+      },
+      {
+        "t_s": 34.983185,
+        "pct": 61.18684
+      },
+      {
+        "t_s": 35.084717,
+        "pct": 38.115665
+      },
+      {
+        "t_s": 35.186554,
+        "pct": 41.856396
+      },
+      {
+        "t_s": 35.288635,
+        "pct": 46.997166
+      },
+      {
+        "t_s": 35.390152,
+        "pct": 35.99856
+      },
+      {
+        "t_s": 35.491585,
+        "pct": 37.684875
+      },
+      {
+        "t_s": 35.593,
+        "pct": 44.193493
+      },
+      {
+        "t_s": 35.69449,
+        "pct": 35.24441
+      },
+      {
+        "t_s": 35.79634,
+        "pct": 37.242153
+      },
+      {
+        "t_s": 35.89796,
+        "pct": 48.733624
+      },
+      {
+        "t_s": 36.000004,
+        "pct": 49.168224
+      },
+      {
+        "t_s": 36.1022,
+        "pct": 52.27735
+      },
+      {
+        "t_s": 36.204544,
+        "pct": 45.751
+      },
+      {
+        "t_s": 36.306324,
+        "pct": 40.098072
+      },
+      {
+        "t_s": 36.40872,
+        "pct": 42.623787
+      },
+      {
+        "t_s": 36.510666,
+        "pct": 45.257072
+      },
+      {
+        "t_s": 36.612865,
+        "pct": 45.674736
+      },
+      {
+        "t_s": 36.714447,
+        "pct": 43.17063
+      },
+      {
+        "t_s": 36.816032,
+        "pct": 36.81069
+      },
+      {
+        "t_s": 36.917667,
+        "pct": 45.028175
+      },
+      {
+        "t_s": 37.019264,
+        "pct": 45.093502
+      },
+      {
+        "t_s": 37.121014,
+        "pct": 39.08763
+      },
+      {
+        "t_s": 37.2229,
+        "pct": 51.691868
+      },
+      {
+        "t_s": 37.32463,
+        "pct": 46.86733
+      },
+      {
+        "t_s": 37.42735,
+        "pct": 17.860273
+      },
+      {
+        "t_s": 37.5301,
+        "pct": 23.638624
+      },
+      {
+        "t_s": 37.633263,
+        "pct": 2.3186865
+      },
+      {
+        "t_s": 37.737083,
+        "pct": 2.6574662
+      },
+      {
+        "t_s": 37.8408,
+        "pct": 2.7266207
+      },
+      {
+        "t_s": 37.94334,
+        "pct": 2.6643686
+      },
+      {
+        "t_s": 38.046345,
+        "pct": 18.269941
+      },
+      {
+        "t_s": 38.150173,
+        "pct": 2.55138
+      },
+      {
+        "t_s": 38.253815,
+        "pct": 2.7247264
+      },
+      {
+        "t_s": 38.35739,
+        "pct": 2.1172674
+      },
+      {
+        "t_s": 38.45995,
+        "pct": 1.9842415
+      },
+      {
+        "t_s": 38.563816,
+        "pct": 2.5956554
+      },
+      {
+        "t_s": 38.667564,
+        "pct": 2.3942697
+      },
+      {
+        "t_s": 38.77098,
+        "pct": 2.4193342
+      },
+      {
+        "t_s": 38.873173,
+        "pct": 27.282093
+      },
+      {
+        "t_s": 38.97552,
+        "pct": 19.739489
+      },
+      {
+        "t_s": 39.077667,
+        "pct": 1.4322604
+      },
+      {
+        "t_s": 39.181007,
+        "pct": 1.8559878
+      },
+      {
+        "t_s": 39.285095,
+        "pct": 2.6669564
+      },
+      {
+        "t_s": 39.388813,
+        "pct": 2.9879444
+      },
+      {
+        "t_s": 39.492477,
+        "pct": 2.1984148
+      },
+      {
+        "t_s": 39.59525,
+        "pct": 1.7904007
+      },
+      {
+        "t_s": 39.699097,
+        "pct": 2.6673596
+      },
+      {
+        "t_s": 39.80254,
+        "pct": 2.3036635
+      },
+      {
+        "t_s": 39.905655,
+        "pct": 2.8162637
+      },
+      {
+        "t_s": 40.0082,
+        "pct": 8.085266
+      },
+      {
+        "t_s": 40.111042,
+        "pct": 2.3638036
+      },
+      {
+        "t_s": 40.215004,
+        "pct": 2.7231643
+      },
+      {
+        "t_s": 40.31881,
+        "pct": 2.831246
+      }
+    ],
+    "cpu_marks": [
+      {
+        "t_s": 0.0,
+        "phase": "idle"
+      },
+      {
+        "t_s": 20.056059,
+        "phase": "single"
+      },
+      {
+        "t_s": 26.077291,
+        "phase": "+windows"
+      },
+      {
+        "t_s": 31.264334,
+        "phase": "multi"
+      }
+    ]
+  }
+}

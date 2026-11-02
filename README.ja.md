@@ -1080,6 +1080,8 @@ bind = SUPER+SHIFT+T set-layout custom
   レイアウト調整、外観、カスタマイズモデル
 - [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) — コンポーネント、
   シーングラフ、IPC、layer-shell のサイズ計算、パネル描画
+- [docs/BENCHMARK.ja.md](docs/BENCHMARK.ja.md) — wayland-compositor-bench の
+  計測結果、方法、生 JSON
 - [docs/ROADMAP.ja.md](docs/ROADMAP.ja.md) — 未実装の機能と今後の予定
 - [docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) — SSH / headless 開発
   ワークフロー

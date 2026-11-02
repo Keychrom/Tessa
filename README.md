@@ -1052,6 +1052,8 @@ protocol.
   tuning, appearance, and the customization model
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, scene graph, IPC,
   layer-shell sizing, panel rendering
+- [docs/BENCHMARK.md](docs/BENCHMARK.md) — wayland-compositor-bench results,
+  method, and raw JSON for the reference session
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is missing and what comes next
 - [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — the SSH/headless development
   loop used for this repository
