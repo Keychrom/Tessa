@@ -177,11 +177,12 @@ Highlights include:
   bar, popovers, and toasts
 - frame-time instrumentation (`tessa-ctl perf`) with a configurable
   `frame_time_budget`, plus headless animation and full-effect benchmarks
-- direct scanout for full-output fullscreen clients, with per-output
-  scanout/zero-copy/present counters (`tessa-ctl rendering`, `tessa-ctl perf`);
-  opt-in `wp-tearing-control-v1` with a driver test and normal-flip fallback,
-  and gated `linux-drm-syncobj-v1` explicit sync. HDR color management is
-  investigated but not advertised yet; see [docs/RENDERING.md](docs/RENDERING.md)
+- direct scanout for full-output fullscreen clients, with scanout/zero-copy/
+  tearing counters in `tessa-ctl rendering` and presented/vsync/missed plus
+  frame timings in `tessa-ctl perf`; opt-in `wp-tearing-control-v1` with a
+  driver test and normal-flip fallback, and gated `linux-drm-syncobj-v1`
+  explicit sync. HDR color management is investigated but not advertised yet;
+  see [docs/RENDERING.md](docs/RENDERING.md)
 - interactive config editing with validation and effective-config diff preview
   (`tessa-ctl config-check <file>`, `config-diff <file>`, `config-edit`) and
   offline preflight with `tessa --check-config [file]`
@@ -284,9 +285,6 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, fractional output
 scale changes, and output mode/position/scale and layout persistence across
 restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
-`tests/layout-scrolling.sh`, `tests/layout-modes.sh`, `tests/layout-reorder.sh`,
-`tests/layout-config.sh`, `tests/extensions.sh`, `tests/panel-modules.sh`,
-`tests/effect-v2.sh`, `tests/effect-cache.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
@@ -307,6 +305,8 @@ restarts were exercised by
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
+`tests/scratchpad.sh`, `tests/window-groups.sh`, `tests/workspace-names.sh`,
+`tests/wallpaper-image.sh`, `tests/terminal-fallback.sh`,
 `tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`,
 `tests/rendering.sh`, `tests/tearing.sh`,
 `tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
@@ -315,8 +315,11 @@ restarts were exercised by
 The 0.2.5 source tree targets Zig 0.17.0, wlroots 0.20.2, and scenefx 0.5. The
 full headless suite passes on Arch Linux against those libraries in
 both plain and scenefx builds, including end-to-end portal ScreenCast, tray,
-notifications, pointer interaction, and scenefx corner rendering. A real
-DRM/libinput session on the new toolchain is still pending.
+notifications, pointer interaction, and scenefx corner rendering. The 0.2.5
+tree additionally passes `tests/layout-scrolling.sh`, `tests/layout-modes.sh`,
+`tests/layout-reorder.sh`, `tests/layout-config.sh`, `tests/extensions.sh`,
+`tests/panel-modules.sh`, `tests/effect-v2.sh`, and `tests/effect-cache.sh`.
+A real DRM/libinput session on the new toolchain is still pending.
 
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
@@ -424,8 +427,9 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-On Arch Linux, install the official `zig`, `wlroots0.20`, and `scenefx`
-packages as described in [Install on Arch Linux](#install-on-arch-linux).
+On Arch Linux, install the official `zig` and `wlroots0.20` packages as
+described in [Install on Arch Linux](#install-on-arch-linux). The optional
+`scenefx` 0.5 package is only needed for a custom `-Dscenefx=true` build.
 `scripts/build.sh` requires Zig 0.17.x; `ZIG=/path/to/zig` overrides the
 compiler. Do not use Zig 0.16 or wlroots 0.19 for this tree.
 
@@ -949,9 +953,11 @@ bind = SUPER+ctrl+h ratio -0.03
 
 Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`toggle-scratchpad`, `move-to-scratchpad`, `toggle-group`, `group-next`,
+`toggle-scratchpad`, `move-to-scratchpad`, `special`/`toggle-special`,
+`move-to-special`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
-`focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
+`focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
+`tray`, `audio`, `reload`, `ratio`, `toggle-layout`,
 `set-layout`, `resize-width`, `resize-height`, `enter-mode`. Scrolling adds
 `focus-column-left/right/first/last`, `move-column-left/right/first/last`,
 `move-window-up/down`, `consume-window`, `expel-window`,

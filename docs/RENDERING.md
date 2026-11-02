@@ -35,6 +35,7 @@ needs a deliberate fullscreen mode.
 When an output has a mapped fullscreen client that:
 
 - covers the complete output at opacity 1,
+- has no non-zero `tint` alpha,
 - is visible on the active workspace and is not animating,
 - has a content buffer,
 
@@ -129,7 +130,8 @@ When all of the following are true, Tessa creates
 - `explicit_sync = true` (default),
 - `renderer.features.timeline`,
 - `backend.features.timeline`,
-- a renderer or backend DRM fd is available.
+- a backend DRM fd (`wlr_backend_get_drm_fd() >= 0`); the renderer DRM fd is
+  used for the syncobj manager when it is available.
 
 wlroots' scene graph then carries acquire/release timelines automatically; Tessa
 does not need per-surface fence code. Scenefx/GLES2 builds may not report
@@ -151,8 +153,10 @@ timelines but mishandle them can be worked around with `explicit_sync = false`.
 
 ## Performance measurement
 
-Every committed output frame records the time spent in
-`wlr_scene_output_build_state()` plus `wlr_output_commit_state()` into:
+Every committed output frame records the frame-handler time from before
+animation/scanout refresh through the successful output commit
+(`layout.tickAnimations`, `effects.tick`, `render.refreshScanout`, scene state
+build, and `wlr_output_commit_state()`) into:
 
 - `Server.perf` (aggregate across outputs), and
 - `Output.perf` (per-output rolling samples).
@@ -175,8 +179,12 @@ Per-output counters:
 | `tearing_failures` | test/commit rejected | Fell back to a normal flip |
 
 Frame-time fields (`frames`, `samples`, `avg_us`, `p50_us`, `p95_us`, `max_us`,
-`over_budget`) keep their previous meaning at the top level and are repeated per
-output in `outputs[]`. `frame_time_budget` remains the over-budget threshold.
+`last_us`, `budget_ms`, `over_budget`) keep their previous meaning at the top
+level and are repeated per output in `outputs[]`. `frame_time_budget` remains
+the over-budget threshold. `tessa-ctl perf` also emits top-level
+`effect_applies`, `effect_skips`, and `blur_nodes`; these are not repeated in
+`outputs[]`. Only frame-time samples are a rolling 4096-frame window; the event
+and effect counters are cumulative until `perf --reset`.
 
 ## HDR and color management: investigation
 

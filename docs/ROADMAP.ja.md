@@ -57,7 +57,7 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
       blur node を退避。
 - [x] オプトインの `wp-tearing-control-v1`。ウィンドウルール、ドライバー
       向け test-commit、通常 flip へのフォールバック付き。
-- [x] renderer/backend の timeline と DRM fd がある場合の
+- [x] renderer/backend の timeline と backend の DRM fd がある場合の
       `linux-drm-syncobj-v1` explicit sync。
 - [x] HDR/color management の調査: wlroots 0.20 は color-management v1 と
       出力色変換を提供するが、Tessa の GLES2/scenefx 経路と tone mapping の
@@ -255,9 +255,9 @@ Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手
 
 Hyprland/Niri の主要なカスタマイズ面を、単一の検証済み Tessa 設定から表現
 できるようにすることを目標にします。JavaScript やプラグイン VM は埋め込まず、
-ライブリロードとプロセスプロトコルで拡張します。0.6 の未完了項目
-（レイアウトヘルパー v2、差分プレビュー付き設定エディタ）を先に、または
-同時に完了させます。
+ライブリロードとプロセスプロトコルで拡張します。0.6 の 2 項目
+（レイアウトヘルパー v2、差分プレビュー付き設定エディタ）は完了しており、
+0.7 はその上に構築します。
 
 - [x] inotify による設定自動リロード。デバウンスとトランザクショナルな検証を
       行い、失敗した編集では旧設定を維持する。

@@ -20,13 +20,14 @@ fn closeAnimationMs(server: *Server, client: *Client) i32 {
     if (cfg.reduce_motion) {
         return if (cfg.reduce_motion_animations == .fade) cfg.reduce_motion_fade_ms else 0;
     }
-    if (client.anim.close_ms >= 0) return client.anim.close_ms;
-    if (client.anim.animation_ms >= 0) return client.anim.animation_ms;
+    const anim = types.effectiveClientAnim(client);
+    if (anim.close_ms >= 0) return anim.close_ms;
+    if (anim.animation_ms >= 0) return anim.animation_ms;
     return if (cfg.animation_close_ms >= 0) cfg.animation_close_ms else cfg.animation_ms;
 }
 
 fn closeEffectsEnabled(server: *Server, client: *Client) bool {
-    if (!server.config.animations or client.anim.enabled == .off) return false;
+    if (!server.config.animations or types.effectiveClientAnim(client).enabled == .off) return false;
     return closeAnimationMs(server, client) > 0;
 }
 
@@ -276,7 +277,7 @@ fn start(
     effect.fade_only = server.config.reduce_motion;
     effect.base_opacity = types.effectiveClientOpacity(client);
     effect.shadow_enabled = clientShadowEnabled(client);
-    effect.curve = motion.closeFor(&server.config, client.anim);
+    effect.curve = motion.closeFor(&server.config, types.effectiveClientAnim(client));
     effect.close_scale = if (server.config.reduce_motion)
         1.0
     else

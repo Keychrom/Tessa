@@ -54,11 +54,12 @@ fn addBool(buf: []u8, off: *usize, value: bool) void {
 
 pub fn buildState(server: *Server, buf: []u8) usize {
     var off: usize = 0;
-    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"effect_api\":{d},\"active_workspace\":{d},\"active_workspace_name\":", .{
+    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"layout_api\":{d},\"effect_api\":{d},\"active_workspace\":{d},\"active_workspace_name\":", .{
         api.state_schema,
         api.tessa_version,
         api.line_protocol,
         api.extension_api,
+        api.layout_api,
         api.effect_api,
         server.active_ws,
     });
@@ -347,11 +348,12 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     const cfg = &server.config;
 
-    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"effect_api\":{d},\"errors\":{d},\"terminal\":", .{
+    add(buf, &off, "{{\"schema\":{d},\"tessa\":\"{s}\",\"line_protocol\":{d},\"extension_api\":{d},\"layout_api\":{d},\"effect_api\":{d},\"errors\":{d},\"terminal\":", .{
         api.config_schema,
         api.tessa_version,
         api.line_protocol,
         api.extension_api,
+        api.layout_api,
         api.effect_api,
         server.config_error_count,
     });

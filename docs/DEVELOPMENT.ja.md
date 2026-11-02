@@ -21,8 +21,8 @@ chmod +x scripts/*.sh scripts/tessa-session
 ```
 
 角丸と背景ブラーを使う場合は scenefx 0.5 を導入し、
-`-Dscenefx=true` を付けます。このバイナリは scenefx の GLES2 レンダラーを
-使うため、pixman レンダラーでは実行できません。
+`-Dscenefx=true` を付けます。このバイナリは GLES2 レンダラーに切り替わり、
+pixman では実行できません。
 
 ```sh
 ./scripts/build.sh -Dscenefx=true
@@ -309,112 +309,11 @@ sh tests/fractional-scale.sh
 `scenefx 0` を返した場合は 0 でスキップします。24 px の角丸、赤い
 ボーダー、黒い壁紙で起動し、背景を白にした `foot` を起動してスクリーン
 ショットの画素を検査します。ウィンドウ中央は白、左上隅は白/赤ではなく
-背景色、上部ボーダー中央は赤である必要があります。
+背景色、上部ボーダー中央は赤である必要があります。FX ビルドでは
+`LD_LIBRARY_PATH` に scenefx のライブラリを設定して実行してください。
 
 ```sh
 sh tests/effects.sh
-```
-
-### シェル v2 のテスト
-
-`tests/shell-v2.sh` はサーフェス別フォント・配色と `bar_layout` の順序を
-指定して `tessa-panel --check` を実行し、PPM シェーダー壁紙付きの headless
-セッションを起動します。`tests/png-pixel.py` で壁紙画素を検査し、
-`tessa-bar` と `tessa-overlay` へのレイヤールール適用を `tessa-ctl state` で
-確認します。
-
-```sh
-sh tests/shell-v2.sh
-```
-
-### エフェクトヘルパーのテスト
-
-`tests/effect-helper.sh` は常駐 Python ヘルパーと kitty ウィンドウを起動し、
-不透明度 0.4、角丸 24、ブラー/影 off、ボーダー幅 6 を返させて JSON 状態の
-実効値を確認します。`effect_helper` を削除してリロードすると、ルール適用値へ
-戻ることも検証します。
-
-```sh
-sh tests/effect-helper.sh
-```
-
-### 性能のテスト
-
-`tests/performance.sh` はワークスペース切り替えアニメーション中の
-`tessa-ctl perf` を計測し、角丸/影/ブラーを有効にした設定で再計測します。
-10 フレーム以上と、`TESSA_PERF_BUDGET_MS`（pixman headless では既定 100 ms）
-以内の p95 を要求します。`TESSA_BIN_DIR` に `zig-out-scenefx/bin` を指定すると
-scenefx ビルドを計測します。
-
-```sh
-sh tests/performance.sh
-TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
-```
-
-### 設定エディタのテスト
-
-`tests/config-editor.sh` は候補設定を `tessa-ctl config-check` とオフラインの
-`tessa --check-config` の両方で検証し、未知キーの拒否、実効設定差分、
-`$EDITOR` 変更の `tessa-ctl config-edit` 適用、拒否時の破棄を確認します。
-
-```sh
-sh tests/config-editor.sh
-```
-
-### special ワークスペースのテスト
-
-`tests/special-workspaces.sh` は宣言した special ワークスペースへ kitty を
-ルールで割り当て、非表示/表示の切り替えと `move-to-special` を
-`tessa-ctl` と JSON 状態で検証します。
-
-```sh
-sh tests/special-workspaces.sh
-```
-
-### パネル復旧のテスト
-
-`tests/panel-recovery.sh` は内蔵パネル付きの headless セッションを起動し、
-パネルを `SIGKILL` して、上限付き指数バックオフで再起動され `tessa-bar`
-レイヤーが戻ることを確認します。クラッシュを繰り返した後、終了時にパネル
-プロセスが残らないことも検証します。
-
-```sh
-sh tests/panel-recovery.sh
-```
-
-### IPC バージョンのテスト
-
-`tests/ipc-version.sh` は `HELLO 1`、`HELLO 99`、不正バージョン、
-HELLO なしの従来コマンド、ネゴシエーション後の状態取得を送ります。
-`VERSION`、`CAPABILITIES`、不正 HELLO 後も接続が維持されることを確認します。
-
-```sh
-sh tests/ipc-version.sh
-```
-
-### ヘルパータイムアウトのテスト
-
-`tests/helper-timeouts.sh` は応答しないレイアウト/エフェクトヘルパーを
-既定の 100 ms/200 ms タイムアウトで起動し、両方が停止してフォールバックが
-有効なまま、コンポジタが状態提供を続け、1.5 秒以内に復帰することを確認します。
-
-```sh
-sh tests/helper-timeouts.sh
-```
-
-### パーサー Fuzzing / ASan テスト
-
-`tests/fuzz-parsers.sh` は `config/config.example` とランダムバイト列を変異
-させ、各候補をオフラインの `tessa --check-config` で検証した後、不正な行と
-JSON-RPC ペイロードを稼働中の headless コンポジタへ送ります。パニック、
-クラッシュ終了コード、タイムアウト、コンポジタ停止を失敗とします。
-`tests/fuzz-asan.sh` はシステム ASan ランタイムを preload して同じパスを
-実行します。Zig はコンパイラ ASan 計測を持たないため、Debug 安全
-ビルドに対するアロケータ/インターセプタ実行です。
-
-```sh
-TESSA_FUZZ_ITERS=500 sh tests/fuzz-parsers.sh
-sh tests/fuzz-asan.sh
 ```
 
 ### 出力ルールのテスト
@@ -584,7 +483,7 @@ sh tests/clipboard.sh
 
 パネルは `wlr-data-control-v1` 経由でセレクションを監視します。通常の
 `wl_data_device` のセレクションイベントはフォーカス中のクライアントにしか
-届かないため、バー側の通常 data device では履歴を集められません。
+届かないため、バー側の通常 data device に置き換えると履歴は動作しません。
 
 ### スクリーンショットのテスト
 
@@ -734,6 +633,19 @@ sh tests/smoke.sh
 します。API とフック環境は [EXTENDING.ja.md](EXTENDING.ja.md) を参照して
 ください。
 
+拡張・シェルモジュール・エフェクトの変更は次のテストで確認します:
+
+```sh
+sh tests/extensions.sh      # マニフェスト、依存関係、token スコープ、enable/disable
+sh tests/panel-modules.sh   # panel_modules の所有権と supervisor 再起動
+sh tests/effect-v2.sh       # tint とアニメーション上書き、v1 互換性
+sh tests/effect-cache.sh    # scenefx 専用の適用キャッシュカウンタ
+```
+
+全テスト一覧はメイン README にあります。`tests/shell-v2.sh`、
+`tests/rendering.sh`、`tests/tearing.sh`、`tests/ipc-version.sh` と
+レイアウト/パネル系テストはすべて headless で動作し、リリース確認に含まれます。
+
 ## デバッグログ
 
 ```sh
@@ -783,16 +695,12 @@ PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
   `config-reload` を受けて配色、バーのジオメトリ、フォント、ターミナル、
   ランチャー項目、電源コマンドを読み直します。ジオメトリ変更時はバーの
   layer surface を再作成します。
-- クリップボード履歴はコンポジタの `wlr-data-control-v1` に依存します。
-  `wl_data_device` のセレクションイベントはフォーカス中のクライアントに
-  しか届かないため、パネルの data-control デバイスを通常インターフェースに
-  置き換えないでください。
 - SSH 越しでは `pkill -x tessa` と `pkill -x tessa-panel` を使う方が安全です。
   `pkill -f tessa` は SSH のリモートコマンドライン自体にマッチして、
   セッションを殺してしまうことがあります。
 - headless 出力名は安定しています: `grim -o HEADLESS-1`。
 - Zig の translate-c は Pango/GLib のヘッダーを処理できません。テキスト
-  描画は `panel/text.c` にあり、Pango を `@cImport` に入れないでください。
+  描画は `panel/text.c` にあり、Pango を C 翻訳ヘッダーに入れないでください。
 - layer-shell の `EXCLUSIVE` は enum 値の `1` です。`2` は `ON_DEMAND`。
 - `ReleaseSafe` では C インポートに `_FORTIFY_SOURCE=0` が必要です。2 つの
   `c.zig` ですでに設定されています。

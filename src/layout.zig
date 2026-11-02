@@ -406,23 +406,24 @@ pub fn restoreFocusAfterLayer(server: *Server, layer: *LayerSurface) void {
 
 fn animationsEnabledFor(server: *Server, client: *Client) bool {
     if (!server.config.animations or server.config.reduce_motion) return false;
-    return client.anim.enabled != .off;
+    return types.effectiveClientAnim(client).enabled != .off;
 }
 
 fn animationMsFor(client: *Client, kind: types.AnimationKind) i32 {
     const cfg = &client.server.config;
+    const anim = types.effectiveClientAnim(client);
     const global_ms = switch (kind) {
         .open => cfg.animation_open_ms,
         .workspace => cfg.animation_workspace_ms,
         .none => -1,
     };
     const override_ms = switch (kind) {
-        .open => client.anim.open_ms,
-        .workspace => client.anim.workspace_ms,
+        .open => anim.open_ms,
+        .workspace => anim.workspace_ms,
         .none => -1,
     };
     if (override_ms >= 0) return override_ms;
-    if (client.anim.animation_ms >= 0) return client.anim.animation_ms;
+    if (anim.animation_ms >= 0) return anim.animation_ms;
     return if (global_ms >= 0) global_ms else cfg.animation_ms;
 }
 
@@ -451,9 +452,10 @@ fn beginAnimation(client: *Client, from_x: i32, from_y: i32, kind: types.Animati
     client.anim_off_y = from_y;
     client.anim_start_ms = core.timeNowMs();
     client.anim_ms = duration_ms;
+    const anim_override = types.effectiveClientAnim(client);
     client.anim_curve = switch (kind) {
-        .open => motion.openFor(&server.config, client.anim),
-        .workspace => motion.workspaceFor(&server.config, client.anim),
+        .open => motion.openFor(&server.config, anim_override),
+        .workspace => motion.workspaceFor(&server.config, anim_override),
         .none => motion.DEFAULT_OPEN,
     };
     client.animating = true;
@@ -1661,7 +1663,14 @@ pub fn toggleSpecial(server: *Server, name: []const u8) void {
     }
     server.focused_output = out;
     arrangeOutput(server, out);
-    if (firstSpecialOnOutput(server, out, name)) |target| {
+    if (showing) {
+        // The special clients are now hidden; do not try to focus them.
+        if (firstClientOnOutput(server, out)) |target| {
+            focusClient(server, target);
+        } else {
+            focusClient(server, null);
+        }
+    } else if (firstSpecialOnOutput(server, out, name)) |target| {
         focusClient(server, target);
     } else if (firstClientOnOutput(server, out)) |target| {
         focusClient(server, target);

@@ -78,15 +78,17 @@ MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
 `MODE` is the active input mode. `OUT` is `name workspace focused layout`.
-`WIN` fields are tab-separated: id,
+`WIN` fields are tab-separated in this order: id,
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
-x, y, width, height. Geometry is in logical compositor coordinates and is
-included for tooling that tracks windows. `LAYER` is `namespace`, output,
+x, y, width, height, scratchpad, visible, group id, group-active, on-screen,
+scrolling column id, and 0-based tile index. Geometry is in logical compositor
+coordinates and is included for tooling that tracks windows. `LAYER` is
+`namespace`, output,
 layer number (`0` background … `3` overlay), effective opacity, effective
 corner radius, and effective blur (`0`/`1`). `PANEL` is output, panel pid,
 supervised (`0`/`1`), and notification-owner (`0`/`1`). `STATUS` is covered
@@ -120,8 +122,12 @@ consumers should reject unknown versions.
 State windows contain `id`, `workspace`, `focused`, `floating`, `fullscreen`,
 `urgent`, `scratchpad`, `visible`, `group`, `group_active`, `app_id`, `title`,
 `output`, `x`, `y`, `width`, `height`, and the effective decoration fields
-`opacity`, `border_width`, `corner_radius`, `blur`, and `shadow`. The text
-`WIN` line ends with scratchpad, visibility, group id, and group-active flags.
+`opacity`, `border_width`, `corner_radius`, `blur`, and `shadow`. They also
+carry `tint` (RGBA array), an `animation` object (`open_ms`, `workspace_ms`,
+`close_ms`, `open_curve`, `workspace_curve`, `close_curve`; `-1` and empty
+strings mean "unset"), `tearing`, `on_screen`, `column`, and `tile`. The text
+`WIN` line ends with scratchpad, visibility, group id, group-active, on-screen,
+column, and tile, but has no tint or animation fields.
 The `layers` array contains `namespace`, `output`, `layer`, `opacity`,
 `corner_radius`, and `blur` for mapped layer-shell surfaces. Config
 `diagnostics` entries contain `severity`, `path`, `line`, and `message`.
@@ -152,10 +158,10 @@ Responses are `{"jsonrpc":"2.0","id":<request id>,"result":...}` and errors use
 standard JSON-RPC codes. Supported methods are `hello` / `capabilities`,
 `ping`, `state`, `config`, `subscribe`, and `unsubscribe`. `hello` returns
 `protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`,
-`tessa: "0.2.5"`, `extension_api: 1`, `effect_api: 2`, and the capabilities
-`state`, `config`, `events`, `subscriptions`, `request-ids`, `extensions`, and
-`effects2`. State/config JSON also carries `schema: 1`, `tessa`, and the API
-versions.
+`tessa: "0.2.5"`, `extension_api: 1`, `layout_api: 2`, `effect_api: 2`, and the
+capabilities `state`, `config`, `events`, `subscriptions`, `request-ids`,
+`extensions`, and `effects2`. State/config JSON also carries `schema: 1`,
+`tessa`, and the API versions.
 
 After `subscribe`, every lifecycle event is sent as a notification:
 
@@ -193,13 +199,17 @@ EVENT	panel	arg=screenshot	output=HEADLESS-1
 EVENT	panel	arg=media	output=HEADLESS-1
 EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
+EVENT	panel	arg=extensions	output=HEADLESS-1
+EVENT	special-change	ws=3	output=HEADLESS-1	arg=notes
 EVENT	notification-action	id=12	action=reply
 ```
 
 Fields are omitted when they do not apply. `id` and `previous` are ids; `ws` and
 `previous-ws` are workspace numbers; `app`, `title`, `output`, and `arg` are
 strings. The `window-focus` topic with `id=0` means focus was cleared; `previous`
-names the window that lost focus.
+names the window that lost focus. `notification-action` is broadcast to every
+event subscriber (there is no per-output routing); it carries no `output`
+field, so receivers filter by notification id.
 
 | Topic | When | Useful fields |
 | --- | --- | --- |
@@ -209,12 +219,13 @@ names the window that lost focus.
 | `window-close` | A mapped toplevel is destroyed | id, ws, app, title, output |
 | `window-focus` | Window focus changes or clears | id, previous, ws, app, title, output |
 | `workspace-change` | An output changes workspace | ws, previous-ws, output |
+| `special-change` | Special workspace shown/hidden or window moved | ws, output, arg (name; omitted when restoring) |
 | `window-moved` | Window sent to another workspace | id, ws, previous-ws, app, title, output |
 | `layout-change` | Workspace layout changed | ws, output, arg |
 | `mode-change` | Active input mode changed | arg (mode name) |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
-| `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, `screenshot`, `media`, `tray`, or `audio`), output |
+| `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, `screenshot`, `media`, `tray`, `audio`, or `extensions`), output |
 | `notification-action` | A notification action was requested through IPC | id, action (action key) |
 | `output-added` | Output initialized | output, arg (geometry) |
 | `output-removed` | Output removed | output, arg (geometry) |
@@ -222,15 +233,25 @@ names the window that lost focus.
 | `animation-done` | Window open or workspace slide finishes | id, ws, output, arg (`open` or `workspace`) |
 | `close-animation-start` | A compositor-initiated close snapshot starts | id, ws, output, arg (`close`) |
 | `close-animation-done` | The close snapshot has faded out | id, ws, output, arg (`close`) |
+| `extension-start` | A supervised extension process started | arg (extension id) |
+| `extension-ready` | An extension authenticated with its token | arg |
+| `extension-failed` | An extension exited unexpectedly | arg (no error text) |
+| `extension-stop` | An extension was stopped deliberately | arg |
 
 Events are delivered only to clients that asked for them with
 `CMD subscribe events` or `CMD subscribe all`. They are best-effort: a slow
 client with a full socket buffer is disconnected rather than blocking the
 compositor.
 
+`notification-action` is a special case: it is broadcast directly to event
+subscribers and does **not** run `hook` or `event-rule` entries, even though
+config validation accepts the topic. Hooks and event rules run for the other
+topics through the normal event path.
+
 ## Hooks
 
-Any event can launch a shell command. Multiple hooks per event are allowed.
+Any event except `notification-action` can launch a shell command. Multiple
+hooks per event are allowed.
 
 ```ini
 startup = fcitx5 -d
@@ -309,9 +330,14 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
 `layout`, `spawn`, `panel`, `control`, and `extensions` (`all`/`none` allowed).
 The default is `read,status`. `requires` and `after` are extension ids; unknown
-ids and cycles are config errors. The supervisor starts in dependency order,
-uses pidfd exit detection, and restarts with 500 ms→8 s backoff. A dependency
-that is disabled, blocked, or failed keeps its dependents blocked.
+ids and cycles are config errors. The supervisor starts in declaration order
+and then retries blocked entries in dependency order, uses pidfd exit detection,
+and restarts with exponential backoff (1 s, 2 s, 4 s, then 8 s; a run of at
+least 10 s resets the failure counter). Only `requires` blocks startup: a
+disabled, blocked, or failed required dependency keeps the dependent `blocked`.
+`after` affects ordering only. A dependent that is already running is not
+stopped when its dependency later fails; on its own next start attempt the
+requirement is checked again.
 
 ```text
 HELLO 1 $TESSA_EXTENSION_TOKEN
@@ -382,9 +408,10 @@ clears that window's overrides. Omitted windows also fall back to rules.
 
 Tessa validates IDs against the request, ranges, and curve names. Timeout, a
 crash, an unknown/duplicate ID, an invalid value, or a missing `END` drops
-every override and retries after one second. stdout is protocol-only; write
-diagnostics to stderr. The v1 positional reply
-(`WINDOW id opacity radius blur shadow border-width`) remains supported.
+every override and clears the helper's backoff on the next refresh after one
+second (there is no dedicated retry timer). stdout is protocol-only; write
+diagnostics to stderr. The v1 positional reply remains supported and is also
+tab-separated: `WINDOW\t<id>\t<opacity>\t<radius>\t<blur>\t<shadow>\t<border-width>`.
 
 A minimal v2 helper:
 

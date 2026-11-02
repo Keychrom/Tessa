@@ -139,8 +139,9 @@ entry points resolve to the same `wlr_scene_*` symbols, so the rest of Tessa
 continues to use the scene graph unchanged. This build requires GLES2 and cannot
 run with `WLR_RENDERER=pixman`.
 
-`window_effects.zig` is compiled as a no-op in the default build. In a scenefx
-build it:
+`window_effects.zig` always applies client opacity and the tint rectangle. The
+scenefx-specific implementation is the no-op in the default build; in a scenefx
+build it additionally:
 
 - locates each client's root scene buffer and applies `corner_radius`
   (`CORNER_LOCATION_ALL`), resetting the radius for fullscreen windows,
@@ -149,6 +150,10 @@ build it:
   overlay, and popup trees; opaque regions are unaffected,
 - publishes `blur_radius` and `blur_passes` through
   `wlr_scene_set_blur_data()`.
+
+The tint rectangle sits inside the border and above the content; its alpha
+above zero blocks direct scanout for that frame. In a scenefx build it follows
+the content corner radius.
 
 Scenefx logs a fallback warning on every blur until its optimized-blur
 framebuffer exists, so `configure()` creates one invisible 1×1 optimized-blur
@@ -161,15 +166,18 @@ Motion is a position offset on the client frame node; layout still records the
 logical `x`/`y` in the `Client`. `startOpenAnimation()` offsets a newly mapped
 window by 18 px vertically. `startWorkspaceAnimation()` offsets every mapped
 window on the incoming workspace by ±54 px horizontally, choosing the sign from
-the direction of travel. `tickAnimations()` evaluates a cubic ease-out against
-`animation_ms` and writes `x + off_x`, `y + off_y` to the scene node. `applyFrame`
+the direction of travel. `tickAnimations()` evaluates the resolved open or
+workspace curve (per-window override first, then the global curve) over the
+resolved duration and writes `x + off_x`, `y + off_y` to the scene node.
+`applyFrame`
 also adds the current offset, so a relayout during a transition does not snap the
 window. Output frame callbacks drive the clock: `onOutputFrame` ticks active
 animations before committing and schedules another frame while any remain.
 
-`animations = false`, `reduce_motion = true`, or `animation_ms = 0` skip the
-offset entirely. A config reload clears active animations before applying new
-geometry.
+`animations = false` or `reduce_motion = true` skip the offset entirely.
+`animation_ms = 0` only zeroes the fallback duration; an explicit per-kind or
+per-window duration still animates. A config reload clears active animations
+before applying new geometry.
 
 Compositor-initiated closes use a snapshot path in `effects.zig`. Before
 sending `wlr_xdg_toplevel_send_close`, `requestClose()` locks the surface's
@@ -180,8 +188,9 @@ so the client's buffer cannot be recycled before the animation starts.
 containing a shadow rectangle, four border rectangles forming an outline, and
 a `wlr_scene_buffer` using the locked buffer. The scene buffer takes its own
 reference before the client's lock is released. `tick()` drives the snapshot
-toward 92% scale with a smoothstep ease and fades content, border, and shadow to
-zero opacity over `animation_ms`. The output frame callback ticks close effects
+toward `animation_close_scale` (default 92%) using the resolved close curve and
+fades content, border, and shadow to
+zero opacity over the resolved close duration. The output frame callback ticks close effects
 after layout animations and requests another frame while any remain.
 `tree_effects` sits above fullscreen clients and below the launcher overlay,
 and session lock hides it with the other desktop trees. A client that closes
@@ -566,14 +575,17 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   the output supports it. `Output.adaptive_sync_base/policy` lets a removed
   rule restore the pre-policy state instead of leaving VRR enabled.
 - `layout_helper.zig` owns one optional long-lived child process per output,
-  connected by a `socketpair`. The `custom` layout sends an asynchronous
-  `HELLO`/`LAYOUT` request (`OUTPUT`, `AREA`, `WINDOW` with focus/urgent flags,
+  connected by a `socketpair`. The `custom` layout sends a tab-separated
+  `HELLO` once per helper process, then asynchronous `LAYOUT` requests
+  (`OUTPUT`, `AREA`, `WINDOW` with
+  focus/urgent flags once the helper has answered `VERSION 2`,
   `END`) and consumes `VERSION`/`RECT`/`END` replies from the Wayland event
   loop. Previous rectangles stay in place while a reply is pending; requests
   coalesce, and the first reply falls back to master until it arrives. A crash,
   timeout, malformed reply, or id mismatch stops that output's child and falls
-  back to master. Helpers are restarted when their command changes and stopped
-  during output destruction and shutdown.
+  back to master. Retry is lazy: the next request after a one-second backoff
+  restarts the child. Helpers are restarted when their command changes and
+  stopped during output destruction and shutdown.
 - `effect_helper.zig` owns one optional long-lived child process for all
   outputs. Protocol 2 sends a complete tab-separated `EFFECT`/`WINDOW` snapshot
   plus the current tint after negotiation, and accepts key=value overrides for
@@ -581,23 +593,27 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   animation durations/curves. A `VERSION 1` reply keeps the positional v1
   parser. Overrides live separately from rule fields, so removing the helper
   or a bad reply restores them. Requests are coalesced; timeout or protocol
-  errors stop the child and retry after one second.
+  errors stop the child, clear overrides, and allow a lazy restart on the next
+  refresh after one second.
 - `window_effects.zig` caches the last applied client opacity, radius, border
   width, tint, blur state, size, and content buffer. Repeated arrange passes
   skip redundant scene setters and increment `effect_skips`; changed values
-  increment `effect_applies`. Both counters, plus `blur_nodes`, are exported by
-  `perf` and `rendering`.
+  increment `effect_applies`. `effect_applies`, `effect_skips`, and
+  `blur_nodes` are exported by `perf` (text and JSON), not by `rendering`.
 - `extension_manager.zig` owns supervised extension processes. Config
   manifests carry an id, command, API version, permission scopes, and
   `requires`/`after` dependencies. `config.resolveExtensions` topologically
   sorts them and reports unknown ids/cycles. Each child gets a token in its
   environment; `HELLO 1 <token>` maps the IPC client to its scopes. Timeout-free
-  lifecycle supervision uses pidfd and 500 ms→8 s restart backoff. The token is
+  lifecycle supervision uses pidfd and exponential restart backoff (1 s, 2 s,
+  4 s, then 8 s; a 10 s stable run resets the counter). Only `requires` blocks
+  startup; `after` affects ordering. The token is
   a cooperative guardrail, not a sandbox.
 - `panel_supervisor.zig` owns one panel child per output. A Linux pidfd is
   attached to the Wayland event loop, so an exit is detected without changing
   the compositor's global `SIGCHLD` handling. Restarts use bounded exponential
-  backoff (500 ms to 8 s); a panel that ran for ten seconds resets the failure
+  backoff (1 s up to 8 s; a 500 ms base applies after the failure counter is
+  reset); a panel that ran for ten seconds resets the failure
   count. Intentional output removal and compositor shutdown stop supervision
   and terminate the child. The notification-owner role is retained across a
   restart. `panel_modules` selects which surfaces/services the panel creates;
@@ -678,8 +694,8 @@ OCC 2 0
 ...
 FOCUSED 7
 STATUS\tweather\tTokyo 18C\t
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
-WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0
 END
 ```
 
@@ -706,7 +722,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -727,8 +743,8 @@ snapshots for tools.
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
 focused output; only the matching panel opens. `CMD panel
-calendar|power|clipboard|screenshot|media` likewise emits a `panel` event with the
-requested popover and target output.
+calendar|power|clipboard|screenshot|media|tray|audio|extensions` likewise emits a
+`panel` event with the requested popover and target output.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
@@ -739,9 +755,12 @@ The extension API is intentionally process-based; there is no in-process plugin
 VM. `event_names.zig` defines the public topics. `events.zig` builds the wire
 record (`EVENT\t<topic>\tkey=value...`), broadcasts it to subscribed clients,
 and runs matching config hooks with `TESSA_*` environment variables. Topics
-include window/workspace/layout/mode changes, output add/remove, and the
+include window/workspace/special changes, layout/mode changes, output add/remove,
+launcher/panel requests, and the
 animation lifecycle (`animation-start`/`animation-done` for open and workspace
 slides, `close-animation-start`/`close-animation-done` for close snapshots).
+Supervised extensions add `extension-start`/`-ready`/`-failed`/`-stop`.
+`notification-action` is broadcast directly and bypasses hooks/event rules.
 Event delivery is best-effort and never blocks the compositor; a client whose
 socket buffer is full is disconnected.
 
@@ -782,7 +801,8 @@ output.
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface.
   Its mode selects the centered launcher or one of the anchored popovers
   (calendar below the clock, power menu below the Tessa mark, centered
-  clipboard history, or the screenshot selection surface). The dim backdrop and panel are drawn into the same
+  clipboard history, the screenshot selection surface, media/tray/audio
+  controls, or the extensions list). The dim backdrop and panel are drawn into the same
   surface, so clicks outside the active panel close it. Popover hit rectangles
   are in popover-local coordinates plus the panel origin, and keyboard input
   switches to `Up`/`Down`/`Enter` navigation for the power menu and clipboard. Opening a popover emits a `panel` event, which the panel

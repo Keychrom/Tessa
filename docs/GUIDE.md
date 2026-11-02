@@ -387,6 +387,7 @@ output_name=HEADLESS-1
 | `TESSA_PANEL_BIN` | Override the panel executable |
 | `TESSA_PANEL_OUTPUT` | Output name for a manually started panel |
 | `TESSA_NO_XWAYLAND` | Disable XWayland start |
+| `TESSA_ALLOW_LINUX_DMABUF` | Re-enable linux-dmabuf on a vmwgfx session where it is auto-disabled |
 | `TESSA_XWAYLAND_BIN` | Path to `xwayland-satellite` |
 | `TESSA_SOCKET_NAME` | Explicit Wayland socket name |
 | `TESSA_STARTUP` | Extra startup command (prefer the `startup` config key) |
@@ -413,8 +414,8 @@ Format rules:
 - `include = path` loads another file; relative paths are resolved next to the
   including file
 - Include depth is limited to 8
-- Values can be quoted when they contain spaces
-- A `;` cannot be used inside a flat value
+- Flat values are taken verbatim; whitespace is preserved after trimming, and quote characters are not stripped
+- Rule/extension clauses support quoted values; a `;` cannot be used inside a flat value
 
 Reload and inspect:
 
@@ -536,8 +537,8 @@ motion.
 | `bar_height` | `44` | Bar height (32–96) |
 | `bar_top_margin` | `12` | Distance from the top (0–64) |
 | `bar_side_margin` | `16` | Left/right margin (0–128) |
-| `panel_bg` | `#0e1320` | Bar background |
-| `panel_fg` | `#eef2f8` | Bar primary text |
+| `panel_bg` | `#0e131d` | Base panel background used by `panel.background` and per-surface defaults |
+| `panel_fg` | `#edf2fa` | Base panel foreground used by `panel.foreground` and per-surface defaults |
 | `bar_layout` | all modules | Comma/space-separated module list; selects and orders the right cluster |
 | `bar-font`, `launcher-font`, `popover-font`, `toast-font` | `font` | Per-surface fonts |
 | `bar-fg`, `launcher-fg`, `popover-fg`, `toast-fg` | `panel_fg` | Per-surface foreground colors |
@@ -595,6 +596,7 @@ an unknown theme leaves the previous cursor active.
 | `xim` | `true` | Export `XMODIFIERS` for X11 clients |
 | `xim_server` | `fcitx` | XIM server name |
 | `xim_start` | empty | Command started after the X display appears |
+| `linux_dmabuf` | `true` | Advertise `zwp_linux_dmabuf_v1`; auto-disabled on vmwgfx |
 
 ### 6.6 Startup, hooks, and automation
 
@@ -658,7 +660,8 @@ bind = SUPER+SHIFT+r enter-mode resize
 
 Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-workspace`, `focus`, `move`, `toggle-float`, `toggle-fullscreen`,
-`toggle-scratchpad`, `move-to-scratchpad`, `toggle-group`, `group-next`,
+`toggle-scratchpad`, `move-to-scratchpad`, `special`/`toggle-special`,
+`move-to-special`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
 `tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
@@ -686,15 +689,16 @@ Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 ### 8.1 Built-in layouts
 
 - **master**: master area plus a vertical stack; `master_ratio`, `master_count`
-- **mosaic**: recursive spiral for up to eight windows; falls back to **grid**
-  when the configured minimum tile cannot be maintained
+- **mosaic** (`spiral`): recursive spiral for up to eight windows; falls back
+  to **grid** when the configured minimum tile cannot be maintained, and to
+  **master** above eight windows
 - **grid**: `ceil(sqrt(n))` columns; the last row is centered; `grid_columns`
   can fix the column count
-- **columns**: equal-width full-height columns
+- **columns** (`column`): equal-width full-height columns
 - **scrolling** (`scroll`, `scroller`): Niri-style horizontal column strip
 - **monocle**: the focused tiled window fills the workspace
 - **stacking** (`deck`): master area plus overlapping stack cards
-- **custom**: external layout helper
+- **custom** (`helper`): external layout helper
 
 `Super+T` cycles the built-in layouts. The default cycle is the original four;
 add new modes explicitly with `layout_cycle`. `custom` is not in the default
@@ -771,7 +775,7 @@ output-rule = output=HDMI-A-1; profile=compact; gaps=4
 output-rule = output=HEADLESS-*; accent=#8fd3ff; bg=#0c1118
 output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
 output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
-output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
+output-rule = output=HEADLESS-*; bg-top=#162038; bg-bottom=#070a12
 output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
 output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
 output-rule = serial=ABC123; adaptive-sync=off
@@ -804,7 +808,8 @@ Theme keys (all workspaces only):
 - `border-active=#RRGGBB`, `border-inactive=#RRGGBB`
 - `panel-bg=#RRGGBB`, `panel-fg=#RRGGBB`
 - `bg-top=#RRGGBB`, `bg-bottom=#RRGGBB`
-- `bar-height=32..96`, `bar-top-margin=0..64`, `bar-side-margin=0..128`
+- `bar-height=0..200`, `bar-top-margin=0..128`, `bar-side-margin=0..256`;
+  the panel clamps them to 32–96, 0–64, and 0–128 at runtime
 
 Output policy keys (all workspaces only):
 
@@ -951,8 +956,8 @@ Layer rules are evaluated in file order and later matches win. With no rule,
 layer opacity is `1` and blur follows the global `blur` setting for the top and
 overlay layers (background and bottom layers stay unblurred); rounded corners
 default to `0`. The panel's surfaces use the namespaces `tessa-bar`,
-`tessa-overlay` (launcher, calendar, power, clipboard, media, tray, audio, and
-screenshot popovers), and `tessa-notifications` (toasts). A layer rule with
+`tessa-overlay` (launcher, calendar, power, clipboard, media, tray, audio,
+screenshot, and extensions popovers), and `tessa-notifications` (toasts). A layer rule with
 `layer=top` styles bar and toasts; popovers are on the overlay layer. Rules
 re-apply on `Super+R` / config reload. `corner-radius` and `blur` require a
 `-Dscenefx=true` build. `tessa-ctl state` and `tessa-ctl state --json` expose
@@ -970,18 +975,20 @@ bind = SUPER+SHIFT+T set-layout custom
 
 Tessa starts one helper per output and sends requests asynchronously; the
 compositor never blocks waiting for a reply. It advertises `HELLO 2` and sends
-`LAYOUT 2`, `OUTPUT`, `AREA`, `OUTER_GAP`, `GAP`, `BORDER`, `SCALE`,
-`TRANSFORM`, `COUNT`, and `WINDOW` lines ending in `END`. A protocol-2 helper
-announces `VERSION 2`; after that each `WINDOW` carries `id`, app-id, title,
-focused, and urgent fields. The first request uses the three-field protocol-1
-form. Replies contain an optional `VERSION 2`, `RECT id x y w h` lines, and
-`END`. Coordinates are absolute logical coordinates; rectangles include the
-border. A helper that ignores the `HELLO` and version lines remains compatible.
+tab-separated `LAYOUT\t2`, `OUTPUT`, `AREA`, `OUTER_GAP`, `GAP`, `BORDER`,
+`SCALE`, `TRANSFORM`, `COUNT`, and `WINDOW` lines ending in `END`. A protocol-2
+helper announces `VERSION 2`; after that each `WINDOW` carries `id`, app-id,
+title, focused, and urgent fields. The first request uses the three-field
+protocol-1 form. Replies contain an optional `VERSION 2`, tab-separated
+`RECT\tid\tx\ty\tw\th` lines, and `END`. Coordinates are absolute logical
+coordinates; rectangles include the border. A helper that ignores the `HELLO`
+and version lines remains compatible.
 
 The previous rectangles stay visible while a reply is pending; the first reply
 falls back to the built-in layout until it arrives. Timeout, crash, malformed
 reply, ID mismatch, or missing rectangles fall back to master for that output.
-Helpers are retried after one second. `stdout` is reserved for the protocol;
+Helpers are retried lazily on the next request after one second (there is no
+dedicated retry timer). `stdout` is reserved for the protocol;
 diagnostics go to `stderr`. `tessa-ctl dispatch urgent <id> on|off` updates the
 urgent flag sent to helpers. See
 [CUSTOMIZATION.md](CUSTOMIZATION.md#external-layout-helper).
@@ -1054,9 +1061,9 @@ bind = SUPER+ALT+SHIFT+n move-to-special notes
 `workspace=special:tools` is accepted as an equivalent rule form. Toggle with
 `tessa-ctl special tools`; move the focused window with `tessa-ctl
 move-to-special tools`. While a special workspace is visible, normal workspace
-windows on that output are hidden. Toggling it off restores the previous
-workspace view and focus. Special clients do not count toward workspace
-occupancy.
+windows on that output are hidden. Toggling it off restores the normal workspace
+view and focuses the first visible normal window. Special clients do not count
+toward workspace occupancy.
 
 #### Window groups
 
@@ -1111,18 +1118,18 @@ protocol is v2; helpers that reply `VERSION 1` keep using the v1 positional
 format.
 
 ```text
-HELLO 2
-EFFECT 2
-WINDOW <id> <app-id> <title> <output> <ws> <focused> <urgent> <fullscreen> <floating> <visible> <opacity> <radius> <blur> <shadow> <border-width> <x> <y> <w> <h> [<tint>]
+HELLO\t2
+EFFECT\t2
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
 END
 ```
 
-Fields after the title are tab-separated. `tint` is appended only after the
+Every field is tab-separated. `tint` is appended only after the
 helper has negotiated v2. Reply:
 
 ```text
-VERSION 2
-WINDOW <id> opacity=0.9 radius=16 blur=on shadow=off border-width=2 tint=#ff8844aa open-ms=240 open-curve=spring-soft
+VERSION\t2
+WINDOW\t<id>\topacity=0.9\tradius=16\tblur=on\tshadow=off\tborder-width=2\ttint=#ff8844aa\topen-ms=240\topen-curve=spring-soft
 END
 ```
 
@@ -1131,8 +1138,9 @@ Every v2 field is optional; omitted fields keep the rule value. `tint` is
 registered by `bezier`/`spring` or the built-ins. Omitting a window removes its
 override. Tessa validates IDs, ranges, and curve names; a timeout, crash,
 malformed reply, unknown curve, or bad value drops all overrides and returns to
-rule visuals, then retries after one second. `stdout` is reserved for the
-protocol. See [EXTENDING.md](EXTENDING.md#effect-helper-process-protocol). The
+rule visuals. The helper is retried on the next refresh after one second.
+`stdout` is reserved for the protocol. See
+[EXTENDING.md](EXTENDING.md#effect-helper-process-protocol). The
 protocol never injects code into the compositor.
 
 ---
@@ -1201,9 +1209,10 @@ panel_modules = launcher,notifications,toasts
 startup = waybar
 ```
 
-`panel_modules` accepts `background`, `bar`, `launcher`, `popovers`,
-`notifications`, `toasts`, `tray`, `media`, and `audio` (`all`/`none` are
-aliases). The supervisor restarts the panel when the mask changes. If both
+`panel_modules` accepts `background` (`wallpaper`), `bar`, `launcher`,
+`popovers` (`popover`), `notifications` (`notification`), `toasts` (`toast`),
+`tray`, `media`, and `audio` (`volume`); `all`/`none` are aliases. The key also
+accepts `panel-modules`. The supervisor restarts the panel when the mask changes. If both
 Tessa's bar and an external bar reserve the same edge, both exclusive zones are
 honored and the desktop becomes shorter; disable one of them.
 
@@ -1313,13 +1322,20 @@ bar_bg = #0e1320
 
 `bar_layout` selects visible modules and orders the right-hand cluster from
 right to left (the first listed module is closest to the right edge). Recognized
-names are `logo`, `workspaces`, `chips`, `clock`,
-`battery`, `network`, `volume`, `stats`, `media`, `tray`, and `status`; unknown
-names are ignored. Logo, workspace pills, and window chips stay anchored.
+names are `logo` (`mark`), `workspaces` (`workspace`), `chips`
+(`title`/`windows`), `clock` (`date`), `battery`, `network`, `volume` (`audio`),
+`stats` (`cpu`/`memory`), `media`, `tray`, and `status`; unknown names are
+ignored. Logo, workspace pills, and window chips stay anchored.
 `bar-font`, `launcher-font`, `popover-font`, and `toast-font` fall back to
-`font`. The `*-fg` and `*-bg` keys override foreground/background per surface;
-unset values inherit `panel_fg`/`panel_bg`. Bar background and foreground
-`output-rule` keys still apply per output.
+`font`. The `*-fg` and `*-bg` keys override foreground/background per surface.
+`panel_bg`/`panel_fg` themselves are the base for the `panel.background` and
+`panel.foreground` theme roles and the per-surface defaults; the bar's actual
+colors are `bar-bg`/`bar-fg` (or those theme roles). Bar background and
+foreground `output-rule` keys still apply per output. The right cluster is
+responsive: battery hides at width ≤900, tray at ≤980, network at ≤1000, volume
+at ≤1080, stats at ≤1180, and media at ≤1250. Window chips show at most six;
+an overflow `+N` badge counts only chips skipped for width before the six-chip
+cap, so windows beyond the cap are not necessarily counted.
 
 Semantic theme roles let one value drive the compositor and panel:
 
@@ -1665,7 +1681,8 @@ output pinning.
 
 The panel is supervised by the compositor. Tessa watches the panel process with
 a Linux pidfd and restarts it with bounded exponential backoff after a crash
-(500 ms, doubling to 8 s). The notification-owner panel keeps that role across
+(1 s, doubling to 8 s; after a stable ≥10 s run the failure counter resets and
+the first retry can use 500 ms). The notification-owner panel keeps that role across
 restarts. Deliberate shutdown and output removal do not restart it. This is
 covered by `tests/panel-recovery.sh`.
 
@@ -1744,7 +1761,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
 CMD layout [name] [output]
 CMD column-focus <left|right|first|last>
 CMD column-move <left|right|first|last>
@@ -1756,7 +1773,7 @@ CMD swap <id> <id>
 CMD reorder <id> <before|after> <target-id>
 CMD resize <dx> <dy>
 CMD float <id>
-CMD status <id> <text> [--exec command]
+CMD status <id> <text>          (or tab-separated for a click command)
 CMD reload
 CMD notification-action <id> <key>
 CMD quit
@@ -1782,7 +1799,25 @@ the scrolling viewport, or the visible monocle/stacking card), `column` is its
 scrolling column id (0 when it has none), and `tile` is its 0-based position
 inside that column.
 `PANEL` is `output, pid, supervised, notify-owner` for the built-in panel
-supervisor.
+supervisor. The same snapshot also contains:
+
+```
+ACTIVE <workspace>
+WORKSPACE <n> <name>
+MODE <name>
+SPECIAL <output> <name>
+OCC <workspace> <count>
+FOCUSED <window-id>
+STATUS<TAB><id><TAB><text><TAB><click-command>
+LAYER<TAB><namespace><TAB><output><TAB><layer><TAB><opacity><TAB><radius><TAB><blur>
+```
+
+`LAYER` reports mapped layer-shell surfaces (`tessa-background`, `tessa-bar`,
+`tessa-overlay`, `tessa-notifications`, or external namespaces). `layer` is
+0=background, 1=bottom, 2=top, 3=overlay. `STATUS` and `LAYER` are tab-separated
+because their text fields may contain spaces. Raw line clients can set a click
+command with `CMD<TAB>status<TAB><id><TAB><text><TAB><command>`;
+`tessa-ctl status ... --exec <command>` uses that form.
 
 Scrolling outputs additionally emit one `VIEW` line and one `COL` line per
 column. Both use 0-based column indexes and pixel coordinates:
@@ -1798,8 +1833,10 @@ holds a window group.
 
 `EXT` lines describe supervised extensions:
 `EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`.
-A `ready` flag means the process authenticated with its token; a running
-process that has not done so is still `running`.
+States are `disabled`, `blocked`, `stopped`, `starting`, `running`, `ready`,
+and `failed`; `starting` is reserved and not currently emitted. A `ready` flag
+means the process authenticated with its token; a running process that has not
+done so is still `running`.
 
 `tessa-ctl` wraps the common operations:
 
@@ -1822,6 +1859,7 @@ tessa-ctl move-to-special notes
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
+tessa-ctl panel extensions
 tessa-ctl layout grid
 tessa-ctl column-focus right
 tessa-ctl column-move left
@@ -1875,9 +1913,15 @@ explicit_sync = false   # requires a compositor restart
 
 ### 13.2 JSON and JSON-RPC
 
-- `state --json`: schema 1, outputs, occupancy, focus, statuses, windows
-- `config --json`: schema 1, effective config, layouts, workspace tuning,
-  rules, output rules, hooks, event rules, profiles, theme roles, diagnostics
+- `state --json`: schema 1 plus `tessa`, `line_protocol`, `extension_api`,
+  `layout_api`, `effect_api`, outputs, occupancy, focus, statuses, windows,
+  layers, and an `extensions` array. Window objects include `tint`, an
+  `animation` override object, `tearing`, `on_screen`, `column`, and `tile`
+  (the text `WIN` line does not include these).
+- `config --json`: schema 1 plus the same API versions, effective config,
+  layouts and cycle, workspace tuning, rules, output rules, hooks, event rules,
+  profiles, theme roles, `panel_modules`, `animation_view_ms`/`_curve`,
+  extension manifests, and diagnostics.
 - Reject unknown schema versions
 
 The same socket accepts JSON-RPC 2.0 requests as one-line JSON objects:
@@ -1891,8 +1935,9 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
 
 Methods: `hello`/`capabilities`, `ping`, `state`, `config`, `subscribe`, and
 `unsubscribe`. Every response echoes the request `id`. `hello` reports
-`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`, and the
-capabilities `state`, `config`, `events`, `subscriptions`, `request-ids`.
+`protocol: "tessa-jsonrpc"`, `version: 1`, `line_protocol: 1`, `tessa`,
+`extension_api`, `layout_api`, `effect_api`, and the capabilities `state`,
+`config`, `events`, `subscriptions`, `request-ids`, `extensions`, `effects2`.
 Errors use standard JSON-RPC codes (`-32700` parse error, `-32601` unknown
 method).
 
@@ -1918,13 +1963,14 @@ best-effort.
 | `window-close` | Mapped toplevel destroyed | id, ws, app, title, output |
 | `window-focus` | Focus changed/cleared | id, previous, ws, app, title, output |
 | `workspace-change` | Output workspace changed | ws, previous-ws, output |
+| `special-change` | Special workspace shown/hidden or window moved | ws, output, arg (name; omitted when restoring) |
 | `window-moved` | Window moved workspace | id, ws, previous-ws, app, title, output |
 | `layout-change` | Layout changed | ws, output, arg |
 | `mode-change` | Input mode changed | arg |
 | `config-reload` | Successful reload | — |
 | `launcher` | Launcher requested | arg, output |
 | `panel` | Panel popover requested | arg, output |
-| `notification-action` | Notification action | id, arg |
+| `notification-action` | Notification action | id, action |
 | `output-added` | Output initialized | output, arg |
 | `output-removed` | Output removed | output, arg |
 | `animation-start` | Open/workspace slide starts | id, ws, output, arg (`open`/`workspace`) |
@@ -1999,7 +2045,8 @@ token keep the legacy full-access behavior, including `tessa-panel` and
 `CMD extensions` and `CMD extensions-json` list the runtime state. `EXT` state
 lines use
 `EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`;
-states are `disabled`, `blocked`, `stopped`, `running`, `ready`, and `failed`.
+states are `disabled`, `blocked`, `stopped`, `starting`, `running`, `ready`,
+and `failed` (`starting` is reserved and not currently emitted).
 `CMD extension-enable <id> on|off` changes the current session only. The
 panel's Extensions popover is opened with `tessa-ctl panel extensions` and
 toggles the selected entry with Enter.
@@ -2326,7 +2373,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
   output, keyboard, mouse, IME, and XWayland clients have been validated on
-  0.2.4. The 0.2.5 headless suite (63 tests) passes on Arch Linux with Zig 0.17,
+  0.2.4. The 0.2.5 headless suite (76 test scripts) passes on Arch Linux with Zig 0.17,
   wlroots 0.20, and scenefx 0.5 in both plain and scenefx builds, including
   portal ScreenCast, tray, notifications, and pointer interaction. A real
   DRM/libinput session on the new toolchain is still pending. Per-device

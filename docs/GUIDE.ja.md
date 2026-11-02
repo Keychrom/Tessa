@@ -177,7 +177,7 @@ X11 アプリには AUR の `xwayland-satellite-git` を使います。
 ビルドでは角丸もブラーも有効になりません。0.2.4 の Arch パッケージは
 0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
 公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
-headless スイート全 63 テストが plain／scenefx の両構成で成功しています。
+headless スイート全 76 テストスクリプトが plain／scenefx の両構成で成功しています。
 `makepkg` が ABI や依存関係のエラーを出した場合は、`zig version` が 0.17.x、
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
@@ -402,6 +402,7 @@ output_name=HEADLESS-1
 | `TESSA_PANEL_BIN` | 起動するパネルのパスを上書き |
 | `TESSA_PANEL_OUTPUT` | 手動起動したパネルが担当する出力名 |
 | `TESSA_NO_XWAYLAND` | XWayland 起動を無効化 |
+| `TESSA_ALLOW_LINUX_DMABUF` | vmwgfx で自動無効になる linux-dmabuf を強制的に有効化 |
 | `TESSA_XWAYLAND_BIN` | `xwayland-satellite` のパス |
 | `TESSA_SOCKET_NAME` | Wayland ソケット名を明示（通常は自動） |
 | `TESSA_STARTUP` | 起動時に実行するコマンド（設定の `startup` 推奨） |
@@ -427,8 +428,8 @@ cp config/config.example ~/.config/tessa/config
 - `#` で始まる行はコメント
 - `include = path` で別ファイルを読み込み（相対パスはインクルード元基準）
 - include の深さは最大 8
-- 値に空白を含める場合は引用符で囲める
-- フラット形式のため、値の中に `;` は書けない
+- フラット値はそのまま扱われ、前後の空白だけが除去されます。引用符は外されません
+- ルール/拡張の clause では引用符を使えます。フラット値の中に `;` は書けません
 
 再読み込みと診断:
 
@@ -548,8 +549,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_height` | `44` | バーの高さ（32〜96） |
 | `bar_top_margin` | `12` | 上端からの距離（0〜64） |
 | `bar_side_margin` | `16` | 左右マージン（0〜128） |
-| `panel_bg` | `#0e1320` | バー背景色 |
-| `panel_fg` | `#eef2f8` | バー主要テキスト色 |
+| `panel_bg` | `#0e131d` | `panel.background` と各サーフェス既定値の基底背景色 |
+| `panel_fg` | `#edf2fa` | `panel.foreground` と各サーフェス既定値の基底前景色 |
 | `panel_modules` | 全部 | 有効にするパネル要素: `background`、`bar`、`launcher`、`popovers`、`notifications`、`toasts`、`tray`、`media`、`audio`。`all`/`none` も可 |
 | `bar_layout` | 全モジュール | カンマ／空白区切りのモジュール一覧。右側クラスタの表示と順序を決定 |
 | `bar-font`、`launcher-font`、`popover-font`、`toast-font` | `font` | サーフェス別フォント |
@@ -608,6 +609,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `xim` | `true` | `XMODIFIERS` を X11 クライアントへ設定 |
 | `xim_server` | `fcitx` | XIM サーバ名 |
 | `xim_start` | 空 | X ディスプレイ出現後に起動するコマンド |
+| `linux_dmabuf` | `true` | `zwp_linux_dmabuf_v1` を公開。vmwgfx では自動無効 |
 
 ### 6.6 イベント・自動化
 
@@ -674,7 +676,8 @@ bind = SUPER+SHIFT+r enter-mode resize
 
 `terminal`、`spawn`、`close`、`quit`、`workspace`、`move-to-workspace`、
 `focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`toggle-scratchpad`、`move-to-scratchpad`、`toggle-group`、`group-next`、
+`toggle-scratchpad`、`move-to-scratchpad`、`special`/`toggle-special`、
+`move-to-special`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
 `audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
@@ -702,14 +705,14 @@ bind = SUPER+SHIFT+r enter-mode resize
 ### 8.1 組み込みレイアウト
 
 - **master**: master 領域 + 縦スタック。`master_ratio`、`master_count`
-- **mosaic**: 再帰スパイラル。最大 8 ウィンドウ。最小サイズを割ると
-  **grid** にフォールバック
+- **mosaic**（`spiral`）: 再帰スパイラル。最大 8 ウィンドウ。最小サイズを
+  割ると **grid**、9 枚以上では **master** にフォールバック
 - **grid**: `ceil(sqrt(n))` 列。最終行は中央寄せ。`grid_columns` で固定可
-- **columns**: 等幅全高カラム
+- **columns**（`column`）: 等幅全高カラム
 - **scrolling**（`scroll`、`scroller`）: Niri 風の横カラム列
 - **monocle**: フォーカス中のタイルがワークスペース全体を占有
 - **stacking**（`deck`）: マスター領域 + 重ねたスタックカード
-- **custom**: 外部レイアウトヘルパー
+- **custom**（`helper`）: 外部レイアウトヘルパー
 
 `Super+T` は組み込みレイアウトを巡回します。既定の巡回は従来の 4 モードで、
 新しいモードは `layout_cycle` に明示的に追加します。`custom` は既定の巡回に
@@ -788,7 +791,7 @@ output-rule = output=HDMI-A-1; profile=compact; gaps=4
 output-rule = output=HEADLESS-*; accent=#8fd3ff; bg=#0c1118
 output-rule = output=HEADLESS-*; border-active=#8fd3ff; border-inactive=#243040
 output-rule = output=HEADLESS-*; panel-bg=#111827; panel-fg=#eef2f8
-output-rule = output=HEADLESS-*; wallpaper-top=#162038; wallpaper-bottom=#070a12
+output-rule = output=HEADLESS-*; bg-top=#162038; bg-bottom=#070a12
 output-rule = output=HEADLESS-*; bar-height=52; bar-top-margin=8; bar-side-margin=20
 output-rule = make=Dell Inc.; model=DELL*; adaptive-sync=on
 output-rule = serial=ABC123; adaptive-sync=off
@@ -821,7 +824,8 @@ output-rule = serial=ABC123; adaptive-sync=off
 - `border-active=#RRGGBB`、`border-inactive=#RRGGBB`
 - `panel-bg=#RRGGBB`、`panel-fg=#RRGGBB`
 - `bg-top=#RRGGBB`、`bg-bottom=#RRGGBB`
-- `bar-height=32..96`、`bar-top-margin=0..64`、`bar-side-margin=0..128`
+- `bar-height=0..200`、`bar-top-margin=0..128`、`bar-side-margin=0..256`。
+  パネル実行時に 32〜96、0〜64、0〜128 へ clamp されます
 
 出力ポリシー（全ワークスペースのみ）:
 
@@ -965,8 +969,8 @@ layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 ない場合の不透明度は `1`、ブラーは top／overlay レイヤーでグローバルの
 `blur` に従います（background／bottom はブラーなし）。角丸の既定値は `0`
 です。パネルのサーフェスは `tessa-bar`、`tessa-overlay`（ランチャー、
-カレンダー、電源、クリップボード、メディア、トレイ、音量、スクリーンショット
-のポップオーバー）、`tessa-notifications`（トースト）の namespace を使います。
+カレンダー、電源、クリップボード、メディア、トレイ、音量、スクリーンショット、
+拡張一覧のポップオーバー）、`tessa-notifications`（トースト）の namespace を使います。
 `layer=top` のルールはバーとトースト、`tessa-overlay` は overlay レイヤーに
 適用されます。`Super+R`／設定リロードで再適用されます。`corner-radius` と
 `blur` は `-Dscenefx=true` ビルドが必要です。`tessa-ctl state` と
@@ -984,17 +988,19 @@ bind = SUPER+SHIFT+T set-layout custom
 
 Tessa は出力ごとに 1 つのヘルパーを起動し、リクエストを非同期で送ります。
 応答待ちでコンポジタが停止することはありません。`HELLO 2` を通知し、
-`LAYOUT 2`、`OUTPUT`、`AREA`、`OUTER_GAP`、`GAP`、`BORDER`、`SCALE`、
-`TRANSFORM`、`COUNT`、`WINDOW` 行を `END` まで送ります。プロトコル 2 の
-ヘルパーは `VERSION 2` を返し、それ以降の `WINDOW` は id、app-id、タイトル、
-focused、urgent を持ちます。最初のリクエストはプロトコル 1 の 3 フィールド
-形式です。応答は任意の `VERSION 2`、`RECT id x y w h` 行、`END` です。座標は
+タブ区切りの `LAYOUT\t2`、`OUTPUT`、`AREA`、`OUTER_GAP`、`GAP`、`BORDER`、
+`SCALE`、`TRANSFORM`、`COUNT`、`WINDOW` 行を `END` まで送ります。
+プロトコル 2 のヘルパーは `VERSION 2` を返し、それ以降の `WINDOW` は id、
+app-id、タイトル、focused、urgent を持ちます。最初のリクエストはプロトコル 1
+の 3 フィールド形式です。応答は任意の `VERSION 2`、タブ区切りの
+`RECT\tid\tx\ty\tw\th` 行、`END` です。座標は
 絶対論理座標、幅と高さはボーダーを含むフレームサイズです。`HELLO` や
 バージョン行を無視する旧ヘルパーもそのまま動作します。
 
 応答待ちの間は以前の矩形を維持し、最初の応答までは内蔵レイアウトを使います。
 タイムアウト、クラッシュ、不正応答、ID 不一致、矩形不足時は、その出力だけ
-master へフォールバックし、1 秒後に再試行します。`stdout` はプロトコル専用
+master へフォールバックします。再試行は専用タイマーではなく、1 秒後の次回
+リクエスト時に行われます。`stdout` はプロトコル専用
 なので、診断は `stderr` へ書きます。緊急度は
 `tessa-ctl dispatch urgent <id> on|off` で設定できます。詳細は
 [CUSTOMIZATION.ja.md](CUSTOMIZATION.ja.md#外部レイアウトヘルパー) を参照して
@@ -1070,8 +1076,9 @@ bind = SUPER+ALT+SHIFT+n move-to-special notes
 ルールでは `workspace=special:tools` も同等です。表示切替は
 `tessa-ctl special tools`、フォーカス中ウィンドウの移動は
 `tessa-ctl move-to-special tools` で行えます。special 表示中は同じ出力の
-通常ワークスペースのウィンドウが隠れ、再度切り替えると元の表示とフォーカスに
-戻ります。special のウィンドウはワークスペース占有数に含めません。
+通常ワークスペースのウィンドウが隠れ、再度切り替えると通常の表示に戻り、
+最初の可視ウィンドウへフォーカスします。special のウィンドウはワークスペース
+占有数に含めません。
 
 #### ウィンドウグループ
 
@@ -1127,7 +1134,7 @@ v2 で、`VERSION 1` を返すヘルパーは従来の位置引数形式のま�
 ```text
 HELLO\t2
 EFFECT\t2
-WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<corner-radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
+WINDOW\t<id>\t<app-id>\t<title>\t<output>\t<ws>\t<focused>\t<urgent>\t<fullscreen>\t<floating>\t<visible>\t<opacity>\t<radius>\t<blur>\t<shadow>\t<border-width>\t<x>\t<y>\t<w>\t<h>\t[<tint>]
 ...
 END
 ```
@@ -1145,7 +1152,8 @@ v2 の各フィールドは任意で、省略した項目はルール値を使�
 `#RRGGBBAA` または `none`、アニメーションは `-1`〜`1000` ms と
 `bezier`/`spring` で登録したカーブ名を受け付けます。応答に含まれない
 ウィンドウは上書きを解除します。ID、範囲、カーブ名を検証し、タイムアウト、
-クラッシュ、不正な応答では全上書きを破棄して 1 秒後に再試行します。
+クラッシュ、不正な応答では全上書きを破棄します。再試行は専用タイマーではなく、
+1 秒後の次回 refresh 時に行われます。
 stdout はプロトコル専用です。詳細は
 [EXTENDING.ja.md](EXTENDING.ja.md#エフェクトヘルパープロトコル) を参照して
 ください。このプロトコルはコンポジタ内へコードを注入しません。
@@ -1216,9 +1224,11 @@ panel_modules = launcher,notifications,toasts
 startup = waybar
 ```
 
-`panel_modules` は `background`、`bar`、`launcher`、`popovers`、
-`notifications`、`toasts`、`tray`、`media`、`audio` を受け付けます
-（`all`/`none` も可）。マスクが変わるとスーパーバイザがパネルを再起動します。
+`panel_modules` は `background`（`wallpaper`）、`bar`、`launcher`、
+`popovers`（`popover`）、`notifications`（`notification`）、`toasts`
+（`toast`）、`tray`、`media`、`audio`（`volume`）を受け付けます
+（`all`/`none` も可）。キー名は `panel-modules` も使えます。マスクが変わると
+スーパーバイザがパネルを再起動します。
 Tessa のバーと外部バーを同じ辺に置くと両方の予約領域が使われ、デスクトップが
 狭くなるため、どちらかを無効にしてください。
 
@@ -1327,11 +1337,19 @@ bar_bg = #0e1320
 ```
 
 `bar_layout` は表示するモジュールと右側クラスタの右→左順（先頭が右端）を指定します。
-`logo`、`workspaces`、`chips`、`clock`、`battery`、`network`、`volume`、
-`stats`、`media`、`tray`、`status` を認識し、未知の名前は無視します。
-ロゴ、ワークスペースピル、ウィンドウチップの位置は固定です。
-`bar-font`、`launcher-font`、`popover-font`、`toast-font` は `font` へ、
-`*-fg`／`*-bg` は `panel_fg`／`panel_bg` へフォールバックします。
+`logo`（`mark`）、`workspaces`（`workspace`）、`chips`（`title`/`windows`）、
+`clock`（`date`）、`battery`、`network`、`volume`（`audio`）、
+`stats`（`cpu`/`memory`）、`media`、`tray`、`status` を認識し、未知の名前は
+無視します。ロゴ、ワークスペースピル、ウィンドウチップの位置は固定です。
+`bar-font`、`launcher-font`、`popover-font`、`toast-font` は `font` へ
+フォールバックします。`*-fg`／`*-bg` はサーフェス別の色を上書きします。
+`panel_bg`／`panel_fg` は `panel.background`／`panel.foreground` ロールと
+各サーフェス既定値の基底で、バー自体の色は `bar-bg`／`bar-fg`（または
+テーマロール）です。右側クラスタは幅に応じて battery ≤900、tray ≤980、
+network ≤1000、volume ≤1080、stats ≤1180、media ≤1250 で非表示になります。
+ウィンドウチップは最大 6 件です。`+N` バッジは 6 件の上限より前に幅不足で
+省略した分だけを数えるため、上限を超えたウィンドウが必ず数えられるわけでは
+ありません。
 
 意味論的テーマロールを使うと、1 つの値をコンポジタとパネルで共有できます:
 
@@ -1681,7 +1699,8 @@ Pango の範囲を超える HTML、通知音、通知ごとの出力固定は未
 - 最大 8 件のカスタムステータス
 
 パネルはコンポジタに監視されます。Tessa は Linux の pidfd でパネルプロセスを
-追跡し、クラッシュ時は上限付き指数バックオフ（500 ms から倍増、最大 8 秒）で
+追跡し、クラッシュ時は上限付き指数バックオフ（1 秒から倍増、最大 8 秒。
+10 秒以上安定すると失敗回数がリセットされ、初回は 500 ms の場合もあります）で
 再起動します。通知所有者のパネルは再起動後もその役割を維持します。意図的な
 終了や出力の取り外しでは再起動しません。`tests/panel-recovery.sh` で検証して
 います。
@@ -1752,6 +1771,7 @@ tessa-ctl move-to-special notes
 tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
+tessa-ctl panel extensions
 tessa-ctl layout grid
 tessa-ctl column-focus right
 tessa-ctl column-move left
@@ -1831,7 +1851,7 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
 CMD layout [name] [output]
 CMD column-focus <left|right|first|last>
 CMD column-move <left|right|first|last>
@@ -1843,7 +1863,7 @@ CMD swap <id> <id>
 CMD reorder <id> <before|after> <target-id>
 CMD resize <dx> <dy>
 CMD float <id>
-CMD status <id> <text> [--exec command]
+CMD status <id> <text>          (クリックコマンドはタブ区切り)
 CMD reload
 CMD notification-action <id> <key>
 CMD quit
@@ -1870,7 +1890,26 @@ CMD quit
 されている場合に 1、`column` は所属カラム ID（なければ 0）、`tile` は
 カラム内の 0 始まりの位置です。
 `PANEL` は内蔵パネル監視の
-`output, pid, supervised, notify-owner` です。
+`output, pid, supervised, notify-owner` です。同じスナップショットには
+次の行も含まれます:
+
+```
+ACTIVE <workspace>
+WORKSPACE <n> <name>
+MODE <name>
+SPECIAL <output> <name>
+OCC <workspace> <count>
+FOCUSED <window-id>
+STATUS<TAB><id><TAB><text><TAB><click-command>
+LAYER<TAB><namespace><TAB><output><TAB><layer><TAB><opacity><TAB><radius><TAB><blur>
+```
+
+`LAYER` は map 済みの layer-shell サーフェス（`tessa-background`、`tessa-bar`、
+`tessa-overlay`、`tessa-notifications`、または外部の namespace）を報告します。
+`layer` は 0=background、1=bottom、2=top、3=overlay です。`STATUS` と
+`LAYER` はテキストに空白を含められるようタブ区切りです。生の行クライアントは
+`CMD<TAB>status<TAB><id><TAB><text><TAB><command>` でクリックコマンドを
+設定でき、`tessa-ctl status ... --exec <command>` はこの形式を使います。
 
 Scrolling の出力では、さらにカラムごとに `VIEW` 1 行と `COL` 1 行が
 出力されます。カラム番号は 0 始まり、座標はピクセルです。
@@ -1885,14 +1924,21 @@ COL  <output> <workspace> <index> <x> <width> <focused> <maximized> <tabbed> <wi
 
 `EXT` 行は監視対象の拡張機能を表します:
 `EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`。
-`ready` は拡張が token で認証したことを示し、認証前は `running` のままです。
+状態は `disabled`、`blocked`、`stopped`、`starting`、`running`、`ready`、
+`failed` で、`starting` は予約済みで現在は出力されません。`ready` は拡張が
+token で認証したことを示し、認証前は `running` のままです。
 
 ### 13.2 JSON と JSON-RPC
 
-- `state --json`: `schema: 1`、出力、占有、フォーカス、ステータス、ウィンドウ
-- `config --json`: 実効設定、`layouts`、`workspace_tuning`、`rules`、
-  `output_rules`、`hooks`、`event_rules`、`profiles`、`theme_roles`、
-  `diagnostics`
+- `state --json`: `schema: 1` に加えて `tessa`、`line_protocol`、
+  `extension_api`、`layout_api`、`effect_api`、出力、占有、フォーカス、
+  ステータス、ウィンドウ、レイヤー、`extensions` 配列。ウィンドウには
+  `tint`、`animation` 上書きオブジェクト、`tearing`、`on_screen`、`column`、
+  `tile` が含まれます（テキスト `WIN` 行には含まれません）。
+- `config --json`: `schema: 1` と同じ API バージョン、実効設定、`layouts` と
+  `layout_cycle`、`workspace_tuning`、`rules`、`output_rules`、`hooks`、
+  `event_rules`、`profiles`、`theme_roles`、`panel_modules`、
+  `animation_view_ms`/`_curve`、拡張マニフェスト、`diagnostics`
 - 未知の schema は拒否する前提で扱う
 
 同じソケットで、1 行の JSON オブジェクトによる JSON-RPC 2.0 リクエストを
@@ -1907,8 +1953,9 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
 
 メソッドは `hello` / `capabilities`、`ping`、`state`、`config`、`subscribe`、
 `unsubscribe` です。応答はリクエストの `id` をそのまま返します。`hello` は
-`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1` と、
-`state`、`config`、`events`、`subscriptions`、`request-ids` の
+`protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1`、`tessa`、
+`extension_api`、`layout_api`、`effect_api` と、`state`、`config`、
+`events`、`subscriptions`、`request-ids`、`extensions`、`effects2` の
 ケイパビリティを返します。エラーは標準の JSON-RPC コード
 （`-32700` パースエラー、`-32601` 未知メソッド）を使います。
 
@@ -1934,13 +1981,14 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"sub-1","method":"subscribe"}'
 | `window-close` | 破棄 | id, ws, app, title, output |
 | `window-focus` | フォーカス変更/解除 | id, previous, ws, app, title, output |
 | `workspace-change` | 出力の WS 変更 | ws, previous-ws, output |
+| `special-change` | スペシャル WS の表示/非表示、移動 | ws, output, arg（名前。復帰時は省略） |
 | `window-moved` | WS 移動 | id, ws, previous-ws, app, title, output |
 | `layout-change` | レイアウト変更 | ws, output, arg |
 | `mode-change` | 入力モード変更 | arg |
 | `config-reload` | 設定再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg, output |
 | `panel` | パネル要求 | arg, output |
-| `notification-action` | 通知アクション | id, arg |
+| `notification-action` | 通知アクション | id, action |
 | `output-added` | 出力追加 | output, arg |
 | `output-removed` | 出力削除 | output, arg |
 | `animation-start` | 開く/WS スライド開始 | id, ws, output, arg (`open`/`workspace`) |
@@ -2358,7 +2406,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
   DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
   確認しています。0.2.5 は Arch Linux 実機で Zig 0.17 / wlroots 0.20 /
-  scenefx 0.5 の headless スイート全 63 テストが plain／scenefx の両構成で
+  scenefx 0.5 の headless スイート全 76 テストスクリプトが plain／scenefx の両構成で
   成功しており、ポータルの ScreenCast、トレイ、通知、ポインタ操作も含みます。
   新しいツールチェーンでの実 DRM/libinput セッション検証は未実施です。
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、

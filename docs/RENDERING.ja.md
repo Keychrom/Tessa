@@ -35,6 +35,7 @@ wlroots のシーンコンポジタは、render list がちょうど 1 エント
 次の条件を満たすフルスクリーンクライアントがあるとき:
 
 - 出力全体を覆い、不透明度が 1
+- tint のアルファが 0
 - アクティブワークスペースで可視、アニメーション中でない
 - 内容バッファを持つ
 
@@ -128,7 +129,7 @@ Intel i915 の一部設定を含め、async flip を拒否するドライバー�
 - `explicit_sync = true`（既定）
 - `renderer.features.timeline`
 - `backend.features.timeline`
-- renderer または backend の DRM fd がある
+- backend の DRM fd がある（`wlr_backend_get_drm_fd() >= 0`）。syncobj manager には利用可能なら renderer の DRM fd を使う
 
 wlroots のシーングラフが acquire/release timeline を自動的に扱うため、Tessa に
 サーフェス単位のフェンス処理は不要です。scenefx/GLES2 ビルドは timeline 対応を
@@ -150,8 +151,10 @@ backend_timeline 1
 
 ## 性能計測
 
-コミットされた出力フレームごとに、`wlr_scene_output_build_state()` と
-`wlr_output_commit_state()` の所要時間を次へ記録します:
+コミットされた出力フレームごとに、アニメーション/scanout 更新前から
+`wlr_output_commit_state()` 成功までのフレームハンドラ時間
+（`layout.tickAnimations`、`effects.tick`、`render.refreshScanout`、
+scene state build、commit）を次へ記録します:
 
 - `Server.perf`（全出力の集計）
 - `Output.perf`（出力別のローリングサンプル）
@@ -174,8 +177,12 @@ backend_timeline 1
 | `tearing_failures` | test/commit 拒否 | 通常 flip へフォールバック |
 
 フレーム時間（`frames`、`samples`、`avg_us`、`p50_us`、`p95_us`、`max_us`、
-`over_budget`）はトップレベルで従来の意味を保ち、`outputs[]` にも出力別で
-入ります。`frame_time_budget` は超過判定のしきい値です。
+`last_us`、`budget_ms`、`over_budget`）はトップレベルで従来の意味を保ち、
+`outputs[]` にも出力別で入ります。`frame_time_budget` は超過判定のしきい値です。
+`tessa-ctl perf` はさらに top-level の `effect_applies`、`effect_skips`、
+`blur_nodes` を返します（`outputs[]` には入りません）。ローリング窓なのは
+フレーム時間サンプル（4096 フレーム）だけで、イベント/エフェクトカウンタは
+`perf --reset` まで累積します。
 
 ## HDR / color management の調査
 

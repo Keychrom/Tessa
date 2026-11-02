@@ -78,14 +78,16 @@ MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C	
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
 `MODE` はアクティブな入力モードです。`OUT` は
 `名前 ワークスペース フォーカス レイアウト` です。`WIN` はタブ区切りで、
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
-された app_id、タイトル、出力名、x、y、幅、高さです。座標とサイズは
+された app_id、タイトル、出力名、x、y、幅、高さ、スクラッチパッド、可視状態、
+グループ ID、グループアクティブ、オンスクリーン、Scrolling カラム ID、
+0 始まりのタイル位置です。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
 `LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
 overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。`PANEL` は
@@ -121,8 +123,12 @@ END
 `fullscreen`、`urgent`、`scratchpad`、`visible`、`group`、`group_active`、
 `app_id`、`title`、`output`、`x`、`y`、`width`、`height` と、実効装飾値
 `opacity`、`border_width`、`corner_radius`、`blur`、`shadow` が入ります。
+さらに `tint`（RGBA 配列）、`animation` オブジェクト（`open_ms`、
+`workspace_ms`、`close_ms`、`open_curve`、`workspace_curve`、`close_curve`。
+`-1` と空文字は未設定）、`tearing`、`on_screen`、`column`、`tile` も含まれます。
 テキストの `WIN` 行は末尾にスクラッチパッド、可視状態、グループ ID、
-グループアクティブのフラグを持ちます。`layers` 配列にはマップ済み
+グループアクティブ、オンスクリーン、カラム ID、タイル位置を持ちますが、
+tint と animation は含みません。`layers` 配列にはマップ済み
 レイヤーサーフェスの `namespace`、`output`、`layer`、`opacity`、
 `corner_radius`、`blur` が入ります。`tessa-ctl dispatch urgent <id> on|off`
 でレイアウトヘルパーへ送る緊急度を切り替えられます。`CMD workspace` と
@@ -152,7 +158,7 @@ END
 標準 JSON-RPC コードです。メソッドは `hello` / `capabilities`、`ping`、
 `state`、`config`、`subscribe`、`unsubscribe` です。`hello` は
 `protocol: "tessa-jsonrpc"`、`version: 1`、`line_protocol: 1`、
-`tessa: "0.2.5"`、`extension_api: 1`、`effect_api: 2` と、
+`tessa: "0.2.5"`、`extension_api: 1`、`layout_api: 2`、`effect_api: 2` と、
 `state`、`config`、`events`、`subscriptions`、`request-ids`、
 `extensions`、`effects2` のケイパビリティを返します。state/config JSON も
 `schema: 1`、`tessa`、API バージョンを含みます。
@@ -194,13 +200,17 @@ EVENT	panel	arg=screenshot	output=HEADLESS-1
 EVENT	panel	arg=media	output=HEADLESS-1
 EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
+EVENT	panel	arg=extensions	output=HEADLESS-1
+EVENT	special-change	ws=3	output=HEADLESS-1	arg=notes
 EVENT	notification-action	id=12	action=reply
 ```
 
 該当しないフィールドは省略されます。`id` / `previous` はウィンドウ ID、
 `ws` / `previous-ws` はワークスペース番号、`app`、`title`、`output`、`arg`
 は文字列です。`window-focus` の `id=0` はフォーカス解除を意味し、`previous`
-にはフォーカスを失ったウィンドウが入ります。
+にはフォーカスを失ったウィンドウが入ります。`notification-action` は
+全イベント購読者にブロードキャストされ、出力別の振り分けはなく `output`
+フィールドも持ちません。受信側は通知 ID で判別してください。
 
 | トピック | タイミング | 主なフィールド |
 | --- | --- | --- |
@@ -210,12 +220,13 @@ EVENT	notification-action	id=12	action=reply
 | `window-close` | マップ済みトップレベルが破棄された | id, ws, app, title, output |
 | `window-focus` | ウィンドウフォーカス変更/解除 | id, previous, ws, app, title, output |
 | `workspace-change` | 出力のワークスペース変更 | ws, previous-ws, output |
+| `special-change` | スペシャル WS の表示/非表示、移動 | ws, output, arg（名前。復帰時は省略） |
 | `window-moved` | ウィンドウを別ワークスペースへ移動 | id, ws, previous-ws, app, title, output |
 | `layout-change` | ワークスペースのレイアウト変更 | ws, output, arg |
 | `mode-change` | アクティブ入力モードの変更 | arg（モード名） |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
-| `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`、`screenshot`、`media`、`tray`、`audio`）, output |
+| `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`、`screenshot`、`media`、`tray`、`audio`、`extensions`）, output |
 | `notification-action` | IPC 経由の通知アクション要求 | id, action（アクションキー） |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |
 | `output-removed` | 出力削除 | output, arg（ジオメトリ） |
@@ -223,16 +234,24 @@ EVENT	notification-action	id=12	action=reply
 | `animation-done` | ウィンドウ表示/ワークスペーススライド完了 | id, ws, output, arg（`open` / `workspace`） |
 | `close-animation-start` | コンポジタ起点の終了スナップショット開始 | id, ws, output, arg（`close`） |
 | `close-animation-done` | 終了スナップショットのフェード完了 | id, ws, output, arg（`close`） |
+| `extension-start` | 監視対象の拡張プロセス開始 | arg（拡張 ID） |
+| `extension-ready` | 拡張が token で認証 | arg |
+| `extension-failed` | 拡張が異常終了 | arg（エラー文はなし） |
+| `extension-stop` | 拡張を明示的に停止 | arg |
 
 イベントは `CMD subscribe events` または `CMD subscribe all` で購読した
 クライアントにだけ届きます。ベストエフォート配信です。読み取りが遅れて
 ソケットバッファが埋まったクライアントは、コンポジタをブロックせず切断
 されます。
 
+`notification-action` は例外で、イベント購読者へ直接ブロードキャストされ、
+`hook` や `event-rule` は実行されません（設定検証はトピック名を受け付けます）。
+他のトピックは通常のイベント経路でフックとイベントルールを実行します。
+
 ## フック
 
-任意のイベントからシェルコマンドを起動できます。同じイベントに複数のフックを
-登録できます。
+`notification-action` を除く任意のイベントからシェルコマンドを起動できます。
+同じイベントに複数のフックを登録できます。
 
 ```ini
 startup = fcitx5 -d
@@ -338,9 +357,11 @@ END
 WINDOW はそのウィンドウの上書きを解除します。
 
 Tessa は ID、重複、範囲、カーブ名を検証します。タイムアウト、クラッシュ、
-未知の ID、不正値、`END` 欠落では全上書きを破棄し、1 秒後に再試行します。
+未知の ID、不正値、`END` 欠落では全上書きを破棄します。再試行は専用タイマー
+ではなく、1 秒後の次回 refresh 時に遅延して行われます。
 stdout はプロトコル専用で、診断は stderr に出してください。v1 の位置引数
-応答も引き続き受理します。
+応答も引き続き受理します（タブ区切りで
+`WINDOW\t<id>\t<opacity>\t<radius>\t<blur>\t<shadow>\t<border-width>`）。
 
 最小例:
 
@@ -395,9 +416,12 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 `events`、`status`、`window`、`workspace`、`layout`、`spawn`、`panel`、
 `control`、`extensions` のカンマ区切り（`all`/`none` 可）で、既定は
 `read,status` です。`requires`/`after` は拡張 ID で、未知 ID と循環は設定
-エラーです。依存順に起動し、pidfd で終了を検知して 500ms〜8s の
-バックオフで再起動します。依存先が無効・blocked・failed の間、依存元は
-`blocked` のままです。
+エラーです。宣言順に起動したあと、`requires` で塞がれた分を依存順に再試行し、
+pidfd で終了を検知して指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上
+安定すると失敗回数をリセット）で再起動します。起動を塞ぐのは `requires` だけ
+です。依存先が無効・blocked・failed の間、依存元は `blocked` のままです。
+`after` は順序にだけ影響します。起動済みの依存元は、依存先が後から失敗しても
+停止されず、次回の起動試行時に再度 `requires` を確認します。
 
 ```text
 HELLO 1 $TESSA_EXTENSION_TOKEN

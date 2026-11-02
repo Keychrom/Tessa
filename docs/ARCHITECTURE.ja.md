@@ -141,8 +141,9 @@ direct scanout サンプル、tearing 試行回数は `Output.perf` に保持し
 そのまま動きます。このビルドは GLES2 が必要で、`WLR_RENDERER=pixman` では
 実行できません。
 
-`window_effects.zig` は既定ビルドでは no-op としてコンパイルされます。
-scenefx ビルドでは次を行います:
+`window_effects.zig` は常にクライアントの不透明度と tint 矩形を適用します。
+既定ビルドで no-op になるのは scenefx 専用実装で、scenefx ビルドではさらに
+次を行います:
 
 - 各クライアントのルートシーンバッファを見つけ、`corner_radius` を
   `CORNER_LOCATION_ALL` で適用する。フルスクリーンでは半径を 0 に戻す
@@ -150,6 +151,10 @@ scenefx ビルドでは次を行います:
 - クライアントバッファと、top/overlay/popup ツリー内のバッファノードに
   背景ブラーを有効化する。不透明領域には影響しない
 - `blur_radius` と `blur_passes` を `wlr_scene_set_blur_data()` に渡す
+
+tint 矩形はボーダーの内側、コンテンツの上に置かれ、アルファが 0 より大きい
+フレームは direct scanout をブロックします。scenefx ビルドではコンテンツの
+角丸に追従します。
 
 scenefx は最適化ブラーフレームバッファが未作成の間、ブラーごとに
 フォールバック警告を出します。`configure()` は共有バッファを一度確保させる
@@ -163,16 +168,18 @@ scenefx は最適化ブラーフレームバッファが未作成の間、ブラ
 `x`/`y` は `Client` に保持したままです。`startOpenAnimation()` は map
 直後のウィンドウを縦 18 px ずらし、`startWorkspaceAnimation()` は新しい
 ワークスペース上の map 済みウィンドウを進行方向に応じて横 ±54 px
-ずらします。`tickAnimations()` が `animation_ms` に対する cubic ease-out
-を計算し、`x + off_x`、`y + off_y` をシーンノードへ書き込みます。
+ずらします。`tickAnimations()` が解決済みの開く/WS カーブ（ウィンドウ別
+上書き、なければグローバル）と解決済みの再生時間を使って
+`x + off_x`、`y + off_y` をシーンノードへ書き込みます。
 `applyFrame` も現在のオフセットを加えるため、遷移中の再レイアウトで
 ウィンドウが飛びません。出力のフレームコールバックが時計を進め、
 `onOutputFrame` は commit 前にアクティブなアニメーションを更新し、
 残っていれば次のフレームを要求します。
 
-`animations = false`、`reduce_motion = true`、`animation_ms = 0` のいずれかで
-オフセットを付けません。設定リロード時は新しいジオメトリを適用する前に
-アクティブなアニメーションを消去します。
+`animations = false` または `reduce_motion = true` でオフセットを付けません。
+`animation_ms = 0` はフォールバック時間だけを 0 にし、種類別やウィンドウ別の
+明示的な時間は引き続き適用されます。設定リロード時は新しいジオメトリを
+適用する前にアクティブなアニメーションを消去します。
 
 コンポジタ起点の閉じる操作は `effects.zig` のスナップショット経路を使います。
 `requestClose()` は `wlr_xdg_toplevel_send_close` を送る前に、現在の
@@ -183,7 +190,8 @@ scenefx は最適化ブラーフレームバッファが未作成の間、ブラ
 配下の一時的なシーンツリーを作成し、シャドウ矩形、輪郭を形成する 4 枚の
 ボーダー矩形、`wlr_scene_buffer` を追加します。シーンバッファが独自の参照を
 取得してから、クライアント側のロックを解放します。`tick()` が
-スナップショットを smoothstep で 92% まで縮小し、`animation_ms` かけて
+スナップショットを解決済みの close カーブと再生時間で
+`animation_close_scale`（既定 92%）まで縮小し、
 コンテンツ、ボーダー、シャドウを透明にします。出力のフレームコールバックは
 レイアウトアニメーションの後に閉じるエフェクトを更新し、残っていれば次の
 フレームを要求します。`tree_effects` はフルスクリーンのクライアントより
@@ -600,12 +608,15 @@ inhibitor が存在する間またはセッションロック中は
   `Output.adaptive_sync_base/policy` により、ルールを削除したとき VRR を
   有効なまま残さず、ポリシー適用前の状態へ戻せます。
 - `layout_helper.zig` は出力ごとに最大 1 つの常駐子プロセスを `socketpair`
-  で管理します。`custom` レイアウトは非同期の `HELLO`/`LAYOUT` リクエスト
-  （`OUTPUT`、`AREA`、フォーカス/緊急度付き `WINDOW`、`END`）を送り、
+  で管理します。`custom` レイアウトはヘルパー起動時にタブ区切りの `HELLO` を
+  1 回送り、その後は非同期の `LAYOUT` リクエスト
+  （`OUTPUT`、`AREA`、`VERSION 2` 応答後はフォーカス/緊急度付き
+  `WINDOW`、`END`）を送り、
   Wayland イベントループで `VERSION`/`RECT`/`END` 応答を処理します。応答待ち
   の間は以前の矩形を維持し、リクエストは合流します。最初の応答までは
   マスターへフォールバックします。クラッシュ、タイムアウト、不正な応答、
   ID 不一致ではその出力の子プロセスを停止してフォールバックします。
+  再試行は専用タイマーではなく、1 秒後の次回リクエスト時に遅延して行います。
   コマンド変更時に再起動し、出力破棄と終了時に停止します。
 - `effect_helper.zig` は全出力で最大 1 つの常駐子プロセスを管理します。
   プロトコル 2 では `EFFECT`/`WINDOW` スナップショットに tint を追加し、
@@ -613,23 +624,28 @@ inhibitor が存在する間またはセッションロック中は
   アニメーション時間/カーブを上書きできます。`VERSION 1` の応答は従来の
   位置引数パーサで処理します。上書きはルール値と別に保持するため、ヘルパー
   削除や不正応答でルール値へ戻ります。リクエストは合流し、タイムアウトや
-  プロトコルエラーでは子プロセスを停止して 1 秒後に再試行します。
+  プロトコルエラーでは子プロセスを停止して上書きを破棄し、1 秒後の次回
+  refresh 時に遅延して再起動します。
 - `window_effects.zig` はクライアントごとに最後に適用した不透明度、角丸、
   ボーダー幅、tint、ブラー状態、サイズ、content buffer をキャッシュします。
   同じ値の再適用は scene setter を省略して `effect_skips` を増やし、変更時は
-  `effect_applies` を増やします。両カウンタと `blur_nodes` は `perf` と
-  `rendering` に公開します。
+  `effect_applies` を増やします。`effect_applies`、`effect_skips`、
+  `blur_nodes` は `perf`（テキストと JSON）に公開され、`rendering` には
+  含まれません。
 - `extension_manager.zig` は監視付き拡張プロセスを管理します。設定
   マニフェストは id、command、API バージョン、権限スコープ、
   `requires`/`after` 依存を持ち、`config.resolveExtensions` がトポロジカル
   ソートして未知 ID と循環を診断します。子プロセスには token を渡し、
   `HELLO 1 <token>` で IPC クライアントをスコープへ対応付けます。pidfd と
-  500 ms〜8 秒のバックオフで監視します。token はサンドボックスではなく
+  指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上安定するとリセット）
+  で監視します。起動を塞ぐのは `requires` で、`after` は順序だけに影響します。
+  token はサンドボックスではなく
   協調的なガードレールです。
 - `panel_supervisor.zig` は出力ごとに 1 つのパネル子プロセスを管理します。
   Linux の pidfd を Wayland イベントループに登録するため、コンポジタ全体の
   `SIGCHLD` 処理を変えずに終了を検知できます。再起動は上限付き指数バックオフ
-  （500 ms〜8 秒）で、10 秒以上動作したパネルは失敗回数をリセットします。
+  （初回 1 秒から最大 8 秒。失敗回数リセット後の下限が 500 ms）で、10 秒以上
+  動作したパネルは失敗回数をリセットします。
   意図的な出力取り外しと終了時は監視を止めて子プロセスを終了します。通知
   所有者の役割は再起動後も維持します。`panel_modules` はパネルが作る
   surface/service を選択し、マスク変更時は子プロセスを再起動します。通知
@@ -708,8 +724,8 @@ OCC 2 0
 ...
 FOCUSED 7
 STATUS\tweather\tTokyo 18C\t
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700
-WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0
 END
 ```
 
@@ -737,13 +753,13 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
 CMD reload
 CMD float <id>
-CMD status <id> <text>            (タブ区切り形式は --exec に対応)
+CMD status <id> <text>            (クリックコマンドはタブ区切り)
 CMD quit
 ```
 
@@ -760,7 +776,8 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
 発行し、一致するパネルだけがランチャーを開きます。`CMD panel
-calendar|power|clipboard|screenshot|media` も同様に、要求したポップオーバーと
+calendar|power|clipboard|screenshot|media|tray|audio|extensions` も同様に、
+要求したポップオーバーと
 対象出力を持つ `panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
@@ -770,10 +787,14 @@ calendar|power|clipboard|screenshot|media` も同様に、要求したポップ�
 `event_names.zig` が公開トピックを定義し、`events.zig` が
 `EVENT\t<topic>\tkey=value...` 形式のレコードを組み立て、購読クライアントへ
 配信し、一致する設定フックを `TESSA_*` 環境変数付きで起動します。トピックに
-はウィンドウ/ワークスペース/レイアウト/入力モード変更、出力追加/削除、
-アニメーションのライフサイクル（開く/ワークスペーススライドの
+はウィンドウ/ワークスペース/スペシャル WS/レイアウト/入力モード変更、
+出力追加/削除、ランチャー/パネル要求、アニメーションのライフサイクル
+（開く/ワークスペーススライドの
 `animation-start`/`animation-done`、終了スナップショットの
-`close-animation-start`/`close-animation-done`）があります。配信は
+`close-animation-start`/`close-animation-done`）があります。監視付き拡張は
+`extension-start`/`-ready`/`-failed`/`-stop` を追加します。
+`notification-action` は直接ブロードキャストされ、フックとイベントルールを
+経由しません。配信は
 ベストエフォートで、コンポジタをブロックしません。ソケットバッファが
 埋まったクライアントは切断されます。
 
@@ -813,7 +834,8 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
 - **overlay**: 必要時に作成、layer overlay、全端アンカー、排他ゾーン -1、
   キーボード EXCLUSIVE。全面透明/ARGB サーフェスです。モードに応じて中央の
   ランチャー、時計の下のカレンダー、`TESSA` マークの下の電源メニュー、
-  中央のクリップボード履歴、またはスクリーンショットの選択サーフェスを
+  中央のクリップボード履歴、スクリーンショットの選択サーフェス、
+  メディア/トレイ/音量ポップオーバー、または拡張一覧を
   描画します。暗い背景とパネルを同じサーフェスに描くため、パネルの外側を
   クリックすると閉じられます。ポップオーバーの
   ヒット矩形はパネル原点を加えたローカル座標で、電源メニューと

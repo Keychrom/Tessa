@@ -57,7 +57,7 @@ default desktop safe.
 - [x] Opt-in `wp-tearing-control-v1` with per-window rules, a driver
       test-commit, and a normal-flip fallback.
 - [x] Gated `linux-drm-syncobj-v1` explicit sync when renderer/backend timelines
-      and a DRM fd are available.
+      and a backend DRM fd are available.
 - [x] Investigate HDR/color management: wlroots 0.20 exposes color-management
       v1 and output color transforms, but Tessa's GLES2/scenefx path and the
       absence of tone mapping require a Vulkan-renderer design first.
@@ -248,8 +248,8 @@ ordering, and visible state.
 
 The target is to make the core Hyprland/Niri customization surface expressible
 from one validated Tessa config, with live reload and without embedding a
-JavaScript or plugin VM. Complete the two open 0.6 items (layout-helper v2 and
-the interactive config editor/diff preview) before or alongside this work.
+JavaScript or plugin VM. Both 0.6 items (layout-helper v2 and the interactive
+config editor/diff preview) are complete; 0.7 builds on them.
 
 - [x] Automatic config reload through inotify, with debounce and transactional
       validation. A failed edit keeps the previous configuration.

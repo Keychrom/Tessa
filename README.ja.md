@@ -180,8 +180,9 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   レイヤールール適用
 - フレームタイム計測（`tessa-ctl perf`）と設定可能な `frame_time_budget`、
   アニメーション／全エフェクトのヘッドレスベンチマーク
-- 出力全体を覆うフルスクリーンクライアントの direct scanout と、出力別の
-  scanout/zero-copy/present カウンタ（`tessa-ctl rendering`、`tessa-ctl perf`）。
+- 出力全体を覆うフルスクリーンクライアントの direct scanout と、
+  `tessa-ctl rendering` の scanout/zero-copy/tearing カウンタ、
+  `tessa-ctl perf` の presented/vsync/missed とフレーム時間。
   ドライバーの test と通常 flip へのフォールバックを備えたオプトイン
   `wp-tearing-control-v1`、条件付きの `linux-drm-syncobj-v1` explicit sync。
   HDR color management は調査のみで未公開。詳細は
@@ -295,10 +296,6 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、フラクショナルな出力スケール変更、再起動後の出力
 モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
-`tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
-`tests/layout-reorder.sh`、`tests/layout-config.sh`、
-`tests/extensions.sh`、`tests/panel-modules.sh`、`tests/effect-v2.sh`、
-`tests/effect-cache.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、
 `tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
@@ -319,6 +316,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
+`tests/scratchpad.sh`、`tests/window-groups.sh`、`tests/workspace-names.sh`、
+`tests/wallpaper-image.sh`、`tests/terminal-fallback.sh`、
 `tests/shell-v2.sh`、`tests/effect-helper.sh`、`tests/performance.sh`、
 `tests/rendering.sh`、`tests/tearing.sh`、
 `tests/config-editor.sh`、`tests/panel-recovery.sh`、`tests/ipc-version.sh`、
@@ -327,7 +326,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 検証しています。0.2.5 のソースツリーは Zig 0.17.0、wlroots 0.20.2、
 scenefx 0.5 を対象とし、Arch Linux 実機の headless スイートが
 plain／scenefx の両構成で成功しています。ポータルの ScreenCast、トレイ、
-通知、ポインタ操作、scenefx の角丸描画も含みます。新しいツールチェーンでの
+通知、ポインタ操作、scenefx の角丸描画も含みます。0.2.5 ではさらに
+`tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
+`tests/layout-reorder.sh`、`tests/layout-config.sh`、
+`tests/extensions.sh`、`tests/panel-modules.sh`、`tests/effect-v2.sh`、
+`tests/effect-cache.sh` も成功しています。新しいツールチェーンでの
 実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は
 `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
@@ -436,7 +439,8 @@ sudo apt install build-essential pkg-config git \
 ```
 
 Arch Linux では上記「Arch Linux へのインストール」の手順で公式の `zig`、
-`wlroots0.20`、`scenefx` を導入してください。
+`wlroots0.20` を導入してください。`scenefx` 0.5 は任意の
+`-Dscenefx=true` ビルドだけに必要です。
 `scripts/build.sh` は Zig 0.17.x を要求し、`ZIG=/path/to/zig` で
 上書きできます。このツリーには Zig 0.16 や wlroots 0.19 を使えません。
 
@@ -976,9 +980,11 @@ bind = SUPER+ctrl+h ratio -0.03
 
 利用可能なアクション: `terminal`、`spawn`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
-`toggle-scratchpad`、`move-to-scratchpad`、`toggle-group`、`group-next`、
+`toggle-scratchpad`、`move-to-scratchpad`、`special`/`toggle-special`、
+`move-to-special`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、
-`focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
+`focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、
+`tray`、`audio`、`reload`、`ratio`、`toggle-layout`、
 `set-layout`、`resize-width`、`resize-height`、`enter-mode`。Scrolling 用に
 `focus-column-left/right/first/last`、`move-column-left/right/first/last`、
 `move-window-up/down`、`consume-window`、`expel-window`、

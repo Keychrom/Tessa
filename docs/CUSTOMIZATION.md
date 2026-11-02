@@ -9,10 +9,10 @@ runtime or a native plugin VM. Customization has three layers:
    colors, includes, and live reload.
 2. **A process extension surface** — hooks, structured events, status entries,
    the launcher, and the Unix-socket IPC used by `tessa-ctl`.
-3. **Protocols for external policy engines** — the long-lived layout-helper
-   protocol is available now; richer effect control is next. The design goal is
-   that a policy engine can live in any language without loading code into the
-   compositor.
+3. **Protocols for external policy engines** — the long-lived layout-helper and
+   effect-helper protocols are available now, including per-window tint and
+   animation overrides. The design goal is that a policy engine can live in any
+   language without loading code into the compositor.
 
 The flat `key = value` format is intentional: it keeps the parser small,
 supports positional includes, and makes effective values and parsed rules
@@ -73,6 +73,13 @@ Action clauses:
 | `blur=true/false` | per-window backdrop blur |
 | `shadow=true/false` | per-window layered shadow |
 | `border-width=0..16` | per-window border thickness; `0` hides it |
+| `tint=#RRGGBBAA` / `tint=none` | composited tint overlay (blocks direct scanout while visible) |
+| `tearing=true/false` | per-window tearing preference |
+| `scratchpad=true/false` | place the window on the scratchpad |
+| `special=NAME` / `workspace=special:NAME` | place the window on a special workspace |
+| `animation=true/false` | enable or suppress open/workspace/close motion |
+| `animation-ms`, `animation-open-ms`, `animation-workspace-ms`, `animation-close-ms` | per-window durations (`-1` inherits) |
+| `animation-curve`, `animation-open-curve`, `animation-workspace-curve`, `animation-close-curve` | per-window curves |
 
 `size` and `position` imply floating unless the same rule says `float=false`.
 Invalid expressions or regular expressions are config errors with file/line
@@ -127,7 +134,7 @@ Opacity works in every build; rounding and blur require `-Dscenefx=true`.
 | `mosaic_ratio` | `0.62` | slice ratio for the mosaic spiral |
 | `mosaic_min_size` | `160` | minimum tile before mosaic falls back to grid |
 | `grid_columns` | `0` | fixed grid columns; `0` uses `ceil(sqrt(n))` |
-| `layout` | `master` | default layout |
+| `layout` | `master` | default layout (`master`, `mosaic`, `grid`, `columns`, `scrolling`, `monocle`, `stacking`, or `custom`) |
 | `layout_1` … `layout_9` | inherited | initial layout per workspace |
 
 Runtime layout choices are stored per output and workspace in `outputs.conf`.
@@ -143,7 +150,7 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | Clause | Meaning |
 | --- | --- |
 | `ws=1..9` | target workspace (required) |
-| `layout=master/mosaic/grid/columns/custom` | initial layout seed |
+| `layout=master/mosaic/grid/columns/scrolling/monocle/stacking/custom` | initial layout seed |
 | `gaps=N` | gap between tiles on this workspace |
 | `outer-gaps=N` | outer gap on this workspace |
 | `master-ratio=0.15..0.9` | master-column width on this workspace |
@@ -165,7 +172,7 @@ output-rule = serial=ABC123; adaptive-sync=off
 | `model=` | EDID model pattern |
 | `serial=` / `edid-serial=` | EDID serial pattern |
 | `ws=1..9` | optional workspace; omitted means every workspace |
-| `layout=master/mosaic/grid/columns/custom` | layout seed |
+| `layout=master/mosaic/grid/columns/scrolling/monocle/stacking/custom` | layout seed |
 | `gaps=N`, `outer-gaps=N` | tile and outer spacing |
 | `master-ratio=0.15..0.9`, `master-count=1..8` | master tuning |
 | `mosaic-ratio=0.25..0.85`, `mosaic-min-size=N` | mosaic tuning |
@@ -342,8 +349,9 @@ layout, focus, or urgency changes. While a reply is outstanding, the previous
 rectangles stay in place and further changes coalesce into the next request.
 Until the first successful reply, Tessa uses the built-in layout. A missing
 command, timeout, crash, malformed response, or rectangle mismatch falls back
-to the master layout for that output and retries the same command after one
-second. Restarting or changing `layout_helper` restarts the helpers; a config
+to the master layout for that output. The helper is retried lazily on the next
+request after one second; there is no dedicated retry timer. Restarting or
+changing `layout_helper` restarts the helpers; a config
 reload with the same command keeps them alive.
 
 The request is limited to 64 tiled windows. The default timeout is 100 ms and
@@ -455,9 +463,10 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
 ```
 
 `hello` negotiates capabilities (`state`, `config`, `events`, `subscriptions`,
-`request-ids`, protocol version 1). `subscribe` streams lifecycle events as JSON
-notifications with the request id in `params.subscription`. Mutation still uses
-the line commands.
+`request-ids`, `extensions`, `effects2`, protocol version 1) and reports
+`tessa`, `extension_api`, `layout_api`, and `effect_api`. `subscribe` streams
+lifecycle events as JSON notifications with the request id in
+`params.subscription`. Mutation still uses the line commands.
 
 ## Per-device input and cursor
 
@@ -635,7 +644,9 @@ chip, IPC, or another client) captures its surface and scales/fades that
 snapshot with `animation_close_curve` over `animation_close_ms`. A client that
 closes itself disappears immediately because its buffer is already gone.
 `reduce_motion = true` disables open/workspace movement while leaving other
-settings intact; `animation_ms = 0` and `animations = false` disable everything.
+settings intact; `animations = false` disables everything.
+`animation_ms = 0` sets the fallback duration to zero, but explicit per-kind or
+per-window durations still apply.
 With reduced motion, `reduce_motion_animations = fade` keeps only a close fade
 without scale or slide, and `none` disables close effects. Popover animation is
 controlled separately by the panel.
@@ -721,7 +732,9 @@ screenshot_dir = ~/Pictures/Screenshots
 ```
 
 That is the default. Subdirectories are created as needed. Files are named
-`tessa-YYYYMMDD-HHMMSS-mmm.png`. The capture is taken before the overlay is
+`tessa-YYYYMMDD-HHMMSS-<ms>.png`, where the millisecond field is unpadded
+(for example `tessa-20261103-020304-42.png`). The capture is taken before the
+overlay is
 shown, so the selection UI and dim layer are not included. The bar is part of
 the output and is included unless you select a region below it. `screenshot` is
 also a key-binding action:

@@ -9,10 +9,10 @@ Tessa は JavaScript/TypeScript ランタイムやネイティブプラグイン
    配色、include、ライブリロード。
 2. **プロセス拡張** — フック、構造化イベント、ステータス、ランチャー、
    `tessa-ctl` が使う Unix ソケット IPC。
-3. **外部ポリシーエンジン用プロトコル** — 常駐レイアウトヘルパー
-   プロトコルは利用可能です。次段階として、より豊富なエフェクト制御を
-   追加します。任意の言語のポリシーエンジンを、コンポジタ内にコードを
-   ロードせず動かせる設計です。
+3. **外部ポリシーエンジン用プロトコル** — 常駐レイアウトヘルパーと
+   エフェクトヘルパーのプロトコルが利用可能で、ウィンドウ単位の tint と
+   アニメーション上書きにも対応します。任意の言語のポリシーエンジンを、
+   コンポジタ内にコードをロードせず動かせる設計です。
 
 フラットな `key = value` 形式は意図的です。パーサを小さく保ち、位置依存の
 include を可能にし、`tessa-ctl config` で実効値と解析済みルールを確認できます。
@@ -72,6 +72,13 @@ window-rule = app-id=org.example.*; workspace=3
 | `blur=true/false` | ウィンドウ別の背景ブラー |
 | `shadow=true/false` | ウィンドウ別の影 |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
+| `tint=#RRGGBBAA` / `tint=none` | 合成 tint オーバーレイ（表示中は direct scanout を止める） |
+| `tearing=true/false` | ウィンドウ別の tearing 設定 |
+| `scratchpad=true/false` | スクラッチパッドへ配置 |
+| `special=NAME` / `workspace=special:NAME` | スペシャルワークスペースへ配置 |
+| `animation=true/false` | 開く/WS/閉じるアニメーションの有効・無効 |
+| `animation-ms`、`animation-open-ms`、`animation-workspace-ms`、`animation-close-ms` | ウィンドウ別の時間（`-1` は継承） |
+| `animation-curve`、`animation-open-curve`、`animation-workspace-curve`、`animation-close-curve` | ウィンドウ別カーブ |
 
 同じルールで `float=false` を指定しない限り、`size` と `position` は
 フローティングを暗黙に有効にします。不正な式や正規表現はファイル名／行番号
@@ -127,7 +134,7 @@ map 時と設定リロード時に適用されます。実効値は `tessa-ctl s
 | `mosaic_ratio` | `0.62` | モザイクのスライス比率 |
 | `mosaic_min_size` | `160` | モザイクがグリッドへ切り替える最小タイル |
 | `grid_columns` | `0` | グリッドの固定列数。`0` は `ceil(sqrt(n))` |
-| `layout` | `master` | 既定レイアウト |
+| `layout` | `master` | 既定レイアウト（`master`、`mosaic`、`grid`、`columns`、`scrolling`、`monocle`、`stacking`、`custom`） |
 | `layout_1` … `layout_9` | 継承 | ワークスペースごとの初期レイアウト |
 
 実行中のレイアウトは出力・ワークスペースごとに保持され、`outputs.conf` に
@@ -144,7 +151,7 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 | 句 | 意味 |
 | --- | --- |
 | `ws=1..9` | 対象ワークスペース（必須） |
-| `layout=master/mosaic/grid/columns/custom` | 初期レイアウトのシード |
+| `layout=master/mosaic/grid/columns/scrolling/monocle/stacking/custom` | 初期レイアウトのシード |
 | `gaps=N` | このワークスペースのタイル間隔 |
 | `outer-gaps=N` | このワークスペースの外周間隔 |
 | `master-ratio=0.15..0.9` | このワークスペースのマスター列幅 |
@@ -168,7 +175,7 @@ output-rule = serial=ABC123; adaptive-sync=off
 | `model=` | EDID モデルパターン |
 | `serial=` / `edid-serial=` | EDID シリアルパターン |
 | `ws=1..9` | 任意。省略すると全ワークスペース |
-| `layout=master/mosaic/grid/columns/custom` | レイアウトのシード |
+| `layout=master/mosaic/grid/columns/scrolling/monocle/stacking/custom` | レイアウトのシード |
 | `gaps=N`、`outer-gaps=N` | タイル間隔と外周間隔 |
 | `master-ratio=0.15..0.9`、`master-count=1..8` | マスター調整 |
 | `mosaic-ratio=0.25..0.85`、`mosaic-min-size=N` | モザイク調整 |
@@ -343,8 +350,9 @@ focused/urgent フィールドが追加されます。座標は
 緊急度が変わるとリクエストを送ります。応答待ちの間は以前の矩形を維持し、
 その間の変更は次のリクエストにまとめられます。最初の成功応答までは内蔵
 レイアウトを使います。コマンド未設定、タイムアウト、クラッシュ、不正な応答、
-矩形不足の場合は、その出力だけマスターへフォールバックし、同じコマンドを
-1 秒後に再試行します。`layout_helper` を変更すると再起動し、同じコマンドの
+矩形不足の場合は、その出力だけマスターへフォールバックします。再試行は
+専用タイマーではなく、1 秒後の次回リクエスト時に行われます。
+`layout_helper` を変更すると再起動し、同じコマンドの
 設定リロードではプロセスを維持します。
 
 1 リクエストの対象は最大 64 タイルです。タイムアウトの既定値は 100 ms で、
@@ -458,8 +466,9 @@ tessa-ctl rpc '{"jsonrpc":"2.0","id":"cfg","method":"config"}'
 ```
 
 `hello` はケイパビリティ（`state`、`config`、`events`、`subscriptions`、
-`request-ids`、プロトコルバージョン 1）を返します。`subscribe` は
-`params.subscription` にリクエスト ID を持つ JSON 通知としてイベントを
+`request-ids`、`extensions`、`effects2`、プロトコルバージョン 1）と、
+`tessa`、`extension_api`、`layout_api`、`effect_api` を返します。`subscribe`
+は `params.subscription` にリクエスト ID を持つ JSON 通知としてイベントを
 配信します。変更操作は行コマンドを使います。
 
 ## デバイス別入力とカーソル
@@ -638,7 +647,9 @@ cubic-bezier またはスプリングカーブ（組み込み、`bezier = name, 
 `animation_close_curve` と `animation_close_ms` でスナップショットを
 スケール/フェードします。クライアント自身が閉じた場合はバッファが既に
 消えているため即時に消えます。`reduce_motion = true` は開く/WS の移動だけを
-無効化します。`animation_ms = 0` と `animations = false` は全体を無効化
+無効化します。`animation_ms = 0` はフォールバック時間だけを 0 にし、種類別や
+ウィンドウ別の明示的な時間は引き続き適用されます。
+`animations = false` は全体を無効化
 します。視差効果低減時は `reduce_motion_animations = fade` で縮小/移動なしの
 閉じるフェードだけを残し、`none` で close エフェクトも無効にします。
 ポップオーバーのアニメーションはパネル側で別に制御します。
@@ -723,7 +734,8 @@ screenshot_dir = ~/Pictures/Screenshots
 ```
 
 これが既定値で、必要ならサブディレクトリも作成します。ファイル名は
-`tessa-YYYYMMDD-HHMMSS-mmm.png` です。キャプチャはオーバーレイを表示する前に
+`tessa-YYYYMMDD-HHMMSS-<ms>.png` で、ミリ秒はゼロ埋めされません
+（例: `tessa-20261103-020304-42.png`）。キャプチャはオーバーレイを表示する前に
 行うため、選択 UI や暗いレイヤーは写りません。バーは出力の一部なので、
 バーより下を範囲選択しない限り含まれます。`screenshot` はキーバインド
 アクションとしても使えます:

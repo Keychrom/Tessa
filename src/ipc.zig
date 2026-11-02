@@ -382,9 +382,9 @@ fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
         const hello = std.fmt.bufPrint(
             &hello_buf,
             "{{\"protocol\":\"tessa-jsonrpc\",\"version\":{d},\"line_protocol\":{d}," ++
-                "\"tessa\":\"{s}\",\"extension_api\":{d},\"effect_api\":{d}," ++
+                "\"tessa\":\"{s}\",\"extension_api\":{d},\"layout_api\":{d},\"effect_api\":{d}," ++
                 "\"capabilities\":[\"state\",\"config\",\"events\",\"subscriptions\",\"request-ids\",\"extensions\",\"effects2\"]}}",
-            .{ api.jsonrpc, api.line_protocol, api.tessa_version, api.extension_api, api.effect_api },
+            .{ api.jsonrpc, api.line_protocol, api.tessa_version, api.extension_api, api.layout_api, api.effect_api },
         ) catch "";
         sendJsonResult(cl, id_text, hello);
     } else if (std.mem.eql(u8, method, "ping")) {

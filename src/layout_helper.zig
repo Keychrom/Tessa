@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const api = @import("api.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -11,7 +12,7 @@ pub const Rect = types.LayoutRect;
 pub const MAX_HELPER_WINDOWS = types.MAX_LAYOUT_RECTS;
 const MAX_REQUEST = types.LAYOUT_HELPER_BUFFER;
 const FAIL_BACKOFF_MS = 1000;
-const PROTOCOL_VERSION: u8 = 2;
+const PROTOCOL_VERSION: u8 = api.layout_api;
 
 fn hashBytes(data: []const u8) u64 {
     var h: u64 = 1469598103934665603;

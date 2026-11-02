@@ -1,38 +1,61 @@
-**English** | [日本語](DEVELOPMENT.ja.md)
-
 # Development
 
-Tessa can be developed entirely on a headless Linux machine over SSH. The
-compositor and panel are ordinary Wayland programs, and `grim` can capture the
-headless output for quick visual checks. A virtual keyboard (`wtype`) and Fcitx5
-make it possible to test keyboard and IME paths without a physical display.
+This repository is developed locally on Windows and built/tested over SSH on an
+Arch Linux machine. That lifecycle is documented here because the headless
+screenshot loop is the fastest way to iterate on the shell.
+
+## Test machine
+
+| | |
+| --- | --- |
+| Host | `tessa-dev` (an SSH config alias you create) |
+| User | your Arch Linux user |
+| SSH key | configured in `~/.ssh/config`; public-key authentication only |
+| Source on host | `~/tessa` |
+| Zig | system `zig` 0.17.x (official Arch package) |
+| wlroots | official `wlroots0.20` package (`pkg-config --modversion wlroots-0.20`) |
+| Display | headless `HEADLESS-1` at 1920×1080 when using the headless script |
+
+Do not commit private keys or saved passwords.
+
+From PowerShell:
+
+```powershell
+ssh tessa-dev
+```
+
+From Git Bash:
+
+```sh
+ssh tessa-dev
+```
+
+## Sync the working tree
+
+From the local project directory:
+
+```sh
+tar -cf - --exclude=.zig-cache --exclude=zig-out . \
+  | ssh tessa-dev \
+      'rm -rf ~/tessa && mkdir -p ~/tessa && tar -C ~/tessa -xf -'
+```
+
+`rsync -az --delete` works as well if it is installed. The remote copy is
+disposable; the local tree is the source of truth.
 
 ## Build
 
 ```sh
-chmod +x scripts/*.sh scripts/tessa-session
+ssh tessa-dev
+cd ~/tessa
+./scripts/build.sh                    # debug
 ./scripts/build.sh -Doptimize=ReleaseSafe
-```
 
-For a debug build:
-
-```sh
-./scripts/build.sh
-```
-
-Rounded corners and backdrop blur use scenefx 0.5. Install it, then build
-with `-Dscenefx=true`. This binary uses the scenefx GLES2 renderer and cannot
-use the pixman renderer.
-
-```sh
+# Optional scenefx effects build (official scenefx-0.5 package)
 ./scripts/build.sh -Dscenefx=true
 ```
 
-Prerequisites are listed in the main README. In short: Zig 0.17, wlroots 0.20,
-Wayland, xkbcommon, pixman, DRM/input/seat development headers, Cairo, Pango,
-and fonts. For X11 testing, also install `xwayland-satellite` in `PATH`.
-
-Check the libraries:
+Check dependencies:
 
 ```sh
 pkg-config --modversion wlroots-0.20
@@ -45,52 +68,33 @@ fc-list | grep -i -E 'Inter|JetBrains|Noto Sans CJK'
 Terminal 1:
 
 ```sh
+cd ~/tessa
 ./scripts/run-headless.sh
 ```
 
-This creates `/tmp/tessa-headless`, forces the pixman renderer, and starts the
-panel from `zig-out/bin`. The output is a 1920×1080 headless display named
-`HEADLESS-1`.
+This sets `XDG_RUNTIME_DIR=/tmp/tessa-headless`, uses the pixman renderer, and
+starts the panel from `zig-out/bin`.
 
 Terminal 2:
 
 ```sh
-# capture the screen
+cd ~/tessa
 ./scripts/screenshot.sh /tmp/tessa.png
 
-# spawn a terminal inside the session
+# spawn a test terminal inside the session
 printf 'CMD spawn foot -T notes\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 
-# master <-> mosaic
+# toggle mosaic
 printf 'CMD layout\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 
-# launcher (optionally with a prefilled query)
+# open the launcher (optionally with a query)
 printf 'CMD launcher\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 printf 'CMD launcher ter\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
-
-# switch workspace / focus a window
-printf 'CMD workspace 2\n' \
-  | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 ```
-
-Tessa creates a fallback keyboard when the headless backend has no physical
-input devices, so the panel, IME, and XWayland can start correctly. Inject
-keyboard input through the virtual-keyboard protocol:
-
-```sh
-export XDG_RUNTIME_DIR=/tmp/tessa-headless
-export WAYLAND_DISPLAY=wayland-0
-
-printf 'CMD launcher\n' | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
-wtype "foot"
-wtype -k Return
-```
-
-`wtype` types into whichever surface currently has keyboard focus.
 
 `tessa-ctl` is the preferred way to drive the session. Put the build output in
 `PATH` and point it at the same runtime directory:
@@ -110,9 +114,34 @@ tessa-ctl events window-focus
 `tessa-ctl status --clear` removes an entry. `tessa-ctl events` only receives
 events after subscribing, so it is safe to run as a long-lived script.
 
+Download the screenshot to Windows:
+
+```sh
+scp tessa-dev:/tmp/tessa.png \
+  "$TEMP/tessa.png"
+```
+
+Tessa creates a fallback keyboard when the headless backend has no input
+devices, so the panel, IME, and XWayland can start without a physical TTY.
+Inject keyboard input through the virtual-keyboard protocol:
+
+```sh
+export XDG_RUNTIME_DIR=/tmp/tessa-headless
+export WAYLAND_DISPLAY=wayland-0
+
+# open the launcher and type into it
+printf 'CMD launcher\n' | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
+wtype "foot"
+wtype -k Return
+```
+
+`wtype` creates its own virtual keyboard; Tessa forwards its key events to the
+focused surface. This is the standard way to test launcher typing, IME grabs, and
+XWayland input in the headless session.
+
 ### IME test
 
-Start Fcitx5 inside the session, select Mozc, and type into the launcher:
+Start Fcitx5 inside the session and open the launcher:
 
 ```sh
 printf 'CMD spawn fcitx5\n' \
@@ -126,15 +155,34 @@ wtype -k Return      # commit
 grim -o HEADLESS-1 /tmp/ime.png
 ```
 
-Point `XDG_CONFIG_HOME` at a temporary directory with an `fcitx5/profile` that
-selects `mozc` to avoid touching your real Fcitx configuration. The candidate
-popup is drawn through input-method popup surfaces below the search field.
+Use a Fcitx config with Mozc selected, for example:
+
+```ini
+[Groups/0]
+Name=Default
+Default Layout=us
+DefaultIM=mozc
+
+[Groups/0/Items/0]
+Name=keyboard-us
+Layout=
+
+[Groups/0/Items/1]
+Name=mozc
+Layout=
+
+[GroupOrder]
+0=Default
+```
+
+You can point `XDG_CONFIG_HOME` at a temporary directory containing
+`fcitx5/profile` to avoid touching the developer's real Fcitx configuration.
 
 ### XWayland test
 
-With `xwayland-satellite` in `PATH` (or `TESSA_XWAYLAND_BIN` set), Tessa chooses
-a free display automatically and exports `DISPLAY`. On a clean machine this is
-usually `:0`.
+`xwayland-satellite` must be in `PATH` (or set `TESSA_XWAYLAND_BIN`). Tessa
+chooses a free display automatically and exports `DISPLAY`; a typical headless
+run picks `:0`.
 
 ```sh
 printf 'CMD spawn xeyes\n' \
@@ -148,38 +196,38 @@ printf 'STATE\n' \
   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock
 ```
 
-The `STATE` output should list `XEyes` and `XClock` as normal windows. Use
-`xev` and `wtype` to check that key events reach X11 clients; note that wtype
-installs its own small keymap, so a physical keyboard is better for realistic
-text-entry tests.
+The `STATE` output should list `XEyes`/`XClock` as ordinary windows. Tessa
+requests server-side xdg-decoration, so satellite must not draw its own
+titlebars around X11 clients.
 
-### Multi-monitor test
+## Extension and integration tests
 
-The headless backend can expose several outputs:
-
-```sh
-WLR_HEADLESS_OUTPUTS=2 ./scripts/run-headless.sh
-```
-
-Tessa starts one `tessa-panel` per output. Check that `pgrep -f tessa-panel`
-shows two processes, and that the state contains one `OUT` line per output:
+The headless smoke test starts a compositor with config includes, hooks, and a
+temporary runtime directory, then checks workspace changes, layout persistence,
+config reload propagation with runtime overrides preserved, status set/clear,
+event subscriptions, IPC half-close handling, keyboard floating resize, and
+(when `foot` is installed) window open/focus/close events:
 
 ```sh
-printf 'STATE
-'   | socat - UNIX-CONNECT:/tmp/tessa-headless/tessa.sock | head -12
+./scripts/build.sh
+sh tests/smoke.sh
 ```
 
-`CMD workspace 2 HEADLESS-2` changes only the second output's workspace;
-`HEADLESS-1` keeps its own. Capture each monitor with:
+Use `TESSA_CTL_DEBUG=1 tessa-ctl events` to print received event lines to stderr.
+See [EXTENDING.md](EXTENDING.md) for the API and hook environment.
+
+The extension, shell-module, and effect work is covered by:
 
 ```sh
-./scripts/screenshot.sh /tmp/left.png HEADLESS-2
-./scripts/screenshot.sh /tmp/right.png HEADLESS-1
+sh tests/extensions.sh      # manifests, dependencies, token scopes, enable/disable
+sh tests/panel-modules.sh   # panel_modules ownership and supervisor restart
+sh tests/effect-v2.sh       # tint and animation overrides, v1 compatibility
+sh tests/effect-cache.sh    # scenefx-only last-applied cache counters
 ```
 
-Output position/mode/scale can be exercised with `wlr-randr` if it is
-installed. Applied settings and runtime layout overrides are saved to
-`outputs.conf` and restored on the next start.
+The full suite list is in the main README. `tests/shell-v2.sh`,
+`tests/rendering.sh`, `tests/tearing.sh`, `tests/ipc-version.sh`, and the
+layout/panel tests all run headless and are part of the release check.
 
 ### HiDPI and output persistence test
 
@@ -218,6 +266,9 @@ tessa-ctl layout columns
 tessa-ctl layout mosaic
 ```
 
+`tests/layout-geometry.sh` spawns eight windows, selects mosaic, and verifies
+that no tiles overlap and every tile is at least 160×160.
+
 `OUT` in `tessa-ctl state` ends with the current layout name. Per-workspace
 initial layouts come from `layout_1` … `layout_9`. Runtime changes are kept per
 output and workspace, written as `layout` lines in `outputs.conf`, and restored
@@ -225,20 +276,17 @@ on the next start. A config reload updates workspaces that have no runtime
 override. `Super+Alt+H/J/K/L` or `tessa-ctl resize <dx> <dy>` resizes the
 focused floating window, with a 160×120 minimum.
 
-`tests/layout-geometry.sh` spawns eight windows, selects mosaic, and verifies
-that no tiles overlap and every tile is at least 160×160. It also checks the
-configured `master_count`, `grid_columns`, and per-workspace gap/master-ratio
-values.
-
 ### Rules and customization test
 
 `tests/customization.sh` starts a private headless session, applies float,
 workspace, fullscreen, size, and position rules to `foot` windows, verifies
 `tessa-ctl config`, rewrites the rule file, reloads, and checks that existing
-windows are re-evaluated.
+windows are re-evaluated. `tests/layout-geometry.sh` also covers the
+`master_count`, `grid_columns`, and per-workspace gap/master-ratio tuning values.
 
 ```sh
 sh tests/customization.sh
+sh tests/layout-geometry.sh
 ```
 
 ### Layout helper test
@@ -394,117 +442,10 @@ sh tests/fractional-scale.sh
 a red border, and a black wallpaper, spawns `foot` with a white background, and
 samples the screenshot. The window center must be white, the top-left corner
 must be background-dark instead of white/red, and the top border midpoint must
-be red.
+be red. Run the FX build with the scenefx library path in `LD_LIBRARY_PATH`.
 
 ```sh
 sh tests/effects.sh
-```
-
-### Shell v2 test
-
-`tests/shell-v2.sh` runs `tessa-panel --check` with per-surface fonts, colors,
-and a `bar_layout` order, then starts a headless session with a PPM-shader
-wallpaper. It samples the wallpaper pixel through `tests/png-pixel.py` and
-checks that layer rules apply to `tessa-bar` and `tessa-overlay` through
-`tessa-ctl state`.
-
-```sh
-sh tests/shell-v2.sh
-```
-
-### Effect helper test
-
-`tests/effect-helper.sh` starts a long-lived Python helper and a kitty window.
-The helper returns opacity 0.4, radius 24, blur/shadow off, and border width 6;
-the test verifies the effective JSON state. Removing `effect_helper` and
-reloading must restore the rule values.
-
-```sh
-sh tests/effect-helper.sh
-```
-
-### Performance test
-
-`tests/performance.sh` measures render-commit timings with `tessa-ctl perf`
-during workspace-switch animations, then reloads a corner-radius/shadow/blur
-config and repeats the workload. It requires at least ten frames and a p95
-within `TESSA_PERF_BUDGET_MS` (default 100 ms for the pixman headless renderer).
-Point `TESSA_BIN_DIR` at `zig-out-scenefx/bin` to benchmark the scenefx build.
-
-```sh
-sh tests/performance.sh
-TESSA_BIN_DIR=$PWD/zig-out-scenefx/bin sh tests/performance.sh
-```
-
-### Config editor test
-
-`tests/config-editor.sh` validates a candidate config with both the live
-`tessa-ctl config-check` and the offline `tessa --check-config` path, rejects
-an unknown key, checks the effective-config diff, applies an `$EDITOR` change
-through `tessa-ctl config-edit`, and verifies that a declined change is
-discarded.
-
-```sh
-sh tests/config-editor.sh
-```
-
-### Special workspace test
-
-`tests/special-workspaces.sh` assigns a kitty window to a declared special
-workspace by rule, then verifies hidden/visible toggling and
-`move-to-special` through `tessa-ctl` and the JSON state.
-
-```sh
-sh tests/special-workspaces.sh
-```
-
-### Panel recovery test
-
-`tests/panel-recovery.sh` starts a headless session with the built-in panel,
-kills the panel with `SIGKILL`, and verifies that the compositor restarts it
-with bounded exponential backoff and that the `tessa-bar` layer returns. It
-repeats the crash and checks that shutdown does not leave a panel process
-behind.
-
-```sh
-sh tests/panel-recovery.sh
-```
-
-### IPC version test
-
-`tests/ipc-version.sh` sends `HELLO 1`, `HELLO 99`, an invalid version, legacy
-commands without `HELLO`, and a state request after negotiation. It checks
-`VERSION`, `CAPABILITIES`, and that an invalid hello does not close the
-connection.
-
-```sh
-sh tests/ipc-version.sh
-```
-
-### Helper timeout test
-
-`tests/helper-timeouts.sh` configures layout and effect helpers that never
-reply, with the default 100 ms/200 ms timeouts. It verifies that both are
-stopped, fallbacks remain active, the compositor keeps serving state, and the
-fallback completes within 1.5 s.
-
-```sh
-sh tests/helper-timeouts.sh
-```
-
-### Parser fuzz and ASan test
-
-`tests/fuzz-parsers.sh` mutates `config/config.example` and random byte
-sequences, validates each candidate with the offline `tessa --check-config`
-path, then sends malformed line and JSON-RPC payloads to a live headless
-compositor. It fails on panics, crash exit codes, timeouts, or a dead compositor.
-`tests/fuzz-asan.sh` repeats the pass with the system ASan runtime preloaded;
-Zig has no compiler ASan instrumentation, so this is an allocator/
-interceptor pass over the Debug-safety build.
-
-```sh
-TESSA_FUZZ_ITERS=500 sh tests/fuzz-parsers.sh
-sh tests/fuzz-asan.sh
 ```
 
 ### Output rules test
@@ -667,8 +608,8 @@ sh tests/clipboard.sh
 ```
 
 The panel monitors selections through `wlr-data-control-v1`. Ordinary
-`wl_data_device` selection events go only to the focused client, so a bar-side
-ordinary data device cannot collect clipboard history.
+`wl_data_device` selection events go only to the focused client, so do not
+replace this with a bar-side ordinary data device and expect history to work.
 
 ### Screenshot test
 
@@ -783,105 +724,70 @@ sh tests/portal.sh
 TESSA_PORTAL_ROOT=/tmp/portal-root sh tests/portal.sh
 ```
 
-### Lock and idle test
-
-`ext-session-lock-v1`, `ext-idle-notify-v1`, `idle-inhibit-v1`, and
-output-power management are exposed by the compositor. Install clients to test
-them:
-
-```sh
-sudo apt install swaylock swayidle wlopm
-```
-
-Run `swaylock -f` inside the session (or press `Super+Escape`). The desktop
-should be completely replaced by the lock surface; a virtual keyboard created
-after locking must not type into it, and if the lock client is killed while
-locked Tessa should terminate instead of exposing the desktop. For idle
-testing, run `swayidle -w timeout 5 'swaylock -f'` and verify that activity
-postpones the lock, while a client holding `idle-inhibit-v1` prevents it.
-
-## Extension and integration tests
-
-The headless smoke test starts a compositor with config includes, hooks, and a
-temporary runtime directory, then checks workspace changes, layout persistence,
-config reload propagation with runtime overrides preserved, status set/clear,
-event subscriptions, IPC half-close handling, keyboard floating resize, and
-(when `foot` is installed) window open/focus/close events:
-
-```sh
-./scripts/build.sh
-sh tests/smoke.sh
-```
-
-Use `TESSA_CTL_DEBUG=1 tessa-ctl events` to print received event lines to stderr.
-See [EXTENDING.md](EXTENDING.md) for the API and hook environment.
-
 ## Debug logging
 
 ```sh
-# wlroots debug logs, Tessa logs, and IME/popup diagnostics
+# wlroots debug + Tessa logs (also enables IME/popup diagnostics)
 TESSA_DEBUG=1 ./scripts/run-headless.sh
 
-# panel state snapshots (active workspace, window count)
+# panel state logs (window count after each snapshot)
 TESSA_PANEL_DEBUG=1 ./scripts/run-headless.sh
 
-# full Wayland protocol log from a test client
+# foot's full Wayland protocol log
 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/tmp/tessa-headless \
   WAYLAND_DEBUG=1 foot -T debug
 ```
 
-Environment overrides:
+`TESSA_IPC=/path/to/socket` overrides the IPC socket path.
+`TESSA_CONFIG=/path/to/config` overrides the config file.
+`TESSA_NO_PANEL=1` starts the compositor without the panel.
+`TESSA_PANEL_BIN=/path/to/tessa-panel` overrides the auto-started panel.
+`TESSA_OUTPUT_CONFIG=/path/to/outputs.conf` overrides the persisted output
+configuration file.
+`TESSA_NO_XWAYLAND=1` disables the satellite spawn.
+`TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite` overrides the binary.
 
-- `TESSA_IPC=/path/to/socket`
-- `TESSA_CONFIG=/path/to/config`
-- `TESSA_NO_PANEL=1`
-- `TESSA_PANEL_BIN=/path/to/tessa-panel`
-- `TESSA_PANEL_OUTPUT=<output name>` (set automatically for per-output panels)
-- `TESSA_OUTPUT_CONFIG=/path/to/outputs.conf`
-- `TESSA_NO_XWAYLAND=1`
-- `TESSA_XWAYLAND_BIN=/path/to/xwayland-satellite`
-- `TESSA_DEBUG=1`
-- `TESSA_PANEL_DEBUG=1`
+## Testing on DRM
 
-## Real TTY
-
-For DRM and libinput, run Tessa on the machine's **active virtual terminal**.
-The compositor needs DRM master and seat access; launching it from an unrelated
-SSH session will not give you a usable hardware session.
+Do this on the target machine's **active virtual terminal**, not over SSH: the
+DRM backend needs DRM master and libinput access from the active session.
 
 ```sh
-cd /path/to/Tessa
+cd ~/tessa
 PATH="$PWD/zig-out/bin:$PATH" ./zig-out/bin/tessa
 ```
 
-The panel is auto-started from `PATH`. If you install with
-`scripts/install-session.sh`, the session entry point puts its own directory at
-the front of `PATH`, so both binaries are found.
+If you are on tty1 via SSH and the physical/VM console is on another VT, switch
+to that VT first. `loginctl list-sessions` shows the seat. `seatd`/logind must be
+available for libseat.
 
-## Iteration tips
+## Gotchas
 
-- After changing panel settings, press `Super+R`: the panel reloads its palette,
-  bar geometry, font, terminal, launcher entries, and power commands when the
-  compositor emits `config-reload`. Geometry changes recreate the bar layer
-  surface.
-- Clipboard history depends on the compositor's `wlr-data-control-v1` global.
-  `wl_data_device` selection events are focused-client-only, so do not replace
-  the panel's data-control device with the ordinary interface.
-- `pkill -x tessa` and `pkill -x tessa-panel` are safer than `pkill -f tessa`
-  when working over SSH: a `-f` pattern can match the SSH remote command line
-  itself and kill the session.
-- The headless output name is stable: `grim -o HEADLESS-1`.
-- Zig's translate-c cannot process Pango/GLib headers. Text rendering lives in
-  `panel/text.c`; keep Pango out of `@cImport`.
-- Layer-shell `EXCLUSIVE` is enum value `1`; `2` is `ON_DEMAND`.
-- `ReleaseSafe` needs `_FORTIFY_SOURCE=0` for the C imports; this is already set
-  in the two `c.zig` files.
-- Xwayland 24.x needs a keyboard keymap in the parent seat at startup, or it
-  fails with `XKB: Failed to compile keymap`; the fallback keyboard in
-  `input.zig` provides one.
-- Reset `SIGCHLD` to `SIG_DFL` before exec'ing children. Tessa ignores `SIGCHLD`
-  for its own child reaping; inheriting that breaks helpers that spawn and wait,
-  including Xwayland's xkbcomp.
-- `wlr_xdg_toplevel_decoration_v1_set_mode()` must not schedule a configure
-  before the xdg surface's initial commit. If it is not initialized, set
-  `scheduled_mode` and apply it after initialization.
+- Do not use `pkill -f tessa` over SSH: the pattern matches the SSH remote
+  command line itself and kills the session. Use `pkill -x tessa` or
+  `pkill -x tessa-panel`.
+- The headless output is named `HEADLESS-1`; `grim -o HEADLESS-1` is the stable
+  screenshot command.
+- Zig 0.17.x is required. Use the official Arch `zig` package; an older distribution Zig will be rejected by `scripts/build.sh`.
+- Zig's translate-c cannot handle Pango/GLib headers; that is why text drawing
+  lives in `panel/text.c`. Keep Pango out of the translated C headers.
+- Layer-shell `EXCLUSIVE` is `1`; `2` is `ON_DEMAND` (a common off-by-one).
+- The compositor sets `WAYLAND_DISPLAY` itself; you do not need to set it when
+  launching Tessa. The panel inherits it.
+- Xwayland 24.x fails with `XKB: Failed to compile keymap` if the seat has no
+  keyboard when satellite starts. The fallback keyboard in `input.zig` exists to
+  avoid this (and is also needed for client keymaps in a headless session).
+- Reset `SIGCHLD` to `SIG_DFL` in spawned children. Tessa ignores `SIGCHLD` for
+  reaping its own children; inheriting that disposition breaks tools that spawn
+  and wait for helpers, including Xwayland's xkbcomp.
+- `wlr_xdg_toplevel_decoration_v1_set_mode()` may not be called before the xdg
+  surface's initial commit. If the surface is not initialized, set
+  `scheduled_mode` directly and apply the mode after initialization.
+- `wtype` installs a tiny keymap and replaces the seat keymap for every virtual
+  keyboard. X11 text injection through wtype can therefore look wrong even
+  though keys arrive; use `xev` to verify key delivery, and use a physical
+  keyboard for realistic X11 typing tests.
+
+- After changing panel settings, use `Super+R`: the panel reloads its palette,
+  bar geometry, font, terminal, launcher entries, and power commands from
+  `config-reload`. Geometry changes recreate the bar layer surface.

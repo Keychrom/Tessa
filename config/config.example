@@ -155,9 +155,11 @@ layout = master
 
 # Long-lived visual effect helper. It receives window metadata (app-id, title,
 # output, workspace, focus, fullscreen, geometry, and rule visuals) and returns
-# per-window opacity, corner radius, blur/shadow overrides, and border width.
-# Requests are coalesced; there is no in-process plugin VM. See
-# docs/EXTENDING.md for the line protocol.
+# per-window opacity, corner radius, blur/shadow overrides, border width, tint,
+# and animation duration/curve overrides. Protocol v2 uses tab-separated
+# key=value fields; v1 positional helpers remain compatible. Requests are
+# coalesced; there is no in-process plugin VM. See docs/EXTENDING.md for the
+# line protocol.
 # effect_helper = python3 ~/.config/tessa/effects.py
 # effect_helper_timeout = 200
 
@@ -165,7 +167,8 @@ layout = master
 # connects to the IPC socket and sends `HELLO 1 $TESSA_EXTENSION_TOKEN` to
 # identify itself. Permissions are cooperative scopes, not a sandbox:
 # read, events, status, window, workspace, layout, spawn, panel, control,
-# extensions (or all/none). requirements start after their dependencies.
+# extensions (or all/none). `requires` blocks startup until the dependency is
+# running; `after` only affects startup order.
 # extension = id=weather; command=weatherd; api=1; permissions=read,status
 # extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
 
@@ -239,8 +242,8 @@ panel = true
 # it from `startup` below; the default stays the integrated panel.
 # panel = false
 # startup = waybar
-# Panel geometry and bar palette. Changes apply on config reload by recreating
-# the bar layer surface.
+# Panel geometry and bar palette. Changes apply on config reload; a geometry
+# change recreates the bar layer surface.
 bar_height = 44
 bar_top_margin = 12
 bar_side_margin = 16
