@@ -145,10 +145,15 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   （クリップボード）、xdg-activation、xdg-decoration、cursor-shape-v1、
   wlr-screencopy（grim が動作）
 - マスター/スタック、Tessa 独自の「モザイク」スパイラル、グリッド、
-  等幅カラムの各レイアウト。ワークスペースごとのレイアウト/隙間/マスター
-  比率、マスター列の数、モザイク比率/最小サイズ、グリッド列数も設定可能
-  （`Super+T` で巡回）。実行中に選んだレイアウトは再起動後も復元され、
-  設定の再読み込みは上書きしていないワークスペースだけを更新
+  等幅カラム、Niri 風 Scrolling、Monocle、Deck 型 Stacking の各レイアウト。
+  ワークスペースごとのレイアウト/隙間/マスター比率、マスター列の数、
+  モザイク比率/最小サイズ、グリッド列数、カラム幅/プリセット、フォーカス
+  中央寄せも設定可能（`Super+T` で設定した巡回リストを順に表示）。実行中に
+  選んだレイアウトは再起動後も復元され、設定の再読み込みは上書きしていない
+  ワークスペースだけを更新
+- タイルの動的な並べ替え。IPC の `reorder`/`swap`、またはタイル上の
+  `Super`+左ドラッグで挿入位置を指定できます。Scrolling ではドラッグが
+  カラムの挿入になり、`Super`+ホイールで viewport をスクロールします
 - app-id/タイトル/出力、または真偽値と POSIX 正規表現の式でマッチする
   宣言的ウィンドウルール。フローティング、ワークスペース、フルスクリーン、
   サイズ、位置、ウィンドウ別ボーダー色、不透明度、角丸、ブラー、影、
@@ -284,6 +289,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 2 倍 HiDPI パネル、フラクショナルな出力スケール変更、再起動後の出力
 モード/位置/スケール/レイアウト復元も
 `tests/smoke.sh`、`tests/output-persistence.sh`、`tests/layout-geometry.sh`、
+`tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
+`tests/layout-reorder.sh`、`tests/layout-config.sh`、
 `tests/customization.sh`、`tests/layout-helper.sh`、
 `tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
@@ -334,8 +341,10 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   プロジェクトにまとまっています。色と挙動が統一されているのは、それが
   同じコードだからです。
 - **違うレイアウト。** マスター/スタックに加えて、渦巻き状の「テセラ」
-  モザイク、均等グリッド、等幅カラムがあります（`Super+T` で巡回）。Tessa
-  という名前は tessellation（タイル張り）に由来します。
+  モザイク、均等グリッド、等幅カラム、Niri 風スクロール列、Monocle、
+  Deck 型 Stacking があります（`Super+T` は設定したリストを巡回）。タイルは
+  ドラッグまたは IPC で並べ替えられます。Tessa という名前は
+  tessellation（タイル張り）に由来します。
 - **墨絵の視覚言語。** 藍色の紙、墨だまり、朱色の太陽、粒子、ガラスのような
   フローティングバー。一般的なステータスバーにテーマを載せただけのものでは
   ありません。
@@ -786,13 +795,15 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+M` | MPRIS メディア操作 |
 | `Super+Shift+T` | StatusNotifier トレイ |
 | `Super+Shift+A` | 音量操作 |
-| `Super+T` | マスター → モザイク → グリッド → カラムを巡回 |
+| `Super+T` | `layout_cycle` を巡回（既定はマスター → モザイク → グリッド → カラム） |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
 | `Super+R` | 設定を再読み込み |
 | `Super+1` … `Super+9` | ワークスペースを切り替え |
 | `Super+Shift+1` … `Super+Shift+9` | ウィンドウをワークスペースへ移動 |
 | `Super+H/J/K/L` | 左/下/上/右のウィンドウへフォーカス |
+| `Super`+左ドラッグ | タイルを並べ替え（Scrolling ではカラムを挿入） |
+| `Super`+ホイール | Scrolling の viewport をスクロール |
 | `Super+Shift+H/J/K/L` | その方向のウィンドウと入れ替え。ない場合は隣の出力へ移動 |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
@@ -868,9 +879,14 @@ cp config/config.example ~/.config/tessa/config
 | `mosaic_ratio` | モザイクのスライス比率（0.25–0.85） |
 | `mosaic_min_size` | グリッドへ切り替える前の最小モザイクタイル |
 | `grid_columns` | グリッドの固定列数。`0` は `ceil(sqrt(n))` |
+| `default_column_width` | Scrolling のカラム幅: `50%`、`0.5`、固定ピクセル |
+| `column_width_presets` | `column-width-cycle` が使うカンマ区切りの幅 |
+| `center_focused_column` | Scrolling のフォーカス方針: `never`、`always`、`on-overflow` |
+| `animation_view_ms` | Scrolling viewport のスライド時間（0–1000 ms） |
+| `layout_cycle` | `Super+T` が巡回するレイアウトのカンマ区切りリスト |
 | `layout_helper` | 出力ごとに 1 つ起動する非同期レイアウトヘルパーのコマンド |
 | `layout_helper_timeout` | ヘルパー応答のタイムアウト（ミリ秒、10–1000） |
-| `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`custom` |
+| `layout` | 既定レイアウト: `master`、`mosaic`、`grid`、`columns`、`scrolling`、`monocle`、`stacking`/`deck`、`custom` |
 | `layout_1` … `layout_9` | 保存済みの上書きがないワークスペースの初期レイアウト |
 | `workspace-rule` | ワークスペース別のレイアウト/隙間/マスター上書きとプロファイル |
 | `output-rule` | コネクタ名または EDID で一致させる出力別のレイアウト/チューニング/テーマ/VRR 上書き |
@@ -952,15 +968,27 @@ bind = SUPER+ctrl+h ratio -0.03
 `toggle-scratchpad`、`move-to-scratchpad`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、
 `focus-next`、`focus-prev`、`launcher`、`reload`、`ratio`、`toggle-layout`、
-`set-layout`、`resize-width`、`resize-height`、`enter-mode`。
+`set-layout`、`resize-width`、`resize-height`、`enter-mode`。Scrolling 用に
+`focus-column-left/right/first/last`、`move-column-left/right/first/last`、
+`move-window-up/down`、`consume-window`、`expel-window`、
+`column-width-cycle[-back]`、`column-width-set <width>`、
+`column-width-maximize`、`center-column` も利用できます。
 
-`Super+T` はフォーカス中のワークスペースのレイアウトを 4 種類巡回します。
-実行中に選んだレイアウトは出力・ワークスペースごとに保持され、
-`outputs.conf` に保存されます。`layout_N` は保存済み・実行中の上書きがない
-ワークスペースの初期値だけを設定します。設定の再読み込みでは、上書きして
-いないワークスペースだけが更新され、実行中の選択は維持されます。
-`resize-width` と `resize-height` はフォーカス中のフローティングウィンドウを
-ピクセル単位の差分でリサイズします。
+`Super+T` はフォーカス中のワークスペースで `layout_cycle` を巡回します
+（既定は従来の 4 レイアウト）。実行中に選んだレイアウトは出力・
+ワークスペースごとに保持され、`outputs.conf` に保存されます。`layout_N` は
+保存済み・実行中の上書きがないワークスペースの初期値だけを設定します。
+設定の再読み込みでは、上書きしていないワークスペースだけが更新され、
+実行中の選択は維持されます。`resize-width` と `resize-height` は
+フォーカス中のフローティングウィンドウをピクセル単位の差分でリサイズします。
+
+タイルウィンドウのフォーカス中に `Super`+左ドラッグすると並べ替えられます。
+別のウィンドウ上で離すとその前/後へ挿入され、ドラッグ中は挿入先が
+ハイライトされます。Scrolling ではカラム全体が移動し、`Super`+ホイールで
+カラム列をスクロールします。フローティングとフルスクリーンでは無効です。
+`swap` と `reorder` の IPC コマンドはフラットなタイル順が対象で、Scrolling
+のワークスペースでは拒否されます。代わりに `column-move`、`window-move`、
+ドラッグを使ってください。
 
 ウィンドウルールは 1 行 1 ルールです。app-id、タイトル、出力を `*`/`?` の
 パターンでマッチし、アクションを順に適用します。

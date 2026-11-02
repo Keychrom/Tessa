@@ -13,6 +13,7 @@ const ime = @import("ime.zig");
 const lock = @import("lock.zig");
 const idle = @import("idle.zig");
 const gestures = @import("gestures.zig");
+const scrolling = @import("scrolling.zig");
 const touch = @import("touch.zig");
 const tablet = @import("tablet.zig");
 const constraints = @import("constraints.zig");
@@ -600,6 +601,27 @@ fn executeBinding(server: *Server, b: *Binding) void {
         },
         .resize_width => layout.keyboardResize(server, b.num, 0),
         .resize_height => layout.keyboardResize(server, 0, b.num),
+        .focus_column_left => layout.focusColumn(server, .left),
+        .focus_column_right => layout.focusColumn(server, .right),
+        .focus_column_first => layout.focusColumn(server, .first),
+        .focus_column_last => layout.focusColumn(server, .last),
+        .move_column_left => layout.moveColumn(server, .left),
+        .move_column_right => layout.moveColumn(server, .right),
+        .move_column_first => layout.moveColumn(server, .first),
+        .move_column_last => layout.moveColumn(server, .last),
+        .move_window_up => layout.moveWindow(server, .up),
+        .move_window_down => layout.moveWindow(server, .down),
+        .consume_window => layout.consumeWindow(server),
+        .expel_window => layout.expelWindow(server),
+        .column_width_cycle => layout.cycleColumnWidth(server, false),
+        .column_width_cycle_back => layout.cycleColumnWidth(server, true),
+        .column_width_set => {
+            if (!layout.setColumnWidth(server, b.arg[0..b.arg_len])) {
+                core.logInfo("column-width-set: invalid width '{s}'", .{b.arg[0..b.arg_len]});
+            }
+        },
+        .column_width_maximize => layout.maximizeColumn(server),
+        .center_column => layout.centerColumn(server),
         .enter_mode => {
             if (!modes.set(server, b.arg[0..b.arg_len])) {
                 core.logInfo("mode: unknown mode '{s}'", .{b.arg[0..b.arg_len]});
@@ -760,6 +782,10 @@ fn processMotion(server: *Server, time_msec: u32) void {
         layout.updateInteractiveResize(server);
         return;
     }
+    if (server.cursor_mode == .reorder) {
+        layout.updateTileReorder(server);
+        return;
+    }
 
     var sx: f64 = 0;
     var sy: f64 = 0;
@@ -860,6 +886,14 @@ fn onCursorButton(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) voi
         mods = c.wlr_keyboard_get_modifiers(kb);
     }
     const super = (mods & core.MOD_LOGO) != 0;
+    if (super and client != null) {
+        const cl = client.?;
+        if (!cl.floating and !cl.fullscreen and event.button == 0x110) {
+            layout.beginTileReorder(cl);
+            server.grab_swallowed = true;
+            return;
+        }
+    }
     if (super and client != null and client.?.floating) {
         if (event.button == 0x110) {
             layout.beginInteractive(client.?, .move, 0);
@@ -904,6 +938,20 @@ fn onCursorAxis(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void 
     const server: *Server = @fieldParentPtr("cursor_axis", listener.?);
     const event: *c.wlr_pointer_axis_event = @ptrCast(@alignCast(data.?));
     idle.notifyActivity(server);
+    var mods: u32 = 0;
+    if (c.wlr_seat_get_keyboard(server.seat)) |kb_raw| {
+        const kb: *c.wlr_keyboard = @ptrCast(@alignCast(kb_raw));
+        mods = c.wlr_keyboard_get_modifiers(kb);
+    }
+    if ((mods & core.MOD_LOGO) != 0) {
+        if (core.outputAt(server, server.cursor.x, server.cursor.y)) |out| {
+            if (scrolling.isScrolling(out)) {
+                scrolling.scrollBy(out, @floatCast(event.delta * 80.0));
+                core.markDirty(server);
+                return;
+            }
+        }
+    }
     c.wlr_seat_pointer_notify_axis(
         server.seat,
         event.time_msec,

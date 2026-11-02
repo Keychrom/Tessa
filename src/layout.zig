@@ -14,6 +14,8 @@ const effect_helper = @import("effect_helper.zig");
 const motion = @import("motion.zig");
 const scene_util = @import("scene_util.zig");
 const ext_workspace = @import("ext_workspace.zig");
+const scrolling = @import("scrolling.zig");
+const config = @import("config.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -184,7 +186,8 @@ pub fn updateBorders(server: *Server) void {
         const opacity = types.effectiveClientOpacity(cl);
         active_color[3] *= opacity;
         inactive_color[3] *= opacity;
-        c.wlr_scene_rect_set_color(cl.border_rect, if (is_active) &active_color else &inactive_color);
+        const highlighted = is_active or cl == server.reorder_target;
+        c.wlr_scene_rect_set_color(cl.border_rect, if (highlighted) &active_color else &inactive_color);
     }
 }
 
@@ -209,6 +212,17 @@ pub fn retargetToplevel(cl: *Client, old_out: *Output, new_out: *Output) void {
     if (cl.foreign_toplevel) |handle| {
         c.wlr_foreign_toplevel_handle_v1_output_leave(handle, old_out.wlr);
         c.wlr_foreign_toplevel_handle_v1_output_enter(handle, new_out.wlr);
+    }
+}
+
+fn focusLayoutEffects(server: *Server, client: *Client) void {
+    const out = client.output;
+    const mode = out.ws_layouts[out.active_ws - 1];
+    if (mode == .scrolling) {
+        scrolling.onFocus(client);
+        arrangeOutput(server, out);
+    } else if (mode == .monocle) {
+        arrangeOutput(server, out);
     }
 }
 
@@ -247,6 +261,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
                 updateBorders(server);
                 core.markDirty(server);
             }
+            if (had_layer) focusLayoutEffects(server, cl);
             if (was_urgent) layout_helper.focusChanged(server);
             effect_helper.refresh(server);
             return;
@@ -269,6 +284,7 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
             c.wlr_foreign_toplevel_handle_v1_set_activated(handle, true);
         }
         raiseClient(cl);
+        focusLayoutEffects(server, cl);
         keyboardEnter(server, tSurface(cl.xdg));
         const origin = clientSurfaceOrigin(cl);
         ime.focusSurface(server, tSurface(cl.xdg), origin.x, origin.y);
@@ -486,6 +502,15 @@ pub fn startWorkspaceAnimation(server: *Server, out: *Output, previous_ws: usize
 
 pub fn tickAnimations(server: *Server, now: i64) bool {
     var active = false;
+    var oi: usize = 0;
+    while (oi < server.outputs.len) : (oi += 1) {
+        const out = server.outputs[oi] orelse continue;
+        if (scrolling.tick(out, now)) {
+            arrangeOutput(server, out);
+            active = true;
+        }
+    }
+
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
@@ -526,6 +551,7 @@ pub fn tickAnimations(server: *Server, now: i64) bool {
 }
 
 pub fn clearAnimations(server: *Server) void {
+    scrolling.clearAnimations(server);
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
         const cl = server.clients[i] orelse continue;
@@ -631,6 +657,86 @@ fn applyFullscreen(client: *Client, out: *Output) void {
         c.wlr_output_layout_get_box(out.server.output_layout, out.wlr, &full);
     }
     applyFrame(client, full.x, full.y, full.width, full.height, 0, false);
+}
+
+fn arrangeMonocleTiles(
+    server: *Server,
+    tiles: []const ?*Client,
+    ux: i32,
+    uy: i32,
+    uw: i32,
+    uh: i32,
+    border: i32,
+) void {
+    var target: ?*Client = null;
+    if (server.focused) |focused| {
+        for (tiles) |maybe| {
+            if (maybe) |cl| {
+                if (cl == focused) {
+                    target = cl;
+                    break;
+                }
+            }
+        }
+    }
+    if (target == null and tiles.len > 0) target = tiles[0];
+
+    for (tiles) |maybe| {
+        const cl = maybe orelse continue;
+        const shown = target == cl;
+        cl.on_screen = shown;
+        c.wlr_scene_node_set_enabled(&cl.frame.node, shown);
+        if (shown) applyFrame(cl, ux, uy, uw, uh, border, true);
+    }
+}
+
+fn arrangeStackingTiles(
+    tiles: []const ?*Client,
+    ux: i32,
+    uy: i32,
+    uw: i32,
+    uh: i32,
+    border: i32,
+    gap: i32,
+    ratio: f32,
+    master_count: usize,
+) void {
+    const count = tiles.len;
+    if (count == 0) return;
+    const master_n = @min(@max(master_count, 1), count);
+    const stack_n = count - master_n;
+
+    var master_w = uw;
+    if (stack_n > 0) {
+        master_w = @intFromFloat(@round(@as(f32, @floatFromInt(uw - gap)) * ratio));
+        if (master_w < 100) master_w = 100;
+        if (uw - gap - master_w < 100) master_w = @divTrunc(uw - gap, 2);
+    }
+
+    var y = uy;
+    const master_total = uh - gap * @as(i32, @intCast(master_n - 1));
+    const master_h = @divTrunc(master_total, @as(i32, @intCast(master_n)));
+    var mi: usize = 0;
+    while (mi < master_n) : (mi += 1) {
+        const cl = tiles[mi] orelse continue;
+        var h = master_h;
+        if (mi == master_n - 1) h = uy + uh - y;
+        if (h < 1) h = 1;
+        cl.on_screen = true;
+        applyFrame(cl, ux, y, master_w, h, border, true);
+        y += h + gap;
+    }
+
+    if (stack_n > 0) {
+        const stack_x = ux + master_w + gap;
+        const stack_w = uw - master_w - gap;
+        var si: usize = master_n;
+        while (si < count) : (si += 1) {
+            const cl = tiles[si] orelse continue;
+            cl.on_screen = true;
+            applyFrame(cl, stack_x, uy, @max(1, stack_w), uh, border, true);
+        }
+    }
 }
 
 fn arrangeMasterTiles(
@@ -783,9 +889,15 @@ pub fn applyConfigLayouts(server: *Server) void {
         const out = server.outputs[oi] orelse continue;
         var ws: usize = 0;
         while (ws < types.WS_COUNT) : (ws += 1) {
-            if (!out.layout_overridden[ws]) {
-                out.ws_layouts[ws] = rules.tuningFor(server, out, ws + 1).layout;
+            if (out.layout_overridden[ws]) continue;
+            const new_mode = rules.tuningFor(server, out, ws + 1).layout;
+            const old_mode = out.ws_layouts[ws];
+            if (old_mode == new_mode) continue;
+            if (old_mode == .scrolling) {
+                if (ws + 1 == out.active_ws) scrolling.leave(out) else scrolling.discardWorkspace(out, ws);
             }
+            out.ws_layouts[ws] = new_mode;
+            if (new_mode == .scrolling and ws + 1 == out.active_ws) scrolling.enter(out);
         }
     }
 }
@@ -879,6 +991,7 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
 
     var tiles: [types.MAX_CLIENTS]?*Client = undefined;
     var tile_count: usize = 0;
+    const mode = out.ws_layouts[out.active_ws - 1];
 
     var i: usize = 0;
     while (i < server.clients.len) : (i += 1) {
@@ -887,20 +1000,26 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
 
         const visible = clientVisible(cl, out);
         c.wlr_scene_node_set_enabled(&cl.frame.node, visible);
-        if (!visible) continue;
+        if (!visible) {
+            cl.on_screen = false;
+            continue;
+        }
 
         if (cl.fullscreen) {
+            cl.on_screen = true;
             applyFullscreen(cl, out);
             raiseClient(cl);
         } else if (cl.floating or cl.scratchpad or cl.special_workspace_len > 0) {
+            cl.on_screen = true;
             applyFloating(cl, out);
         } else if (tile_count < tiles.len) {
+            cl.on_screen = false;
             tiles[tile_count] = cl;
             tile_count += 1;
         }
     }
 
-    if (tile_count > 0) {
+    if (tile_count > 0 or mode == .scrolling) {
         const cfg = &server.config;
         const tuning = rules.tuningFor(server, out, out.active_ws);
         const border = cfg.border_width;
@@ -914,10 +1033,20 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
         const uh = area.height - outer * 2;
 
         if (uw > 20 and uh > 20) {
-            const mode = out.ws_layouts[out.active_ws - 1];
-            if (tile_count == 1 and mode != .custom) {
+            if (mode == .scrolling) {
+                const arrangement = scrolling.build(out, area, tuning, border);
+                var ri: usize = 0;
+                while (ri < arrangement.count) : (ri += 1) {
+                    const rect = arrangement.rects[ri];
+                    applyFrame(rect.client, rect.x, rect.y, rect.w, rect.h, border, true);
+                }
+            } else if (tile_count == 1 and mode != .custom) {
+                tiles[0].?.on_screen = true;
                 applyFrame(tiles[0].?, ux, uy, uw, uh, border, true);
             } else {
+                for (tiles[0..tile_count]) |maybe| {
+                    if (maybe) |cl| cl.on_screen = true;
+                }
                 switch (mode) {
                     .master => arrangeMasterTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, tuning.master_count),
                     .mosaic => {
@@ -939,6 +1068,9 @@ pub fn arrangeOutput(server: *Server, out: *Output) void {
                     },
                     .grid => arrangeGridTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, tuning.grid_columns),
                     .columns => arrangeColumnsTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap),
+                    .monocle => arrangeMonocleTiles(server, tiles[0..tile_count], ux, uy, uw, uh, border),
+                    .stacking => arrangeStackingTiles(tiles[0..tile_count], ux, uy, uw, uh, border, gap, master_ratio, tuning.master_count),
+                    .scrolling => unreachable,
                     .custom => {
                         var rects: [types.MAX_CLIENTS]layout_helper.Rect = undefined;
                         var applied = false;
@@ -998,8 +1130,20 @@ pub fn setProvisionalSize(client: *Client) void {
     var area = out.usable;
     if (area.width < 50 or area.height < 50) area = out.full;
     const b = borderWidth(client);
-    const outer = rules.tuningFor(client.server, out, client.ws).outer_gaps;
-    const w = @max(1, area.width - outer * 2 - b * 2);
+    const tuning = rules.tuningFor(client.server, out, client.ws);
+    const outer = tuning.outer_gaps;
+    const viewport_w = @max(1, area.width - outer * 2);
+    var w = @max(1, area.width - outer * 2 - b * 2);
+    const mode = out.ws_layouts[client.ws - 1];
+    if (mode == .scrolling) {
+        switch (tuning.column_width.kind) {
+            .proportion => {
+                const tile = @max(1, @as(i32, @intFromFloat(@round(@as(f32, @floatFromInt(viewport_w)) * tuning.column_width.value))));
+                w = @max(1, tile - b * 2);
+            },
+            .fixed => w = @max(1, @as(i32, @intFromFloat(@round(tuning.column_width.value)))),
+        }
+    }
     const h = @max(1, area.height - outer * 2 - b * 2);
     _ = c.wlr_xdg_toplevel_set_size(client.xdg, w, h);
 }
@@ -1121,6 +1265,26 @@ pub fn focusDirection(server: *Server, arg: []const u8) void {
         focusFirst(server);
         return;
     };
+    if (scrolling.isScrolling(cur.output) and !cur.floating and !cur.fullscreen) {
+        switch (dir) {
+            .left => if (scrolling.focusColumnStep(cur.output, .left)) |target| {
+                focusClient(server, target);
+                return;
+            },
+            .right => if (scrolling.focusColumnStep(cur.output, .right)) |target| {
+                focusClient(server, target);
+                return;
+            },
+            .up => if (scrolling.focusWindow(cur.output, .up)) |target| {
+                focusClient(server, target);
+                return;
+            },
+            .down => if (scrolling.focusWindow(cur.output, .down)) |target| {
+                focusClient(server, target);
+                return;
+            },
+        }
+    }
     if (findDirectional(server, cur, dir, true)) |target| {
         focusClient(server, target);
         return;
@@ -1152,6 +1316,19 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
         return;
     }
 
+    if (scrolling.isScrolling(cur.output) and !cur.fullscreen) {
+        switch (dir) {
+            .left => scrolling.moveColumn(cur.output, .left),
+            .right => scrolling.moveColumn(cur.output, .right),
+            .up => scrolling.moveWindow(cur.output, .up),
+            .down => scrolling.moveWindow(cur.output, .down),
+        }
+        arrangeOutput(server, cur.output);
+        focusClient(server, cur);
+        core.markDirty(server);
+        return;
+    }
+
     if (findDirectional(server, cur, dir, true)) |target| {
         if (target == cur) return;
         const i = core.clientIndex(server, cur) orelse return;
@@ -1166,10 +1343,12 @@ pub fn moveDirection(server: *Server, arg: []const u8) void {
 
     if (adjacentOutput(server, cur.output, dir)) |out| {
         const old_out = cur.output;
+        scrolling.onClientUnmapped(cur);
         if (old_out.last_focused[cur.ws] == cur) old_out.last_focused[cur.ws] = null;
         cur.output = out;
         cur.ws = out.active_ws;
         out.last_focused[cur.ws] = cur;
+        scrolling.onClientMapped(cur);
         retargetToplevel(cur, old_out, out);
         server.focused_output = out;
         core.notifySurfaceScale(out, tSurface(cur.xdg));
@@ -1190,6 +1369,19 @@ pub fn focusNext(server: *Server, step: i32) void {
         }
     }
     const out = core.focusOutput(server) orelse return;
+    if (scrolling.isScrolling(out)) {
+        if (server.focused) |focused| {
+            if (focused.floating or focused.fullscreen) {
+                // Keep the generic visible-client cycle for floating/fullscreen.
+            } else {
+                if (scrolling.nextVisible(out, focused, step)) |target| focusClient(server, target);
+                return;
+            }
+        } else if (scrolling.nextVisible(out, null, step)) |target| {
+            focusClient(server, target);
+            return;
+        }
+    }
     var list: [types.MAX_CLIENTS]?*Client = undefined;
     var n: usize = 0;
     var i: usize = 0;
@@ -1252,6 +1444,11 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
     if (ws < 1 or ws > types.WS_COUNT) return;
     const out = pinnedOutputFor(server, ws) orelse requested_out;
     const previous_ws = out.active_ws;
+    if (server.cursor_mode == .reorder) {
+        resetInteractive(server);
+        server.grab_swallowed = false;
+    }
+    scrolling.snapWorkspace(out, previous_ws - 1);
     out.active_ws = ws;
     out.scratchpad_visible = false;
     out.special_workspace_len = 0;
@@ -1295,6 +1492,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
     const target_out = pinnedOutputFor(server, ws) orelse out;
     if (old_ws == ws and target_out == out) return;
 
+    scrolling.onClientUnmapped(cl);
     if (target_out != out) {
         if (cl.floating) {
             cl.float_x += target_out.full.x - out.full.x;
@@ -1322,6 +1520,7 @@ pub fn moveToWorkspace(server: *Server, ws: usize) void {
     }
     if (out.last_focused[old_ws] == cl) out.last_focused[old_ws] = null;
     target_out.last_focused[ws] = cl;
+    scrolling.onClientMapped(cl);
 
     var next: ?*Client = null;
     var i: usize = 0;
@@ -1356,6 +1555,11 @@ pub fn toggleFloat(server: *Server) void {
     if (cl.scratchpad) return;
     detachFromGroup(cl);
     cl.floating = !cl.floating;
+    if (cl.floating) {
+        scrolling.onClientUnmapped(cl);
+    } else {
+        scrolling.onClientMapped(cl);
+    }
     arrangeOutput(server, cl.output);
     focusClient(server, cl);
     core.markDirty(server);
@@ -1403,6 +1607,7 @@ pub fn moveToScratchpad(server: *Server) void {
     const cl = server.focused orelse return;
     const out = cl.output;
     detachFromGroup(cl);
+    scrolling.onClientUnmapped(cl);
     if (cl.scratchpad) {
         cl.scratchpad = false;
         cl.ws = out.active_ws;
@@ -1410,6 +1615,7 @@ pub fn moveToScratchpad(server: *Server) void {
         cl.float_w = 0;
         cl.float_h = 0;
         if (out.last_focused[out.active_ws] == null) out.last_focused[out.active_ws] = cl;
+        scrolling.onClientMapped(cl);
     } else {
         cl.scratchpad = true;
         cl.special_workspace_len = 0;
@@ -1477,6 +1683,7 @@ pub fn moveToSpecial(server: *Server, name: []const u8) void {
     const cl = server.focused orelse return;
     const out = cl.output;
     if (cl.group_id != 0) detachFromGroup(cl);
+    scrolling.onClientUnmapped(cl);
     cl.scratchpad = false;
     const was_same = cl.special_workspace_len > 0 and
         std.mem.eql(u8, cl.special_workspace[0..cl.special_workspace_len], name);
@@ -1487,6 +1694,7 @@ pub fn moveToSpecial(server: *Server, name: []const u8) void {
         cl.float_w = 0;
         cl.float_h = 0;
         cl.ws = out.active_ws;
+        scrolling.onClientMapped(cl);
         if (out.special_workspace_len > 0 and
             std.mem.eql(u8, out.special_workspace[0..out.special_workspace_len], name))
         {
@@ -1533,6 +1741,7 @@ pub fn toggleGroup(server: *Server) void {
                 cl.group_id = 0;
                 cl.group_active = true;
             }
+            scrolling.onGroupChanged(out);
             arrangeOutput(server, out);
             focusClient(server, focused);
             core.markDirty(server);
@@ -1573,6 +1782,7 @@ pub fn toggleGroup(server: *Server) void {
         cl.group_id = gid;
         cl.group_active = cl == active;
     }
+    scrolling.onGroupChanged(out);
     arrangeOutput(server, out);
     focusClient(server, active);
     core.markDirty(server);
@@ -1623,6 +1833,7 @@ pub fn groupAdd(server: *Server) void {
     if (gid == 0) return;
     cl.group_id = gid;
     activateGroupMember(cl);
+    scrolling.onGroupChanged(out);
     arrangeOutput(server, out);
     focusClient(server, cl);
     core.markDirty(server);
@@ -1633,9 +1844,78 @@ pub fn groupRemove(server: *Server) void {
     if (cl.group_id == 0) return;
     detachFromGroup(cl);
     cl.group_active = true;
+    scrolling.onGroupChanged(cl.output);
     arrangeOutput(server, cl.output);
     focusClient(server, cl);
     core.markDirty(server);
+}
+
+fn clientById(server: *Server, id: u64) ?*Client {
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.id == id) return cl;
+    }
+    return null;
+}
+
+pub fn swapClientsById(server: *Server, first_id: u64, second_id: u64) bool {
+    const first = clientById(server, first_id) orelse return false;
+    const second = clientById(server, second_id) orelse return false;
+    if (first == second) return false;
+    if (scrolling.isScrolling(first.output) or scrolling.isScrolling(second.output)) return false;
+    const i = core.clientIndex(server, first) orelse return false;
+    const j = core.clientIndex(server, second) orelse return false;
+    server.clients[i] = second;
+    server.clients[j] = first;
+    arrangeOutput(server, first.output);
+    if (second.output != first.output) arrangeOutput(server, second.output);
+    core.markDirty(server);
+    return true;
+}
+
+pub fn reorderClientById(server: *Server, client_id: u64, target_id: u64, after: bool) bool {
+    const moved = clientById(server, client_id) orelse return false;
+    const target = clientById(server, target_id) orelse return false;
+    if (moved == target or moved.output != target.output) return false;
+    if (scrolling.isScrolling(moved.output)) return false;
+
+    var list: [types.MAX_CLIENTS]?*Client = undefined;
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl == moved) continue;
+        list[count] = cl;
+        count += 1;
+    }
+    if (count >= list.len) return false;
+    var target_index: ?usize = null;
+    i = 0;
+    while (i < count) : (i += 1) {
+        if (list[i] == target) {
+            target_index = i;
+            break;
+        }
+    }
+    const after_offset: usize = if (after) 1 else 0;
+    const insert_at = @min((target_index orelse 0) + after_offset, count);
+    var out_index = count;
+    while (out_index > insert_at) : (out_index -= 1) {
+        list[out_index] = list[out_index - 1];
+    }
+    list[insert_at] = moved;
+    count += 1;
+
+    i = 0;
+    while (i < server.clients.len) : (i += 1) {
+        server.clients[i] = if (i < count) list[i] else null;
+    }
+    server.client_count = count;
+    arrangeOutput(server, moved.output);
+    focusClient(server, moved);
+    core.markDirty(server);
+    return true;
 }
 
 pub fn closeFocused(server: *Server) void {
@@ -1643,18 +1923,106 @@ pub fn closeFocused(server: *Server) void {
     effects.requestClose(server, cl);
 }
 
+pub fn focusColumn(server: *Server, move: scrolling.ColumnMove) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    if (scrolling.focusColumnStep(out, move)) |target| focusClient(server, target);
+    core.markDirty(server);
+}
+
+pub fn moveColumn(server: *Server, move: scrolling.ColumnMove) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.moveColumn(out, move);
+    arrangeOutput(server, out);
+    if (server.focused) |focused| focusClient(server, focused);
+    core.markDirty(server);
+}
+
+pub fn moveWindow(server: *Server, move: scrolling.WindowMove) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.moveWindow(out, move);
+    arrangeOutput(server, out);
+    if (server.focused) |focused| focusClient(server, focused);
+    core.markDirty(server);
+}
+
+pub fn consumeWindow(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.consumeFocused(out);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
+pub fn expelWindow(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.expelFocused(out);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
+pub fn cycleColumnWidth(server: *Server, back: bool) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.cycleWidth(out, back);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
+pub fn setColumnWidth(server: *Server, value: []const u8) bool {
+    const width = config.parseColumnWidth(value) orelse return false;
+    const out = core.focusOutput(server) orelse return false;
+    if (!scrolling.isScrolling(out)) return false;
+    scrolling.setWidth(out, width);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+    return true;
+}
+
+pub fn maximizeColumn(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.toggleMaximize(out);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
+pub fn centerColumn(server: *Server) void {
+    const out = core.focusOutput(server) orelse return;
+    if (!scrolling.isScrolling(out)) return;
+    scrolling.centerFocused(out);
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
+fn changeLayoutMode(out: *Output, ws: usize, mode: types.LayoutMode) void {
+    const old = out.ws_layouts[ws - 1];
+    if (old == mode) return;
+    if (old == .scrolling) scrolling.leave(out);
+    out.ws_layouts[ws - 1] = mode;
+    if (mode == .scrolling) scrolling.enter(out);
+}
+
 pub fn cycleLayout(server: *Server) void {
     const out = core.focusOutput(server) orelse return;
     const ws = out.active_ws;
     const current = out.ws_layouts[ws - 1];
-    var next = types.layout_cycle[0];
-    for (types.layout_cycle, 0..) |mode, index| {
+    const cfg = &server.config;
+    const cycle = if (cfg.layout_cycle_len > 0)
+        cfg.layout_cycle[0..cfg.layout_cycle_len]
+    else
+        types.layout_cycle[0..];
+    var next = cycle[0];
+    for (cycle, 0..) |mode, index| {
         if (mode == current) {
-            next = types.layout_cycle[(index + 1) % types.layout_cycle.len];
+            next = cycle[(index + 1) % cycle.len];
             break;
         }
     }
-    out.ws_layouts[ws - 1] = next;
+    changeLayoutMode(out, ws, next);
     out.layout_overridden[ws - 1] = true;
     persistLayouts(server);
     arrangeOutput(server, out);
@@ -1677,7 +2045,7 @@ pub fn setLayoutOnOutput(server: *Server, out: *Output, name: []const u8) bool {
         arrangeOutput(server, out);
         return true;
     }
-    out.ws_layouts[ws - 1] = mode;
+    changeLayoutMode(out, ws, mode);
     out.layout_overridden[ws - 1] = true;
     persistLayouts(server);
     arrangeOutput(server, out);
@@ -1752,10 +2120,131 @@ pub fn keyboardResize(server: *Server, dx: i32, dy: i32) void {
     core.markDirty(server);
 }
 
+fn tiledReorderTarget(server: *Server, out: *Output, x: f64, y: f64, exclude: *Client) ?*Client {
+    var list: [types.MAX_CLIENTS]?*Client = undefined;
+    const n = visibleClientsOnOutput(server, out, &list);
+    var best: ?*Client = null;
+    var best_dist: f64 = std.math.floatMax(f64);
+    var i: usize = 0;
+    while (i < n) : (i += 1) {
+        const cl = list[i].?;
+        if (cl == exclude or cl.floating or cl.fullscreen or cl.scratchpad) continue;
+        if (cl.special_workspace_len > 0 or !cl.on_screen) continue;
+        const contains = x >= @as(f64, @floatFromInt(cl.x)) and
+            x < @as(f64, @floatFromInt(cl.x + cl.w)) and
+            y >= @as(f64, @floatFromInt(cl.y)) and
+            y < @as(f64, @floatFromInt(cl.y + cl.h));
+        if (contains) return cl;
+        const dx = x - @as(f64, @floatFromInt(cl.x + @divTrunc(cl.w, 2)));
+        const dy = y - @as(f64, @floatFromInt(cl.y + @divTrunc(cl.h, 2)));
+        const dist = dx * dx + dy * dy;
+        if (dist < best_dist) {
+            best_dist = dist;
+            best = cl;
+        }
+    }
+    return best;
+}
+
+pub fn beginTileReorder(client: *Client) void {
+    if (client.floating or client.fullscreen) return;
+    const server = client.server;
+    focusClient(server, client);
+    raiseClient(client);
+    server.grabbed = client;
+    server.cursor_mode = .reorder;
+    server.grab_x = server.cursor.x - @as(f64, @floatFromInt(client.frame.node.x));
+    server.grab_y = server.cursor.y - @as(f64, @floatFromInt(client.frame.node.y));
+    server.reorder_start_x = server.cursor.x;
+    server.reorder_start_y = server.cursor.y;
+    server.reorder_target = null;
+    server.reorder_index = -1;
+    server.reorder_before = true;
+    server.reorder_moved = false;
+    core.markDirty(server);
+}
+
+pub fn updateTileReorder(server: *Server) void {
+    const cl = server.grabbed orelse return;
+    if (server.cursor_mode != .reorder) return;
+    const dx = server.cursor.x - server.reorder_start_x;
+    const dy = server.cursor.y - server.reorder_start_y;
+    if (!server.reorder_moved and dx * dx + dy * dy < 36.0) return;
+    server.reorder_moved = true;
+
+    const nx: i32 = @intFromFloat(@round(server.cursor.x - server.grab_x));
+    const ny: i32 = @intFromFloat(@round(server.cursor.y - server.grab_y));
+    c.wlr_scene_node_set_position(&cl.frame.node, nx, ny);
+
+    const out = cl.output;
+    if (scrolling.isScrolling(out)) {
+        const ws = &out.scroll_ws[out.active_ws - 1];
+        const index = scrolling.dropIndex(out, server.cursor.x);
+        server.reorder_index = @intCast(@min(index, ws.count));
+        server.reorder_target = scrolling.clientAtIndex(out, @min(index, if (ws.count > 0) ws.count - 1 else 0));
+        server.reorder_before = true;
+    } else if (tiledReorderTarget(server, out, server.cursor.x, server.cursor.y, cl)) |target| {
+        server.reorder_target = target;
+        const cx = @as(f64, @floatFromInt(target.x + @divTrunc(target.w, 2)));
+        const cy = @as(f64, @floatFromInt(target.y + @divTrunc(target.h, 2)));
+        const use_x = @abs(server.cursor.x - cx) * @as(f64, @floatFromInt(@max(1, target.h))) >=
+            @abs(server.cursor.y - cy) * @as(f64, @floatFromInt(@max(1, target.w)));
+        server.reorder_before = if (use_x) server.cursor.x < cx else server.cursor.y < cy;
+    } else {
+        server.reorder_target = null;
+    }
+    updateBorders(server);
+    core.markDirty(server);
+}
+
+pub fn finishTileReorder(server: *Server) bool {
+    const cl = server.grabbed orelse {
+        server.cursor_mode = .passthrough;
+        server.reorder_target = null;
+        return false;
+    };
+    const moved = server.reorder_moved;
+    const target = server.reorder_target;
+    const index = server.reorder_index;
+    const before = server.reorder_before;
+    server.grabbed = null;
+    server.cursor_mode = .passthrough;
+    server.reorder_target = null;
+    server.reorder_index = -1;
+    server.reorder_moved = false;
+
+    if (!moved) {
+        arrangeOutput(server, cl.output);
+        focusClient(server, cl);
+        return true;
+    }
+
+    const out = cl.output;
+    if (scrolling.isScrolling(out)) {
+        const ws = &out.scroll_ws[out.active_ws - 1];
+        const current = @min(@as(usize, ws.focus_index), if (ws.count > 0) ws.count - 1 else 0);
+        var destination: usize = if (index >= 0) @intCast(index) else current;
+        if (current < destination) destination -= 1;
+        scrolling.moveColumnTo(out, @min(destination, if (ws.count > 0) ws.count - 1 else 0));
+        arrangeOutput(server, out);
+        focusClient(server, cl);
+    } else if (target) |other| {
+        _ = reorderClientById(server, cl.id, other.id, !before);
+    } else {
+        arrangeOutput(server, out);
+        focusClient(server, cl);
+    }
+    core.markDirty(server);
+    return true;
+}
+
 pub fn beginInteractive(client: *Client, mode: types.CursorMode, edges: u32) void {
     const s = client.server;
     s.grabbed = client;
     s.cursor_mode = mode;
+    s.reorder_target = null;
+    s.reorder_index = -1;
+    s.reorder_moved = false;
     if (mode == .move) {
         s.grab_x = s.cursor.x - @as(f64, @floatFromInt(client.frame.node.x));
         s.grab_y = s.cursor.y - @as(f64, @floatFromInt(client.frame.node.y));
@@ -1779,6 +2268,10 @@ pub fn beginInteractive(client: *Client, mode: types.CursorMode, edges: u32) voi
 }
 
 pub fn finishInteractive(server: *Server) void {
+    if (server.cursor_mode == .reorder) {
+        _ = finishTileReorder(server);
+        return;
+    }
     const cl = server.grabbed;
     server.grabbed = null;
     server.cursor_mode = .passthrough;
@@ -1791,6 +2284,9 @@ pub fn finishInteractive(server: *Server) void {
 pub fn resetInteractive(server: *Server) void {
     server.grabbed = null;
     server.cursor_mode = .passthrough;
+    server.reorder_target = null;
+    server.reorder_index = -1;
+    server.reorder_moved = false;
 }
 
 pub fn updateInteractiveMove(server: *Server) void {

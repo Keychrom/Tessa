@@ -492,9 +492,41 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
 - **grid**: balanced rows/columns (`ceil(sqrt(n))` columns); the last row is
   centered when it is incomplete.
 - **columns**: equal-width full-height columns.
-- `Super+T` cycles master → mosaic → grid → columns for the focused output and
-  workspace. `set-layout <name>` accepts `master`, `mosaic`/`spiral`, `grid`,
-  `columns`/`column`, or `custom`. Explicit runtime choices mark the workspace overridden and
+- **scrolling**: a Niri-style horizontal column strip. `scrolling.zig` owns a
+  shared column pool and per-output, per-workspace `ScrollWorkspace` ranges into
+  it, holding the column order, focus index, and viewport offset/target.
+  Entering the mode collects the visible tiled clients in their current order,
+  one per column; leaving it flattens the column order back into
+  `server.clients`, so reordering survives a mode change. A column can hold
+  several windows stacked vertically, and a window group is rendered as one
+  tabbed column. Width is either a proportion of the viewport (border included)
+  or a fixed client width plus borders; `maximize-column` spans the viewport and
+  restores the previous width. The effective height is the viewport, split
+  evenly with `gaps` when a column has several windows. The visible strip is
+  `viewport.x + column_x - view_offset`; the target follows focus according to
+  `center_focused_column` (`never`, `always`, `on_overflow`) and is clamped to
+  `content_width - viewport_width`. `tickAnimations()` interpolates
+  `view_offset` toward `view_target` over `animation_view_ms`; zero or
+  `animations = false` applies it immediately.
+- **monocle**: only the focused tiled window (or the first one) is placed in the
+  usable area; every other tiled frame is disabled. Focus changes re-arrange.
+- **stacking** (alias `deck`): the first `master_count` windows occupy the
+  master area and the rest overlap in the right stack area, with the focused
+  window raised. An empty stack gives the master area the full width.
+- Reordering is insertion, not swapping: `reorderClientById()` moves a client
+  before/after another and rebuilds the tile slots, while `swap` exchanges two
+  positions. In flat layouts a Super+left-drag on a tiled window enters
+  `CursorMode.reorder`; after a 6 px threshold the frame follows the pointer, the
+  window under the pointer is highlighted through `updateBorders()`, and release
+  inserts the grabbed client before/after it. In scrolling layouts the same
+  drag inserts the whole column, and Super+wheel adjusts `view_target` without
+  forwarding the axis event to the client. Dropping without crossing the
+  threshold keeps the click behavior.
+- `Super+T` cycles the configured `layout_cycle` (default master → mosaic →
+  grid → columns). `set-layout <name>` accepts `master`, `mosaic`/`spiral`,
+  `grid`, `columns`/`column`, `scrolling`/`scroll`/`scroller`,
+  `monocle`, `stacking`/`deck`, or `custom`. Explicit runtime choices mark the
+  workspace overridden and
   are written to `outputs.conf`; `layout_N` only seeds workspaces without a
   saved or runtime override. A config reload updates every non-overridden
   workspace on existing outputs and preserves overridden ones. Each change
@@ -636,9 +668,12 @@ END
 
 `OUT` lines give each output's name, active workspace, focused flag, and current
 layout name. `WIN` fields are tab-separated: `WIN`, id, workspace, focused,
-floating, fullscreen, app_id, title, output name, x, y, width, height. Geometry
-is in logical compositor coordinates. `STATUS` has id, text, and an optional
-click command.
+floating, fullscreen, app_id, title, output name, x, y, width, height,
+scratchpad, visible, group id, group active, on-screen, scroll column id, and
+tile index. Geometry is in logical compositor coordinates. A scrolling workspace
+also emits `VIEW` (offset, content width, viewport width, column count, focus
+index) and one `COL` per column (index, x, width, focused, maximized, tabbed,
+window count). `STATUS` has id, text, and an optional click command.
 Backslash, tab, CR, and LF are escaped in string fields. Each panel filters
 `WIN` and `OUT` lines to its own output and recomputes workspace occupancy
 locally. Status entries are shared by all outputs.

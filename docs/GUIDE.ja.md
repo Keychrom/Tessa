@@ -467,7 +467,12 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `mosaic_ratio` | `0.62` | mosaic のスライス比率（0.25〜0.85） |
 | `mosaic_min_size` | `160` | mosaic が grid に切り替わる最小タイル（80〜600） |
 | `grid_columns` | `0` | grid の固定列数。`0` は自動（最大 8） |
-| `layout` | `master` | 既定レイアウト。`master`、`mosaic`、`grid`、`columns`、`custom` |
+| `layout` | `master` | 既定レイアウト。`master`、`mosaic`、`grid`、`columns`、`scrolling`、`monocle`、`stacking`、`custom` |
+| `layout_cycle` | `master,mosaic,grid,columns` | `Super+T` で巡回するレイアウトのカンマ区切り |
+| `default_column_width` | `50%` | Scrolling のカラム幅（`50%`、`0.5`、固定 `640`） |
+| `column_width_presets` | `33.333%,50%,66.667%` | `column-width-cycle` で巡回するプリセット |
+| `center_focused_column` | `never` | Scrolling のフォーカススクロール。`never`、`always`、`on-overflow` |
+| `animation_view_ms` | `180` | Scrolling viewport のアニメーション時間 |
 | `layout_1` … `layout_9` | 継承 | 保存済み・実行中の上書きがないワークスペースの初期レイアウト |
 | `layout_helper` | 空 | 出力ごとに 1 つ起動する非同期カスタムレイアウトヘルパー |
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
@@ -628,13 +633,15 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `Super+M` | MPRIS メディア |
 | `Super+Shift+T` | トレイ |
 | `Super+Shift+A` | 音量 |
-| `Super+T` | master → mosaic → grid → columns を巡回 |
+| `Super+T` | `layout_cycle` を巡回（既定は従来の 4 レイアウト） |
 | `Super+Q` | フォーカス中のウィンドウを閉じる |
 | `Super+Shift+E` | Tessa を終了 |
 | `Super+R` | 設定再読み込み |
 | `Super+1` … `Super+9` | ワークスペース切り替え |
 | `Super+Shift+1` … `9` | ウィンドウをワークスペースへ移動 |
 | `Super+H/J/K/L` | 左/下/上/右へフォーカス |
+| `Super`+左ドラッグ | タイルを並べ替え（Scrolling ではカラム挿入） |
+| `Super`+ホイール | Scrolling の viewport をスクロール |
 | `Super+Shift+H/J/K/L` | その方向と入れ替え。なければ隣接出力へ移動 |
 | `Super+Space` | フローティング切り替え |
 | `Super+F` | フルスクリーン切り替え |
@@ -669,15 +676,19 @@ bind = SUPER+SHIFT+r enter-mode resize
 `group-prev`、`group-add`、`group-remove`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
 `audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
-`resize-width`、`resize-height`、`enter-mode`。
+`resize-width`、`resize-height`、`focus-column-*`、`move-column-*`、
+`move-window-up/down`、`consume-window`、`expel-window`、
+`column-width-cycle`、`column-width-cycle-back`、`column-width-set`、
+`column-width-maximize`、`center-column`、`enter-mode`。
 
 ### マウス
 
 - ウィンドウをクリックでフォーカス
 - バーのウィンドウチップをクリックでフォーカス、右クリックで閉じる
 - バー上でスクロールしてワークスペースを巡回
-- `Super+左ドラッグ` でフローティング移動
+- `Super+左ドラッグ` でフローティング移動、タイルは並べ替え
 - `Super+右ドラッグ` でフローティングリサイズ
+- Scrolling では `Super+ホイール` で viewport をスクロール
 - クライアント側タイトルバーのドラッグもフローティングで利用可能
 - `TESSA` マークのクリックでランチャー、右クリックで電源メニュー
 - 時計のクリックでカレンダー
@@ -693,12 +704,62 @@ bind = SUPER+SHIFT+r enter-mode resize
   **grid** にフォールバック
 - **grid**: `ceil(sqrt(n))` 列。最終行は中央寄せ。`grid_columns` で固定可
 - **columns**: 等幅全高カラム
+- **scrolling**（`scroll`、`scroller`）: Niri 風の横カラム列
+- **monocle**: フォーカス中のタイルがワークスペース全体を占有
+- **stacking**（`deck`）: マスター領域 + 重ねたスタックカード
 - **custom**: 外部レイアウトヘルパー
 
-`Super+T` は 4 つの組み込みレイアウトを巡回します。`custom` は巡回に
+`Super+T` は組み込みレイアウトを巡回します。既定の巡回は従来の 4 モードで、
+新しいモードは `layout_cycle` に明示的に追加します。`custom` は既定の巡回に
 含まれないため、`set-layout custom` などで明示的に選びます。`layout_N` は
 保存済み・実行中の上書きがないワークスペースの初期値です。実行中に選んだ
 レイアウトは `outputs.conf` に保存されます。
+
+### 8.1.1 Scrolling、monocle、stacking
+
+- **scrolling**: Niri 風の横カラム。新しいウィンドウはフォーカス中のカラムの
+  隣に追加されます。カラムは比率または固定幅で、`consume` で複数窓を
+  縦に積めます。
+- **monocle**: フォーカス中のタイルだけが usable 領域全体を占め、他のタイルは
+  フォーカスするまで隠れます。
+- **stacking**（別名 `deck`）: 先頭 `master_count` 窓を master 領域に置き、
+  残りを右の stack 領域に重ねます。フォーカス中のカードが最前面です。
+
+Scrolling の設定:
+
+```ini
+layout = scrolling
+default_column_width = 50%       # 50%、0.5、固定幅 640
+column_width_presets = 33.333%,50%,66.667%
+center_focused_column = never    # never, always, on-overflow
+animation_view_ms = 180
+layout_cycle = master,scrolling,monocle,stacking
+```
+
+Scrolling では `focus left/right` と `move left/right` がカラム操作、
+`focus up/down` と `move up/down` がカラム内の窓操作になります。明示的な
+アクションは `focus-column-*`、`move-column-*`、`move-window-up/down`、
+`consume-window`、`expel-window`、`column-width-cycle`、
+`column-width-cycle-back`、`column-width-set`、`column-width-maximize`、
+`center-column` です。
+
+`consume-window` は右カラムのアクティブ窓を現在のカラム末尾へ追加します。
+`expel-window` は現在のカラムの最下段窓を右へ新しいカラムとして出します。
+グループ化された窓はタブ付き 1 カラムとして扱い、グループが絡む
+consume/expel は拒否します。
+
+`swap` と `reorder` はフラットなタイル順が対象で、Scrolling の
+ワークスペースでは拒否されます。代わりに `column-move`、
+`move-window-*`、タイルのドラッグを使ってください。
+
+カラムの順序・幅・viewport はセッション状態です。Scrolling を離れるときに
+カラム順を通常のタイル順へ flatten するため、次のレイアウトでも順序は
+維持されますが、複数窓カラムとカラム幅は再度 Scrolling を選んでも復元
+されません。レイアウトモード自体は通常どおり永続化されます。
+
+`layout_cycle` はカンマ区切りのレイアウト名です。既定は
+`master,mosaic,grid,columns` で、`scrolling`、`monocle`、`stacking` を
+追加すると `Super+T` で巡回できます。
 
 ### 8.2 `workspace-rule`
 
@@ -712,6 +773,8 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 - `master-ratio=0.15..0.9`、`master-count=1..8`
 - `mosaic-ratio=0.25..0.85`、`mosaic-min-size=80..600`
 - `grid-columns=0..8`
+- `default-column-width=50%|0.5|640`
+- `center-focused-column=never|always|on-overflow`
 - `profile=NAME`: 名前付きプロファイルを適用
 
 ### 8.3 `output-rule`
@@ -746,6 +809,8 @@ output-rule = serial=ABC123; adaptive-sync=off
 - `master-ratio=0.15..0.9`、`master-count=1..8`
 - `mosaic-ratio=0.25..0.85`、`mosaic-min-size=80..600`
 - `grid-columns=0..8`
+- `default-column-width=50%|0.5|640`
+- `center-focused-column=never|always|on-overflow`
 - `profile=NAME`: 明示キーの前に名前付きプロファイルを適用
 
 テーマ（全ワークスペースのみ）:
@@ -1670,6 +1735,14 @@ tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
 tessa-ctl layout grid
+tessa-ctl column-focus right
+tessa-ctl column-move left
+tessa-ctl column-width cycle
+tessa-ctl consume
+tessa-ctl expel
+tessa-ctl window-move down
+tessa-ctl swap 3 7
+tessa-ctl reorder 7 before 3
 tessa-ctl mode resize
 tessa-ctl resize 40 30
 tessa-ctl dispatch reload
@@ -1739,6 +1812,14 @@ CMD spawn <shell command>
 CMD launcher [query]
 CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
 CMD layout [name] [output]
+CMD column-focus <left|right|first|last>
+CMD column-move <left|right|first|last>
+CMD column-width <set|cycle|cycle-back|maximize|center> [value]
+CMD column-consume
+CMD column-expel
+CMD window-move <up|down>
+CMD swap <id> <id>
+CMD reorder <id> <before|after> <target-id>
 CMD resize <dx> <dy>
 CMD float <id>
 CMD status <id> <text> [--exec command]
@@ -1758,9 +1839,24 @@ CMD quit
 `END` までで 1 スナップショットです。
 
 `OUT` は `name workspace focused layout`、`WIN` はタブ区切りで
-`id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h`
-です。`PANEL` は内蔵パネル監視の
+`id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h, scratchpad, visible, group-id, group-active, on-screen, column, tile`
+です。末尾 3 つは Scrolling 用の情報で、他のレイアウトでも常に出力されます。
+`on-screen` はスクロール viewport 内、または Monocle/Stacking で実際に表示
+されている場合に 1、`column` は所属カラム ID（なければ 0）、`tile` は
+カラム内の 0 始まりの位置です。
+`PANEL` は内蔵パネル監視の
 `output, pid, supervised, notify-owner` です。
+
+Scrolling の出力では、さらにカラムごとに `VIEW` 1 行と `COL` 1 行が
+出力されます。カラム番号は 0 始まり、座標はピクセルです。
+
+```
+VIEW <output> <workspace> <offset> <content-width> <viewport-width> <column-count> <focus-index>
+COL  <output> <workspace> <index> <x> <width> <focused> <maximized> <tabbed> <window-count>
+```
+
+`offset` はカラム列の水平スクロール位置、`x` はオフセット適用後の画面上の
+位置、`tabbed` はグループをタブ表示しているカラムであることを示します。
 
 ### 13.2 JSON と JSON-RPC
 

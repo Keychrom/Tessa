@@ -72,6 +72,22 @@ pub fn initDefaults(cfg: *Config) void {
     }
     cfg.layout_mode = .master;
     for (&cfg.layout_by_ws) |*mode| mode.* = .master;
+    for (types.layout_cycle, 0..) |mode, ci| cfg.layout_cycle[ci] = mode;
+    cfg.layout_cycle_len = types.layout_cycle.len;
+    cfg.default_column_width = .{ .kind = .proportion, .value = 0.5 };
+    cfg.column_width_presets = .{
+        .{ .kind = .proportion, .value = 1.0 / 3.0 },
+        .{ .kind = .proportion, .value = 0.5 },
+        .{ .kind = .proportion, .value = 2.0 / 3.0 },
+        .{ .kind = .proportion, .value = 0.5 },
+        .{ .kind = .proportion, .value = 0.5 },
+        .{ .kind = .proportion, .value = 0.5 },
+        .{ .kind = .proportion, .value = 0.5 },
+        .{ .kind = .proportion, .value = 0.5 },
+    };
+    cfg.column_width_preset_count = 3;
+    cfg.center_focused_column = .never;
+    cfg.animation_view_ms = 180;
     copyDefault(&cfg.mode_names[0], &cfg.mode_name_lens[0], "default");
     cfg.mode_count = 1;
     cfg.autostart_panel = true;
@@ -306,6 +322,65 @@ fn parseBoolValue(
         std.mem.eql(u8, value, "0")) return false;
     addIssue(server, path, line, "invalid boolean for {s}: '{s}'", .{ key, value });
     return null;
+}
+
+pub fn parseColumnWidth(value: []const u8) ?types.ColumnWidth {
+    const text = std.mem.trim(u8, value, " \t");
+    if (text.len == 0) return null;
+    if (text[text.len - 1] == '%') {
+        const pct = std.fmt.parseFloat(f32, std.mem.trim(u8, text[0 .. text.len - 1], " \t")) catch return null;
+        if (pct < 5.0 or pct > 100.0) return null;
+        return .{ .kind = .proportion, .value = pct / 100.0 };
+    }
+    const num = std.fmt.parseFloat(f32, text) catch return null;
+    if (num >= 0.05 and num <= 1.0) {
+        return .{ .kind = .proportion, .value = num };
+    }
+    if (num >= 40.0 and num <= 20000.0) {
+        return .{ .kind = .fixed, .value = @round(num) };
+    }
+    return null;
+}
+
+fn parseCenterFocusedColumn(value: []const u8) ?types.CenterFocusedColumn {
+    if (std.ascii.eqlIgnoreCase(value, "never") or
+        std.ascii.eqlIgnoreCase(value, "off") or
+        std.ascii.eqlIgnoreCase(value, "false")) return .never;
+    if (std.ascii.eqlIgnoreCase(value, "always") or
+        std.ascii.eqlIgnoreCase(value, "on") or
+        std.ascii.eqlIgnoreCase(value, "true")) return .always;
+    if (std.ascii.eqlIgnoreCase(value, "on-overflow") or
+        std.ascii.eqlIgnoreCase(value, "on_overflow") or
+        std.ascii.eqlIgnoreCase(value, "overflow")) return .on_overflow;
+    return null;
+}
+
+fn parseColumnPresets(cfg: *Config, value: []const u8) bool {
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |part| {
+        if (count >= cfg.column_width_presets.len) return false;
+        const width = parseColumnWidth(part) orelse return false;
+        cfg.column_width_presets[count] = width;
+        count += 1;
+    }
+    if (count == 0) return false;
+    cfg.column_width_preset_count = count;
+    return true;
+}
+
+fn parseLayoutCycle(cfg: *Config, value: []const u8) bool {
+    var count: usize = 0;
+    var it = std.mem.splitScalar(u8, value, ',');
+    while (it.next()) |part| {
+        if (count >= cfg.layout_cycle.len) return false;
+        const mode = types.layoutFromName(std.mem.trim(u8, part, " \t")) orelse return false;
+        cfg.layout_cycle[count] = mode;
+        count += 1;
+    }
+    if (count == 0) return false;
+    cfg.layout_cycle_len = count;
+    return true;
 }
 
 fn validHexColor(value: []const u8) bool {
@@ -1471,6 +1546,24 @@ fn parseTuningClause(tuning: *types.LayoutTuning, key: []const u8, val: []const 
             return false;
         };
         tuning.has_grid_columns = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "default-column-width") or
+        std.ascii.eqlIgnoreCase(key, "default_column_width") or
+        std.ascii.eqlIgnoreCase(key, "column-width") or
+        std.ascii.eqlIgnoreCase(key, "column_width"))
+    {
+        tuning.column_width = parseColumnWidth(val) orelse {
+            core.logInfo("config: invalid column width '{s}'", .{val});
+            return false;
+        };
+        tuning.has_column_width = true;
+    } else if (std.ascii.eqlIgnoreCase(key, "center-focused-column") or
+        std.ascii.eqlIgnoreCase(key, "center_focused_column"))
+    {
+        tuning.center_focused_column = parseCenterFocusedColumn(val) orelse {
+            core.logInfo("config: invalid center-focused-column '{s}'", .{val});
+            return false;
+        };
+        tuning.has_center_focused_column = true;
     } else {
         core.logInfo("config: unknown tuning key '{s}'", .{key});
         return false;
@@ -1820,6 +1913,14 @@ fn applyTuningToWorkspace(cfg: *Config, tuning: *const types.LayoutTuning, idx: 
         cfg.ws_grid_columns[idx] = tuning.grid_columns;
         cfg.ws_grid_columns_set[idx] = true;
     }
+    if (tuning.has_column_width) {
+        cfg.ws_column_width[idx] = tuning.column_width;
+        cfg.ws_column_width_set[idx] = true;
+    }
+    if (tuning.has_center_focused_column) {
+        cfg.ws_center_focused_column[idx] = tuning.center_focused_column;
+        cfg.ws_center_focused_set[idx] = true;
+    }
 }
 
 fn resolveProfileReferences(server: *Server) void {
@@ -2011,6 +2112,24 @@ pub fn addOutputRule(cfg: *Config, value: []const u8) bool {
             }
             rule.grid_columns = n;
             rule.has_grid_columns = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "default-column-width") or
+            std.ascii.eqlIgnoreCase(key, "default_column_width") or
+            std.ascii.eqlIgnoreCase(key, "column-width") or
+            std.ascii.eqlIgnoreCase(key, "column_width"))
+        {
+            rule.column_width = parseColumnWidth(val) orelse {
+                core.logInfo("config: invalid output-rule column width '{s}'", .{val});
+                return false;
+            };
+            rule.has_column_width = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "center-focused-column") or
+            std.ascii.eqlIgnoreCase(key, "center_focused_column"))
+        {
+            rule.center_focused_column = parseCenterFocusedColumn(val) orelse {
+                core.logInfo("config: invalid output-rule center-focused-column '{s}'", .{val});
+                return false;
+            };
+            rule.has_center_focused_column = true;
         } else if (std.ascii.eqlIgnoreCase(key, "accent")) {
             if (!validHexColor(val)) {
                 core.logInfo("config: invalid output-rule accent '{s}'", .{val});
@@ -2179,6 +2298,27 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "set-layout")) return .set_layout;
     if (std.ascii.eqlIgnoreCase(name, "resize-width")) return .resize_width;
     if (std.ascii.eqlIgnoreCase(name, "resize-height")) return .resize_height;
+    if (std.ascii.eqlIgnoreCase(name, "focus-column-left")) return .focus_column_left;
+    if (std.ascii.eqlIgnoreCase(name, "focus-column-right")) return .focus_column_right;
+    if (std.ascii.eqlIgnoreCase(name, "focus-column-first")) return .focus_column_first;
+    if (std.ascii.eqlIgnoreCase(name, "focus-column-last")) return .focus_column_last;
+    if (std.ascii.eqlIgnoreCase(name, "move-column-left")) return .move_column_left;
+    if (std.ascii.eqlIgnoreCase(name, "move-column-right")) return .move_column_right;
+    if (std.ascii.eqlIgnoreCase(name, "move-column-first")) return .move_column_first;
+    if (std.ascii.eqlIgnoreCase(name, "move-column-last")) return .move_column_last;
+    if (std.ascii.eqlIgnoreCase(name, "move-window-up")) return .move_window_up;
+    if (std.ascii.eqlIgnoreCase(name, "move-window-down")) return .move_window_down;
+    if (std.ascii.eqlIgnoreCase(name, "consume-window")) return .consume_window;
+    if (std.ascii.eqlIgnoreCase(name, "expel-window")) return .expel_window;
+    if (std.ascii.eqlIgnoreCase(name, "column-width-cycle") or
+        std.ascii.eqlIgnoreCase(name, "switch-preset-column-width")) return .column_width_cycle;
+    if (std.ascii.eqlIgnoreCase(name, "column-width-cycle-back") or
+        std.ascii.eqlIgnoreCase(name, "switch-preset-column-width-back")) return .column_width_cycle_back;
+    if (std.ascii.eqlIgnoreCase(name, "column-width-set") or
+        std.ascii.eqlIgnoreCase(name, "set-column-width")) return .column_width_set;
+    if (std.ascii.eqlIgnoreCase(name, "column-width-maximize") or
+        std.ascii.eqlIgnoreCase(name, "maximize-column")) return .column_width_maximize;
+    if (std.ascii.eqlIgnoreCase(name, "center-column")) return .center_column;
     if (std.ascii.eqlIgnoreCase(name, "enter-mode") or std.ascii.eqlIgnoreCase(name, "mode")) return .enter_mode;
     return .none;
 }
@@ -2354,6 +2494,30 @@ fn loadPath(
             } else {
                 addIssue(server, path, line_no, "unknown layout '{s}'", .{value});
             }
+        } else if (std.mem.eql(u8, key, "layout_cycle") or std.mem.eql(u8, key, "layout-cycle")) {
+            if (!parseLayoutCycle(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid layout_cycle '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "default_column_width") or
+            std.mem.eql(u8, key, "default-column-width"))
+        {
+            server.config.default_column_width = parseColumnWidth(value) orelse {
+                addIssue(server, path, line_no, "invalid column width '{s}' (use 50%, 0.5, or 640)", .{value});
+                continue;
+            };
+        } else if (std.mem.eql(u8, key, "column_width_presets") or
+            std.mem.eql(u8, key, "column-width-presets"))
+        {
+            if (!parseColumnPresets(&server.config, value)) {
+                addIssue(server, path, line_no, "invalid column_width_presets '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "center_focused_column") or
+            std.mem.eql(u8, key, "center-focused-column"))
+        {
+            server.config.center_focused_column = parseCenterFocusedColumn(value) orelse {
+                addIssue(server, path, line_no, "invalid center_focused_column '{s}'", .{value});
+                continue;
+            };
         } else if (std.mem.eql(u8, key, "workspace_pin") or std.mem.eql(u8, key, "workspace-pin")) {
             addWorkspacePin(server, path, line_no, key, value);
         } else if (std.mem.eql(u8, key, "workspace_name") or std.mem.eql(u8, key, "workspace-name")) {
@@ -2368,6 +2532,10 @@ fn loadPath(
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.reduce_motion = v;
         } else if (std.mem.eql(u8, key, "animation_ms")) {
             if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_ms = v;
+        } else if (std.mem.eql(u8, key, "animation_view_ms") or
+            std.mem.eql(u8, key, "animation-view-ms"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.animation_view_ms = v;
         } else if (std.mem.eql(u8, key, "animation_open_ms") or
             std.mem.eql(u8, key, "animation-open-ms"))
         {
@@ -2725,6 +2893,8 @@ pub fn load(server: *Server) void {
     if (server.config.frame_time_budget > 1000) server.config.frame_time_budget = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
     if (server.config.animation_ms > 1000) server.config.animation_ms = 1000;
+    if (server.config.animation_view_ms < 0) server.config.animation_view_ms = 0;
+    if (server.config.animation_view_ms > 1000) server.config.animation_view_ms = 1000;
     if (server.config.animation_open_ms < -1) server.config.animation_open_ms = -1;
     if (server.config.animation_open_ms > 1000) server.config.animation_open_ms = 1000;
     if (server.config.animation_workspace_ms < -1) server.config.animation_workspace_ms = -1;

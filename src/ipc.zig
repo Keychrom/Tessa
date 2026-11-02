@@ -12,6 +12,7 @@ const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
 const render = @import("render.zig");
+const scrolling = @import("scrolling.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -588,6 +589,66 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             layout.toggleLayout(server);
         }
         broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "column-focus") or std.mem.eql(u8, cmd, "column-move")) {
+        if (start + 1 < n) {
+            const name = toks[start + 1];
+            const move: ?scrolling.ColumnMove =
+                if (std.mem.eql(u8, name, "left")) .left else if (std.mem.eql(u8, name, "right")) .right else if (std.mem.eql(u8, name, "first")) .first else if (std.mem.eql(u8, name, "last")) .last else null;
+            if (move) |direction| {
+                if (std.mem.eql(u8, cmd, "column-focus")) {
+                    layout.focusColumn(server, direction);
+                } else {
+                    layout.moveColumn(server, direction);
+                }
+                broadcastState(server);
+            }
+        }
+    } else if (std.mem.eql(u8, cmd, "window-move")) {
+        if (start + 1 < n) {
+            const up = std.mem.eql(u8, toks[start + 1], "up");
+            const down = std.mem.eql(u8, toks[start + 1], "down");
+            if (up or down) {
+                layout.moveWindow(server, if (up) .up else .down);
+                broadcastState(server);
+            }
+        }
+    } else if (std.mem.eql(u8, cmd, "column-consume")) {
+        layout.consumeWindow(server);
+        broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "column-expel")) {
+        layout.expelWindow(server);
+        broadcastState(server);
+    } else if (std.mem.eql(u8, cmd, "column-width")) {
+        if (start + 1 < n) {
+            const action = toks[start + 1];
+            if (std.mem.eql(u8, action, "cycle")) {
+                layout.cycleColumnWidth(server, false);
+            } else if (std.mem.eql(u8, action, "cycle-back")) {
+                layout.cycleColumnWidth(server, true);
+            } else if (std.mem.eql(u8, action, "maximize")) {
+                layout.maximizeColumn(server);
+            } else if (std.mem.eql(u8, action, "center")) {
+                layout.centerColumn(server);
+            } else if (std.mem.eql(u8, action, "set") and start + 2 < n) {
+                _ = layout.setColumnWidth(server, toks[start + 2]);
+            }
+            broadcastState(server);
+        }
+    } else if (std.mem.eql(u8, cmd, "swap")) {
+        if (start + 2 < n) {
+            const first = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
+            const second = std.fmt.parseInt(u64, toks[start + 2], 10) catch return;
+            _ = layout.swapClientsById(server, first, second);
+            broadcastState(server);
+        }
+    } else if (std.mem.eql(u8, cmd, "reorder")) {
+        if (start + 3 < n) {
+            const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
+            const after = std.mem.eql(u8, toks[start + 2], "after");
+            const target = std.fmt.parseInt(u64, toks[start + 3], 10) catch return;
+            _ = layout.reorderClientById(server, id, target, after);
+            broadcastState(server);
+        }
     } else if (std.mem.eql(u8, cmd, "resize")) {
         if (start + 2 < n) {
             const dx = std.fmt.parseInt(i32, toks[start + 1], 10) catch return;
@@ -739,6 +800,37 @@ fn buildState(server: *Server, buf: []u8) usize {
                 out.special_workspace[0..out.special_workspace_len],
             });
         }
+        if (out.ws_layouts[out.active_ws - 1] == .scrolling) {
+            const sw = &out.scroll_ws[out.active_ws - 1];
+            append(buf, &off, "VIEW {s} {d} {d} {d} {d} {d} {d}\n", .{
+                core.outputName(out),
+                out.active_ws,
+                @as(i32, @intFromFloat(@round(sw.view_offset))),
+                sw.content_width,
+                sw.viewport_width,
+                sw.count,
+                sw.focus_index,
+            });
+            var ci: usize = 0;
+            while (ci < sw.count) : (ci += 1) {
+                const id = sw.columns[ci];
+                if (id == 0 or @as(usize, id) > server.scroll_columns.len) continue;
+                const column = &server.scroll_columns[id - 1];
+                if (!column.used) continue;
+                const x = scrolling.columnX(out, ci) orelse 0;
+                append(buf, &off, "COL {s} {d} {d} {d} {d} {d} {d} {d} {d}\n", .{
+                    core.outputName(out),
+                    out.active_ws,
+                    ci,
+                    x,
+                    column.width_px,
+                    @as(u8, if (ci == sw.focus_index) 1 else 0),
+                    @as(u8, if (column.maximized) 1 else 0),
+                    @as(u8, if (column.tabbed) 1 else 0),
+                    column.count,
+                });
+            }
+        }
     }
 
     var ws: usize = 1;
@@ -777,7 +869,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -794,6 +886,9 @@ fn buildState(server: *Server, buf: []u8) usize {
             @as(u8, if (types.clientVisible(cl, cl.output)) 1 else 0),
             cl.group_id,
             @as(u8, if (cl.group_active) 1 else 0),
+            @as(u8, if (cl.on_screen) 1 else 0),
+            cl.scroll_column,
+            @as(u8, @intCast(@min(scrolling.tileIndex(cl), 255))),
         });
         if (off > buf.len - 2048) break;
     }
@@ -837,6 +932,13 @@ fn buildState(server: *Server, buf: []u8) usize {
     return off;
 }
 
+fn columnWidthText(buf: []u8, width: types.ColumnWidth) []const u8 {
+    return switch (width.kind) {
+        .proportion => std.fmt.bufPrint(buf, "{d:.1}%", .{width.value * 100.0}) catch "50%",
+        .fixed => std.fmt.bufPrint(buf, "{d}", .{@as(i32, @intFromFloat(@round(width.value)))}) catch "640",
+    };
+}
+
 fn buildConfigText(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     const cfg = &server.config;
@@ -863,6 +965,22 @@ fn buildConfigText(server: *Server, buf: []u8) usize {
     append(buf, &off, "tearing {s}\n", .{@tagName(cfg.tearing)});
     append(buf, &off, "explicit_sync {d}\n", .{@as(u8, if (cfg.explicit_sync) 1 else 0)});
     append(buf, &off, "layout {s}\n", .{types.layoutName(cfg.layout_mode)});
+    append(buf, &off, "layout_cycle", .{});
+    var lc: usize = 0;
+    while (lc < cfg.layout_cycle_len) : (lc += 1) {
+        append(buf, &off, " {s}", .{types.layoutName(cfg.layout_cycle[lc])});
+    }
+    append(buf, &off, "\n", .{});
+    var width_buf: [32]u8 = undefined;
+    append(buf, &off, "default_column_width {s}\n", .{columnWidthText(&width_buf, cfg.default_column_width)});
+    append(buf, &off, "column_width_presets", .{});
+    var pc: usize = 0;
+    while (pc < cfg.column_width_preset_count) : (pc += 1) {
+        append(buf, &off, " {s}", .{columnWidthText(&width_buf, cfg.column_width_presets[pc])});
+    }
+    append(buf, &off, "\n", .{});
+    append(buf, &off, "center_focused_column {s}\n", .{@tagName(cfg.center_focused_column)});
+    append(buf, &off, "animation_view_ms {d}\n", .{cfg.animation_view_ms});
     var ws: usize = 0;
     while (ws < types.WS_COUNT) : (ws += 1) {
         append(buf, &off, "layout_ws {d} {s}\n", .{ ws + 1, types.layoutName(cfg.layout_by_ws[ws]) });
@@ -1363,7 +1481,7 @@ pub fn broadcastState(server: *Server) void {
     server.ipc_dirty = false;
     if (server.ipc_count == 0) return;
 
-    var buf: [65536]u8 = undefined;
+    var buf: [131072]u8 = undefined;
     const len = buildState(server, &buf);
     var i: usize = 0;
     while (i < server.ipcs.len) : (i += 1) {
@@ -1374,13 +1492,13 @@ pub fn broadcastState(server: *Server) void {
 }
 
 fn sendState(server: *Server, cl: *IpcClient) void {
-    var buf: [65536]u8 = undefined;
+    var buf: [131072]u8 = undefined;
     const len = buildState(server, &buf);
     sendRaw(cl, buf[0..len]);
 }
 
 fn sendStateJson(server: *Server, cl: *IpcClient) void {
-    var buf: [131072]u8 = undefined;
+    var buf: [262144]u8 = undefined;
     const len = json_snapshot.buildState(server, &buf);
     sendRaw(cl, "STATE_JSON\n");
     sendRaw(cl, buf[0..len]);

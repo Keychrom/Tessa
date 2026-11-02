@@ -524,10 +524,38 @@ inhibitor が存在する間またはセッションロック中は
 - **grid**: バランスの取れた行/列（`ceil(sqrt(n))` 列）。最終行が不完全な
   場合は中央寄せします。
 - **columns**: 等幅・全高のカラム。
-- `Super+T` はフォーカス中の出力・ワークスペースのレイアウトを
-  マスター → モザイク → グリッド → カラムの順に巡回します。
+- **scrolling**: Niri 風の横カラム列です。`scrolling.zig` がカラムプールと、
+  出力・ワークスペースごとの `ScrollWorkspace`（カラム順、フォーカス位置、
+  viewport の現在値/目標値）を管理します。モードに入ると可視タイルを現在の
+  順序で 1 窓 1 カラムとして取り込み、モードを離れるとカラム順を
+  `server.clients` に flatten するため、並べ替えはモードをまたいで維持されます。
+  1 カラムに複数窓を縦積みでき、ウィンドウグループはタブ付き 1 カラムとして
+  描画します。幅は viewport に対する割合（ボーダー込み）か、クライアント幅 +
+  ボーダーの固定値です。`maximize-column` は viewport 幅を使い、解除で元の幅を
+  復元します。カラム内の高さは viewport を `gaps` 込みで均等分割します。
+  表示位置は `viewport.x + column_x - view_offset` で、目標値は
+  `center_focused_column`（`never`、`always`、`on_overflow`）に従って
+  フォーカスへ追従し、`content_width - viewport_width` に clamp します。
+  `tickAnimations()` が `animation_view_ms` をかけて `view_offset` を
+  `view_target` へ補間し、0 または `animations = false` では即時反映します。
+- **monocle**: フォーカス中のタイル（なければ先頭）だけを使用可能領域に
+  配置し、他のタイルのフレームは無効化します。フォーカス変更で再配置します。
+- **stacking**（別名 `deck`）: 先頭 `master_count` 窓をマスター領域に、
+  残りを右のスタック領域に重ねて配置し、フォーカス窓を最前面にします。
+  スタックが空ならマスターが全幅を使います。
+- 並べ替えは swap ではなく挿入です。`reorderClientById()` はクライアントを
+  指定位置の前/後へ移してタイルスロットを再構築し、`swap` は 2 つの位置を
+  交換します。フラット系ではタイル上の Super+左ドラッグで
+  `CursorMode.reorder` に入り、6 px の閾値を超えるとフレームがポインタに
+  追従します。ポインタ下の窓は `updateBorders()` でハイライトされ、離すと
+  その前/後へ挿入します。Scrolling では同じドラッグがカラム全体の挿入に
+  なり、Super+ホイールはクライアントへ転送せず `view_target` を動かします。
+  閾値未満で離した場合は通常のクリックとして扱います。
+- `Super+T` は設定された `layout_cycle`（既定はマスター → モザイク →
+  グリッド → カラム）を巡回します。
   `set-layout <name>` は `master`、`mosaic`/`spiral`、`grid`、
-  `columns`/`column`、`custom` を受け付けます。明示的に選んだ実行中のレイアウトは
+  `columns`/`column`、`scrolling`/`scroll`/`scroller`、`monocle`、
+  `stacking`/`deck`、`custom` を受け付けます。明示的に選んだ実行中のレイアウトは
   出力/ワークスペースごとに保持して `outputs.conf` に保存します。設定の
   `layout_N` は保存済み・実行中の上書きがないワークスペースの初期値だけを
   設定します。設定の再読み込みでは、既存出力の上書きしていないワークス
@@ -672,11 +700,15 @@ END
 `OUT` 行は出力名、アクティブワークスペース、フォーカス中かどうか、現在の
 レイアウト名を示します。`WIN` のフィールドはタブ区切りです: `WIN`、id、
 workspace、focused、floating、fullscreen、app_id、title、出力名、x、y、
-幅、高さ。座標とサイズはコンポジタの論理座標です。`STATUS` は id、
-テキスト、任意のクリックコマンドです。文字列フィールドではバックスラッシュ、タブ、
-CR、LF がエスケープされます。各パネルは `WIN` と `OUT` を自分の出力で
-フィルタし、ワークスペースの占有状況をローカルで再計算します。ステータスは
-全出力で共有されます。
+幅、高さ、scratchpad、visible、グループ ID、グループアクティブ、
+on-screen、スクロールカラム ID、タイル位置。座標とサイズはコンポジタの
+論理座標です。Scrolling のワークスペースはさらに `VIEW`（offset、
+content 幅、viewport 幅、カラム数、フォーカス位置）と、カラムごとの `COL`
+（index、x、幅、focused、maximized、tabbed、窓数）を出力します。
+`STATUS` は id、テキスト、任意のクリックコマンドです。文字列フィールドでは
+バックスラッシュ、タブ、CR、LF がエスケープされます。各パネルは `WIN` と
+`OUT` を自分の出力でフィルタし、ワークスペースの占有状況をローカルで
+再計算します。ステータスは全出力で共有されます。
 
 購読とパネル → コンポジタのコマンド:
 

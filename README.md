@@ -143,11 +143,15 @@ Highlights include:
 - xdg-shell toplevels, layer-shell, data-device and primary-selection
   (clipboard), xdg-activation, xdg-decoration, cursor-shape-v1, and
   wlr-screencopy (grim works)
-- master/stack, Tessa "mosaic" spiral, grid, and equal-column layouts, with
-  per-workspace layout profiles (`Super+T` cycles); configurable master count,
-  mosaic ratio/size, grid columns, and per-workspace gaps/master ratio; explicit
-  runtime choices are restored on restart, and config reload updates workspaces
-  without a runtime override
+- master/stack, Tessa "mosaic" spiral, grid, equal-column, Niri-style scrolling,
+  monocle, and deck-style stacking layouts, with per-workspace layout profiles
+  (`Super+T` cycles); configurable master count, mosaic ratio/size, grid
+  columns, column widths/presets, focus centering, and per-workspace
+  gaps/master ratio; explicit runtime choices are restored on restart, and
+  config reload updates workspaces without a runtime override
+- dynamic tiling reorder from IPC (`reorder`, `swap`) or by dragging a tiled
+  window with `Super`+left mouse; in scrolling layouts the drag inserts a
+  column and `Super`+wheel scrolls the viewport
 - declarative window rules matched by app-id/title/output or boolean
   POSIX-regex expressions, with floating, workspace, fullscreen, size,
   position, per-window border colors, opacity, rounding, blur, shadow, and
@@ -274,6 +278,8 @@ master/mosaic/grid/columns layouts, 2x HiDPI panel scaling, fractional output
 scale changes, and output mode/position/scale and layout persistence across
 restarts were exercised by
 `tests/smoke.sh`, `tests/output-persistence.sh`, `tests/layout-geometry.sh`,
+`tests/layout-scrolling.sh`, `tests/layout-modes.sh`, `tests/layout-reorder.sh`,
+`tests/layout-config.sh`,
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
@@ -323,7 +329,9 @@ desktop:
 - **Integrated shell.** The bar, launcher, wallpaper, and tiling live together.
   The palette and behavior are consistent because they are one project.
 - **A different layout.** Besides master/stack, Tessa has a spiral "tessera"
-  mosaic layout, a balanced grid, and equal columns (`Super+T` cycles them).
+  mosaic layout, a balanced grid, equal columns, a Niri-style scrolling strip,
+  monocle, and deck-style stacking (`Super+T` cycles the configured list).
+  Tiled windows can be reordered by dragging them or from the IPC.
   The name Tessa comes from tessellation.
 - **Sumi-e visual language.** Indigo paper, ink washes, a vermilion sun, grain,
   and a floating glass-like bar. The panel is not a generic status bar with a
@@ -765,13 +773,15 @@ event schema, hook environment, and status API.
 | `Super+M` | MPRIS media controls |
 | `Super+Shift+T` | StatusNotifier tray |
 | `Super+Shift+A` | volume controls |
-| `Super+T` | cycle master → mosaic → grid → columns |
+| `Super+T` | cycle through `layout_cycle` (master → mosaic → grid → columns by default) |
 | `Super+Q` | close focused window |
 | `Super+Shift+E` | quit Tessa |
 | `Super+R` | reload config |
 | `Super+1` … `Super+9` | switch workspace |
 | `Super+Shift+1` … `Super+Shift+9` | move window to workspace |
 | `Super+H/J/K/L` | focus left/down/up/right |
+| `Super+left-drag` | reorder a tiled window (inserts a column in scrolling layouts) |
+| `Super+wheel` | scroll the viewport in a scrolling layout |
 | `Super+Shift+H/J/K/L` | swap with window in that direction; if there is none, move the window to the adjacent output |
 | `Super+Space` | toggle floating |
 | `Super+F` | toggle fullscreen |
@@ -843,9 +853,14 @@ diagnostics. Selected keys:
 | `mosaic_ratio` | slice ratio for mosaic (0.25–0.85) |
 | `mosaic_min_size` | minimum mosaic tile before falling back to grid |
 | `grid_columns` | fixed grid columns; `0` chooses `ceil(sqrt(n))` |
+| `default_column_width` | scrolling column width: `50%`, `0.5`, or fixed pixels |
+| `column_width_presets` | comma-separated widths for `column-width-cycle` |
+| `center_focused_column` | scrolling focus policy: `never`, `always`, `on-overflow` |
+| `animation_view_ms` | scrolling viewport slide duration (0–1000 ms) |
+| `layout_cycle` | comma-separated layouts visited by `Super+T` |
 | `layout_helper` | command for one long-lived asynchronous helper per output |
 | `layout_helper_timeout` | helper response timeout in milliseconds (10–1000) |
-| `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, or `custom` |
+| `layout` | default layout: `master`, `mosaic`, `grid`, `columns`, `scrolling`, `monocle`, `stacking`/`deck`, or `custom` |
 | `layout_1` … `layout_9` | initial layout for a workspace without a saved override |
 | `workspace-rule` | per-workspace layout/gap/master overrides and profiles |
 | `output-rule` | per-output layout/tuning/theme/VRR overrides matched by connector or EDID |
@@ -927,14 +942,26 @@ Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `toggle-scratchpad`, `move-to-scratchpad`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `reload`, `ratio`, `toggle-layout`,
-`set-layout`, `resize-width`, `resize-height`, `enter-mode`.
+`set-layout`, `resize-width`, `resize-height`, `enter-mode`. Scrolling adds
+`focus-column-left/right/first/last`, `move-column-left/right/first/last`,
+`move-window-up/down`, `consume-window`, `expel-window`,
+`column-width-cycle[-back]`, `column-width-set <width>`,
+`column-width-maximize`, and `center-column`.
 
-`Super+T` cycles the focused workspace through all four layouts. Runtime layout
+`Super+T` cycles the focused workspace through `layout_cycle` (the four original
+layouts by default). Runtime layout
 choices are kept per output and workspace and saved to `outputs.conf`. `layout_N`
 only seeds workspaces that have no saved or runtime override; a config reload
 updates every workspace you have not overridden and leaves your runtime choices
 alone. `resize-width` and `resize-height` take a pixel delta and act on the focused
 floating window.
+
+While a tiled window is focused, `Super`+left-drag reorders it; release over a
+window to insert before/after it, and the target is highlighted while dragging.
+In scrolling layouts the whole column moves, and `Super`+wheel scrolls the
+column strip. These gestures do not apply to floating or fullscreen windows.
+The `swap` and `reorder` IPC commands operate on the flat tiled order; in a
+scrolling workspace use `column-move`, `window-move`, or a drag instead.
 
 Window rules are one line each. Match app-id, title, or output with `*`/`?`
 patterns and apply actions in order:

@@ -10,6 +10,7 @@ const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
 const render = @import("render.zig");
+const scrolling = @import("scrolling.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -252,6 +253,7 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     client.announced = true;
     copyMeta(client);
     rules.applyToClient(client);
+    scrolling.onClientMapped(client);
     render.trackClientBuffer(client);
     layout.startOpenAnimation(client);
     layout.arrangeAll(client.server);
@@ -272,6 +274,7 @@ fn onUnmap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const client: *Client = @fieldParentPtr("unmap", listener.?);
     const server = client.server;
     layout.clientClosing(client);
+    scrolling.onClientUnmapped(client);
     client.mapped = false;
     render.clientUnmapped(client);
     c.wlr_scene_node_set_enabled(&client.frame.node, false);
@@ -333,6 +336,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         client.announced = false;
     }
 
+    scrolling.onClientUnmapped(client);
     render.clientDestroying(client);
     render.untrackClientBuffer(client);
     c.wl_list_remove(&client.map.link);
@@ -464,6 +468,10 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.special_workspace_len = 0;
     client.group_id = 0;
     client.group_active = false;
+    client.scroll_column = 0;
+    client.scroll_prev = null;
+    client.scroll_next = null;
+    client.on_screen = false;
     client.opacity = 1.0;
     client.corner_radius = -1;
     client.blur = .unset;

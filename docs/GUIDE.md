@@ -454,7 +454,12 @@ edits are rejected and keep the previous configuration.
 | `mosaic_ratio` | `0.62` | Mosaic slice ratio (0.25–0.85) |
 | `mosaic_min_size` | `160` | Minimum tile before mosaic falls back to grid (80–600) |
 | `grid_columns` | `0` | Fixed grid columns; `0` is automatic (max 8) |
-| `layout` | `master` | Default: `master`, `mosaic`, `grid`, `columns`, or `custom` |
+| `layout` | `master` | Default: `master`, `mosaic`, `grid`, `columns`, `scrolling`, `monocle`, `stacking`, or `custom` |
+| `layout_cycle` | `master,mosaic,grid,columns` | Comma-separated layouts cycled by `Super+T` |
+| `default_column_width` | `50%` | Scrolling column width (`50%`, `0.5`, or fixed `640`) |
+| `column_width_presets` | `33.333%,50%,66.667%` | Presets cycled by `column-width-cycle` |
+| `center_focused_column` | `never` | Scrolling focus policy: `never`, `always`, `on-overflow` |
+| `animation_view_ms` | `180` | Scrolling viewport animation duration |
 | `layout_1` … `layout_9` | inherited | Initial layout for a workspace without a saved/runtime override |
 | `layout_helper` | empty | One asynchronous custom layout helper per output |
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
@@ -615,13 +620,15 @@ See the event table in section 13.
 | `Super+M` | MPRIS media controls |
 | `Super+Shift+T` | StatusNotifier tray |
 | `Super+Shift+A` | Volume popover |
-| `Super+T` | Cycle master → mosaic → grid → columns |
+| `Super+T` | Cycle through `layout_cycle` (four original layouts by default) |
 | `Super+Q` | Close focused window |
 | `Super+Shift+E` | Quit Tessa |
 | `Super+R` | Reload config |
 | `Super+1` … `Super+9` | Switch workspace |
 | `Super+Shift+1` … `9` | Move window to workspace |
 | `Super+H/J/K/L` | Focus left/down/up/right |
+| `Super`+left-drag | Reorder a tiled window; inserts a column in scrolling |
+| `Super`+wheel | Scroll the viewport in a scrolling layout |
 | `Super+Shift+H/J/K/L` | Swap/move in that direction, or to an adjacent output |
 | `Super+Space` | Toggle floating |
 | `Super+F` | Toggle fullscreen |
@@ -653,15 +660,19 @@ Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
 `tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
-`resize-width`, `resize-height`, and `enter-mode`.
+`resize-width`, `resize-height`, `focus-column-*`, `move-column-*`,
+`move-window-up/down`, `consume-window`, `expel-window`,
+`column-width-cycle`, `column-width-cycle-back`, `column-width-set`,
+`column-width-maximize`, `center-column`, and `enter-mode`.
 
 ### Mouse
 
 - Click a window to focus; click a bar chip to focus it
 - Right-click a bar chip to close the window
 - Scroll over the bar to cycle workspaces
-- `Super+left-drag` moves a floating window
+- `Super+left-drag` moves a floating window; on a tiled window it reorders tiles
 - `Super+right-drag` resizes a floating window
+- In scrolling mode, `Super+wheel` scrolls the viewport
 - Client-side titlebar drags work for floating windows
 - Click `TESSA` for the launcher, right-click for the power menu
 - Click the clock for the calendar
@@ -678,11 +689,64 @@ Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 - **grid**: `ceil(sqrt(n))` columns; the last row is centered; `grid_columns`
   can fix the column count
 - **columns**: equal-width full-height columns
+- **scrolling** (`scroll`, `scroller`): Niri-style horizontal column strip
+- **monocle**: the focused tiled window fills the workspace
+- **stacking** (`deck`): master area plus overlapping stack cards
 - **custom**: external layout helper
 
-`Super+T` cycles the four built-in layouts. `custom` is not in that cycle;
-select it explicitly with `set-layout custom`. `layout_N` only seeds workspaces
-with no saved/runtime choice. Runtime choices are persisted in `outputs.conf`.
+`Super+T` cycles the built-in layouts. The default cycle is the original four;
+add new modes explicitly with `layout_cycle`. `custom` is not in the default
+cycle; select it explicitly with `set-layout custom`. `layout_N` only seeds
+workspaces with no saved/runtime choice. Runtime choices are persisted in
+`outputs.conf`.
+
+### 8.1.1 Scrolling, monocle, and stacking
+
+- **scrolling**: Niri-style horizontal columns. New windows become a column
+  next to the focused column. Each column has a proportion or fixed width; a
+  column can contain multiple windows via `consume`.
+- **monocle**: the focused tiled window fills the usable area; other tiled
+  windows are hidden until focused.
+- **stacking** (alias `deck`): the first `master_count` windows use the master
+  area, and the remaining windows overlap in the right stack area. The focused
+  card is raised.
+
+Scrolling keys:
+
+```ini
+layout = scrolling
+default_column_width = 50%       # 50%, 0.5, or a fixed 640
+column_width_presets = 33.333%,50%,66.667%
+center_focused_column = never    # never, always, on-overflow
+animation_view_ms = 180
+layout_cycle = master,scrolling,monocle,stacking
+```
+
+In scrolling mode, `focus left/right` and `move left/right` operate on columns;
+`focus up/down` and `move up/down` operate within a column. The explicit
+actions are `focus-column-*`, `move-column-*`, `move-window-up/down`,
+`consume-window`, `expel-window`, `column-width-cycle`,
+`column-width-cycle-back`, `column-width-set`, `column-width-maximize`, and
+`center-column`.
+
+`consume-window` appends the active window of the right column to the focused
+column. `expel-window` moves the bottom window of the focused column into a new
+column on the right. Grouped windows behave as a single tabbed column;
+consume/expel is refused while a group is involved.
+
+`swap` and `reorder` work on the flat tiled order and are refused while the
+workspace is scrolling; use `column-move`, `move-window-*`, or a tile drag
+there.
+
+Column state (order, width, viewport) is session state. Switching away from
+scrolling flattens the column order into the normal tiled order so the next
+layout preserves it, but multi-window columns and per-column widths are not
+restored when scrolling is selected again. The layout mode itself is persisted
+normally.
+
+`layout_cycle` accepts a comma-separated list of layout names. The default is
+`master,mosaic,grid,columns`; add `scrolling`, `monocle`, or `stacking` to make
+them reachable with `Super+T`.
 
 ### 8.2 `workspace-rule`
 
@@ -692,7 +756,9 @@ workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
 
 Keys: required `ws=1..9`, plus `layout`, `gaps`, `outer-gaps`,
 `master-ratio=0.15..0.9`, `master-count=1..8`, `mosaic-ratio=0.25..0.85`,
-`mosaic-min-size=80..600`, `grid-columns=0..8`, and `profile=NAME`.
+`mosaic-min-size=80..600`, `grid-columns=0..8`,
+`default-column-width=50%|0.5|640`, `center-focused-column=never|always|on-overflow`,
+and `profile=NAME`.
 
 ### 8.3 `output-rule`
 
@@ -726,6 +792,8 @@ Layout/tuning keys (optionally narrowed with `ws=`):
 - `master-ratio=0.15..0.9`, `master-count=1..8`
 - `mosaic-ratio=0.25..0.85`, `mosaic-min-size=80..600`
 - `grid-columns=0..8`
+- `default-column-width=50%|0.5|640`
+- `center-focused-column=never|always|on-overflow`
 - `profile=NAME`: apply a named profile before this rule's explicit keys
 
 Theme keys (all workspaces only):
@@ -1654,6 +1722,14 @@ CMD spawn <shell command>
 CMD launcher [query]
 CMD panel <calendar|power|clipboard|screenshot|media|tray|audio> [output]
 CMD layout [name] [output]
+CMD column-focus <left|right|first|last>
+CMD column-move <left|right|first|last>
+CMD column-width <set|cycle|cycle-back|maximize|center> [value]
+CMD column-consume
+CMD column-expel
+CMD window-move <up|down>
+CMD swap <id> <id>
+CMD reorder <id> <before|after> <target-id>
 CMD resize <dx> <dy>
 CMD float <id>
 CMD status <id> <text> [--exec command]
@@ -1671,9 +1747,26 @@ and capability list.
 
 `STATE`/`CONFIG` snapshots end with `END`. `OUT` is
 `name workspace focused layout`. `WIN` is tab-separated:
-`id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h`.
+`id, workspace, focused, floating, fullscreen, app_id, title, output, x, y, w, h, scratchpad, visible, group-id, group-active, on-screen, column, tile`.
+The trailing fields describe scrolling state and are also present in other
+layouts: `on-screen` is 1 when the window is currently placed on screen (inside
+the scrolling viewport, or the visible monocle/stacking card), `column` is its
+scrolling column id (0 when it has none), and `tile` is its 0-based position
+inside that column.
 `PANEL` is `output, pid, supervised, notify-owner` for the built-in panel
 supervisor.
+
+Scrolling outputs additionally emit one `VIEW` line and one `COL` line per
+column. Both use 0-based column indexes and pixel coordinates:
+
+```
+VIEW <output> <workspace> <offset> <content-width> <viewport-width> <column-count> <focus-index>
+COL  <output> <workspace> <index> <x> <width> <focused> <maximized> <tabbed> <window-count>
+```
+
+`offset` is the horizontal scroll position of the column strip, `x` is the
+column's screen position (already offset), and `tabbed` marks a column that
+holds a window group.
 
 `tessa-ctl` wraps the common operations:
 
@@ -1695,6 +1788,14 @@ tessa-ctl spawn foot -T notes
 tessa-ctl launcher fire
 tessa-ctl panel calendar
 tessa-ctl layout grid
+tessa-ctl column-focus right
+tessa-ctl column-move left
+tessa-ctl column-width cycle
+tessa-ctl consume
+tessa-ctl expel
+tessa-ctl window-move down
+tessa-ctl swap 3 7
+tessa-ctl reorder 7 before 3
 tessa-ctl mode resize
 tessa-ctl resize 40 30
 tessa-ctl dispatch reload

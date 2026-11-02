@@ -66,6 +66,28 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [ ] scanout、tearing、explicit sync の GPU/ドライバー検証マトリクス
       （Intel i915、AMD、NVIDIA、vmwgfx）。
 
+## レイアウトの拡充
+
+Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手は変えません。
+従来の 4 モードと 4 モードの `Super+T` 巡回が既定のままです。
+
+- [x] Scrolling レイアウト: Niri 風の横カラム列。複数窓カラム、割合/固定幅、
+      幅プリセット、最大化、フォーカス中央寄せ、consume/expel、グループの
+      タブ付きカラムに対応。
+- [x] viewport のアニメーション追従（`animation_view_ms`）と、ワークスペース/
+      出力別の `default-column-width`、`center-focused-column` 調整。
+- [x] Monocle レイアウトと Deck 型 Stacking（マスター領域 + 重ねたカード）。
+- [x] 挿入による動的並べ替え（`reorder`、`swap`）、方向移動、Scrolling カラム
+      内のウィンドウ移動。
+- [x] マウス操作: Super+左ドラッグでタイルを並べ替え、ドロップ先を
+      ハイライト。Scrolling ではカラム挿入として扱います。Super+ホイールで
+      viewport をスクロール。
+- [x] `VIEW`/`COL` 状態行、JSON フィールド、カラム・consume/expel・swap・
+      reorder の `tessa-ctl` ラッパー。
+- [ ] 実際の DRM/libinput セッションで Scrolling、ドラッグ並べ替え、
+      ホイールスクロールを検証（フラクショナルスケーリングとタッチパッド
+      ジェスチャを含む）。
+
 ## 0.1.x — 土台を信頼できるものにする
 
 - [x] 対象マシンで DRM + libinput を実行し、レイアウトと入力の問題を直す。

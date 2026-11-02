@@ -15,8 +15,11 @@ master_ratio = 0.58
 # mosaic: spiral tessera layout
 # grid: balanced grid
 # columns: equal-width columns
+# scrolling (scroll, scroller): Niri-style horizontal columns
+# monocle: focused window fills the workspace
+# stacking (deck): master area plus overlapping stack cards
 # custom: external layout helper (see below)
-# Super+T cycles the four built-in layouts at runtime, per output and workspace.
+# Super+T cycles layout_cycle at runtime, per output and workspace.
 # Runtime choices are saved to outputs.conf and restored on restart.
 layout = master
 # Optional per-workspace initial layout overrides. These seed workspaces with no
@@ -31,6 +34,17 @@ layout = master
 # mosaic_ratio = 0.62
 # mosaic_min_size = 160
 # grid_columns = 0
+
+# Scrolling layout. Widths accept a percentage of the viewport ("50%"), a
+# fraction ("0.5"), or a fixed client width in logical pixels ("640").
+# default_column_width = 50%
+# column_width_presets = 33.333%,50%,66.667%
+# center_focused_column = never   # never | always | on-overflow
+# Viewport animation duration in milliseconds; 0 disables the slide.
+# animation_view_ms = 180
+# The default cycle keeps the original four modes so existing setups behave the
+# same. Add the new modes explicitly:
+# layout_cycle = master,mosaic,grid,columns,scrolling,monocle,stacking
 
 # Declarative window rules. Match app-id, title, and/or output; values support
 # shell-style * and ? patterns. `match`/`expr` adds boolean POSIX-regex
@@ -78,7 +92,10 @@ layout = master
 
 # Per-workspace layout/spacing overrides. Runtime layout choices still win over
 # the layout seed; Super+Ctrl+H/L adjusts the active workspace master ratio.
+# Scrolling keys set the initial column width and focus centering for that
+# workspace.
 # workspace-rule = ws=2; layout=grid; gaps=4; outer-gaps=8; master-ratio=0.65
+# workspace-rule = ws=3; layout=scrolling; default-column-width=40%; center-focused-column=always
 
 # Named layout/tuning profiles, referenced by output/workspace rules. Explicit
 # keys in the rule override profile values.

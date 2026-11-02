@@ -19,6 +19,8 @@ pub const Tuning = struct {
     mosaic_ratio: f32,
     mosaic_min_size: i32,
     grid_columns: usize,
+    column_width: types.ColumnWidth,
+    center_focused_column: types.CenterFocusedColumn,
 };
 
 pub fn wildcardMatch(pattern: []const u8, text: []const u8) bool {
@@ -59,6 +61,8 @@ fn applyProfileTuning(profile: *const types.Profile, tuning: *Tuning) void {
     if (p.has_mosaic_ratio) tuning.mosaic_ratio = p.mosaic_ratio;
     if (p.has_mosaic_min_size) tuning.mosaic_min_size = p.mosaic_min_size;
     if (p.has_grid_columns) tuning.grid_columns = p.grid_columns;
+    if (p.has_column_width) tuning.column_width = p.column_width;
+    if (p.has_center_focused_column) tuning.center_focused_column = p.center_focused_column;
 }
 
 fn applyOutputRule(cfg: *const types.Config, rule: *const types.OutputRule, tuning: *Tuning) void {
@@ -80,6 +84,8 @@ fn applyOutputRule(cfg: *const types.Config, rule: *const types.OutputRule, tuni
     if (rule.has_mosaic_ratio) tuning.mosaic_ratio = rule.mosaic_ratio;
     if (rule.has_mosaic_min_size) tuning.mosaic_min_size = rule.mosaic_min_size;
     if (rule.has_grid_columns) tuning.grid_columns = rule.grid_columns;
+    if (rule.has_column_width) tuning.column_width = rule.column_width;
+    if (rule.has_center_focused_column) tuning.center_focused_column = rule.center_focused_column;
 }
 
 fn applyWorkspaceOverrides(cfg: *const types.Config, index: usize, tuning: *Tuning) void {
@@ -90,6 +96,8 @@ fn applyWorkspaceOverrides(cfg: *const types.Config, index: usize, tuning: *Tuni
     if (cfg.ws_mosaic_ratio_set[index]) tuning.mosaic_ratio = cfg.ws_mosaic_ratio[index];
     if (cfg.ws_mosaic_min_size_set[index]) tuning.mosaic_min_size = cfg.ws_mosaic_min_size[index];
     if (cfg.ws_grid_columns_set[index]) tuning.grid_columns = cfg.ws_grid_columns[index];
+    if (cfg.ws_column_width_set[index]) tuning.column_width = cfg.ws_column_width[index];
+    if (cfg.ws_center_focused_set[index]) tuning.center_focused_column = cfg.ws_center_focused_column[index];
     if (cfg.layout_overrides[index]) tuning.layout = cfg.layout_by_ws[index];
 }
 
@@ -117,6 +125,8 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
         .mosaic_ratio = cfg.mosaic_ratio,
         .mosaic_min_size = cfg.mosaic_min_size,
         .grid_columns = cfg.grid_columns,
+        .column_width = cfg.default_column_width,
+        .center_focused_column = cfg.center_focused_column,
     };
     if (cfg.output_rule_count == 0) {
         applyWorkspaceOverrides(cfg, index, &tuning);

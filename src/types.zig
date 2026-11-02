@@ -101,6 +101,7 @@ pub const CursorMode = enum {
     passthrough,
     move,
     resize,
+    reorder,
 };
 
 pub const LayoutMode = enum {
@@ -108,16 +109,63 @@ pub const LayoutMode = enum {
     mosaic,
     grid,
     columns,
+    scrolling,
+    monocle,
+    stacking,
     custom,
 };
 
 pub const layout_cycle = [_]LayoutMode{ .master, .mosaic, .grid, .columns };
+
+/// Column width for the scrolling layout. A proportion includes the border
+/// (the tile); a fixed width is the client window, matching Niri's convention.
+pub const ColumnWidth = struct {
+    kind: enum { proportion, fixed } = .proportion,
+    value: f32 = 0.5,
+};
+
+pub const CenterFocusedColumn = enum { never, always, on_overflow };
+
+pub const ScrollColumn = struct {
+    used: bool,
+    id: u16,
+    first: ?*Client,
+    last: ?*Client,
+    active: ?*Client,
+    count: usize,
+    width: ColumnWidth,
+    width_px: i32,
+    maximized: bool,
+    restore: ColumnWidth,
+    preset_index: i8,
+    tabbed: bool,
+};
+
+pub const ScrollWorkspace = struct {
+    initialized: bool,
+    columns: [MAX_CLIENTS]u16,
+    count: usize,
+    focus_index: usize,
+    prev_focus_index: usize,
+    view_offset: f32,
+    view_target: f32,
+    view_from: f32,
+    view_start_ms: i64,
+    view_animating: bool,
+    content_width: i32,
+    viewport_width: i32,
+};
 
 pub fn layoutFromName(name: []const u8) ?LayoutMode {
     if (std.ascii.eqlIgnoreCase(name, "master")) return .master;
     if (std.ascii.eqlIgnoreCase(name, "mosaic") or std.ascii.eqlIgnoreCase(name, "spiral")) return .mosaic;
     if (std.ascii.eqlIgnoreCase(name, "grid")) return .grid;
     if (std.ascii.eqlIgnoreCase(name, "columns") or std.ascii.eqlIgnoreCase(name, "column")) return .columns;
+    if (std.ascii.eqlIgnoreCase(name, "scrolling") or
+        std.ascii.eqlIgnoreCase(name, "scroll") or
+        std.ascii.eqlIgnoreCase(name, "scroller")) return .scrolling;
+    if (std.ascii.eqlIgnoreCase(name, "monocle")) return .monocle;
+    if (std.ascii.eqlIgnoreCase(name, "stacking") or std.ascii.eqlIgnoreCase(name, "deck")) return .stacking;
     if (std.ascii.eqlIgnoreCase(name, "custom") or std.ascii.eqlIgnoreCase(name, "helper")) return .custom;
     return null;
 }
@@ -161,6 +209,23 @@ pub const Action = enum {
     set_layout,
     resize_width,
     resize_height,
+    focus_column_left,
+    focus_column_right,
+    focus_column_first,
+    focus_column_last,
+    move_column_left,
+    move_column_right,
+    move_column_first,
+    move_column_last,
+    move_window_up,
+    move_window_down,
+    consume_window,
+    expel_window,
+    column_width_cycle,
+    column_width_cycle_back,
+    column_width_set,
+    column_width_maximize,
+    center_column,
     enter_mode,
 };
 
@@ -365,6 +430,10 @@ pub const LayoutTuning = struct {
     mosaic_min_size: i32 = 0,
     has_grid_columns: bool = false,
     grid_columns: usize = 0,
+    has_column_width: bool = false,
+    column_width: ColumnWidth = .{},
+    has_center_focused_column: bool = false,
+    center_focused_column: CenterFocusedColumn = .never,
 };
 
 pub const Profile = struct {
@@ -469,6 +538,10 @@ pub const OutputRule = struct {
     mosaic_min_size: i32 = 0,
     has_grid_columns: bool = false,
     grid_columns: usize = 0,
+    has_column_width: bool = false,
+    column_width: ColumnWidth = .{},
+    has_center_focused_column: bool = false,
+    center_focused_column: CenterFocusedColumn = .never,
     has_layout: bool = false,
     layout: LayoutMode = .master,
     has_accent: bool = false,
@@ -552,6 +625,10 @@ pub const Config = struct {
     explicit_sync: bool,
     ws_gaps: [WS_COUNT]i32,
     ws_outer_gaps: [WS_COUNT]i32,
+    ws_column_width: [WS_COUNT]ColumnWidth,
+    ws_column_width_set: [WS_COUNT]bool,
+    ws_center_focused_column: [WS_COUNT]CenterFocusedColumn,
+    ws_center_focused_set: [WS_COUNT]bool,
     ws_master_ratio: [WS_COUNT]f32,
     ws_gaps_set: [WS_COUNT]bool,
     ws_outer_set: [WS_COUNT]bool,
@@ -567,6 +644,13 @@ pub const Config = struct {
     layout_mode: LayoutMode,
     layout_by_ws: [WS_COUNT]LayoutMode,
     layout_overrides: [WS_COUNT]bool,
+    layout_cycle: [8]LayoutMode,
+    layout_cycle_len: usize,
+    default_column_width: ColumnWidth,
+    column_width_presets: [8]ColumnWidth,
+    column_width_preset_count: usize,
+    center_focused_column: CenterFocusedColumn,
+    animation_view_ms: i32,
     workspace_pins: [MAX_WORKSPACE_PINS]WorkspacePin,
     workspace_pin_count: usize,
     workspace_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8,
@@ -716,6 +800,7 @@ pub const Output = struct {
     panel: PanelState,
     ext_workspace_group: ?*c.wlr_ext_workspace_group_handle_v1,
     ext_workspaces: [WS_COUNT]?*c.wlr_ext_workspace_handle_v1,
+    scroll_ws: [WS_COUNT]ScrollWorkspace,
 
     last_scale: f32,
     adaptive_sync_base: bool,
@@ -755,6 +840,10 @@ pub const Client = struct {
     special_workspace_len: usize,
     group_id: u32,
     group_active: bool,
+    scroll_column: u16,
+    scroll_prev: ?*Client,
+    scroll_next: ?*Client,
+    on_screen: bool,
 
     anim_off_x: i32,
     anim_off_y: i32,
@@ -1075,6 +1164,7 @@ pub const Server = struct {
     output_config_len: usize,
     clients: [MAX_CLIENTS]?*Client,
     client_count: usize,
+    scroll_columns: [MAX_CLIENTS]ScrollColumn,
     layers: [MAX_LAYERS]?*LayerSurface,
     layer_count: usize,
     keyboards: [MAX_KEYBOARDS]?*Keyboard,
@@ -1206,6 +1296,12 @@ pub const Server = struct {
     grab_y: f64,
     grab_box: c.wlr_box,
     resize_edges: u32,
+    reorder_target: ?*Client,
+    reorder_index: i32,
+    reorder_before: bool,
+    reorder_start_x: f64,
+    reorder_start_y: f64,
+    reorder_moved: bool,
 
     new_output: c.wl_listener,
     new_input: c.wl_listener,

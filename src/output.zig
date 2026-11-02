@@ -10,6 +10,7 @@ const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
 const rules = @import("rules.zig");
 const render = @import("render.zig");
+const scrolling = @import("scrolling.zig");
 const layout_helper = @import("layout_helper.zig");
 const panel_supervisor = @import("panel_supervisor.zig");
 
@@ -618,6 +619,7 @@ fn onOutputDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) vo
     }
 
     destroyLayersForOutput(out);
+    scrolling.deinitOutput(out);
     ext_workspace.outputRemoved(out);
 
     core.logInfo("output removed: {s}", .{core.cstr(out.wlr.name)});
@@ -687,6 +689,7 @@ fn onNewOutput(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     out.server = server;
     out.wlr = wlr_out;
     out.active_ws = 1;
+    scrolling.initOutput(out);
     layout_helper.initOutput(out);
     panel_supervisor.initOutput(out);
     rules.applyOutputTheme(server, out);

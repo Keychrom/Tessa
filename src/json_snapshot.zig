@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const core = @import("core.zig");
 const modes = @import("modes.zig");
+const scrolling = @import("scrolling.zig");
 
 const Server = types.Server;
 
@@ -74,6 +75,37 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, server.focused_output == out);
         addRaw(buf, &off, ",\"layout\":");
         addString(buf, &off, types.layoutName(out.ws_layouts[out.active_ws - 1]));
+        if (out.ws_layouts[out.active_ws - 1] == .scrolling) {
+            const sw = &out.scroll_ws[out.active_ws - 1];
+            add(buf, &off, ",\"view_offset\":{d},\"content_width\":{d},\"viewport_width\":{d},\"focus_column\":{d},\"columns\":[", .{
+                @as(i32, @intFromFloat(@round(sw.view_offset))),
+                sw.content_width,
+                sw.viewport_width,
+                sw.focus_index,
+            });
+            var ci: usize = 0;
+            var first_column = true;
+            while (ci < sw.count) : (ci += 1) {
+                const id = sw.columns[ci];
+                if (id == 0 or @as(usize, id) > server.scroll_columns.len) continue;
+                const column = &server.scroll_columns[id - 1];
+                if (!column.used) continue;
+                if (!first_column) addRaw(buf, &off, ",");
+                first_column = false;
+                add(buf, &off, "{{\"index\":{d},\"x\":{d},\"width\":{d},\"focused\":", .{
+                    ci,
+                    scrolling.columnX(out, ci) orelse 0,
+                    column.width_px,
+                });
+                addBool(buf, &off, ci == sw.focus_index);
+                addRaw(buf, &off, ",\"maximized\":");
+                addBool(buf, &off, column.maximized);
+                addRaw(buf, &off, ",\"tabbed\":");
+                addBool(buf, &off, column.tabbed);
+                add(buf, &off, ",\"windows\":{d}}}", .{column.count});
+            }
+            addRaw(buf, &off, "]");
+        }
         addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "],\"occupancy\":[");
@@ -182,6 +214,9 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         };
         addRaw(buf, &off, ",\"tearing\":");
         addBool(buf, &off, tearing);
+        addRaw(buf, &off, ",\"on_screen\":");
+        addBool(buf, &off, cl.on_screen);
+        add(buf, &off, ",\"column\":{d},\"tile\":{d}", .{ cl.scroll_column, scrolling.tileIndex(cl) });
         addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "],\"layers\":[");
@@ -214,6 +249,13 @@ pub fn buildState(server: *Server, buf: []u8) usize {
     return off;
 }
 
+fn addColumnWidth(buf: []u8, off: *usize, width: types.ColumnWidth) void {
+    add(buf, off, "{{\"kind\":\"{s}\",\"value\":{d:.3}}}", .{
+        @tagName(width.kind),
+        width.value,
+    });
+}
+
 pub fn buildConfig(server: *Server, buf: []u8) usize {
     var off: usize = 0;
     const cfg = &server.config;
@@ -244,7 +286,24 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
         if (wi > 0) addRaw(buf, &off, ",");
         addString(buf, &off, types.layoutName(cfg.layout_by_ws[wi]));
     }
-    addRaw(buf, &off, "],\"modes\":[");
+    addRaw(buf, &off, "],\"layout_cycle\":[");
+    wi = 0;
+    while (wi < cfg.layout_cycle_len) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        addString(buf, &off, types.layoutName(cfg.layout_cycle[wi]));
+    }
+    addRaw(buf, &off, "],\"default_column_width\":");
+    addColumnWidth(buf, &off, cfg.default_column_width);
+    addRaw(buf, &off, ",\"column_width_presets\":[");
+    wi = 0;
+    while (wi < cfg.column_width_preset_count) : (wi += 1) {
+        if (wi > 0) addRaw(buf, &off, ",");
+        addColumnWidth(buf, &off, cfg.column_width_presets[wi]);
+    }
+    addRaw(buf, &off, "],\"center_focused_column\":");
+    addString(buf, &off, @tagName(cfg.center_focused_column));
+    add(buf, &off, ",\"animation_view_ms\":{d}", .{cfg.animation_view_ms});
+    addRaw(buf, &off, ",\"modes\":[");
     wi = 0;
     while (wi < cfg.mode_count) : (wi += 1) {
         if (wi > 0) addRaw(buf, &off, ",");

@@ -29,6 +29,14 @@ fn usage() void {
         "                                open a panel popover\n" ++
         "  notify-action <id> <key>      invoke a notification action\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
+        "  column-focus <dir>           focus a scrolling column\n" ++
+        "  column-move <dir>            move the focused column\n" ++
+        "  column-width <action> [v]    cycle/set/maximize/center a column\n" ++
+        "  consume | expel              consume/expel a scrolling window\n" ++
+        "  window-move <up|down>        move a window inside its column\n" ++
+        "  swap <id> <id>               swap two tiled windows\n" ++
+        "  reorder <id> <before|after> <target-id>\n" ++
+        "                                insert a tiled window relative to another\n" ++
         "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
         "  status <id> <text>            set a bar status entry\n" ++
@@ -734,6 +742,69 @@ fn runResize(args: []const []const u8) !void {
     try sendCommand(msg);
 }
 
+fn runColumnFocus(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD column-focus {s}\n", .{args[1]}) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
+fn runColumnMove(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD column-move {s}\n", .{args[1]}) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
+fn runColumnWidth(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [256]u8 = undefined;
+    const msg = if (args.len > 2)
+        std.fmt.bufPrint(&line, "CMD column-width {s} {s}\n", .{ args[1], args[2] }) catch
+            return error.LineTooLong
+    else
+        std.fmt.bufPrint(&line, "CMD column-width {s}\n", .{args[1]}) catch
+            return error.LineTooLong;
+    try sendCommand(msg);
+}
+
+fn runColumnConsume(expel: bool) !void {
+    try sendCommand(if (expel) "CMD column-expel\n" else "CMD column-consume\n");
+}
+
+fn runWindowMove(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    var line: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD window-move {s}\n", .{args[1]}) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
+fn runSwap(args: []const []const u8) !void {
+    if (args.len < 3) return error.BadArguments;
+    const first = std.fmt.parseInt(u64, args[1], 10) catch return error.BadArguments;
+    const second = std.fmt.parseInt(u64, args[2], 10) catch return error.BadArguments;
+    var line: [128]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD swap {d} {d}\n", .{ first, second }) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
+fn runReorder(args: []const []const u8) !void {
+    if (args.len < 4) return error.BadArguments;
+    const id = std.fmt.parseInt(u64, args[1], 10) catch return error.BadArguments;
+    if (!std.mem.eql(u8, args[2], "before") and !std.mem.eql(u8, args[2], "after")) {
+        return error.BadArguments;
+    }
+    const target = std.fmt.parseInt(u64, args[3], 10) catch return error.BadArguments;
+    var line: [160]u8 = undefined;
+    const msg = std.fmt.bufPrint(&line, "CMD reorder {d} {s} {d}\n", .{ id, args[2], target }) catch
+        return error.LineTooLong;
+    try sendCommand(msg);
+}
+
 fn runSpawn(args: []const []const u8) !void {
     if (args.len < 2) return error.BadArguments;
     var cmd_buf: [2048]u8 = undefined;
@@ -845,6 +916,22 @@ pub fn main(init: std.process.Init.Minimal) void {
         runNotificationAction(args)
     else if (std.mem.eql(u8, cmd, "layout"))
         runLayout(args)
+    else if (std.mem.eql(u8, cmd, "column-focus"))
+        runColumnFocus(args)
+    else if (std.mem.eql(u8, cmd, "column-move"))
+        runColumnMove(args)
+    else if (std.mem.eql(u8, cmd, "column-width"))
+        runColumnWidth(args)
+    else if (std.mem.eql(u8, cmd, "consume"))
+        runColumnConsume(false)
+    else if (std.mem.eql(u8, cmd, "expel"))
+        runColumnConsume(true)
+    else if (std.mem.eql(u8, cmd, "window-move"))
+        runWindowMove(args)
+    else if (std.mem.eql(u8, cmd, "swap"))
+        runSwap(args)
+    else if (std.mem.eql(u8, cmd, "reorder"))
+        runReorder(args)
     else if (std.mem.eql(u8, cmd, "mode"))
         runMode(args)
     else if (std.mem.eql(u8, cmd, "resize"))

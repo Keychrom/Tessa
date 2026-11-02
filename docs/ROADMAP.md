@@ -65,6 +65,30 @@ default desktop safe.
 - [ ] Record a GPU/driver validation matrix (Intel i915, AMD, NVIDIA, vmwgfx)
       for scanout, tearing, and explicit sync.
 
+## Layout expansion
+
+Close the layout gap with Niri and MangoWC without changing the default
+experience. The original four modes and four-mode `Super+T` cycle remain the
+default.
+
+- [x] Scrolling layout: a Niri-style horizontal column strip with multiple
+      windows per column, proportional or fixed column widths, width presets,
+      maximization, focus centering, consume/expel, and groups as tabbed
+      columns.
+- [x] Animated viewport following (`animation_view_ms`) and per-workspace/output
+      `default-column-width` and `center-focused-column` tuning.
+- [x] Monocle layout and a Deck-style stacking layout (master area plus
+      overlapping stack cards).
+- [x] Dynamic insertion reorder (`reorder`, `swap`), directional moves, and
+      window moves inside scrolling columns.
+- [x] Mouse placement: Super+left-drag reorders tiled windows with a drop-target
+      highlight; in scrolling it inserts columns. Super+wheel scrolls the
+      viewport.
+- [x] `VIEW`/`COL` state lines, JSON fields, and `tessa-ctl` wrappers for
+      columns, consume/expel, swap, and reorder.
+- [ ] Validate Scrolling, drag reorder, and wheel scrolling in a real
+      DRM/libinput session, including fractional scaling and touchpad gestures.
+
 ## 0.1.x — make the foundation trustworthy
 
 - [x] Run on DRM + libinput on the target machine and fix layout/input issues.
