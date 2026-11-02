@@ -175,6 +175,13 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addBool(buf, &off, blur);
         addRaw(buf, &off, ",\"shadow\":");
         addBool(buf, &off, shadow);
+        const tearing = switch (cl.tearing) {
+            .on => true,
+            .off => false,
+            .unset => server.config.tearing != .off,
+        };
+        addRaw(buf, &off, ",\"tearing\":");
+        addBool(buf, &off, tearing);
         addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "],\"layers\":[");

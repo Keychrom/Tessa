@@ -20,7 +20,7 @@ a daily Japanese desktop, then by polish.
 - [x] Update the Zig build system for 0.17 and replace removed standard-library
       APIs.
 - [x] Update Arch packaging to the official `zig` and `wlroots0.20` packages.
-- [x] Run the full 65-test headless suite on the new toolchain in both plain
+- [x] Run the full headless suite on the new toolchain in both plain
       and scenefx builds (Arch Linux, Zig 0.17.0 / wlroots 0.20.2 / scenefx
       0.5), including portal ScreenCast, tray, notifications, and interaction.
 - [ ] Run a real DRM/libinput session on the new toolchain before the next

@@ -20,7 +20,7 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [x] Zig 0.17 のビルドシステムへ更新し、削除された標準ライブラリ API を
       置き換える。
 - [x] Arch パッケージを公式の `zig` と `wlroots0.20` へ更新する。
-- [x] 新しいツールチェーンで 65 項目の headless スイートを plain／scenefx の
+- [x] 新しいツールチェーンで headless スイート全体を plain／scenefx の
       両構成で実行する（Arch Linux、Zig 0.17.0 / wlroots 0.20.2 / scenefx
       0.5）。ポータルの ScreenCast、トレイ、通知、ポインタ操作を含む。
 - [ ] 次のソースリリース前に、新しいツールチェーンで実機の DRM/libinput

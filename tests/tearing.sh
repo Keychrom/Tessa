@@ -56,7 +56,8 @@ xwayland = false
 animations = false
 outer_gaps = 0
 direct_scanout = true
-tearing = fullscreen
+tearing = off
+window-rule = app-id=tessa-tearing-test; tearing=true
 EOF
 
 wayland-scanner client-header "$xml" "$runtime/build/tearing-control-v1-client-protocol.h"

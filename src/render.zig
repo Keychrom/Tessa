@@ -1,4 +1,3 @@
-const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
@@ -340,8 +339,4 @@ pub fn resetPerf(server: *Server) void {
     while (i < server.outputs.len) : (i += 1) {
         if (server.outputs[i]) |out| out.perf.reset();
     }
-}
-
-pub fn tearHintName(client: *Client) []const u8 {
-    return if (tearingHint(client)) "async" else "vsync";
 }
