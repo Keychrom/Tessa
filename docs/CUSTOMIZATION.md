@@ -616,7 +616,45 @@ The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
 the bar layer surface, so the reserved area follows immediately. `bg_top`,
 `bg_bottom`, `wallpaper_art`, and `wallpaper_image` repaint the panel background
-without a restart. A separately installed theme file is still planned.
+without a restart. Theme packages are loaded through `theme`; see below.
+
+### Bar modules, priority, and overflow
+
+`bar_layout` selects and orders the right-hand cluster (the first name is
+closest to the right edge). The logo, workspace pills, and window chips keep
+their anchored positions. `tessa-panel --list-modules` prints the registry,
+including whether a module exposes compositor context.
+
+```ini
+bar_layout = logo, workspaces, chips, layout, groups, mode, effects, clock, tray, status
+```
+
+When the right cluster does not fit, the panel hides modules from the lowest
+`bar_priority` upward and draws a `+N` chip. Clicking the chip lists the hidden
+modules and their priorities. Defaults put the clock, status widgets, and
+workspaces first, and stats/media/tray last:
+
+```ini
+# Higher values stay visible longer. Names match bar_layout.
+bar_priority = clock=100, status=80, layout=60, groups=55, mode=65, effects=30
+bar_priority = stats=20, media=40, tray=35, battery=50, network=50, volume=60
+# bar_overflow = false   # disable priority hiding and the +N chip
+```
+
+The planner uses approximate module widths and also reserves room for the
+`+N` chip; those hard minimum widths (for example stats below 1180 px and
+media below 1250 px) still apply. To preview decisions for a given bar width
+without opening a session at that size:
+
+```sh
+# width, then the left-side space reserved for the logo/chips
+tessa-panel --bar-plan 850 200
+```
+
+The command prints `visible`, `hidden`, and `skip ... reason=minimum-width`
+lines with each module's priority and estimated cost. External status widgets
+have their own `--priority` and `+N` overflow inside the `status` module; the
+bar planner treats the whole module as one unit.
 
 `wallpaper_image` is loaded with Cairo's PNG support. `cover` fills the output
 and crops the excess, `contain` letterboxes onto `bg`, and `stretch` ignores the
@@ -642,12 +680,14 @@ theme rule still wins for that output. The panel reads the same roles.
 A theme package is a normal include, addressed with the `theme` alias:
 
 ```ini
-theme = ~/.config/tessa/themes/vermilion-ink.conf
+theme = ~/.config/tessa/themes/vermilion-ink
 ```
 
 `theme` behaves exactly like `include`; the compositor and panel share the same
-file. The config watcher reloads it when it changes, and `Super+R` reloads it
-manually. See `examples/themes/vermilion-ink.conf` for a complete palette, and
+file. A directory package loads `<dir>/theme.conf` (other files are ignored for
+forward compatibility). The config watcher reloads the active package when it
+changes, follows a `theme` change to a different package, and `Super+R` reloads
+it manually. See `examples/themes/vermilion-ink/` for a complete palette, and
 `tessa-panel --theme-json` to inspect the resolved tokens.
 
 ## Motion, shadows, and wallpaper

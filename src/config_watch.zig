@@ -7,6 +7,7 @@ const config = @import("config.zig");
 const Server = types.Server;
 
 const DEBOUNCE_MS = 150;
+const WATCH_MASK = c.IN_CLOSE_WRITE | c.IN_MOVED_TO | c.IN_CREATE | c.IN_DELETE;
 
 fn isConfigFile(name: []const u8) bool {
     var path_buf: [512]u8 = undefined;
@@ -63,8 +64,32 @@ fn onReload(data: ?*anyopaque) callconv(.c) c_int {
     return 0;
 }
 
+pub fn refreshThemeWatch(server: *Server) void {
+    if (server.config_watch_fd < 0) return;
+    if (server.config_theme_watch >= 0 and server.config_theme_watch != server.config_dir_watch) {
+        _ = c.inotify_rm_watch(server.config_watch_fd, server.config_theme_watch);
+    }
+    server.config_theme_watch = -1;
+
+    if (server.config.theme_dir_len == 0) return;
+    const theme_dir = server.config.theme_dir[0..server.config.theme_dir_len];
+    var ztheme: [512:0]u8 = undefined;
+    core.copyZ(&ztheme, theme_dir);
+    const wd = c.inotify_add_watch(server.config_watch_fd, &ztheme, WATCH_MASK);
+    if (wd < 0) {
+        core.logInfo("config watch: cannot watch theme {s}", .{theme_dir});
+    } else if (wd == server.config_dir_watch) {
+        core.logInfo("config watch: theme directory is already watched", .{});
+    } else {
+        server.config_theme_watch = wd;
+        core.logInfo("config watch: watching theme {s}", .{theme_dir});
+    }
+}
+
 pub fn init(server: *Server) void {
     server.config_watch_fd = -1;
+    server.config_dir_watch = -1;
+    server.config_theme_watch = -1;
     server.config_watch_source = null;
     server.config_reload_timer = null;
 
@@ -81,12 +106,15 @@ pub fn init(server: *Server) void {
         core.logInfo("config watch: inotify_init1 failed", .{});
         return;
     }
-    const watch_mask = c.IN_CLOSE_WRITE | c.IN_MOVED_TO | c.IN_CREATE | c.IN_DELETE;
-    if (c.inotify_add_watch(fd, &zdir, watch_mask) < 0) {
+    const wd = c.inotify_add_watch(fd, &zdir, WATCH_MASK);
+    if (wd < 0) {
         core.logInfo("config watch: cannot watch {s}", .{dir});
         _ = c.close(fd);
         return;
     }
+    server.config_watch_fd = fd;
+    server.config_dir_watch = wd;
+    refreshThemeWatch(server);
 
     const loop = c.wl_display_get_event_loop(server.display);
     const source = c.wl_event_loop_add_fd(
@@ -97,6 +125,9 @@ pub fn init(server: *Server) void {
         server,
     );
     if (source == null) {
+        server.config_watch_fd = -1;
+        server.config_dir_watch = -1;
+        server.config_theme_watch = -1;
         _ = c.close(fd);
         core.logInfo("config watch: cannot add event source", .{});
         return;
@@ -120,4 +151,6 @@ pub fn deinit(server: *Server) void {
         _ = c.close(server.config_watch_fd);
         server.config_watch_fd = -1;
     }
+    server.config_dir_watch = -1;
+    server.config_theme_watch = -1;
 }

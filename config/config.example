@@ -265,6 +265,13 @@ panel_fg = #eef2f8
 # bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
 # Context-aware bar:
 # bar_layout = logo,workspaces,chips,layout,groups,mode,effects,clock,tray,status
+# When the right cluster is too narrow, modules hide from the lowest priority
+# upward and a +N chip lists them. Names match bar_layout. `bar_overflow =
+# false` disables the planner. Preview a width with:
+#   tessa-panel --bar-plan 850 200
+# bar_priority = clock=100, status=80, layout=60, groups=55, mode=65, effects=30
+# bar_priority = stats=20, media=40, tray=35, battery=50, network=50, volume=60
+# bar_overflow = true
 # Per-surface fonts and colors. Unset values fall back to `font` and panel_fg.
 # bar-font = Inter
 # launcher-font = Inter
@@ -384,7 +391,7 @@ font = Inter
 # after direct keys, so they win over accent/border/bg/panel values above.
 # A matching output-rule theme still wins for that output.
 # Load a theme package instead of listing roles here:
-# theme = ~/.config/tessa/themes/vermilion-ink.conf
+# theme = ~/.config/tessa/themes/vermilion-ink
 # theme-role = accent = #e2684f
 # theme-role = window.border.active = #8fd3ff
 # theme-role = window.border.inactive = #243040

@@ -22,6 +22,7 @@ const input_policy = @import("input_policy.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const scene_util = @import("scene_util.zig");
+const config_watch = @import("config_watch.zig");
 const ext_workspace = @import("ext_workspace.zig");
 
 const Server = types.Server;
@@ -520,6 +521,7 @@ pub fn reloadRuntime(server: *Server) void {
         core.markDirty(server);
         return;
     }
+    config_watch.refreshThemeWatch(server);
     modes.sync(server);
     reloadKeymaps(server);
     reloadCursor(server);

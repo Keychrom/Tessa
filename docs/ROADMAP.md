@@ -287,6 +287,9 @@ config editor/diff preview) are complete; 0.7 builds on them.
 - [x] Shell v2 remainder: composable bar modules/layout, per-surface font and
       color roles, wallpaper shader sources, and layer-rule-aware popovers and
       toasts.
+- [x] Shell extension surface: directory theme packages with hot reload,
+      declarative widget popovers attached to external status entries, and
+      priority-based built-in bar overflow with a clickable hidden-module list.
 - [x] Shader/effect hooks through the long-lived process protocol; no
       in-process plugin VM.
 - [x] Performance guardrails: headless benchmarks and a frame-time budget for

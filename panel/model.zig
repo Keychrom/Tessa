@@ -21,7 +21,7 @@ pub const MAX_TRAY_ICON = 32;
 pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 pub const MAX_EXTENSIONS = 16;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
 pub const WallpaperFit = enum { cover, contain, stretch };
 pub const BarModule = enum {
     logo,
@@ -48,24 +48,25 @@ pub const BarModuleSpec = struct {
     description: []const u8,
     context: bool = false,
     default: bool = false,
+    priority: i32 = 50,
 };
 
 pub const bar_module_specs = [_]BarModuleSpec{
-    .{ .module = .logo, .name = "logo", .description = "Tessa mark and launcher shortcut", .default = true },
-    .{ .module = .workspaces, .name = "workspaces", .description = "Nine workspace pills", .default = true },
-    .{ .module = .chips, .name = "chips", .description = "Window chips for the active workspace", .default = true },
-    .{ .module = .clock, .name = "clock", .description = "Clock and date", .default = true },
-    .{ .module = .battery, .name = "battery", .description = "Battery status", .default = true },
-    .{ .module = .network, .name = "network", .description = "Network status", .default = true },
-    .{ .module = .volume, .name = "volume", .description = "Volume indicator", .default = true },
-    .{ .module = .stats, .name = "stats", .description = "CPU, memory, and trend sparkline", .default = true },
-    .{ .module = .media, .name = "media", .description = "MPRIS media controls", .default = true },
-    .{ .module = .tray, .name = "tray", .description = "StatusNotifier tray icons", .default = true },
-    .{ .module = .status, .name = "status", .description = "Extension status entries", .default = true },
-    .{ .module = .layout, .name = "layout", .description = "Active tiling layout", .context = true },
-    .{ .module = .groups, .name = "groups", .description = "Window group indicator", .context = true },
-    .{ .module = .mode, .name = "mode", .description = "Active input mode", .context = true },
-    .{ .module = .effects, .name = "effects", .description = "Blur, shadow, and animation state", .context = true },
+    .{ .module = .logo, .name = "logo", .description = "Tessa mark and launcher shortcut", .default = true, .priority = 100 },
+    .{ .module = .workspaces, .name = "workspaces", .description = "Nine workspace pills", .default = true, .priority = 100 },
+    .{ .module = .chips, .name = "chips", .description = "Window chips for the active workspace", .default = true, .priority = 70 },
+    .{ .module = .clock, .name = "clock", .description = "Clock and date", .default = true, .priority = 100 },
+    .{ .module = .battery, .name = "battery", .description = "Battery status", .default = true, .priority = 50 },
+    .{ .module = .network, .name = "network", .description = "Network status", .default = true, .priority = 50 },
+    .{ .module = .volume, .name = "volume", .description = "Volume indicator", .default = true, .priority = 60 },
+    .{ .module = .stats, .name = "stats", .description = "CPU, memory, and trend sparkline", .default = true, .priority = 20 },
+    .{ .module = .media, .name = "media", .description = "MPRIS media controls", .default = true, .priority = 40 },
+    .{ .module = .tray, .name = "tray", .description = "StatusNotifier tray icons", .default = true, .priority = 35 },
+    .{ .module = .status, .name = "status", .description = "Extension status entries", .default = true, .priority = 80 },
+    .{ .module = .layout, .name = "layout", .description = "Active tiling layout", .context = true, .priority = 60 },
+    .{ .module = .groups, .name = "groups", .description = "Window group indicator", .context = true, .priority = 55 },
+    .{ .module = .mode, .name = "mode", .description = "Active input mode", .context = true, .priority = 65 },
+    .{ .module = .effects, .name = "effects", .description = "Blur, shadow, and animation state", .context = true, .priority = 30 },
 };
 
 pub fn barModuleByName(name: []const u8) ?BarModule {
@@ -194,6 +195,8 @@ pub const HitKind = enum {
     audio_mute,
     audio_up,
     extension,
+    module_action,
+    bar_overflow,
 };
 
 pub const Hit = struct {
@@ -239,6 +242,30 @@ pub const StatusInfo = struct {
     icon: [32]u8 = @splat(0),
     icon_len: usize = 0,
     priority: i32 = 0,
+    popover: [512]u8 = @splat(0),
+    popover_len: usize = 0,
+};
+
+pub const MAX_MODULE_ACTIONS = 8;
+pub const MAX_MODULE_TITLE = 64;
+pub const MAX_MODULE_BODY = 160;
+pub const MAX_MODULE_LABEL = 56;
+
+pub const ModuleAction = struct {
+    label: [MAX_MODULE_LABEL]u8 = @splat(0),
+    label_len: usize = 0,
+    command: [256]u8 = @splat(0),
+    command_len: usize = 0,
+};
+
+/// Declarative content for a popover owned by an external bar module.
+pub const ModulePopover = struct {
+    title: [MAX_MODULE_TITLE]u8 = @splat(0),
+    title_len: usize = 0,
+    body: [MAX_MODULE_BODY]u8 = @splat(0),
+    body_len: usize = 0,
+    actions: [MAX_MODULE_ACTIONS]ModuleAction = @splat(.{}),
+    action_count: usize = 0,
 };
 
 pub const ExtensionInfo = struct {
@@ -480,6 +507,10 @@ pub const Panel = struct {
     extensions: [MAX_EXTENSIONS]ExtensionInfo = undefined,
     extension_count: usize = 0,
     extension_selected: usize = 0,
+    module_popover: ModulePopover = .{},
+    module_selected: usize = 0,
+    module_source: [512]u8 = @splat(0),
+    module_source_len: usize = 0,
     volume_percent: i32 = -1,
     volume_muted: bool = false,
     volume_source: [16]u8 = @splat(0),
@@ -651,6 +682,10 @@ pub const Panel = struct {
         .effects,
     },
     bar_module_count: usize = DEFAULT_BAR_MODULE_COUNT,
+    bar_priorities: [BAR_MODULE_COUNT]i32 = @splat(50),
+    bar_overflow: bool = true,
+    bar_hidden: [BAR_MODULE_COUNT]bool = @splat(false),
+    bar_hidden_count: usize = 0,
     show_logo: bool = true,
     show_workspaces: bool = true,
     show_chips: bool = true,
@@ -1099,6 +1134,176 @@ fn parseBarLayout(value: []const u8) void {
     }
 }
 
+fn parseBarPriority(value: []const u8) void {
+    var it = std.mem.tokenizeAny(u8, value, ", \t|");
+    while (it.next()) |raw| {
+        const item = trim(raw);
+        const eq = std.mem.indexOfScalar(u8, item, '=') orelse continue;
+        const name = trim(item[0..eq]);
+        const module = barModuleByName(name) orelse continue;
+        const priority = std.fmt.parseInt(i32, trim(item[eq + 1 ..]), 10) catch continue;
+        g.bar_priorities[@intFromEnum(module)] = priority;
+    }
+}
+
+pub fn barPriority(module: BarModule) i32 {
+    return g.bar_priorities[@intFromEnum(module)];
+}
+
+pub fn barModuleName(module: BarModule) []const u8 {
+    for (bar_module_specs) |spec| {
+        if (spec.module == module) return spec.name;
+    }
+    return "unknown";
+}
+
+/// Right-cluster modules that currently have something to show. The planner
+/// only runs in the right cluster; the logo, workspaces, and window chips keep
+/// their anchored positions.
+fn barModuleActive(module: BarModule) bool {
+    return switch (module) {
+        .logo => g.show_logo,
+        .workspaces => g.show_workspaces,
+        .chips => g.show_chips,
+        .clock => g.show_clock,
+        .battery => g.show_battery and g.battery_percent >= 0,
+        .network => g.show_network and g.network_present,
+        .volume => g.show_volume and g.volume_percent >= 0,
+        .stats => g.show_stats,
+        .media => g.show_media and (g.media_status == 1 or g.media_status == 2),
+        .tray => g.show_tray and g.tray_count > 0,
+        .status => g.show_status and g.status_count > 0,
+        .layout => g.show_layout,
+        .groups => g.show_groups,
+        .mode => g.show_mode and g.input_mode_len > 0 and
+            !std.mem.eql(u8, g.input_mode[0..g.input_mode_len], "default"),
+        .effects => g.show_effects,
+    };
+}
+
+/// Hard minimum widths retained from the pre-overflow layout. Modules below
+/// their minimum are skipped without counting as overflow.
+fn barModuleBaseFits(module: BarModule, width: f64) bool {
+    return switch (module) {
+        .battery => width > 900.0,
+        .network => width > 1000.0,
+        .volume => width > 1080.0,
+        .stats => width > 1180.0,
+        .media => width > 1250.0,
+        .tray => width > 980.0,
+        else => true,
+    };
+}
+
+fn barModuleCost(module: BarModule) f64 {
+    return switch (module) {
+        .clock => 138.0,
+        .battery => 34.0,
+        .network => 34.0,
+        .volume => 34.0,
+        .stats => 172.0,
+        .media => 196.0,
+        .tray => @max(96.0, @as(f64, @floatFromInt(g.tray_count)) * 24.0 + 10.0),
+        .status => 90.0,
+        .layout => 96.0,
+        .groups => 76.0,
+        .mode => 96.0,
+        .effects => 48.0,
+        .logo, .workspaces, .chips => 0.0,
+    };
+}
+
+pub const BarPlan = struct {
+    hidden: [BAR_MODULE_COUNT]bool = @splat(false),
+    hidden_count: usize = 0,
+};
+
+fn planBarImpl(width: f64, available: f64, assume_active: bool) BarPlan {
+    var plan = BarPlan{};
+    if (!g.bar_overflow or available <= 0) return plan;
+
+    var candidates: [BAR_MODULE_COUNT]BarModule = undefined;
+    var candidate_count: usize = 0;
+    var total: f64 = 0;
+    var count: usize = 0;
+
+    for (g.bar_modules[0..g.bar_module_count]) |module| {
+        switch (module) {
+            .logo, .workspaces, .chips => continue,
+            else => {},
+        }
+        if (!barModuleBaseFits(module, width)) continue;
+        if (!assume_active and !barModuleActive(module)) continue;
+        candidates[candidate_count] = module;
+        candidate_count += 1;
+        total += barModuleCost(module);
+        count += 1;
+    }
+    if (count > 1) total += @as(f64, @floatFromInt(count - 1)) * 10.0;
+
+    // Reserve room for the "+N" chip before deciding the final set.
+    while (count > 0 and total + 36.0 > available) {
+        var lowest: ?usize = null;
+        for (candidates[0..candidate_count], 0..) |module, i| {
+            if (plan.hidden[@intFromEnum(module)]) continue;
+            if (lowest) |best| {
+                if (g.bar_priorities[@intFromEnum(module)] <
+                    g.bar_priorities[@intFromEnum(candidates[best])])
+                {
+                    lowest = i;
+                }
+            } else {
+                lowest = i;
+            }
+        }
+        const index = lowest orelse break;
+        const module = candidates[index];
+        plan.hidden[@intFromEnum(module)] = true;
+        plan.hidden_count += 1;
+        total -= barModuleCost(module) + 10.0;
+        count -= 1;
+    }
+    return plan;
+}
+
+pub fn planBar(width: f64, available: f64) BarPlan {
+    return planBarImpl(width, available, false);
+}
+
+/// Diagnostic used by `tessa-panel --bar-plan WIDTH [LEFT]`: assumes every
+/// configured right-cluster module is active, so priorities can be tuned
+/// without opening a session at that size.
+pub fn printBarPlan(width: f64, left: f64) void {
+    const available = @max(0.0, width - 32.0 - left);
+    const plan = planBarImpl(width, available, true);
+    std.debug.print("bar-plan: width={d:.0} available={d:.0} hidden={d} overflow={s}\n", .{
+        width,
+        available,
+        plan.hidden_count,
+        if (g.bar_overflow) "on" else "off",
+    });
+    for (g.bar_modules[0..g.bar_module_count]) |module| {
+        switch (module) {
+            .logo, .workspaces, .chips => continue,
+            else => {},
+        }
+        const name = barModuleName(module);
+        if (!barModuleBaseFits(module, width)) {
+            std.debug.print("skip: {s} priority={d} cost={d:.0} reason=minimum-width\n", .{
+                name, barPriority(module), barModuleCost(module),
+            });
+        } else if (plan.hidden[@intFromEnum(module)]) {
+            std.debug.print("hidden: {s} priority={d} cost={d:.0}\n", .{
+                name, barPriority(module), barModuleCost(module),
+            });
+        } else {
+            std.debug.print("visible: {s} priority={d} cost={d:.0}\n", .{
+                name, barPriority(module), barModuleCost(module),
+            });
+        }
+    }
+}
+
 fn addCustomApp(value: []const u8) void {
     if (g.custom_count >= g.custom_apps.len) return;
     const bar = std.mem.indexOfScalar(u8, value, '|') orelse {
@@ -1125,6 +1330,16 @@ fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
     return std.fmt.bufPrint(dest, "{s}/{s}", .{ dir, value }) catch "";
 }
 
+fn isDirectory(path: []const u8) bool {
+    var zpath: [512:0]u8 = undefined;
+    if (path.len >= zpath.len) return false;
+    @memcpy(zpath[0..path.len], path);
+    zpath[path.len] = 0;
+    var st: c.struct_stat = undefined;
+    if (c.stat(&zpath, &st) != 0) return false;
+    return (st.st_mode & 0o170000) == 0o040000;
+}
+
 fn loadConfigFile(path: []const u8, depth: usize) void {
     if (depth > 8) return;
     var zpath: [512:0]u8 = undefined;
@@ -1145,8 +1360,16 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
         const val = trim(t[eq + 1 ..]);
         if (std.mem.eql(u8, key, "include") or std.mem.eql(u8, key, "theme")) {
             var include_buf: [512]u8 = undefined;
-            const include_path = resolveInclude(&include_buf, path, val);
-            if (include_path.len > 0) loadConfigFile(include_path, depth + 1);
+            const resolved = resolveInclude(&include_buf, path, val);
+            if (resolved.len > 0) {
+                if (std.mem.eql(u8, key, "theme") and isDirectory(resolved)) {
+                    var theme_buf: [512]u8 = undefined;
+                    const theme_path = std.fmt.bufPrint(&theme_buf, "{s}/theme.conf", .{resolved}) catch "";
+                    if (theme_path.len > 0) loadConfigFile(theme_path, depth + 1);
+                } else {
+                    loadConfigFile(resolved, depth + 1);
+                }
+            }
         } else if (std.mem.eql(u8, key, "output-rule") or std.mem.eql(u8, key, "output_rule")) {
             parseOutputTheme(val);
         } else if (std.mem.eql(u8, key, "workspace-name") or std.mem.eql(u8, key, "workspace_name")) {
@@ -1172,6 +1395,11 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             copyTrunc(&g.bar_layout, &g.bar_layout_len, val);
             g.bar_layout_set = true;
             parseBarLayout(val);
+        } else if (std.mem.eql(u8, key, "bar_priority") or std.mem.eql(u8, key, "bar-priority")) {
+            parseBarPriority(val);
+        } else if (std.mem.eql(u8, key, "bar_overflow") or std.mem.eql(u8, key, "bar-overflow")) {
+            g.bar_overflow = std.mem.eql(u8, val, "true") or std.mem.eql(u8, val, "1") or
+                std.mem.eql(u8, val, "yes") or std.mem.eql(u8, val, "on");
         } else if (std.mem.eql(u8, key, "panel_modules") or std.mem.eql(u8, key, "panel-modules")) {
             _ = parsePanelModules(val);
         } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
@@ -1260,6 +1488,53 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             addCustomApp(val);
         }
     }
+}
+
+/// Reads the small declarative UI file referenced by a status widget.
+///
+///   title = Weather
+///   body = Tokyo, clear, 18 C
+///   action = Refresh | ~/.config/tessa/widgets/weather/refresh.sh
+///
+/// The panel owns rendering and input; the module only writes this file and
+/// publishes the widget with `tessa-ctl status --popover <file>`.
+pub fn loadModulePopover(path: []const u8) bool {
+    g.module_popover = .{};
+    g.module_selected = 0;
+    if (path.len == 0 or path.len >= 512) return false;
+    var zpath: [512:0]u8 = undefined;
+    @memcpy(zpath[0..path.len], path);
+    zpath[path.len] = 0;
+    const file = c.fopen(&zpath, "r") orelse return false;
+    defer _ = c.fclose(file);
+
+    var line: [1024]u8 = undefined;
+    while (c.fgets(&line, @intCast(line.len), file)) |_| {
+        const raw = std.mem.span(@as([*:0]const u8, @ptrCast(&line)));
+        const t = trim(raw);
+        if (t.len == 0 or t[0] == '#' or t[0] == '[') continue;
+        const eq = std.mem.indexOfScalar(u8, t, '=') orelse continue;
+        const key = trim(t[0..eq]);
+        const val = trim(t[eq + 1 ..]);
+        if (std.mem.eql(u8, key, "title")) {
+            copyTrunc(&g.module_popover.title, &g.module_popover.title_len, val);
+        } else if (std.mem.eql(u8, key, "body") or std.mem.eql(u8, key, "subtitle")) {
+            copyTrunc(&g.module_popover.body, &g.module_popover.body_len, val);
+        } else if (std.mem.eql(u8, key, "action") or std.mem.eql(u8, key, "item")) {
+            if (g.module_popover.action_count >= g.module_popover.actions.len) continue;
+            const sep = std.mem.indexOfScalar(u8, val, '|');
+            const label = trim(if (sep) |at| val[0..at] else val);
+            const command = if (sep) |at| trim(val[at + 1 ..]) else "";
+            if (label.len == 0) continue;
+            const action = &g.module_popover.actions[g.module_popover.action_count];
+            copyTrunc(&action.label, &action.label_len, label);
+            copyTrunc(&action.command, &action.command_len, command);
+            g.module_popover.action_count += 1;
+        }
+    }
+    return g.module_popover.title_len > 0 or
+        g.module_popover.body_len > 0 or
+        g.module_popover.action_count > 0;
 }
 
 fn loadWallpaperShader() bool {
@@ -1442,6 +1717,8 @@ pub fn loadConfig() void {
         .effects,
     };
     g.bar_module_count = DEFAULT_BAR_MODULE_COUNT;
+    for (bar_module_specs, 0..) |spec, i| g.bar_priorities[i] = spec.priority;
+    g.bar_overflow = true;
     g.show_logo = true;
     g.show_workspaces = true;
     g.show_chips = true;

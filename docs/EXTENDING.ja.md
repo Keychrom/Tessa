@@ -70,27 +70,56 @@ tessa-panel --theme-json            # 解決済みセマンティックトーク
 `--list-modules` はコアモジュールとコンテキストモジュールを区別します。
 `layout`、`groups`、`mode`、`effects` は既存の IPC スナップショットから
 コンポジタ状態を読むコンテキストモジュールで、別のシェルプロセスを起動しません。
-このレジストリは将来の外部モジュールプロトコルの互換面になります。
+外部モジュールは別シェルを起動せず、このレジストリと下記の宣言的エントリを
+使います。
 
 ## 宣言的パネルウィジェット
 
-`status` エントリが最初の外部ウィジェットプロトコルです。プロセスが状態を
-所有し、宣言的なピルを IPC で送ります:
+`status` エントリが外部ウィジェットプロトコルです。プロセスが状態を所有し、
+宣言的なピルを IPC で送ります:
 
 ```sh
 tessa-ctl status weather "18C" --icon "☀" --priority 80 \
-  --exec "notify-send Tessa 'Weather opened'"
+  --popover ~/.cache/tessa/weather.ui
 tessa-ctl status weather --clear
 ```
 
 `status` のフィールドは `id`、`text`、`icon`、`priority`、任意のクリック
-コマンドです。優先度が高いエントリほどバーが狭いときも残り、隠れた件数は
-`+N` ピルで表示されます。state のテキストと JSON にも icon と priority が
-含まれます。`examples/panel-widget.sh` が実行可能なリファレンスです。
+コマンド（`--exec`）、任意のポップオーバーファイル（`--popover`）です。
+優先度が高いエントリほどバーが狭いときも残り、隠れた件数は `+N` ピルで
+表示されます。state のテキストと JSON にも icon、priority、popover パスが
+含まれます。`examples/panel-widget.sh` は status のみの実行可能な例です。
+
+### ウィジェットのポップオーバー
+
+ポップオーバーファイルは小さな宣言的 UI です。ウィジェットがクリックされた
+ときにパネルが読み込み、有効なテーマで描画し、アクションコマンドを実行します:
+
+```ini
+title = 東京
+body = 晴れ、18℃、風弱め
+action = 更新 | ~/.config/tessa/widgets/weather/refresh.sh
+action = 予報 | xdg-open https://weather.example/
+```
+
+- `title` と `body` は 1 行ずつで、`body` は省略できます。
+- `action = ラベル | コマンド` が行になります。最大 8 件です。コマンドは
+  コンポジタの通常の spawn 経路で実行されます。`|` のない行は情報表示のみで、
+  コマンドはありません。
+- 相対パスはファイルを書くプロセス側で解決されるため、`--popover` には絶対
+  パス（または `$XDG_RUNTIME_DIR/...`）を渡してください。
+- パネルはファイルを監視しません。内容を変えたら status エントリを再送信して
+  ください。次にクリックしたときに再読み込みされます。
+
+`tessa-ctl panel module <widget-id>` はクリックせずに同じポップオーバーを開き、
+モジュール開発中に便利です。`tessa-panel --popover-check <file>` はパネルを
+起動せずにファイルを解析し、title とアクションを出力します。
+`examples/panel-popover.sh` は完全な例を書き出して公開します。
 
 ウィジェットモデルは意図的に宣言的で、パネル内コードやカスタム描画 API は
-ありません。外部モジュールプロトコルを追加するときも、同じ identity、
-priority、state のモデルを使えます。
+ありません。ポップオーバーは一般的なリスト／アクション面をカバーし、より
+リッチな面が必要なら独自の layer-shell クライアントを開けます。バーの
+エントリは同じ identity、priority、state モデルを保ちます。
 
 `--theme-json` は解決済みの色、フォント、バー寸法、エフェクト状態を出力します。
 外部シェルは Tessa の設定形式を解釈せずに、この JSON から見た目を合わせられます。
@@ -278,7 +307,7 @@ EVENT	notification-action	id=12	action=reply
 | `mode-change` | アクティブ入力モードの変更 | arg（モード名） |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
-| `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`、`screenshot`、`media`、`tray`、`audio`、`extensions`）, output |
+| `panel` | パネルのポップオーバー要求 | arg（`calendar`、`power`、`clipboard`、`screenshot`、`media`、`tray`、`audio`、`extensions`、`module <widget-id>`）, output |
 | `notification-action` | IPC 経由の通知アクション要求 | id, action（アクションキー） |
 | `output-added` | 出力初期化 | output, arg（ジオメトリ） |
 | `output-removed` | 出力削除 | output, arg（ジオメトリ） |

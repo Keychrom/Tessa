@@ -68,28 +68,57 @@ tessa-panel --theme-json            # resolved semantic tokens
 
 `--list-modules` distinguishes core modules from context modules. The context
 modules `layout`, `groups`, `mode`, and `effects` read compositor state over the
-existing IPC snapshot; they do not start a second shell process. The same
-registry is the compatibility surface for a future external module protocol.
+existing IPC snapshot; they do not start a second shell process. External
+modules use this same registry and the declarative entry below instead of
+starting a second shell process.
 
 ## Declarative panel widgets
 
-The `status` entry is the first external widget protocol. A process owns its
-state and pushes a declarative pill over IPC:
+The `status` entry is the external widget protocol. A process owns its state and
+pushes a declarative pill over IPC:
 
 ```sh
 tessa-ctl status weather "18C" --icon "☀" --priority 80 \
-  --exec "notify-send Tessa 'Weather opened'"
+  --popover ~/.cache/tessa/weather.ui
 tessa-ctl status weather --clear
 ```
 
-`status` fields are `id`, `text`, `icon`, `priority`, and an optional click
-command. Higher priorities stay visible when the bar is narrow; hidden entries
-are represented by a `+N` pill. State text and JSON include the icon and
-priority. `examples/panel-widget.sh` is a runnable reference.
+`status` fields are `id`, `text`, `icon`, `priority`, an optional click command
+(`--exec`), and an optional popover file (`--popover`). Higher priorities stay
+visible when the bar is narrow; hidden entries are represented by a `+N` pill.
+State text and JSON include the icon, priority, and popover path.
+`examples/panel-widget.sh` is a runnable status-only reference.
+
+### Widget popovers
+
+A popover file is a tiny declarative UI. The panel reads it when the widget is
+clicked, renders it with the active theme, and runs action commands itself:
+
+```ini
+title = Tokyo
+body = Clear, 18 C, light wind
+action = Refresh | ~/.config/tessa/widgets/weather/refresh.sh
+action = Forecast | xdg-open https://weather.example/
+```
+
+- `title` and `body` are single lines; `body` may be omitted.
+- `action = Label | command` adds a row. Up to eight actions are read.
+  Commands run through the compositor's normal spawn path. A row without `|`
+  is shown as information and has no command.
+- Relative paths are resolved by the process that writes the file; pass an
+  absolute path (or `$XDG_RUNTIME_DIR/...`) to `--popover`.
+- The panel does not watch the file. Rewrite it and re-publish the status entry
+  when the content changes; clicking again reloads it.
+
+`tessa-ctl panel module <widget-id>` opens the same popover without clicking,
+which is useful while developing a module. `tessa-panel --popover-check <file>`
+parses a file and prints its title/actions without starting the panel.
+`examples/panel-popover.sh` writes a complete example and publishes it.
 
 The widget model is intentionally declarative: it has no in-panel code and no
-custom drawing API. Richer module surfaces can use the same identity,
-priority, and state model when the external module protocol is added.
+custom drawing API. Popovers cover the common list/action surface; richer
+surfaces can open their own layer-shell client while the bar entry keeps the
+same identity, priority, and state model.
 
 `--theme-json` exports resolved colors, fonts, bar geometry, and effect
 switches. External shells can consume it to match Tessa without importing
@@ -278,7 +307,7 @@ field, so receivers filter by notification id.
 | `mode-change` | Active input mode changed | arg (mode name) |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
-| `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, `screenshot`, `media`, `tray`, `audio`, or `extensions`), output |
+| `panel` | A panel popover was requested | arg (`calendar`, `power`, `clipboard`, `screenshot`, `media`, `tray`, `audio`, `extensions`, or `module <widget-id>`), output |
 | `notification-action` | A notification action was requested through IPC | id, action (action key) |
 | `output-added` | Output initialized | output, arg (geometry) |
 | `output-removed` | Output removed | output, arg (geometry) |

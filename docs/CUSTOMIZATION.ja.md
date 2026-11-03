@@ -618,7 +618,44 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
 バーの layer surface を再作成するため、予約領域も即座に更新されます。
 `bg_top`、`bg_bottom`、`wallpaper_art`、`wallpaper_image` は再起動なしで
-背景を描き直します。別ファイルのテーマは今後追加します。
+背景を描き直します。テーマパッケージは `theme` から読み込みます（後述）。
+
+### バーモジュール、優先度、オーバーフロー
+
+`bar_layout` は右側クラスタの表示モジュールと順序を決めます（先頭ほど右端）。
+ロゴ、ワークスペースピル、ウィンドウチップは固定位置のままです。
+`tessa-panel --list-modules` はモジュール一覧と、コンポジタ文脈を公開する
+モジュールかどうかを表示します。
+
+```ini
+bar_layout = logo, workspaces, chips, layout, groups, mode, effects, clock, tray, status
+```
+
+右側クラスタが収まらない場合、パネルは `bar_priority` の低いモジュールから
+隠し、`+N` チップを描画します。チップをクリックすると、隠れたモジュールと
+優先度の一覧が開きます。既定では時計、ステータス、ワークスペースが優先され、
+stats/media/tray が最後に隠れます。
+
+```ini
+# 値が大きいほど残りやすい。名前は bar_layout と同じ。
+bar_priority = clock=100, status=80, layout=60, groups=55, mode=65, effects=30
+bar_priority = stats=20, media=40, tray=35, battery=50, network=50, volume=60
+# bar_overflow = false   # 優先度による非表示と +N チップを無効化
+```
+
+判定にはモジュール幅の概算を使い、`+N` チップの領域も確保します。従来の
+最低幅（stats は 1180 px 未満、media は 1250 px 未満で非表示など）は引き続き
+適用されます。実際にその幅でセッションを開かずに判定を確認するには:
+
+```sh
+# バー幅、左側（ロゴ/チップ）に確保する領域
+tessa-panel --bar-plan 850 200
+```
+
+`visible`、`hidden`、`skip ... reason=minimum-width` の各行に、優先度と
+推定コストが表示されます。外部ステータスウィジェットの `--priority` と
+`+N` は `status` モジュール内部の別機構です。バー全体の判定では
+`status` モジュールを 1 単位として扱います。
 
 `wallpaper_image` は Cairo の PNG 読み込みを使います。`cover` は出力を埋めて
 余りを切り抜き、`contain` は `bg` 色のレターボックス、`stretch` は縦横比を
@@ -644,14 +681,16 @@ theme-role = wallpaper.bottom = #070a12
 テーマパッケージは通常の include で、`theme` エイリアスで指定できます:
 
 ```ini
-theme = ~/.config/tessa/themes/vermilion-ink.conf
+theme = ~/.config/tessa/themes/vermilion-ink
 ```
 
 `theme` は `include` と同じ動作で、コンポジタとパネルが同じファイルを読みます。
-ファイル変更は config watcher が検知して再読み込みし、`Super+R` でも手動
-再読み込みできます。完全なパレット例は
-`examples/themes/vermilion-ink.conf`、解決後の値は
-`tessa-panel --theme-json` で確認できます。
+ディレクトリを指定すると `<dir>/theme.conf` を読みます（それ以外のファイルは
+前方互換のため無視されます）。有効なパッケージの変更は config watcher が検知し、
+`theme` を別パッケージへ変更した場合も新しいディレクトリの監視に切り替わります。
+`Super+R` でも手動再読み込みできます。完全なパレット例は
+`examples/themes/vermilion-ink/`、解決後の値は `tessa-panel --theme-json` で
+確認できます。
 
 ## モーション、シャドウ、壁紙
 

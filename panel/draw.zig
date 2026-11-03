@@ -1046,9 +1046,18 @@ pub fn drawBar(s: *m.Surface) void {
     // right cluster, in configured module order from right to left
     var right = W - 16.0;
     var right_first = true;
+    const previous_hidden = g.bar_hidden_count;
+    const bar_plan = m.planBar(W, right - (cx + 12.0));
+    g.bar_hidden = bar_plan.hidden;
+    g.bar_hidden_count = bar_plan.hidden_count;
+    if (bar_plan.hidden_count != previous_hidden) {
+        std.debug.print("tessa-panel: bar overflow +{d}\n", .{bar_plan.hidden_count});
+    }
     var mi: usize = 0;
     while (mi < g.bar_module_count) : (mi += 1) {
-        switch (g.bar_modules[mi]) {
+        const module = g.bar_modules[mi];
+        if (bar_plan.hidden[@intFromEnum(module)]) continue;
+        switch (module) {
             .clock => {
                 if (!g.show_clock) continue;
                 const clock_right = right;
@@ -1333,6 +1342,29 @@ pub fn drawBar(s: *m.Surface) void {
         }
     }
 
+    if (bar_plan.hidden_count > 0) {
+        const more_w = 28.0;
+        const mx = right - more_w;
+        if (mx > cx + 12.0) {
+            const hovered = g.hover.kind == .bar_overflow;
+            fillRound(cr, mx, cy - 10, more_w, 20, 6, if (hovered)
+                .{ accent[0], accent[1], accent[2], 0.16 }
+            else
+                .{ 1, 1, 1, 0.040 });
+            strokeRound(cr, mx + 0.5, cy - 9.5, more_w - 1, 19, 5.5, if (hovered)
+                .{ accent[0], accent[1], accent[2], 0.28 }
+            else
+                .{ 1, 1, 1, 0.045 }, 1.0);
+            var mbuf: [16]u8 = undefined;
+            const more = std.fmt.bufPrint(&mbuf, "+{d}", .{bar_plan.hidden_count}) catch "+";
+            _ = drawTextCentered(cr, more, mx + 7, cy + 0.3, MONO, "Medium", 8.2, .{
+                0.68, 0.74, 0.84, 0.88,
+            }, 0, 0);
+            addBarHit(mx, cy - 11, more_w, 22, .{ .kind = .bar_overflow });
+            right = mx - 8.0;
+        }
+    }
+
     end(s, d);
 }
 
@@ -1545,6 +1577,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
         .tray => 400.0,
         .audio => 380.0,
         .extensions => 460.0,
+        .module => 360.0,
         else => 336.0,
     };
     const h: f64 = switch (mode) {
@@ -1560,6 +1593,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
         else
             92.0 + @as(f64, @floatFromInt(g.tray_count)) * 46.0,
         .extensions => 128.0 + @as(f64, @floatFromInt(@min(g.extension_count, 6))) * 52.0,
+        .module => 96.0 + @as(f64, @floatFromInt(g.module_popover.action_count)) * 40.0,
         else => 360.0,
     };
     const margin: f64 = @floatFromInt(g.bar_side_margin);
@@ -1567,6 +1601,7 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
     var x = switch (mode) {
         .calendar, .tray => W - margin - w,
         .clipboard, .media, .audio, .extensions => (W - w) / 2.0,
+        .module => W - margin - w,
         else => margin,
     };
     var y = switch (mode) {
@@ -2726,6 +2761,92 @@ fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
+fn drawModulePopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    const accent = g.accent;
+    const fam = m.popoverFont();
+    const p = popoverLayout(.module, W, H);
+    const x = p.x;
+    const y = p.y;
+    const w = p.w;
+    const h = p.h;
+
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1;
+    g.overlay_hit_x = x;
+    g.overlay_hit_y = y;
+
+    c.cairo_push_group(cr);
+    drawPopoverCard(cr, x, y, w, h);
+
+    _ = drawText(cr, "MODULE", x + 24, y + 18, fam, "Medium", 7.6, .{
+        0.64, 0.70, 0.80, 0.45,
+    }, 0, 1.7);
+    const title = g.module_popover.title[0..g.module_popover.title_len];
+    _ = drawText(cr, if (title.len > 0) title else "Widget", x + 24, y + 35, fam, "Semi-Bold", 18.5, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98,
+    }, w - 96, 0);
+    _ = drawText(cr, "ESC", x + w - 48, y + 18, MONO, "Medium", 7.2, .{
+        0.64, 0.70, 0.80, 0.4,
+    }, 0, 0.8);
+
+    const body = g.module_popover.body[0..g.module_popover.body_len];
+    if (body.len > 0) {
+        _ = drawText(cr, body, x + 24, y + 58, fam, "Regular", 10.0, .{
+            g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.62,
+        }, w - 48, 0);
+    }
+
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, x + 24, y + 76);
+    c.cairo_line_to(cr, x + w - 24, y + 76);
+    setColor(cr, .{ 1, 1, 1, 0.06 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const row_w = w - 32.0;
+    const row_h = 36.0;
+    const row_y0 = y + 84.0;
+    var i: usize = 0;
+    while (i < g.module_popover.action_count) : (i += 1) {
+        const action = &g.module_popover.actions[i];
+        const row_y = row_y0 + @as(f64, @floatFromInt(i)) * 40.0;
+        const selected = i == g.module_selected;
+        const hovered = i == g.overlay_row_hover;
+        if (selected) {
+            fillRound(cr, x + 16, row_y, row_w, row_h, 10, .{
+                accent[0], accent[1], accent[2], 0.14,
+            });
+            strokeRound(cr, x + 16.5, row_y + 0.5, row_w - 1, row_h - 1, 9.5, .{
+                accent[0], accent[1], accent[2], 0.24,
+            }, 1);
+            fillRound(cr, x + 17.5, row_y + 8, 3, 20, 1.5, .{
+                accent[0], accent[1], accent[2], 0.95,
+            });
+        } else if (hovered) {
+            fillRound(cr, x + 16, row_y, row_w, row_h, 10, .{ 1, 1, 1, 0.035 });
+        }
+
+        _ = drawText(cr, action.label[0..action.label_len], x + 30, row_y + 9, fam, "Medium", 10.4, .{
+            g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], if (selected) 1.0 else 0.88,
+        }, row_w - 78, 0);
+        if (action.command_len > 0) {
+            _ = drawTextCentered(cr, "\xe2\x86\xb5", x + w - 32, row_y + row_h / 2.0, MONO, "Medium", 11.0, .{
+                accent[0], accent[1], accent[2], if (selected) 0.9 else 0.55,
+            }, 0, 0);
+        } else {
+            _ = drawText(cr, "INFO", x + w - 64, row_y + row_h / 2.0 - 4, MONO, "Medium", 6.4, .{
+                0.60, 0.66, 0.76, 0.4,
+            }, 0, 0.8);
+        }
+        addOverlayHit(16, row_y - y, row_w, row_h, .{ .kind = .module_action, .value = i });
+    }
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+
+    g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
+}
+
 pub fn drawOverlay(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
@@ -2789,6 +2910,8 @@ pub fn drawOverlay(s: *m.Surface) void {
         drawAudioPopover(cr, W, H, t);
     } else if (g.overlay_mode == .extensions) {
         drawExtensionsPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .module) {
+        drawModulePopover(cr, W, H, t);
     }
 
     end(s, d);

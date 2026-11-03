@@ -2735,6 +2735,16 @@ fn resolveInclude(dest: []u8, base: []const u8, value: []const u8) []const u8 {
     return std.fmt.bufPrint(dest, "{s}/{s}", .{ dir, value }) catch "";
 }
 
+fn isDirectory(path: []const u8) bool {
+    var zpath: [512:0]u8 = undefined;
+    if (path.len >= zpath.len) return false;
+    @memcpy(zpath[0..path.len], path);
+    zpath[path.len] = 0;
+    var st: c.struct_stat = undefined;
+    if (c.stat(&zpath, &st) != 0) return false;
+    return (st.st_mode & 0o170000) == 0o040000;
+}
+
 fn loadPath(
     server: *Server,
     path: []const u8,
@@ -2788,13 +2798,26 @@ fn loadPath(
 
         if (std.mem.eql(u8, key, "include") or std.mem.eql(u8, key, "theme")) {
             var include_buf: [512]u8 = undefined;
-            const include_path = resolveInclude(&include_buf, path, value);
-            if (include_path.len == 0) {
+            const resolved = resolveInclude(&include_buf, path, value);
+            if (resolved.len == 0) {
                 addIssue(server, path, line_no, "invalid include '{s}'", .{value});
             } else {
-                const parent_mode = current_mode.*;
-                loadPath(server, include_path, depth + 1, current_mode, path, line_no);
-                current_mode.* = parent_mode;
+                var include_path = resolved;
+                if (std.mem.eql(u8, key, "theme")) {
+                    server.config.theme_dir_len = 0;
+                    if (isDirectory(resolved)) {
+                        core.copyString(&server.config.theme_dir, &server.config.theme_dir_len, resolved);
+                        var theme_buf: [512]u8 = undefined;
+                        include_path = std.fmt.bufPrint(&theme_buf, "{s}/theme.conf", .{resolved}) catch "";
+                    }
+                }
+                if (include_path.len == 0) {
+                    addIssue(server, path, line_no, "invalid theme package '{s}'", .{value});
+                } else {
+                    const parent_mode = current_mode.*;
+                    loadPath(server, include_path, depth + 1, current_mode, path, line_no);
+                    current_mode.* = parent_mode;
+                }
             }
         } else if (std.mem.eql(u8, key, "terminal")) {
             core.copyString(&server.config.terminal, &server.config.terminal_len, value);

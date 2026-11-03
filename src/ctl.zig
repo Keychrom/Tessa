@@ -30,6 +30,7 @@ fn usage() void {
         "  launcher [query...]           open the launcher\n" ++
         "  panel <calendar|power|clipboard|screenshot|media|tray|audio> [out]\n" ++
         "                                open a panel popover\n" ++
+        "  panel module <widget-id>      open an external widget's popover\n" ++
         "  notify-action <id> <key>      invoke a notification action\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++
         "  column-focus <dir>           focus a scrolling column\n" ++
@@ -45,6 +46,7 @@ fn usage() void {
         "  status <id> <text>            set a bar status/widget entry\n" ++
         "  status <id> --clear           remove a bar status/widget entry\n" ++
         "  status <id> <text> [--icon X] [--priority N] [--exec <command...>]\n" ++
+        "  status <id> <text> [--popover <file>]\n" ++
         "                                set a declarative bar widget\n" ++
         "  quit                          stop the compositor\n" ++
         "\n" ++
@@ -308,6 +310,7 @@ fn runStatus(args: []const []const u8) !void {
     var icon: []const u8 = "";
     var priority: i32 = 0;
     var exec_index: ?usize = null;
+    var popover_arg: []const u8 = "";
     var text_args: [32][]const u8 = undefined;
     var text_count: usize = 0;
     var i: usize = 2;
@@ -321,6 +324,10 @@ fn runStatus(args: []const []const u8) !void {
         } else if (std.mem.eql(u8, args[i], "--icon")) {
             if (i + 1 >= args.len) return error.BadArguments;
             icon = args[i + 1];
+            i += 2;
+        } else if (std.mem.eql(u8, args[i], "--popover")) {
+            if (i + 1 >= args.len) return error.BadArguments;
+            popover_arg = args[i + 1];
             i += 2;
         } else if (std.mem.eql(u8, args[i], "--priority")) {
             if (i + 1 >= args.len) return error.BadArguments;
@@ -344,13 +351,15 @@ fn runStatus(args: []const []const u8) !void {
     var text_buf: [160]u8 = undefined;
     var command_buf: [256]u8 = undefined;
     var icon_buf: [32]u8 = undefined;
+    var popover_buf: [512]u8 = undefined;
     const text = if (clear) "" else sanitize(&text_buf, text_join);
     const command = if (clear) "" else sanitize(&command_buf, exec_join);
     const safe_icon = if (clear) "" else sanitize(&icon_buf, icon);
+    const safe_popover = if (clear) "" else sanitize(&popover_buf, popover_arg);
 
     var line: [1200]u8 = undefined;
-    const msg = std.fmt.bufPrint(&line, "CMD\tstatus\t{s}\t{s}\t{s}\t{s}\t{d}\n", .{
-        id, text, command, safe_icon, if (clear) 0 else priority,
+    const msg = std.fmt.bufPrint(&line, "CMD\tstatus\t{s}\t{s}\t{s}\t{s}\t{d}\t{s}\n", .{
+        id, text, command, safe_icon, if (clear) 0 else priority, safe_popover,
     }) catch return error.LineTooLong;
     try sendCommand(msg);
 }

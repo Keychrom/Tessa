@@ -152,6 +152,8 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addRaw(buf, &off, ",\"icon\":");
         addString(buf, &off, status.icon[0..status.icon_len]);
         add(buf, &off, ",\"priority\":{d}", .{status.priority});
+        addRaw(buf, &off, ",\"popover\":");
+        addString(buf, &off, status.popover[0..status.popover_len]);
         addRaw(buf, &off, "}");
     }
 

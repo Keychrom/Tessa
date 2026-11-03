@@ -103,6 +103,7 @@ pub const MAX_STATUS_ID = 48;
 pub const MAX_STATUS_TEXT = 160;
 pub const MAX_STATUS_COMMAND = 256;
 pub const MAX_STATUS_ICON = 32;
+pub const MAX_STATUS_POPOVER = 512;
 pub const MAX_EXTENSIONS = 16;
 pub const MAX_EXTENSION_ID = 32;
 pub const MAX_EXTENSION_DEPS = 8;
@@ -686,6 +687,8 @@ pub const StatusEntry = struct {
     icon: [MAX_STATUS_ICON]u8 = undefined,
     icon_len: usize = 0,
     priority: i32 = 0,
+    popover: [MAX_STATUS_POPOVER]u8 = undefined,
+    popover_len: usize = 0,
 };
 
 pub const Config = struct {
@@ -845,6 +848,8 @@ pub const Config = struct {
     event_rule_count: usize,
     theme_roles: [MAX_THEME_ROLES]ThemeRole,
     theme_role_count: usize,
+    theme_dir: [512]u8,
+    theme_dir_len: usize,
     profiles: [MAX_PROFILES]Profile,
     profile_count: usize,
     workspace_rules: [MAX_WORKSPACE_RULES]WorkspaceRule,
@@ -1406,6 +1411,8 @@ pub const Server = struct {
     config_issue_count: usize,
     config_error_count: usize,
     config_watch_fd: c_int,
+    config_dir_watch: c_int,
+    config_theme_watch: c_int,
     config_watch_source: ?*c.wl_event_source,
     config_reload_timer: ?*c.wl_event_source,
     layout_refresh: ?*const fn (*Server) void,

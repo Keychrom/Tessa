@@ -278,6 +278,7 @@ fn setStatus(
     command: []const u8,
     icon: []const u8,
     priority: i32,
+    popover: []const u8,
 ) void {
     if (id.len == 0) return;
 
@@ -312,6 +313,7 @@ fn setStatus(
     core.copyString(&entry.text, &entry.text_len, text);
     core.copyString(&entry.command, &entry.command_len, command);
     core.copyString(&entry.icon, &entry.icon_len, icon);
+    core.copyString(&entry.popover, &entry.popover_len, popover);
     entry.priority = priority;
     core.markDirty(server);
 }
@@ -362,7 +364,8 @@ fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
             std.fmt.parseInt(i32, fields[5], 10) catch 0
         else
             0;
-        setStatus(cl.server, id, text, command, icon, priority);
+        const popover = if (count > 6) fields[6] else "";
+        setStatus(cl.server, id, text, command, icon, priority, popover);
         return true;
     }
     return false;
@@ -687,7 +690,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             const sp = std.mem.indexOfAny(u8, rest, " \t") orelse rest.len;
             const id = rest[0..sp];
             const text = std.mem.trim(u8, rest[sp..], " \t");
-            setStatus(server, id, text, "", "", 0);
+            setStatus(server, id, text, "", "", 0, "");
         }
     } else if (std.mem.eql(u8, cmd, "workspace")) {
         if (start + 1 < n) {
@@ -938,7 +941,17 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "panel")) {
         if (start + 1 < n) {
             const name = toks[start + 1];
-            if (start + 2 < n) {
+            if (std.mem.eql(u8, name, "module") and start + 2 < n) {
+                var arg_buf: [types.MAX_STATUS_ID + 8]u8 = undefined;
+                const arg = std.fmt.bufPrint(&arg_buf, "module {s}", .{toks[start + 2]}) catch return;
+                if (start + 3 < n) {
+                    if (core.outputByName(server, toks[start + 3])) |target| {
+                        emitPanel(server, arg, core.outputName(target));
+                    }
+                } else {
+                    emitPanel(server, arg, "");
+                }
+            } else if (start + 2 < n) {
                 if (core.outputByName(server, toks[start + 2])) |target| {
                     emitPanel(server, name, core.outputName(target));
                 }
@@ -1102,12 +1115,14 @@ fn buildState(server: *Server, buf: []u8) usize {
         var text_buf: [types.MAX_STATUS_TEXT * 2 + 1]u8 = undefined;
         var cmd_buf: [types.MAX_STATUS_COMMAND * 2 + 1]u8 = undefined;
         var icon_buf: [types.MAX_STATUS_ICON * 2 + 1]u8 = undefined;
+        var popover_buf: [types.MAX_STATUS_POPOVER * 2 + 1]u8 = undefined;
         const id = escape(&id_buf, st.id[0..st.id_len]);
         const text = escape(&text_buf, st.text[0..st.text_len]);
         const command = escape(&cmd_buf, st.command[0..st.command_len]);
         const icon = escape(&icon_buf, st.icon[0..st.icon_len]);
-        append(buf, &off, "STATUS\t{s}\t{s}\t{s}\t{s}\t{d}\n", .{
-            id, text, command, icon, st.priority,
+        const popover = escape(&popover_buf, st.popover[0..st.popover_len]);
+        append(buf, &off, "STATUS\t{s}\t{s}\t{s}\t{s}\t{d}\t{s}\n", .{
+            id, text, command, icon, st.priority, popover,
         });
     }
 

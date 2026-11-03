@@ -557,6 +557,90 @@ fn openExtensions() void {
     logDebug("extensions open ({d})", .{g.extension_count});
 }
 
+fn presentModulePopover(source: []const u8) void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (g.overlay != null and g.overlay_mode == .module and g.menu_target == 1 and
+        std.mem.eql(u8, g.module_source[0..g.module_source_len], source))
+    {
+        closeOverlay();
+        return;
+    }
+    m.copyTrunc(&g.module_source, &g.module_source_len, source);
+    if (g.overlay != null) destroyOverlay();
+    if (!ensureOverlay()) return;
+    beginOverlay(.module);
+    logDebug("module popover open: {s} ({d} actions)", .{
+        m.g.module_popover.title[0..m.g.module_popover.title_len],
+        m.g.module_popover.action_count,
+    });
+}
+
+fn openModulePopover(path: []const u8) void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (!m.loadModulePopover(path)) {
+        logDebug("module popover: cannot read '{s}'", .{path});
+        return;
+    }
+    presentModulePopover(path);
+}
+
+fn openHiddenModules() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS) or g.bar_hidden_count == 0) return;
+    g.module_popover = .{};
+    m.copyTrunc(&g.module_popover.title, &g.module_popover.title_len, "Hidden modules");
+    m.copyTrunc(
+        &g.module_popover.body,
+        &g.module_popover.body_len,
+        "Raise a module's bar_priority to keep it visible.",
+    );
+    for (g.bar_modules[0..g.bar_module_count]) |module| {
+        if (!g.bar_hidden[@intFromEnum(module)]) continue;
+        if (g.module_popover.action_count >= g.module_popover.actions.len) break;
+        var label_buf: [m.MAX_MODULE_LABEL]u8 = undefined;
+        const label = std.fmt.bufPrint(&label_buf, "{s}  ({d})", .{
+            m.barModuleName(module), m.barPriority(module),
+        }) catch m.barModuleName(module);
+        const action = &g.module_popover.actions[g.module_popover.action_count];
+        m.copyTrunc(&action.label, &action.label_len, label);
+        g.module_popover.action_count += 1;
+    }
+    g.module_selected = 0;
+    presentModulePopover("");
+}
+
+fn openModulePopoverById(id: []const u8) void {
+    var i: usize = 0;
+    while (i < g.status_count) : (i += 1) {
+        const st = &g.statuses[i];
+        if (!std.mem.eql(u8, st.id[0..st.id_len], id)) continue;
+        if (st.popover_len == 0) {
+            logDebug("module popover: widget '{s}' has no popover", .{id});
+            return;
+        }
+        openModulePopover(st.popover[0..st.popover_len]);
+        return;
+    }
+    logDebug("module popover: unknown widget '{s}'", .{id});
+}
+
+fn moveModuleSelection(delta: isize) void {
+    if (g.module_popover.action_count == 0) return;
+    const count: isize = @intCast(g.module_popover.action_count);
+    var next = @as(isize, @intCast(g.module_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.module_selected = @intCast(next);
+    refreshOverlay();
+}
+
+fn runModuleAction(index: usize) void {
+    if (index >= g.module_popover.action_count) return;
+    const action = &g.module_popover.actions[index];
+    if (action.command_len == 0) return;
+    sendCmd("CMD spawn {s}\n", .{action.command[0..action.command_len]});
+    closeOverlay();
+}
+
 fn openPanel(name: []const u8) void {
     if (std.mem.eql(u8, name, "calendar")) {
         openCalendar();
@@ -574,6 +658,8 @@ fn openPanel(name: []const u8) void {
         openAudio();
     } else if (std.mem.eql(u8, name, "extensions")) {
         openExtensions();
+    } else if (std.mem.startsWith(u8, name, "module ")) {
+        openModulePopoverById(std.mem.trim(u8, name[7..], " \t"));
     } else {
         logDebug("unknown panel '{s}'", .{name});
     }
@@ -690,6 +776,10 @@ fn activateOverlayHit(h: m.Hit) void {
         .extension => {
             g.extension_selected = h.value;
             toggleExtensionSelection();
+        },
+        .module_action => {
+            g.module_selected = h.value;
+            runModuleAction(h.value);
         },
         .audio_down => audioCommand(2),
         .audio_mute => audioCommand(3),
@@ -1113,6 +1203,27 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             refreshOverlay();
         } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
             toggleExtensionSelection();
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .module) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeOverlay();
+        } else if (sym == c.XKB_KEY_Up) {
+            moveModuleSelection(-1);
+        } else if (sym == c.XKB_KEY_Down) {
+            moveModuleSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.module_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.module_popover.action_count > 0) {
+                g.module_selected = g.module_popover.action_count - 1;
+            }
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+            runModuleAction(g.module_selected);
         }
         return;
     }
@@ -3040,10 +3151,15 @@ fn handleInputButton(button: u32, state: u32) void {
             .status => {
                 if (button == 0x110 and h.value < g.status_count) {
                     const st = &g.statuses[h.value];
-                    if (st.command_len > 0) {
+                    if (st.popover_len > 0) {
+                        openModulePopover(st.popover[0..st.popover_len]);
+                    } else if (st.command_len > 0) {
                         sendCmd("CMD spawn {s}{c}", .{ st.command[0..st.command_len], @as(u8, 10) });
                     }
                 }
+            },
+            .bar_overflow => {
+                if (button == 0x110) openHiddenModules();
             },
             else => {},
         }
@@ -3254,7 +3370,7 @@ fn handleStateLine(line: []const u8) void {
     if (!g.ipc_in_state) return;
 
     if (std.mem.startsWith(u8, line, "STATUS") and line.len > 6 and line[6] == 9) {
-        var fields: [6][]const u8 = undefined;
+        var fields: [7][]const u8 = undefined;
         const count = splitTabs(line, &fields);
         if (count < 4 or g.status_count >= g.statuses.len) return;
         const st = &g.statuses[g.status_count];
@@ -3264,6 +3380,7 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&st.command, &st.command_len, fields[3]);
         if (count >= 5) m.decodeEscapes(&st.icon, &st.icon_len, fields[4]);
         if (count >= 6) st.priority = std.fmt.parseInt(i32, fields[5], 10) catch 0;
+        if (count >= 7) m.decodeEscapes(&st.popover, &st.popover_len, fields[6]);
         g.status_count += 1;
         return;
     }
@@ -3695,6 +3812,10 @@ pub fn main(init: std.process.Init.Minimal) !void {
     var list_modules = false;
     var list_json = false;
     var theme_json = false;
+    var bar_plan = false;
+    var bar_plan_width: f64 = 0;
+    var bar_plan_left: f64 = 160;
+    var popover_check: ?[]const u8 = null;
     var args = init.args.iterate();
     defer args.deinit();
     _ = args.next();
@@ -3707,10 +3828,46 @@ pub fn main(init: std.process.Init.Minimal) !void {
             list_json = true;
         } else if (std.mem.eql(u8, arg, "--theme-json")) {
             theme_json = true;
+        } else if (std.mem.eql(u8, arg, "--popover-check")) {
+            popover_check = args.next();
+        } else if (std.mem.eql(u8, arg, "--bar-plan")) {
+            bar_plan = true;
+            if (args.next()) |value| {
+                bar_plan_width = std.fmt.parseFloat(f64, value) catch 0;
+                if (args.next()) |left| {
+                    bar_plan_left = std.fmt.parseFloat(f64, left) catch bar_plan_left;
+                }
+            }
         }
+    }
+    if (popover_check) |path| {
+        if (!m.loadModulePopover(path)) {
+            std.debug.print("popover: invalid or empty: {s}\n", .{path});
+            std.process.exit(1);
+        }
+        std.debug.print("popover: title={s} actions={d}\n", .{
+            m.g.module_popover.title[0..m.g.module_popover.title_len],
+            m.g.module_popover.action_count,
+        });
+        for (m.g.module_popover.actions[0..m.g.module_popover.action_count]) |*action| {
+            std.debug.print("action: {s} -> {s}\n", .{
+                action.label[0..action.label_len],
+                action.command[0..action.command_len],
+            });
+        }
+        return;
     }
     if (list_modules) {
         m.printModules(list_json);
+        return;
+    }
+    if (bar_plan) {
+        m.loadConfig();
+        if (bar_plan_width <= 0) {
+            std.debug.print("bar-plan: width must be positive\n", .{});
+            std.process.exit(1);
+        }
+        m.printBarPlan(bar_plan_width, bar_plan_left);
         return;
     }
     if (theme_json) {
