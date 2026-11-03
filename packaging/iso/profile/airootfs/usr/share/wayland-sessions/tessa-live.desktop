@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Tessa Live
+Comment=Tessa live desktop with the installer
+Exec=tessa-live-session
+Type=Application
+DesktopNames=Tessa

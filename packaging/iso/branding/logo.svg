@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tessa">
+  <g fill="#e2684f">
+    <circle cx="32" cy="16" r="8.2"/>
+    <circle cx="47.2" cy="27" r="8.2"/>
+    <circle cx="41.4" cy="44.8" r="8.2"/>
+    <circle cx="22.6" cy="44.8" r="8.2"/>
+    <circle cx="16.8" cy="27" r="8.2"/>
+  </g>
+  <circle cx="32" cy="32" r="4.6" fill="#f6b39f"/>
+  <circle cx="32" cy="32" r="1.7" fill="#7c2318"/>
+</svg>

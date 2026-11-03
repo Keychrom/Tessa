@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Install Tessa
+Name[ja]=Tessa をインストール
+Comment=Install Tessa Linux on this computer
+Comment[ja]=このコンピューターに Tessa Linux をインストールします
+Exec=/usr/local/bin/tessa-installer
+Icon=calamares
+Terminal=false
+Categories=System;
+Keywords=install;setup;calamares;

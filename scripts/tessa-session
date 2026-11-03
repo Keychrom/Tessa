@@ -10,6 +10,12 @@ export XDG_CURRENT_DESKTOP=Tessa
 export XDG_SESSION_DESKTOP=tessa
 export XDG_SESSION_TYPE=wayland
 
+# The ISO boot menu uses tessa.software=1 as a fallback for systems where the
+# GPU driver cannot create a GL renderer.
+if [ -z "${WLR_RENDERER:-}" ] && grep -q 'tessa.software=1' /proc/cmdline 2>/dev/null; then
+    export WLR_RENDERER=pixman
+fi
+
 # Some virtualized DRM drivers expose a cursor plane that produces no visible
 # image. Software cursors are reliable there; keep hardware cursors on physical
 # machines and honor an explicit user override.

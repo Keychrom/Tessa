@@ -1,0 +1,19 @@
+# Tessa defaults for the installed desktop.
+terminal = kitty
+font = Noto Sans CJK JP
+bar_font = Noto Sans CJK JP
+launcher-font = Noto Sans CJK JP
+popover_font = Noto Sans CJK JP
+toast-font = Noto Sans CJK JP
+kb_layout = jp
+panel = true
+xwayland = true
+xim = true
+xim_server = fcitx
+startup = fcitx5 -d
+bar_layout = logo, workspaces, chips, clock, tray, status, layout, effects
+theme = /usr/share/tessa/themes/vermilion-ink
+animations = true
+blur = true
+shadows = true
+corner_radius = 10
