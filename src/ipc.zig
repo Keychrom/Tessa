@@ -271,7 +271,14 @@ fn removeStatus(server: *Server, index: usize) void {
     server.status_count -= 1;
 }
 
-fn setStatus(server: *Server, id: []const u8, text: []const u8, command: []const u8) void {
+fn setStatus(
+    server: *Server,
+    id: []const u8,
+    text: []const u8,
+    command: []const u8,
+    icon: []const u8,
+    priority: i32,
+) void {
     if (id.len == 0) return;
 
     var found: ?usize = null;
@@ -304,6 +311,8 @@ fn setStatus(server: *Server, id: []const u8, text: []const u8, command: []const
     core.copyString(&entry.id, &entry.id_len, id);
     core.copyString(&entry.text, &entry.text_len, text);
     core.copyString(&entry.command, &entry.command_len, command);
+    core.copyString(&entry.icon, &entry.icon_len, icon);
+    entry.priority = priority;
     core.markDirty(server);
 }
 
@@ -331,7 +340,7 @@ pub fn emitPanel(server: *Server, name: []const u8, output_name: []const u8) voi
 }
 
 fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
-    var fields: [5][]const u8 = undefined;
+    var fields: [8][]const u8 = undefined;
     var count: usize = 0;
     var start: usize = 0;
     var i: usize = 0;
@@ -348,7 +357,12 @@ fn handleTabCommand(cl: *IpcClient, line: []const u8) bool {
         const id = if (count > 1) fields[1] else "";
         const text = if (count > 2) fields[2] else "";
         const command = if (count > 3) fields[3] else "";
-        setStatus(cl.server, id, text, command);
+        const icon = if (count > 4) fields[4] else "";
+        const priority = if (count > 5)
+            std.fmt.parseInt(i32, fields[5], 10) catch 0
+        else
+            0;
+        setStatus(cl.server, id, text, command, icon, priority);
         return true;
     }
     return false;
@@ -673,7 +687,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
             const sp = std.mem.indexOfAny(u8, rest, " \t") orelse rest.len;
             const id = rest[0..sp];
             const text = std.mem.trim(u8, rest[sp..], " \t");
-            setStatus(server, id, text, "");
+            setStatus(server, id, text, "", "", 0);
         }
     } else if (std.mem.eql(u8, cmd, "workspace")) {
         if (start + 1 < n) {
@@ -1087,10 +1101,14 @@ fn buildState(server: *Server, buf: []u8) usize {
         var id_buf: [types.MAX_STATUS_ID * 2 + 1]u8 = undefined;
         var text_buf: [types.MAX_STATUS_TEXT * 2 + 1]u8 = undefined;
         var cmd_buf: [types.MAX_STATUS_COMMAND * 2 + 1]u8 = undefined;
+        var icon_buf: [types.MAX_STATUS_ICON * 2 + 1]u8 = undefined;
         const id = escape(&id_buf, st.id[0..st.id_len]);
         const text = escape(&text_buf, st.text[0..st.text_len]);
         const command = escape(&cmd_buf, st.command[0..st.command_len]);
-        append(buf, &off, "STATUS\t{s}\t{s}\t{s}\n", .{ id, text, command });
+        const icon = escape(&icon_buf, st.icon[0..st.icon_len]);
+        append(buf, &off, "STATUS\t{s}\t{s}\t{s}\t{s}\t{d}\n", .{
+            id, text, command, icon, st.priority,
+        });
     }
 
     var i: usize = 0;

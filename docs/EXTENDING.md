@@ -71,6 +71,26 @@ modules `layout`, `groups`, `mode`, and `effects` read compositor state over the
 existing IPC snapshot; they do not start a second shell process. The same
 registry is the compatibility surface for a future external module protocol.
 
+## Declarative panel widgets
+
+The `status` entry is the first external widget protocol. A process owns its
+state and pushes a declarative pill over IPC:
+
+```sh
+tessa-ctl status weather "18C" --icon "☀" --priority 80 \
+  --exec "notify-send Tessa 'Weather opened'"
+tessa-ctl status weather --clear
+```
+
+`status` fields are `id`, `text`, `icon`, `priority`, and an optional click
+command. Higher priorities stay visible when the bar is narrow; hidden entries
+are represented by a `+N` pill. State text and JSON include the icon and
+priority. `examples/panel-widget.sh` is a runnable reference.
+
+The widget model is intentionally declarative: it has no in-panel code and no
+custom drawing API. Richer module surfaces can use the same identity,
+priority, and state model when the external module protocol is added.
+
 `--theme-json` exports resolved colors, fonts, bar geometry, and effect
 switches. External shells can consume it to match Tessa without importing
 Tessa's config format. Panel-only settings are resolved first, so the JSON
@@ -109,7 +129,7 @@ and `layer_rule <raw>` lines. The most useful state lines are:
 MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
-STATUS	weather	Tokyo 18C	
+STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
@@ -123,8 +143,9 @@ coordinates and is included for tooling that tracks windows. `LAYER` is
 `namespace`, output,
 layer number (`0` background … `3` overlay), effective opacity, effective
 corner radius, and effective blur (`0`/`1`). `PANEL` is output, panel pid,
-supervised (`0`/`1`), and notification-owner (`0`/`1`). `STATUS` is covered
-below.
+supervised (`0`/`1`), and notification-owner (`0`/`1`). `STATUS` is id, escaped
+text, click command, icon, and priority; older consumers can ignore the last
+two fields.
 
 ## JSON snapshots
 

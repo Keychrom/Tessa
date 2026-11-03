@@ -34,11 +34,13 @@ printf 'P6\n64 64\n255\n'
 exec python3 -c 'import sys; sys.stdout.buffer.write(bytes((200, 40, 90)) * 64 * 64)'
 EOF
 chmod +x "$runtime/shader.sh"
+printf 'theme-role = accent = #123456\n' > "$runtime/theme.conf"
 
 cat > "$runtime/config" <<EOF
 panel = true
 xwayland = false
 animations = false
+theme = theme.conf
 bg = #000000
 bg_top = #000000
 bg_bottom = #000000
@@ -105,6 +107,9 @@ tokens = data["tokens"]
 for name in ("accent", "panel.background", "bar.background", "launcher.foreground"):
     if name not in tokens or len(tokens[name]) != 3:
         raise SystemExit(f"missing theme token: {name}")
+accent = tokens["accent"]
+if abs(accent[0] - 0x12 / 255) > 0.01 or abs(accent[1] - 0x34 / 255) > 0.01 or abs(accent[2] - 0x56 / 255) > 0.01:
+    raise SystemExit(f"theme include was not applied: {accent}")
 if data["fonts"]["bar"] != "DejaVu Sans":
     raise SystemExit(f"theme font export mismatch: {data['fonts']}")
 if data["effects"]["animations"] is not False:
@@ -169,6 +174,36 @@ sleep 0.3
     exit 1
 }
 echo "shell role status: ok"
+printf 'theme-role = accent = #654321\n' > "$runtime/theme.conf"
+i=0
+while [ "$i" -lt 30 ]; do
+    if "$bin/tessa-ctl" config 2>/dev/null | grep -qF "accent #654321"; then
+        break
+    fi
+    i=$((i + 1))
+    sleep 0.1
+done
+if [ "$i" -ge 30 ]; then
+    echo "theme file hot reload did not apply" >&2
+    "$bin/tessa-ctl" config >&2 || true
+    exit 1
+fi
+echo "theme hot reload: ok"
+"$bin/tessa-ctl" status demo-widget "18C" --icon "☀" --priority 90
+sleep 0.2
+"$bin/tessa-ctl" state --json >"$runtime/widget-state.json"
+python3 - "$runtime/widget-state.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+for entry in data["statuses"]:
+    if entry["id"] == "demo-widget":
+        if entry["icon"] != "☀" or entry["priority"] != 90:
+            raise SystemExit(f"widget metadata mismatch: {entry}")
+        break
+else:
+    raise SystemExit("external widget was not present in state")
+PY
+echo "declarative widget: ok"
 grim -o HEADLESS-1 "$runtime/shader.png"
 rgb=$(python3 "$root/tests/png-pixel.py" "$runtime/shader.png" 960 540)
 awk -v rgb="$rgb" 'BEGIN { split(rgb, c, " "); if (c[1] < 190 || c[1] > 210 || c[2] < 30 || c[2] > 50 || c[3] < 80 || c[3] > 100) exit 1 }' || {

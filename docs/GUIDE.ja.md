@@ -185,7 +185,7 @@ plain wlroots シーンでビルドする場合はソースビルドに
 `-Dscenefx=false` を渡します。0.2.4 の Arch パッケージは
 0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
 公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
-headless スイート全 77 テストスクリプトが plain／scenefx の両構成で成功しています。
+headless スイート全 78 テストスクリプトが plain／scenefx の両構成で成功しています。
 `makepkg` が ABI や依存関係のエラーを出した場合は、`zig version` が 0.17.x、
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
@@ -1255,6 +1255,8 @@ startup = waybar
 Tessa のバーと外部バーを同じ辺に置くと両方の予約領域が使われ、デスクトップが
 狭くなるため、どちらかを無効にしてください。`tessa-ctl shell` で、Tessa Panel が
 所有しているロールと、存在する外部レイヤーシェルを確認できます。
+`tests/external-shell.sh` は Waybar と Wofi、`tests/shell-coexistence.sh` は
+Quickshell と Noctalia がインストールされている場合の共存を検証します。
 
 Waybar 0.15 は layer-shell を直接使い、標準のワークスペース/
 トップレベルプロトコルを利用できます:
@@ -2444,7 +2446,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
   DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
   確認しています。0.2.5 は Arch Linux 実機で Zig 0.17 / wlroots 0.20 /
-  scenefx 0.5 の headless スイート全 77 テストスクリプトが plain／scenefx の両構成で
+  scenefx 0.5 の headless スイート全 78 テストスクリプトが plain／scenefx の両構成で
   成功しており、ポータルの ScreenCast、トレイ、通知、ポインタ操作も含みます。
   新しいツールチェーンでの実 DRM/libinput セッション検証は未実施です。
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、

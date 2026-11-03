@@ -102,6 +102,7 @@ pub const MAX_COMMAND = 512;
 pub const MAX_STATUS_ID = 48;
 pub const MAX_STATUS_TEXT = 160;
 pub const MAX_STATUS_COMMAND = 256;
+pub const MAX_STATUS_ICON = 32;
 pub const MAX_EXTENSIONS = 16;
 pub const MAX_EXTENSION_ID = 32;
 pub const MAX_EXTENSION_DEPS = 8;
@@ -682,6 +683,9 @@ pub const StatusEntry = struct {
     text_len: usize = 0,
     command: [MAX_STATUS_COMMAND]u8 = undefined,
     command_len: usize = 0,
+    icon: [MAX_STATUS_ICON]u8 = undefined,
+    icon_len: usize = 0,
+    priority: i32 = 0,
 };
 
 pub const Config = struct {

@@ -236,6 +236,9 @@ pub const StatusInfo = struct {
     text_len: usize = 0,
     command: [256]u8 = @splat(0),
     command_len: usize = 0,
+    icon: [32]u8 = @splat(0),
+    icon_len: usize = 0,
+    priority: i32 = 0,
 };
 
 pub const ExtensionInfo = struct {
@@ -1140,7 +1143,7 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
         const eq = std.mem.indexOfScalar(u8, t, '=') orelse continue;
         const key = trim(t[0..eq]);
         const val = trim(t[eq + 1 ..]);
-        if (std.mem.eql(u8, key, "include")) {
+        if (std.mem.eql(u8, key, "include") or std.mem.eql(u8, key, "theme")) {
             var include_buf: [512]u8 = undefined;
             const include_path = resolveInclude(&include_buf, path, val);
             if (include_path.len > 0) loadConfigFile(include_path, depth + 1);

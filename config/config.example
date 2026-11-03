@@ -383,6 +383,8 @@ font = Inter
 # Semantic theme roles shared by the compositor and panel. Roles are applied
 # after direct keys, so they win over accent/border/bg/panel values above.
 # A matching output-rule theme still wins for that output.
+# Load a theme package instead of listing roles here:
+# theme = ~/.config/tessa/themes/vermilion-ink.conf
 # theme-role = accent = #e2684f
 # theme-role = window.border.active = #8fd3ff
 # theme-role = window.border.inactive = #243040

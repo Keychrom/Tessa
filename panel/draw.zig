@@ -1189,14 +1189,36 @@ pub fn drawBar(s: *m.Surface) void {
             },
             .status => {
                 if (!g.show_status) continue;
+                var order: [m.MAX_STATUS]usize = undefined;
+                var order_count: usize = 0;
+                var oi: usize = 0;
+                while (oi < g.status_count) : (oi += 1) {
+                    order[oi] = oi;
+                    order_count += 1;
+                }
+                // Higher priority stays visible longer; insertion sort keeps
+                // the declaration order for equal priorities.
+                oi = 1;
+                while (oi < order_count) : (oi += 1) {
+                    const key = order[oi];
+                    const key_priority = g.statuses[key].priority;
+                    var j = oi;
+                    while (j > 0 and g.statuses[order[j - 1]].priority < key_priority) : (j -= 1) {
+                        order[j] = order[j - 1];
+                    }
+                    order[j] = key;
+                }
+
                 var status_widths: [m.MAX_STATUS]f64 = undefined;
                 var status_fit: usize = 0;
                 var status_total: f64 = 0;
-                while (status_fit < g.status_count) : (status_fit += 1) {
-                    const st = &g.statuses[status_fit];
+                while (status_fit < order_count) : (status_fit += 1) {
+                    const st = &g.statuses[order[status_fit]];
                     const text = st.text[0..st.text_len];
+                    const icon = st.icon[0..st.icon_len];
                     const tw2 = @min(textWidth(cr, text, m.barFont(), "Medium", 8.4, 0), 112.0);
-                    const status_pill = tw2 + 20.0;
+                    const icon_w = if (icon.len > 0) textWidth(cr, icon, m.barFont(), "Medium", 9.0, 0) + 5.0 else 0.0;
+                    const status_pill = tw2 + icon_w + 20.0;
                     const gap2: f64 = if (status_fit == 0) 0 else 6.0;
                     if (right - status_total - status_pill - gap2 < cx + 12.0) break;
                     status_widths[status_fit] = status_pill;
@@ -1207,9 +1229,9 @@ pub fn drawBar(s: *m.Surface) void {
                     var sx = right - status_total;
                     var si: usize = 0;
                     while (si < status_fit) : (si += 1) {
-                        const st = &g.statuses[si];
+                        const st = &g.statuses[order[si]];
                         const status_w = status_widths[si];
-                        const hovered = g.hover.kind == .status and g.hover.value == si;
+                        const hovered = g.hover.kind == .status and g.hover.value == order[si];
                         fillRound(cr, sx, cy - 10, status_w, 20, 6, .{
                             1, 1, 1, if (hovered) 0.075 else 0.040,
                         });
@@ -1220,12 +1242,34 @@ pub fn drawBar(s: *m.Surface) void {
                             .{ 0.92, 0.95, 0.99, 0.98 }
                         else
                             .{ 0.68, 0.74, 0.84, 0.88 };
-                        _ = drawTextCentered(cr, st.text[0..st.text_len], sx + 10, cy + 0.3, m.barFont(), "Medium", 8.4, col, status_w - 20, 0);
-                        addBarHit(sx, cy - 11, status_w, 22, .{ .kind = .status, .value = si });
+                        var text_x = sx + 10.0;
+                        const icon = st.icon[0..st.icon_len];
+                        if (icon.len > 0) {
+                            const icon_w = textWidth(cr, icon, m.barFont(), "Medium", 9.0, 0);
+                            _ = drawTextCentered(cr, icon, sx + 9.0 + icon_w / 2.0, cy + 0.3, m.barFont(), "Medium", 9.0, col, icon_w + 2.0, 0);
+                            text_x += icon_w + 5.0;
+                        }
+                        _ = drawTextCentered(cr, st.text[0..st.text_len], text_x, cy + 0.3, m.barFont(), "Medium", 8.4, col, status_w - (text_x - sx) - 10.0, 0);
+                        addBarHit(sx, cy - 11, status_w, 22, .{ .kind = .status, .value = order[si] });
                         sx += status_w + 6.0;
                     }
                     right = right - status_total - 12.0;
                     right_first = false;
+
+                    const hidden = order_count - status_fit;
+                    if (hidden > 0) {
+                        const more_w = 28.0;
+                        const mx = right - more_w;
+                        if (mx > cx + 12.0) {
+                            fillRound(cr, mx, cy - 10, more_w, 20, 6, .{ 1, 1, 1, 0.040 });
+                            var mbuf: [16]u8 = undefined;
+                            const more = std.fmt.bufPrint(&mbuf, "+{d}", .{hidden}) catch "+";
+                            _ = drawTextCentered(cr, more, mx + 7, cy + 0.3, MONO, "Medium", 8.2, .{
+                                0.68, 0.74, 0.84, 0.88,
+                            }, 0, 0);
+                            right = mx - 8.0;
+                        }
+                    }
                 }
             },
             .layout => {

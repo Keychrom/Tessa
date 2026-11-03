@@ -2786,7 +2786,7 @@ fn loadPath(
             continue;
         }
 
-        if (std.mem.eql(u8, key, "include")) {
+        if (std.mem.eql(u8, key, "include") or std.mem.eql(u8, key, "theme")) {
             var include_buf: [512]u8 = undefined;
             const include_path = resolveInclude(&include_buf, path, value);
             if (include_path.len == 0) {

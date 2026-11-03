@@ -3254,7 +3254,7 @@ fn handleStateLine(line: []const u8) void {
     if (!g.ipc_in_state) return;
 
     if (std.mem.startsWith(u8, line, "STATUS") and line.len > 6 and line[6] == 9) {
-        var fields: [4][]const u8 = undefined;
+        var fields: [6][]const u8 = undefined;
         const count = splitTabs(line, &fields);
         if (count < 4 or g.status_count >= g.statuses.len) return;
         const st = &g.statuses[g.status_count];
@@ -3262,6 +3262,8 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&st.id, &st.id_len, fields[1]);
         m.decodeEscapes(&st.text, &st.text_len, fields[2]);
         m.decodeEscapes(&st.command, &st.command_len, fields[3]);
+        if (count >= 5) m.decodeEscapes(&st.icon, &st.icon_len, fields[4]);
+        if (count >= 6) st.priority = std.fmt.parseInt(i32, fields[5], 10) catch 0;
         g.status_count += 1;
         return;
     }

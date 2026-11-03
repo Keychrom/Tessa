@@ -184,7 +184,8 @@ Highlights include:
   bar, popovers, and toasts
 - compositor-context bar modules (`layout`, `groups`, `mode`, `effects`), a
   module registry via `tessa-panel --list-modules`, theme-token export via
-  `tessa-panel --theme-json`, and shell role ownership via `tessa-ctl shell`
+  `tessa-panel --theme-json`, declarative status widgets with icon/priority,
+  and shell role ownership via `tessa-ctl shell`
 - frame-time instrumentation (`tessa-ctl perf`) with a configurable
   `frame_time_budget`, plus headless animation and full-effect benchmarks
 - direct scanout for full-output fullscreen clients, with scanout/zero-copy/

@@ -1240,7 +1240,9 @@ accepts `panel-modules`. The supervisor restarts the panel when the mask changes
 Tessa's bar and an external bar reserve the same edge, both exclusive zones are
 honored and the desktop becomes shorter; disable one of them. Run
 `tessa-ctl shell` to see which roles Tessa Panel owns and which external
-layer-shell clients are present.
+layer-shell clients are present. `tests/external-shell.sh` covers Waybar and
+Wofi; `tests/shell-coexistence.sh` covers Quickshell and Noctalia when their
+binaries are installed.
 
 Waybar 0.15 uses layer-shell directly and can use the standard workspace and
 toplevel protocols:
@@ -2413,7 +2415,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
   output, keyboard, mouse, IME, and XWayland clients have been validated on
-  0.2.4. The 0.2.5 headless suite (77 test scripts) passes on Arch Linux with Zig 0.17,
+  0.2.4. The 0.2.5 headless suite (78 test scripts) passes on Arch Linux with Zig 0.17,
   wlroots 0.20, and scenefx 0.5 in both plain and scenefx builds, including
   portal ScreenCast, tray, notifications, and pointer interaction. A real
   DRM/libinput session on the new toolchain is still pending. Per-device

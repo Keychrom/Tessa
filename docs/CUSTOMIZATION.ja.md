@@ -641,6 +641,18 @@ theme-role = wallpaper.bottom = #070a12
 ロールは直接キーの後に適用されて上書きし、一致する出力別テーマルールは
 その出力でさらに優先されます。パネルも同じロールを読みます。
 
+テーマパッケージは通常の include で、`theme` エイリアスで指定できます:
+
+```ini
+theme = ~/.config/tessa/themes/vermilion-ink.conf
+```
+
+`theme` は `include` と同じ動作で、コンポジタとパネルが同じファイルを読みます。
+ファイル変更は config watcher が検知して再読み込みし、`Super+R` でも手動
+再読み込みできます。完全なパレット例は
+`examples/themes/vermilion-ink.conf`、解決後の値は
+`tessa-panel --theme-json` で確認できます。
+
 ## モーション、シャドウ、壁紙
 
 ウィンドウは map 時に設定可能なオフセットからスライドインし、ワークスペース

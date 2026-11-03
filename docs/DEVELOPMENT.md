@@ -229,6 +229,7 @@ sh tests/extension-api.sh   # v1 contract: auth, revocation, timeout, JSON diagn
 sh tests/panel-modules.sh   # panel_modules ownership and supervisor restart
 sh tests/effect-v2.sh       # tint and animation overrides, v1 compatibility
 sh tests/effect-cache.sh    # scenefx-only last-applied cache counters
+sh tests/shell-coexistence.sh # Quickshell/Noctalia when installed
 ```
 
 The full suite list is in the main README. `tests/shell-v2.sh`,

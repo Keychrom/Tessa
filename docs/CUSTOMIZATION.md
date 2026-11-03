@@ -639,6 +639,17 @@ theme-role = wallpaper.bottom = #070a12
 Roles are applied after direct keys and override them; a matching per-output
 theme rule still wins for that output. The panel reads the same roles.
 
+A theme package is a normal include, addressed with the `theme` alias:
+
+```ini
+theme = ~/.config/tessa/themes/vermilion-ink.conf
+```
+
+`theme` behaves exactly like `include`; the compositor and panel share the same
+file. The config watcher reloads it when it changes, and `Super+R` reloads it
+manually. See `examples/themes/vermilion-ink.conf` for a complete palette, and
+`tessa-panel --theme-json` to inspect the resolved tokens.
+
 ## Motion, shadows, and wallpaper
 
 Windows slide in from a configurable offset when mapped, and workspace

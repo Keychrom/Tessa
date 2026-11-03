@@ -42,10 +42,10 @@ fn usage() void {
         "                                insert a tiled window relative to another\n" ++
         "  mode [name]                  switch input mode (default: default)\n" ++
         "  resize <dx> <dy>              resize the focused floating window\n" ++
-        "  status <id> <text>            set a bar status entry\n" ++
-        "  status <id> --clear           remove a bar status entry\n" ++
-        "  status <id> <text> --exec <command...>\n" ++
-        "                                set a clickable bar status\n" ++
+        "  status <id> <text>            set a bar status/widget entry\n" ++
+        "  status <id> --clear           remove a bar status/widget entry\n" ++
+        "  status <id> <text> [--icon X] [--priority N] [--exec <command...>]\n" ++
+        "                                set a declarative bar widget\n" ++
         "  quit                          stop the compositor\n" ++
         "\n" ++
         "The socket is $TESSA_IPC, or $XDG_RUNTIME_DIR/tessa.sock.\n");
@@ -305,31 +305,52 @@ fn runStatus(args: []const []const u8) !void {
     if (id.len == 0) return error.BadArguments;
 
     var clear = false;
+    var icon: []const u8 = "";
+    var priority: i32 = 0;
     var exec_index: ?usize = null;
+    var text_args: [32][]const u8 = undefined;
+    var text_count: usize = 0;
     var i: usize = 2;
-    while (i < args.len) : (i += 1) {
-        if (std.mem.eql(u8, args[i], "--clear")) clear = true;
-        if (std.mem.eql(u8, args[i], "--exec")) {
+    while (i < args.len) {
+        if (std.mem.eql(u8, args[i], "--clear")) {
+            clear = true;
+            i += 1;
+        } else if (std.mem.eql(u8, args[i], "--exec")) {
             exec_index = i;
             break;
+        } else if (std.mem.eql(u8, args[i], "--icon")) {
+            if (i + 1 >= args.len) return error.BadArguments;
+            icon = args[i + 1];
+            i += 2;
+        } else if (std.mem.eql(u8, args[i], "--priority")) {
+            if (i + 1 >= args.len) return error.BadArguments;
+            priority = std.fmt.parseInt(i32, args[i + 1], 10) catch return error.BadArguments;
+            i += 2;
+        } else {
+            if (text_count < text_args.len) {
+                text_args[text_count] = args[i];
+                text_count += 1;
+            }
+            i += 1;
         }
     }
 
-    const text_end = exec_index orelse args.len;
     var text_join_buf: [1024]u8 = undefined;
-    const text_join = joinArgs(args[0..text_end], 2, &text_join_buf);
+    const text_join = joinArgs(text_args[0..text_count], 0, &text_join_buf);
 
     var exec_join_buf: [1024]u8 = undefined;
     const exec_join = if (exec_index) |idx| joinArgs(args, idx + 1, &exec_join_buf) else "";
 
     var text_buf: [160]u8 = undefined;
     var command_buf: [256]u8 = undefined;
+    var icon_buf: [32]u8 = undefined;
     const text = if (clear) "" else sanitize(&text_buf, text_join);
     const command = if (clear) "" else sanitize(&command_buf, exec_join);
+    const safe_icon = if (clear) "" else sanitize(&icon_buf, icon);
 
     var line: [1200]u8 = undefined;
-    const msg = std.fmt.bufPrint(&line, "CMD\tstatus\t{s}\t{s}\t{s}\n", .{
-        id, text, command,
+    const msg = std.fmt.bufPrint(&line, "CMD\tstatus\t{s}\t{s}\t{s}\t{s}\t{d}\n", .{
+        id, text, command, safe_icon, if (clear) 0 else priority,
     }) catch return error.LineTooLong;
     try sendCommand(msg);
 }

@@ -187,6 +187,7 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
 - コンポジタ文脈バーモジュール（`layout`、`groups`、`mode`、`effects`）、
   `tessa-panel --list-modules` のモジュールレジストリ、
   `tessa-panel --theme-json` のテーマトークン出力、
+  icon / priority 付きの宣言的ステータスウィジェット、
   `tessa-ctl shell` のシェルロール所有状態
 - フレームタイム計測（`tessa-ctl perf`）と設定可能な `frame_time_budget`、
   アニメーション／全エフェクトのヘッドレスベンチマーク

@@ -72,6 +72,26 @@ tessa-panel --theme-json            # 解決済みセマンティックトーク
 コンポジタ状態を読むコンテキストモジュールで、別のシェルプロセスを起動しません。
 このレジストリは将来の外部モジュールプロトコルの互換面になります。
 
+## 宣言的パネルウィジェット
+
+`status` エントリが最初の外部ウィジェットプロトコルです。プロセスが状態を
+所有し、宣言的なピルを IPC で送ります:
+
+```sh
+tessa-ctl status weather "18C" --icon "☀" --priority 80 \
+  --exec "notify-send Tessa 'Weather opened'"
+tessa-ctl status weather --clear
+```
+
+`status` のフィールドは `id`、`text`、`icon`、`priority`、任意のクリック
+コマンドです。優先度が高いエントリほどバーが狭いときも残り、隠れた件数は
+`+N` ピルで表示されます。state のテキストと JSON にも icon と priority が
+含まれます。`examples/panel-widget.sh` が実行可能なリファレンスです。
+
+ウィジェットモデルは意図的に宣言的で、パネル内コードやカスタム描画 API は
+ありません。外部モジュールプロトコルを追加するときも、同じ identity、
+priority、state のモデルを使えます。
+
 `--theme-json` は解決済みの色、フォント、バー寸法、エフェクト状態を出力します。
 外部シェルは Tessa の設定形式を解釈せずに、この JSON から見た目を合わせられます。
 パネル側の設定、出力ルール、テーマロールが反映された値です。
@@ -108,7 +128,7 @@ CMD state               # 購読せずスナップショットを要求
 MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
-STATUS	weather	Tokyo 18C	
+STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
@@ -123,7 +143,8 @@ id、ワークスペース、フォーカス、フローティング、フルス
 `LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
 overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。`PANEL` は
 出力名、パネル PID、監視中（`0`/`1`）、通知所有者（`0`/`1`）です。
-`STATUS` は後述します。
+`STATUS` は id、エスケープ済み text、クリックコマンド、icon、priority です。
+古いコンシューマは最後の 2 フィールドを無視できます。
 
 ## JSON スナップショット
 

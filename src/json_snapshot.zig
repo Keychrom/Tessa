@@ -149,6 +149,9 @@ pub fn buildState(server: *Server, buf: []u8) usize {
         addString(buf, &off, status.text[0..status.text_len]);
         addRaw(buf, &off, ",\"command\":");
         addString(buf, &off, status.command[0..status.command_len]);
+        addRaw(buf, &off, ",\"icon\":");
+        addString(buf, &off, status.icon[0..status.icon_len]);
+        add(buf, &off, ",\"priority\":{d}", .{status.priority});
         addRaw(buf, &off, "}");
     }
 
