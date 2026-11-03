@@ -732,13 +732,13 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions|module <widget-id>> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
 CMD reload
 CMD float <id>
-CMD status <id> <text>            (tab-separated form supports --exec)
+CMD status <id> <text>            (tab-separated form supports --exec and --popover)
 CMD quit
 ```
 
@@ -753,8 +753,9 @@ snapshots for tools.
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
 focused output; only the matching panel opens. `CMD panel
-calendar|power|clipboard|screenshot|media|tray|audio|extensions` likewise emits a
-`panel` event with the requested popover and target output.
+calendar|power|clipboard|screenshot|media|tray|audio|extensions|module` likewise
+emits a `panel` event with the requested popover and target output. The
+`module <widget-id>` form opens a status entry's file-backed popover.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
@@ -776,6 +777,8 @@ socket buffer is full is disconnected.
 
 `ipc.zig` owns status entries and state snapshots. Status updates are ordinary
 commands, capped at eight entries and included in every subsequent snapshot.
+Each entry carries text, an icon, a priority, an optional click command, and an
+optional popover path; the panel parses the file and runs its action commands.
 `tessa-ctl` demonstrates the protocol and is useful for shell scripts. The
 complete schema and examples live in [EXTENDING.md](EXTENDING.md).
 

@@ -762,13 +762,13 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions|module <widget-id>> [output]
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
 CMD reload
 CMD float <id>
-CMD status <id> <text>            (クリックコマンドはタブ区切り)
+CMD status <id> <text>            (クリックコマンドとポップオーバーはタブ区切り)
 CMD quit
 ```
 
@@ -785,9 +785,10 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
 発行し、一致するパネルだけがランチャーを開きます。`CMD panel
-calendar|power|clipboard|screenshot|media|tray|audio|extensions` も同様に、
-要求したポップオーバーと
-対象出力を持つ `panel` イベントを発行します。状態のブロードキャストは Wayland イベントループの idle source で
+calendar|power|clipboard|screenshot|media|tray|audio|extensions|module` も同様に、
+要求したポップオーバーと対象出力を持つ `panel` イベントを発行します。
+`module <widget-id>` はステータスエントリのファイルベースポップオーバーを
+開きます。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
 ## 拡張プレーン
@@ -809,7 +810,9 @@ calendar|power|clipboard|screenshot|media|tray|audio|extensions` も同様に、
 
 `ipc.zig` がステータスエントリと状態スナップショットを管理します。
 ステータス更新は通常のコマンドで、最大 8 件、以降の全スナップショットに
-含まれます。`tessa-ctl` はプロトコルの実例であり、シェルスクリプトから
+含まれます。各エントリはテキスト、アイコン、優先度、任意のクリックコマンド、
+任意のポップオーバーパスを持ち、パネルがファイルを解析してアクション
+コマンドを実行します。`tessa-ctl` はプロトコルの実例であり、シェルスクリプトから
 便利に使えます。完全なスキーマと例は
 [EXTENDING.ja.md](EXTENDING.ja.md) にあります。
 
