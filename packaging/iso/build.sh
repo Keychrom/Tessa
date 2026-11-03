@@ -53,7 +53,7 @@ sudo pacman -S --needed --noconfirm \
 
 sudo rm -rf "$BUILD_DIR"
 sudo install -d -o "$(id -u)" -g "$(id -g)" "$CACHE_DIR" "$PKG_DIR"
-mkdir -p "$BUILD_DIR" "$REPO_DIR" "$OUT_DIR"
+mkdir -p "$BUILD_DIR" "$REPO_DIR" "$OUT_DIR" "$BUILD_DIR/pacman-cache"
 
 log "building tessa-iso package"
 TESSA_PKG=$BUILD_DIR/pkg-tessa
@@ -95,6 +95,7 @@ write_pacman_conf() {
 HoldPkg = pacman glibc
 Architecture = auto
 SigLevel = Never
+CacheDir = $BUILD_DIR/pacman-cache
 
 [core]
 Server = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch
