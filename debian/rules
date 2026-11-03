@@ -4,7 +4,9 @@
 	dh $@
 
 override_dh_auto_build:
-	zig build -Doptimize=ReleaseSafe
+	# Ubuntu 26.04 has no scenefx development package; the .deb is the
+	# optional plain-wlroots build.
+	zig build -Doptimize=ReleaseSafe -Dscenefx=false
 
 override_dh_auto_clean:
 	rm -rf zig-out .zig-cache zig-cache

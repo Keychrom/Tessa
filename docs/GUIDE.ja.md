@@ -73,7 +73,7 @@ ldconfig -p | grep wlroots
 - `wpctl`（PipeWire）、`pactl`（PulseAudio）、`amixer`（ALSA）: 音量
 - `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire: 画面共有
 - Fcitx5 + Mozc: Wayland IME と XIM
-- scenefx **0.5**: 角丸と背景ブラーを使う場合のみ
+- scenefx **0.5**: 既定の角丸と背景ブラー用（`-Dscenefx=false` で無効化）
 
 ---
 
@@ -137,11 +137,11 @@ tessa-ctl config-check
 
 ### 2.2 Arch Linux
 
-Arch の公式リポジトリは `zig` 0.17 と `wlroots0.20`（0.20 系）を提供して
-おり、このツリーと一致します。ビルド依存を導入してください:
+Arch の公式リポジトリは `zig` 0.17、`wlroots0.20`（0.20 系）、`scenefx`
+0.5 を提供しており、このツリーと一致します。ビルド依存を導入してください:
 
 ```sh
-sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
   libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
@@ -173,8 +173,9 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 ```
 
 X11 アプリには AUR の `xwayland-satellite-git` を使います。
-`scenefx` 0.5 は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
-ビルドでは角丸もブラーも有効になりません。0.2.4 の Arch パッケージは
+PKGBUILD は `scenefx` に依存し、既定で角丸とブラーを有効にします。
+plain wlroots シーンでビルドする場合はソースビルドに
+`-Dscenefx=false` を渡します。0.2.4 の Arch パッケージは
 0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
 公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
 headless スイート全 77 テストスクリプトが plain／scenefx の両構成で成功しています。
@@ -221,17 +222,22 @@ sh tests/config-watch.sh
 
 ### scenefx ビルド（角丸・背景ブラー）
 
-既定ビルドは upstream wlroots の scene を使い、pixman と GL の両方で動作
-します。角丸と背景ブラーを使う場合は scenefx 0.5 を導入し、次のように
-ビルドします。
+既定ビルドは scenefx 0.5 の GLES2 レンダラーを使い、角丸と背景ブラーを
+有効にします。scenefx 0.5 を導入して、通常どおりビルドします。
 
 ```sh
-./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-このバイナリは scenefx の GLES2 レンダラーを使うため、
-`WLR_RENDERER=pixman` は使えません。scenefx を `/usr/local` 以外へ入れた
-場合は、ビルド時と実行時に pkg-config／ライブラリパスを設定してください。
+pixman と GL の両方で動作する plain wlroots シーンにする場合は、
+scenefx を明示的に無効にします。
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
+scenefx を `/usr/local` 以外へ入れた場合は、ビルド時と実行時に
+pkg-config／ライブラリパスを設定してください。
 
 ```sh
 export PKG_CONFIG_PATH=$HOME/.local/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
@@ -239,8 +245,8 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 ./scripts/build.sh -Dscenefx=true
 ```
 
-`corner_radius`、`blur` などは既定ビルドでも読み込まれますが、視覚効果は
-ありません。
+`corner_radius`、`blur` などは `-Dscenefx=false` ビルドでも読み込まれますが、
+視覚効果はありません。
 
 ---
 
@@ -936,8 +942,9 @@ AND で結合されます。ルールはファイル順で、後のルールが�
 app-id が変わった時点でも即座に再評価されます。モーション系キー
 （`animation*`）も同じパスで再評価され、次回の遷移から適用されます。
 色、ボーダー幅、不透明度、角丸、影の状態は閉じるスナップショットにも
-引き継がれます。`corner-radius` と `blur` は `-Dscenefx=true` ビルドが
-必要です。不透明度、影、ボーダー幅は全ビルドで動作します。
+引き継がれます。`corner-radius` と `blur` は scenefx ビルド（既定。
+`-Dscenefx=false` で無効）が必要です。不透明度、影、ボーダー幅は全ビルドで
+動作します。
 
 ### 8.5 `layer-rule`
 
@@ -974,7 +981,8 @@ layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 拡張一覧のポップオーバー）、`tessa-notifications`（トースト）の namespace を使います。
 `layer=top` のルールはバーとトースト、`tessa-overlay` は overlay レイヤーに
 適用されます。`Super+R`／設定リロードで再適用されます。`corner-radius` と
-`blur` は `-Dscenefx=true` ビルドが必要です。`tessa-ctl state` と
+`blur` は scenefx ビルド（既定。`-Dscenefx=false` で無効）が必要です。
+`tessa-ctl state` と
 `tessa-ctl state --json` で実効値、`tessa-ctl config`／`config --json` で
 解析済みルールを確認できます。
 
@@ -1456,7 +1464,7 @@ window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring
 
 ### 10.5 scenefx 角丸・ブラー
 
-`-Dscenefx=true` ビルドのみ:
+scenefx ビルド（既定）のみ:
 
 ```ini
 corner_radius = 10
@@ -1469,7 +1477,7 @@ blur_passes = 3
 - `blur` は半透明クライアントと top/overlay/popup レイヤーに適用
 - 不透明なウィンドウではブラーは見えない
 - このビルドは GLES2 必須で pixman では動かない
-- 既定ビルドではキーは受理されるが見た目は変わらない
+- `-Dscenefx=false` ビルドではキーは受理されるが見た目は変わらない
 
 ---
 
@@ -2381,7 +2389,7 @@ XWayland が有効な場合、`startup` フックと `TESSA_STARTUP` は準備�
 
 ### 角丸・ブラーが出ない
 
-- `-Dscenefx=true` でビルドしたか
+- `-Dscenefx=false` でビルドしていないか（scenefx が既定）
 - `tessa-ctl config` の `scenefx 1`
 - 実行時に scenefx の共有ライブラリが見えているか
 - scenefx ビルドでは `WLR_RENDERER=pixman` を使っていないか
@@ -2427,8 +2435,8 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、
   特殊なマルチ GPU／モニター構成は、対応する実機での追加確認が必要です。
 - **Arch パッケージは公式ツールチェーンを使用**。PKGBUILD は公式の `zig`
-  0.17 と `wlroots0.20` を前提とし、`scenefx` 0.5 はエフェクトビルドの
-  任意依存です。`makepkg` が失敗した場合は、トラブルシューティングにある
+  0.17、`wlroots0.20`、`scenefx` を前提とし、エフェクトビルドが既定です。
+  `makepkg` が失敗した場合は、トラブルシューティングにある
   コンパイラと pkg-config のバージョンを添えて報告してください。
 - **フラクショナルスケーリングは部分的**。Wayland の対応クライアントには
   正確なスケールを通知しますが、パネルは整数 Cairo バッファでダウンサンプル
@@ -2448,9 +2456,10 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **メディアは最初の MPRIS プレイヤーのみ**。アルバムアートなし。
 - **システム表示は基本のみ**。バッテリーは `/sys/class/power_supply`、
   ネットワークはデフォルトルートと `operstate`。
-- **角丸・ブラーはオプトイン**。scenefx 0.5 と GLES2 が必要で、pixman
-  レンダラーは使えません。
-- **ウィンドウ効果はシンプル**。角丸・ブラーは scenefx ビルドのみ。閉じる
+- **角丸・ブラーは既定の scenefx ビルドに含まれる**。scenefx 0.5 と GLES2 が
+  必要で、pixman レンダラーを使う場合は `-Dscenefx=false` で無効にします。
+- **ウィンドウ効果はシンプル**。角丸・ブラーは scenefx ビルド（既定）のみ。
+  閉じる
   アニメーションはコンポジタ起点の close のみで、クライアント自身の close は
   即時です。
 - **プロファイルはレイアウト／チューニングのみ**。出力別の色やパネル寸法は

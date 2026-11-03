@@ -84,7 +84,8 @@ window-rule = app-id=org.example.*; workspace=3
 フローティングを暗黙に有効にします。不正な式や正規表現はファイル名／行番号
 付きの設定エラーになります。ボーダー色、不透明度、角丸、ボーダー幅、影の
 状態は閉じるスナップショットにも使われます。`corner-radius` と `blur` は
-`-Dscenefx=true` ビルドが必要で、それ以外は全ビルドで動作します。
+scenefx ビルド（既定。`-Dscenefx=false` で無効）が必要で、それ以外の
+エフェクトは全ビルドで動作します。
 
 ルールはファイル順に評価され、後のルールが前のルールを上書きできます。
 構造アクション（`float`、`workspace`、`size`、`position`、`fullscreen`）は
@@ -120,8 +121,8 @@ layer-rule = namespace=my-wallpaper; layer=background; opacity=1; blur=false
 ブラーは top／overlay レイヤーだけグローバル設定に従います。レイヤールールは
 map 時と設定リロード時に適用されます。実効値は `tessa-ctl state` /
 `state --json`、解析済みルールは `tessa-ctl config` / `config --json` で
-確認できます。不透明度は全ビルド、角丸とブラーは `-Dscenefx=true` ビルドで
-有効です。
+確認できます。不透明度は全ビルド、角丸とブラーは scenefx ビルド（既定。
+`-Dscenefx=false` で無効）で有効です。
 
 ## レイアウト調整
 
@@ -670,7 +671,7 @@ window-rule = title=Picture-in-Picture; animation-ms=260; animation-curve=spring
 シャドウは各クライアントフレーム背後の半透明シーン矩形 3 枚です。
 ボーダーのジオメトリに追従し、`shadows = false` で無効になります。
 
-`-Dscenefx=true` でビルドした場合、`corner_radius` がクライアントの
+scenefx ビルド（既定）では、`corner_radius` がクライアントの
 コンテンツ、ボーダー、シャドウ層を角丸にします。フルスクリーン
 ウィンドウは四角のままです。`blur` は半透明ウィンドウと top/overlay/
 popup レイヤーサーフェスの背景を、`blur_radius` と `blur_passes` の

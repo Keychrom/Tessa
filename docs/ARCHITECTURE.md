@@ -131,17 +131,18 @@ direct-scanout samples, and tearing attempts live in `Output.perf`; the global
 
 ## Effects backend
 
-The default build uses the upstream wlroots scene implementation. With
-`-Dscenefx=true`, `src/scene_include.h` selects the scenefx 0.5 header and
-`main.zig` creates the renderer with `fx_renderer_create()` instead of
-`wlr_renderer_autocreate()`. Scenefx's scene entry points and wlroots' scene
-entry points resolve to the same `wlr_scene_*` symbols, so the rest of Tessa
-continues to use the scene graph unchanged. This build requires GLES2 and cannot
-run with `WLR_RENDERER=pixman`.
+The default build uses the scenefx 0.5 scene implementation. `src/scene_include.h`
+selects the scenefx header and `main.zig` creates the renderer with
+`fx_renderer_create()` instead of `wlr_renderer_autocreate()`. Scenefx's scene
+entry points and wlroots' scene entry points resolve to the same `wlr_scene_*`
+symbols, so the rest of Tessa continues to use the scene graph unchanged. This
+build requires GLES2 and cannot run with `WLR_RENDERER=pixman`. With
+`-Dscenefx=false`, the build uses the upstream wlroots scene implementation
+instead.
 
 `window_effects.zig` always applies client opacity and the tint rectangle. The
-scenefx-specific implementation is the no-op in the default build; in a scenefx
-build it additionally:
+scenefx-specific implementation is a no-op in a `-Dscenefx=false` build; in the
+default scenefx build it additionally:
 
 - locates each client's root scene buffer and applies `corner_radius`
   (`CORNER_LOCATION_ALL`), resetting the radius for fullscreen windows,
@@ -983,7 +984,7 @@ compositor-facing panel loop never blocks.
 (`src/c_import.h`, `panel/c_import.h`, `src/ctl_c_import.h`) and the external
 `translate-c` package generates the `c_translated` module at build time. The
 compositor's header includes wlroots 0.20 with `WLR_USE_UNSTABLE`, plus scenefx
-0.5 when `-Dscenefx=true`. The panel compiles generated client protocol C for
+0.5 unless the build uses `-Dscenefx=false`. The panel compiles generated client protocol C for
 layer-shell (which transitively needs xdg-shell's `xdg_popup_interface`).
 `tessa-ctl` only needs libc and socket headers.
 

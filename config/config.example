@@ -87,7 +87,8 @@ layout = master
 
 # Layer-shell rules match namespace/output and optionally layer
 # (background, bottom, top, overlay). Later matches win. Opacity works in every
-# build; corner-radius and blur require -Dscenefx=true.
+# build; corner-radius and blur require a scenefx build (the default;
+# -Dscenefx=false disables them).
 # layer-rule = namespace=tessa-bar; opacity=0.94; corner-radius=12; blur=true
 # layer-rule = namespace=tessa-notifications; layer=top; opacity=1; blur=false
 # External bars and launchers can use the same rules.
@@ -224,8 +225,8 @@ reduce_motion_animations = none
 reduce_motion_fade_ms = 120
 # Soft stacked shadows behind tiled and floating windows.
 shadows = true
-# Rounded corners and backdrop blur require -Dscenefx=true; otherwise these
-# keys are accepted but have no visual effect.
+# Rounded corners and backdrop blur are enabled by default; with -Dscenefx=false
+# these keys are accepted but have no visual effect.
 corner_radius = 10
 blur = true
 blur_radius = 6

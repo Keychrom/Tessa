@@ -84,8 +84,9 @@ Action clauses:
 `size` and `position` imply floating unless the same rule says `float=false`.
 Invalid expressions or regular expressions are config errors with file/line
 diagnostics. Border overrides, opacity, rounding, border width, and shadow state
-are also used by close snapshots. `corner-radius` and `blur` require a
-`-Dscenefx=true` build; the other effects work everywhere.
+are also used by close snapshots. `corner-radius` and `blur` require a scenefx
+build (the default; disabled with `-Dscenefx=false`); the other effects work
+everywhere.
 
 Rules are evaluated in file order; a later matching rule can override an earlier
 one. Structural actions (`float`, `workspace`, `size`, `position`,
@@ -121,7 +122,8 @@ Later matches win. Without a rule, opacity is `1`, corners are square, and blur
 follows the global setting for top/overlay layers only. Layer rules apply on map
 and on config reload. Effective values are visible in `tessa-ctl state` /
 `state --json`; parsed rules are listed by `tessa-ctl config` / `config --json`.
-Opacity works in every build; rounding and blur require `-Dscenefx=true`.
+Opacity works in every build; rounding and blur require a scenefx build (the
+default; disabled with `-Dscenefx=false`).
 
 ## Layout tuning
 
@@ -668,7 +670,7 @@ curve always ends at 1.
 Shadows are three translucent scene rectangles behind each client frame. They
 follow the border geometry and are disabled with `shadows = false`.
 
-In a build made with `-Dscenefx=true`, `corner_radius` rounds client content,
+In a scenefx build (the default), `corner_radius` rounds client content,
 the border, and shadow layers; fullscreen windows stay square. `blur` enables
 backdrop blur on translucent windows and on the top/overlay/popup layer
 surfaces, using `blur_radius` and `blur_passes`. Both apply immediately on

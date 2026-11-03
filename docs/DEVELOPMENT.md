@@ -48,11 +48,11 @@ disposable; the local tree is the source of truth.
 ```sh
 ssh tessa-dev
 cd ~/tessa
-./scripts/build.sh                    # debug
+./scripts/build.sh                    # debug (scenefx is the default)
 ./scripts/build.sh -Doptimize=ReleaseSafe
 
-# Optional scenefx effects build (official scenefx-0.5 package)
-./scripts/build.sh -Dscenefx=true
+# Plain wlroots scene without scenefx effects
+./scripts/build.sh -Dscenefx=false
 ```
 
 Check dependencies:
@@ -438,8 +438,8 @@ sh tests/fractional-scale.sh
 
 ### Effects test
 
-`tests/effects.sh` checks the scenefx build only; it exits 0 and skips when
-`tessa-ctl config` reports `scenefx 0`. It starts with a 24 px corner radius,
+`tests/effects.sh` checks the default scenefx build; it exits 0 and skips when
+`tessa-ctl config` reports `scenefx 0` (a `-Dscenefx=false` build). It starts with a 24 px corner radius,
 a red border, and a black wallpaper, spawns `foot` with a white background, and
 samples the screenshot. The window center must be white, the top-left corner
 must be background-dark instead of white/red, and the top border midpoint must

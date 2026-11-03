@@ -1,18 +1,17 @@
-**English** | [日本語](README.ja.md)
-
 # Packaging Tessa
 
-Tessa requires Zig 0.17 and links the wlroots 0.20 ABI. Distribution packages
-must pin both; the source build refers to `wlroots-0.20` explicitly in
-`build.zig`.
+Tessa requires Zig 0.17 and links the wlroots 0.20 ABI. The default build also
+uses scenefx 0.5. Distribution packages must pin these; the source build refers
+to `wlroots-0.20` explicitly in `build.zig`.
 
 ## Arch Linux
 
-Arch's official repositories provide Zig 0.17 as `zig` and wlroots 0.20 as
-`wlroots0.20`, which match this tree. Install the build dependencies:
+Arch's official repositories provide Zig 0.17 as `zig`, wlroots 0.20 as
+`wlroots0.20`, and scenefx 0.5 as `scenefx`, which match this tree. Install the
+build dependencies:
 
 ```sh
-sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
   libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
@@ -38,9 +37,9 @@ It installs:
 - `/usr/share/xdg-desktop-portal/portals/tessa.portal`
 - man pages and documentation under `/usr/share`
 
-For rounded corners and blur, install official `scenefx` 0.5 and build from
-source with `-Dscenefx=true`; the PKGBUILD uses the default wlroots scene and
-does not enable scenefx. `xwayland-satellite` is optional and is available in
+The PKGBUILD depends on `scenefx` and enables rounded corners and backdrop blur
+by default. For the plain wlroots scene, build a source checkout with
+`-Dscenefx=false`. `xwayland-satellite` is optional and is available in
 the AUR as `xwayland-satellite-git`; without it, X11 applications do not start.
 `kitty`/`foot` are user choices. Screen sharing additionally needs
 `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and PipeWire. The installed
@@ -69,6 +68,10 @@ sudo apt install ./dist/tessa_<version>_<arch>.deb
 > against Zig 0.16 and wlroots 0.19. The current source tree (`0.2.5`) targets
 > Zig 0.17, wlroots 0.20, and scenefx 0.5; the Debian definitions are kept for
 > downstream packaging but no new binary release is planned.
+
+The Debian build passes `-Dscenefx=false` because Ubuntu 26.04 has no scenefx
+0.5 development package. The `.deb` therefore uses the plain wlroots scene
+without rounded corners or backdrop blur.
 
 The script runs `dpkg-buildpackage -b -us -uc -d`, collects the `.deb`,
 `.buildinfo`, and `.changes` under `dist/`, and prints the package metadata.

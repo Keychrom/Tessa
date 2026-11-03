@@ -7,8 +7,8 @@ pub fn build(b: *std.Build) void {
     const scenefx = b.option(
         bool,
         "scenefx",
-        "build with scenefx 0.5 rounded corners and backdrop blur (requires scenefx-0.5 and GLES2)",
-    ) orelse false;
+        "build with scenefx 0.5 rounded corners and backdrop blur (default: true; set false for the plain wlroots scene)",
+    ) orelse true;
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "scenefx", scenefx);

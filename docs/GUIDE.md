@@ -71,7 +71,8 @@ ldconfig -p | grep wlroots
 - `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for volume
 - `xdg-desktop-portal`, `xdg-desktop-portal-wlr`, and PipeWire for screen sharing
 - Fcitx5 + Mozc for Wayland IME and XIM
-- scenefx **0.5** only for rounded corners and backdrop blur
+- scenefx **0.5** for the default rounded corners and backdrop blur
+  (`-Dscenefx=false` omits it)
 
 ---
 
@@ -134,11 +135,11 @@ manual binaries would otherwise win.
 
 ### 2.2 Arch Linux
 
-Arch's official repositories provide `zig` 0.17 and `wlroots0.20`, which match
-this tree. Install the build dependencies:
+Arch's official repositories provide `zig` 0.17, `wlroots0.20`, and `scenefx`
+0.5, which match this tree. Install the build dependencies:
 
 ```sh
-sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
   libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
@@ -169,14 +170,14 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
   xdg-desktop-portal xdg-desktop-portal-wlr pipewire
 ```
 
-For X11 applications, use AUR `xwayland-satellite-git`. `scenefx` 0.5 is only
-needed for a custom `-Dscenefx=true` build; the PKGBUILD's default build does
-not enable rounded corners or blur. The 0.2.4 Arch package was built and
-exercised with the 0.16/0.19 AUR toolchain. The 0.2.5 PKGBUILD has been built
-and installed on Arch Linux with the official `zig` and `wlroots0.20`, and the
-full headless suite passes in plain and scenefx builds. If `makepkg` reports an
-ABI or dependency problem, confirm `zig version` is 0.17.x and
-`pkg-config --modversion wlroots-0.20` is 0.20.x.
+For X11 applications, use AUR `xwayland-satellite-git`. The PKGBUILD depends on
+`scenefx` and enables rounded corners and blur by default; pass
+`-Dscenefx=false` to a source build for the plain wlroots scene. The 0.2.4 Arch
+package was built and exercised with the 0.16/0.19 AUR toolchain. The 0.2.5
+PKGBUILD has been built and installed on Arch Linux with the official `zig` and
+`wlroots0.20`, and the full headless suite passes in plain and scenefx builds.
+If `makepkg` reports an ABI or dependency problem, confirm `zig version` is
+0.17.x and `pkg-config --modversion wlroots-0.20` is 0.20.x.
 
 ### 2.3 Build from source (development)
 
@@ -218,16 +219,21 @@ installed (`foot`, `grim`, `wlr-randr`, PipeWire, D-Bus, etc.).
 
 ### scenefx effects build
 
-The default build uses the upstream wlroots scene and supports both GL and
-pixman. For rounded corners and backdrop blur, install scenefx 0.5 and build:
+The default build uses scenefx 0.5 for rounded corners and backdrop blur and
+requires its GLES2 renderer. Install scenefx 0.5 and build normally:
 
 ```sh
-./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-This build uses scenefx's GLES2 renderer and cannot run with
-`WLR_RENDERER=pixman`. If scenefx is installed under a non-system prefix, set
-its pkg-config and library paths for both build and run:
+For the plain wlroots scene, which supports both GL and pixman, disable scenefx:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
+If scenefx is installed under a non-system prefix, set its pkg-config and
+library paths for both build and run:
 
 ```sh
 export PKG_CONFIG_PATH=$HOME/.local/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
@@ -235,8 +241,8 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 ./scripts/build.sh -Dscenefx=true
 ```
 
-The `corner_radius` and `blur` keys are accepted in the default build but have
-no visual effect.
+The `corner_radius` and `blur` keys are accepted in a `-Dscenefx=false` build
+but have no visual effect.
 
 ---
 
@@ -924,7 +930,8 @@ app-id changes.
 Motion rule keys (`animation*`) use the same pass and apply to the next
 transition. Per-rule colors, border width, opacity, rounding, and shadow state
 are carried into the close snapshot effect. `corner-radius` and `blur` require a
-`-Dscenefx=true` build; opacity, shadows, and border width work in every build.
+scenefx build (the default; disabled with `-Dscenefx=false`); opacity, shadows,
+and border width work in every build.
 
 ### 8.5 `layer-rule`
 
@@ -961,7 +968,8 @@ default to `0`. The panel's surfaces use the namespaces `tessa-bar`,
 screenshot, and extensions popovers), and `tessa-notifications` (toasts). A layer rule with
 `layer=top` styles bar and toasts; popovers are on the overlay layer. Rules
 re-apply on `Super+R` / config reload. `corner-radius` and `blur` require a
-`-Dscenefx=true` build. `tessa-ctl state` and `tessa-ctl state --json` expose
+scenefx build (the default; disabled with `-Dscenefx=false`). `tessa-ctl state`
+and `tessa-ctl state --json` expose
 the effective layer values, and `tessa-ctl config` / `config --json` list the
 parsed rules.
 
@@ -1442,7 +1450,7 @@ Lifecycle hooks: `animation-start`, `animation-done`,
 
 ### scenefx corners and blur
 
-Only in `-Dscenefx=true` builds:
+Only in scenefx builds (the default):
 
 ```ini
 corner_radius = 10
@@ -2349,7 +2357,7 @@ satellite they run immediately.
 
 ### Corners/blur missing
 
-- Build with `-Dscenefx=true`
+- Use the default scenefx build (do not pass `-Dscenefx=false`)
 - Confirm `scenefx 1` in `tessa-ctl config`
 - Make the scenefx library visible at runtime
 - Do not use `WLR_RENDERER=pixman`
@@ -2395,8 +2403,8 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   touchpad tuning, VRR/adaptive-sync commits, and unusual multi-GPU/monitor
   combinations still need validation on the matching hardware.
 - **Arch packaging uses the official toolchain.** The PKGBUILD targets the
-  official `zig` 0.17 and `wlroots0.20` packages; `scenefx` 0.5 is optional for
-  the effects build. Report `makepkg` failures with the compiler and pkg-config
+  official `zig` 0.17, `wlroots0.20`, and `scenefx` packages; the effects build
+  is the default. Report `makepkg` failures with the compiler and pkg-config
   versions from the troubleshooting section.
 - **Fractional scaling is partial.** Fractional-scale-aware Wayland clients get
   the exact scale, but the panel uses integer Cairo buffers and unsupported
@@ -2415,7 +2423,8 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Media controls the first MPRIS player only.** No album art.
 - **System indicators are basic.** Battery reads `/sys/class/power_supply`;
   network uses the default route and `operstate`.
-- **Corners/blur are opt-in.** Requires scenefx 0.5 and GLES2; no pixman.
+- **Corners/blur are in the default build.** Requires scenefx 0.5 and GLES2;
+  use `-Dscenefx=false` for the plain wlroots scene and pixman.
 - **Window effects are simple.** Close snapshots only apply to
   compositor-initiated closes; client self-closes are immediate.
 - **Profiles cover layout/tuning, not theme values.** Use per-output

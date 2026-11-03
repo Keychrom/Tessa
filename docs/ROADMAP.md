@@ -195,8 +195,8 @@ ordering, and visible state.
       `animation_ms`, and `reduce_motion` settings.
 - [x] Window close animations and scale/fade easing snapshots for
       compositor-initiated closes.
-- [x] Rounded corners and backdrop blur through the opt-in scenefx 0.5
-      renderer (`-Dscenefx=true`; GLES2).
+- [x] Rounded corners and backdrop blur through the default scenefx 0.5
+      renderer (GLES2; `-Dscenefx=false` keeps the plain wlroots scene).
 - [x] Window drop shadows using layered scene geometry (`shadows = true`).
 - [x] Theme/config for bar height, margins, fonts, and palette.
 - [x] Configurable wallpaper gradients (`bg_top`/`bg_bottom`) and an art toggle

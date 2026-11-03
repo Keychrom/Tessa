@@ -20,12 +20,18 @@ chmod +x scripts/*.sh scripts/tessa-session
 ./scripts/build.sh
 ```
 
-角丸と背景ブラーを使う場合は scenefx 0.5 を導入し、
-`-Dscenefx=true` を付けます。このバイナリは GLES2 レンダラーに切り替わり、
+角丸と背景ブラーは既定の scenefx ビルドに含まれます。scenefx 0.5 を導入して
+通常どおりビルドしてください。このバイナリは GLES2 レンダラーに切り替わり、
 pixman では実行できません。
 
 ```sh
-./scripts/build.sh -Dscenefx=true
+./scripts/build.sh
+```
+
+scenefx なしの plain wlroots シーンにする場合は、明示的に無効にします。
+
+```sh
+./scripts/build.sh -Dscenefx=false
 ```
 
 必要なものはメイン README にまとめています。要点は Zig 0.17、wlroots 0.20、
@@ -305,8 +311,9 @@ sh tests/fractional-scale.sh
 
 ### エフェクトのテスト
 
-`tests/effects.sh` は scenefx ビルド専用です。`tessa-ctl config` が
-`scenefx 0` を返した場合は 0 でスキップします。24 px の角丸、赤い
+`tests/effects.sh` は既定の scenefx ビルドを検査します。`tessa-ctl config` が
+`scenefx 0` を返した場合（`-Dscenefx=false` ビルド）は 0 でスキップします。
+24 px の角丸、赤い
 ボーダー、黒い壁紙で起動し、背景を白にした `foot` を起動してスクリーン
 ショットの画素を検査します。ウィンドウ中央は白、左上隅は白/赤ではなく
 背景色、上部ボーダー中央は赤である必要があります。FX ビルドでは

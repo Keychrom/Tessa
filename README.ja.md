@@ -78,12 +78,12 @@ tessa-ctl config-check
 
 ## Arch Linux へのインストール
 
-Tessa は Zig **0.17** と wlroots **0.20** を要求します。どちらも Arch 公式
-リポジトリの `zig` と `wlroots0.20` で提供されています。ビルド依存を導入して
-ください:
+Tessa は Zig **0.17**、wlroots **0.20**、scenefx **0.5** を要求します。いずれも
+Arch 公式リポジトリの `zig`、`wlroots0.20`、`scenefx` で提供されています。
+ビルド依存を導入してください:
 
 ```sh
-sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
   libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
@@ -113,8 +113,9 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 ```
 
 X11 アプリケーションには AUR の `xwayland-satellite-git` を導入します。
-`scenefx` 0.5 は `-Dscenefx=true` のカスタムビルド専用で、PKGBUILD の既定
-ビルドでは角丸もブラーも有効になりません。TTY にログインして `tessa` を
+PKGBUILD は `scenefx` に依存し、既定で角丸と背景ブラーを有効にしてビルド
+します。これらのエフェクトなしの plain wlroots シーンでビルドする場合は、
+ソースから `-Dscenefx=false` を付けてください。TTY にログインして `tessa` を
 実行するか、ディスプレイマネージャーで **Tessa** を選んでください。
 
 0.2.4 の Arch パッケージは、0.16/0.19 の AUR ツールチェーンを使って Arch
@@ -215,7 +216,7 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   （種類別の再生時間、名前付き cubic-bezier/スプリングカーブ、ウィンドウ別の
   有効化・時間・カーブ上書き、開始オフセット）、
   閉じる際のスケール/フェードスナップショット、視差効果低減時のフェード、
-  レイヤー化したソフトなウィンドウシャドウ、任意で有効にできる scenefx の
+  レイヤー化したソフトなウィンドウシャドウ、既定で有効な scenefx の
   角丸と背景ブラー（ウィンドウとシェルサーフェス）、壁紙グラデーション色、
   PNG 壁紙（cover/contain/stretch）、アート表示のオン/オフ設定
 - 出力ごとに 9 ワークスペース、フローティング、フルスクリーン、クリックで
@@ -332,8 +333,8 @@ plain／scenefx の両構成で成功しています。ポータルの ScreenCas
 `tests/extensions.sh`、`tests/extension-api.sh`、`tests/panel-modules.sh`、
 `tests/effect-v2.sh`、`tests/effect-cache.sh` も成功しています。新しいツールチェーンでの
 実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は
-`-Dscenefx=true` ビルドでのみ角丸を
-検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
+scenefx ビルド（既定）で角丸を検査し、`-Dscenefx=false` ビルドでは
+スキップします。Kitty と実 XWayland の統合テストは
 Kitty、`wlr-randr`、`xwayland-satellite` が無い場合にスキップします。
 `tests/xwayland-ready.sh` は偽のサテライトを使うため、`DISPLAY` の準備待ちは
 どの環境でも検証されます。ポータルのテストはポータルと PipeWire がインストール
@@ -376,7 +377,7 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 
 ## ソースからビルド（開発向け）
 
-開発、Ubuntu 26.04 / Arch Linux 以外、または scenefx のカスタムビルドでは
+開発、Ubuntu 26.04 / Arch Linux 以外、または scenefx なしの plain ビルドでは
 こちらを使います。通常利用なら、それぞれのディストリビューション向けの
 `.deb` または Arch の `tessa-git` パッケージで十分です。
 
@@ -385,6 +386,9 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 - Zig **0.17.0**
 - wlroots **0.20** の開発ファイル（`pkg-config --modversion wlroots-0.20`
   で見つかること）
+- 既定の角丸・背景ブラービルド用の
+  [scenefx](https://github.com/wlrfx/scenefx) **0.5** 開発ファイル
+  （`pkg-config --modversion scenefx-0.5`）
 - Wayland、xkbcommon、pixman、libdrm、libinput、libseat、libudev、EGL/GLES、
   wayland-protocols 1.47 以降（生成 enum ヘッダー用）
 - パネルと通知用の Cairo / Pango / GLib (GIO) 開発ファイル
@@ -393,8 +397,6 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
   （X11 アプリ用。`xwayland = true` で自動起動）
 - 任意: Fcitx5 + Mozc（または `zwp_input_method_v2` を実装した他の IME）
 - 任意: 実行中の出力モード/位置/スケール変更用の `wlr-randr`
-- 任意: 角丸と背景ブラー用の [scenefx](https://github.com/wlrfx/scenefx)
-  **0.5**（`pkg-config --modversion scenefx-0.5`）
 - 任意: デスクトップ通知、トレイ、ポータル用の D-Bus セッション bus
 - 任意: 音量操作用の `wpctl`（PipeWire）、`pactl`（PulseAudio）、
   `amixer`（ALSA）
@@ -438,9 +440,13 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
+Ubuntu 26.04 には scenefx 0.5 の開発パッケージがありません。既定の
+エフェクトビルドを使うには scenefx をソースからビルドするか、
+`-Dscenefx=false` を付けて plain wlroots シーンでビルドしてください。
+
 Arch Linux では上記「Arch Linux へのインストール」の手順で公式の `zig`、
-`wlroots0.20` を導入してください。`scenefx` 0.5 は任意の
-`-Dscenefx=true` ビルドだけに必要です。
+`wlroots0.20`、`scenefx` を導入してください。既定ビルドは `scenefx` 0.5 を
+使います。plain wlroots シーンにする場合は `-Dscenefx=false` を付けます。
 `scripts/build.sh` は Zig 0.17.x を要求し、`ZIG=/path/to/zig` で
 上書きできます。このツリーには Zig 0.16 や wlroots 0.19 を使えません。
 
@@ -466,16 +472,22 @@ chmod +x scripts/*.sh scripts/tessa-session   # 実行権限が失われてい�
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-角丸と背景ブラーは scenefx を使うオプトイン・ビルドです。scenefx 0.5
-（wlroots 0.20 系）を導入してから次を実行します:
+角丸と背景ブラーは既定で有効です。scenefx 0.5（wlroots 0.20 系）を導入して
+から、通常どおりビルドします:
 
 ```sh
-./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
 このバイナリはシーンとレンダラーが scenefx の GLES2 経路に切り替わり、
-`WLR_RENDERER=pixman` は使えません。既定ビルドは upstream wlroots の
-シーンを使い、GL とソフトウェアレンダリングの両方をサポートします。
+`WLR_RENDERER=pixman` は使えません。upstream wlroots のシーンを使い、GL と
+ソフトウェアレンダリングの両方をサポートする plain ビルドにする場合は、
+scenefx を明示的に無効にします:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
 scenefx をシステム以外の prefix に入れた場合は、ビルド時と実行時に
 pkg-config とライブラリのパスを設定してください。
 
@@ -1197,7 +1209,8 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   消えているため即時に消えます。シャドウは固定のレイヤー矩形です。
   ウィンドウ/レイヤールールでサーフェスごとの不透明度、ボーダー幅、影、
   および scenefx ビルドでは角丸とブラーも上書きできます。
-  角丸と背景ブラーは `-Dscenefx=true` ビルドが必要です。そのビルドは
+  角丸と背景ブラーは既定の scenefx ビルドに含まれ、
+  `-Dscenefx=false` ビルドでは無効になります。scenefx ビルドは
   scenefx の GLES2 レンダラーを使うため、pixman のソフトウェア
   レンダリングは利用できません。ブラーは半透明のクライアントとシェル
   レイヤーでのみ見えます。動きを止めるには `animations = false` または

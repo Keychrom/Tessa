@@ -133,17 +133,17 @@ direct scanout サンプル、tearing 試行回数は `Output.perf` に保持し
 
 ## エフェクトバックエンド
 
-既定ビルドは upstream wlroots のシーン実装を使います。`-Dscenefx=true` では
-`src/scene_include.h` が scenefx 0.5 のヘッダを選び、`main.zig` は
-`wlr_renderer_autocreate()` の代わりに `fx_renderer_create()` でレンダラーを
-作成します。scenefx のシーン関数と wlroots のシーン関数は同じ
-`wlr_scene_*` シンボルに解決されるため、Tessa の残りのシーングラフコードは
-そのまま動きます。このビルドは GLES2 が必要で、`WLR_RENDERER=pixman` では
-実行できません。
+既定ビルドは scenefx 0.5 のシーン実装を使います。`src/scene_include.h` が
+scenefx 0.5 のヘッダを選び、`main.zig` は `wlr_renderer_autocreate()` の
+代わりに `fx_renderer_create()` でレンダラーを作成します。scenefx のシーン
+関数と wlroots のシーン関数は同じ `wlr_scene_*` シンボルに解決されるため、
+Tessa の残りのシーングラフコードはそのまま動きます。このビルドは GLES2 が
+必要で、`WLR_RENDERER=pixman` では実行できません。`-Dscenefx=false` では
+upstream wlroots のシーン実装を使います。
 
 `window_effects.zig` は常にクライアントの不透明度と tint 矩形を適用します。
-既定ビルドで no-op になるのは scenefx 専用実装で、scenefx ビルドではさらに
-次を行います:
+`-Dscenefx=false` ビルドで no-op になるのは scenefx 専用実装で、既定の
+scenefx ビルドではさらに次を行います:
 
 - 各クライアントのルートシーンバッファを見つけ、`corner_radius` を
   `CORNER_LOCATION_ALL` で適用する。フルスクリーンでは半径を 0 に戻す
@@ -1022,7 +1022,7 @@ Cairo が角丸矩形、グラデーション、墨だまり、太陽、粒子�
 （`src/c_import.h`、`panel/c_import.h`、`src/ctl_c_import.h`）で宣言し、外部の
 `translate-c` パッケージがビルド時に `c_translated` モジュールを生成します。
 コンポジタのヘッダーは `WLR_USE_UNSTABLE` 付きの wlroots 0.20 を含み、
-`-Dscenefx=true` では scenefx 0.5 も含みます。パネルは
+`-Dscenefx=false` 以外では scenefx 0.5 も含みます。パネルは
 layer-shell 用の生成済みクライアントプロトコル C をコンパイルします（これは
 推移的に xdg-shell の `xdg_popup_interface` を必要とします）。`tessa-ctl` は
 libc とソケットヘッダーだけを必要とします。

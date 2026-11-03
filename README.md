@@ -78,12 +78,12 @@ the manual binaries would otherwise continue to be used.
 
 ## Install on Arch Linux
 
-Tessa requires Zig **0.17** and wlroots **0.20**. Both are available in the
-official repositories as `zig` and `wlroots0.20`. Install the build
-dependencies:
+Tessa requires Zig **0.17**, wlroots **0.20**, and scenefx **0.5**. All are
+available in the official repositories as `zig`, `wlroots0.20`, and `scenefx`.
+Install the build dependencies:
 
 ```sh
-sudo pacman -Syu --needed base-devel git zig wlroots0.20 \
+sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
   libseat libudev libegl libgles2 mesa cairo pango glib2
 ```
@@ -113,9 +113,10 @@ sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
 ```
 
 For X11 applications, install the AUR `xwayland-satellite-git` package.
-`scenefx` 0.5 is only for a custom `-Dscenefx=true` build; the PKGBUILD uses the
-default wlroots scene and does not enable rounded corners or blur. Log in on a
-TTY and run `tessa`, or select **Tessa** in your display manager.
+The PKGBUILD depends on `scenefx` and builds with rounded corners and backdrop
+blur by default. For a plain wlroots scene without those effects, build from
+source with `-Dscenefx=false`. Log in on a TTY and run `tessa`, or select
+**Tessa** in your display manager.
 
 The 0.2.4 Arch package was exercised on Arch Linux with the 0.16/0.19 AUR
 toolchain, including a real session and plain/scenefx builds. The 0.2.5
@@ -211,8 +212,8 @@ Highlights include:
 - window open/workspace slide animations with per-kind durations, named
   cubic-bezier and spring curves, per-window enable/duration/curve overrides,
   configurable offsets, close scale/fade snapshots, reduced-motion close
-  fades, and soft layered shadows; opt-in scenefx rounded
-  corners and backdrop blur for windows and shell surfaces; configurable
+  fades, and soft layered shadows; scenefx rounded corners and backdrop blur
+  for windows and shell surfaces by default; configurable
   wallpaper gradient colors, a PNG wallpaper source with cover/contain/stretch
   fit, and an art on/off switch
 - nine workspaces per output, floating windows, fullscreen, click-to-focus;
@@ -325,7 +326,8 @@ A real DRM/libinput session on the new toolchain is still pending.
 
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
 services are installed; otherwise it skips. `tests/effects.sh` exercises rounded
-corners only in a `-Dscenefx=true` build and skips otherwise. The Kitty and real
+corners in scenefx builds (the default) and skips when the binary was built with
+`-Dscenefx=false`. The Kitty and real
 XWayland integration tests skip when Kitty, `wlr-randr`, or
 `xwayland-satellite` is unavailable; `tests/xwayland-ready.sh` uses a fake
 satellite so DISPLAY readiness is covered everywhere.
@@ -365,15 +367,18 @@ terminal is **kitty**; set `terminal = foot` if you prefer foot.
 
 ## Build from source (development)
 
-Use this path for development, unsupported distributions, or a custom scenefx
-build. The `.deb` and Arch `tessa-git` package above are sufficient for normal
-use on their respective distributions.
+Use this path for development, unsupported distributions, or a plain
+no-scenefx build. The `.deb` and Arch `tessa-git` package above are sufficient
+for normal use on their respective distributions.
 
 Requirements:
 
 - Zig **0.17.0**
 - wlroots **0.20** development files, discoverable with
   `pkg-config --modversion wlroots-0.20`
+- [scenefx](https://github.com/wlrfx/scenefx) **0.5** development files for the
+  default rounded corners and backdrop blur build
+  (`pkg-config --modversion scenefx-0.5`)
 - Wayland, xkbcommon, pixman, libdrm, libinput, libseat, libudev, EGL/GLES,
   and wayland-protocols >= 1.47 (for the generated enum headers)
 - Cairo, Pango, and GLib/GIO development files for the panel and notifications
@@ -383,8 +388,6 @@ Requirements:
 - optional: Fcitx5 + Mozc (or another input method that implements
   `zwp_input_method_v2`) for Japanese input
 - optional: `wlr-randr` for runtime output mode/position/scale changes
-- optional: [scenefx](https://github.com/wlrfx/scenefx) **0.5** for rounded
-  corners and backdrop blur (`pkg-config --modversion scenefx-0.5`)
 - optional: a D-Bus session bus for desktop notifications, tray, and portals
 - optional: `wpctl` (PipeWire), `pactl` (PulseAudio), or `amixer` (ALSA) for
   volume control
@@ -429,11 +432,15 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-On Arch Linux, install the official `zig` and `wlroots0.20` packages as
-described in [Install on Arch Linux](#install-on-arch-linux). The optional
-`scenefx` 0.5 package is only needed for a custom `-Dscenefx=true` build.
-`scripts/build.sh` requires Zig 0.17.x; `ZIG=/path/to/zig` overrides the
-compiler. Do not use Zig 0.16 or wlroots 0.19 for this tree.
+Ubuntu 26.04 has no scenefx 0.5 development package. Build scenefx from source
+for the default effects build, or pass `-Dscenefx=false` to build the plain
+wlroots scene.
+
+On Arch Linux, install the official `zig`, `wlroots0.20`, and `scenefx` packages
+as described in [Install on Arch Linux](#install-on-arch-linux). The default
+build uses `scenefx` 0.5; use `-Dscenefx=false` to build the plain wlroots
+scene instead. `scripts/build.sh` requires Zig 0.17.x; `ZIG=/path/to/zig`
+overrides the compiler. Do not use Zig 0.16 or wlroots 0.19 for this tree.
 
 `xwayland-satellite` is not packaged everywhere; install it into `PATH` (for
 example `~/.local/bin/xwayland-satellite`), or set `TESSA_XWAYLAND_BIN` to its
@@ -455,16 +462,22 @@ chmod +x scripts/*.sh scripts/tessa-session   # once, if not preserved
 ./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
-Rounded corners and backdrop blur are an opt-in scenefx build. Install
-scenefx 0.5 (the wlroots 0.20 series), then:
+Rounded corners and backdrop blur are enabled by default. Install scenefx 0.5
+(the wlroots 0.20 series), then build normally:
 
 ```sh
-./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=true
+./scripts/build.sh -Doptimize=ReleaseSafe
 ```
 
 This switches the scene and renderer to scenefx's GLES2 path;
-`WLR_RENDERER=pixman` is no longer available in that binary. The default build
-keeps the upstream wlroots scene and supports both GL and software rendering.
+`WLR_RENDERER=pixman` is not available in that binary. For a plain build that
+keeps the upstream wlroots scene and supports both GL and software rendering,
+disable scenefx explicitly:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
 If scenefx is installed under a non-system prefix, export its pkg-config and
 library paths when building and running.
 
@@ -1165,9 +1178,9 @@ These are real and important:
   itself is removed immediately because its buffer is already gone at unmap. Shadows
   are fixed layered rectangles. Window and layer rules can override opacity,
   border width, shadows, and, in a scenefx build, rounding and blur per surface.
-  Rounded corners and backdrop blur require a
-  `-Dscenefx=true` build; that build uses scenefx's GLES2 renderer and cannot
-  use the pixman software renderer. Blur is only visible for translucent
+  Rounded corners and backdrop blur are part of the default scenefx build; a
+  `-Dscenefx=false` build omits them. The scenefx build uses scenefx's GLES2
+  renderer and cannot use the pixman software renderer. Blur is only visible for translucent
   clients and shell layers. Set `animations = false` or `reduce_motion = true`
   to disable movement; `reduce_motion_animations = fade` keeps a close fade.
 - **System indicators are intentionally basic.** Battery uses

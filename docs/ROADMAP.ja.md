@@ -200,8 +200,8 @@ Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手
       `animations`、`animation_ms`、`reduce_motion` で制御。
 - [x] コンポジタ起点のウィンドウを閉じるアニメーションと、スケール/フェードの
       終了スナップショット。
-- [x] オプトインの scenefx 0.5 レンダラーによる角丸と背景ブラー
-      （`-Dscenefx=true`、GLES2）。
+- [x] 既定の scenefx 0.5 レンダラーによる角丸と背景ブラー
+      （GLES2。`-Dscenefx=false` で plain wlroots シーン）。
 - [x] レイヤー化したシーンジオメトリによるウィンドウのドロップシャドウ
       （`shadows = true`）。
 - [x] バーの高さ、マージン、フォント、パレットのテーマ/設定。
