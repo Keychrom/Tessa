@@ -1,5 +1,10 @@
 **English** | [日本語](EXTENSION-API.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/extension-api/>.
+<!-- tessa-site-notice:end -->
+
 # Extension API v1 stability contract
 
 This document is the canonical contract for Tessa's supervised extension API.

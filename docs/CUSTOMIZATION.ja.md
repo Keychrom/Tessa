@@ -1,5 +1,10 @@
 [English](CUSTOMIZATION.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/customization/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # カスタマイズ
 
 Tessa は JavaScript/TypeScript ランタイムやネイティブプラグイン VM を

@@ -1,5 +1,10 @@
 **English** | [日本語](BENCHMARK.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/benchmark/>.
+<!-- tessa-site-notice:end -->
+
 # Benchmark: wayland-compositor-bench
 
 Tessa was measured with

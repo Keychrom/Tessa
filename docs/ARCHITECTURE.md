@@ -1,5 +1,10 @@
 **English** | [日本語](ARCHITECTURE.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/architecture/>.
+<!-- tessa-site-notice:end -->
+
 # Architecture
 
 Tessa is three programs:

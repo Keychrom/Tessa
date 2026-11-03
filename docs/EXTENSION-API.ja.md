@@ -1,5 +1,10 @@
 [English](EXTENSION-API.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/extension-api/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # 拡張 API v1 安定性契約
 
 この文書は Tessa の監視付き拡張 API の正規契約です。バージョン番号の

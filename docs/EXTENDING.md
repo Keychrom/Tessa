@@ -1,5 +1,10 @@
 **English** | [日本語](EXTENDING.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/extending/>.
+<!-- tessa-site-notice:end -->
+
 # Extending Tessa
 
 Tessa deliberately has no plugin VM and no JavaScript configuration runtime.

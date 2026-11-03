@@ -1,3 +1,8 @@
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/development/>.
+<!-- tessa-site-notice:end -->
+
 # Development
 
 This repository is developed locally on Windows and built/tested over SSH on an

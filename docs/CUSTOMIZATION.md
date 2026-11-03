@@ -1,5 +1,10 @@
 **English** | [日本語](CUSTOMIZATION.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/customization/>.
+<!-- tessa-site-notice:end -->
+
 # Customization
 
 Tessa aims to be highly customizable without embedding a JavaScript/TypeScript

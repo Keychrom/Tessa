@@ -1,5 +1,10 @@
 [English](EXTENDING.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/extending/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # Tessa を拡張する
 
 Tessa はプラグイン VM や JavaScript 設定ランタイムを意図的に持っていません。

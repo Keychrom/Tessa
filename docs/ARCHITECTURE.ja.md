@@ -1,5 +1,10 @@
 [English](ARCHITECTURE.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/architecture/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # アーキテクチャ
 
 Tessa は 3 つのプログラムで構成されます。

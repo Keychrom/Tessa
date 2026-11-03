@@ -1,5 +1,10 @@
 [English](RENDERING.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/rendering/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # 描画・ゲーム機能
 
 Tessa は upstream wlroots 0.20 の API を使って、direct scanout、tearing、

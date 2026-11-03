@@ -1,5 +1,10 @@
 [English](DEVELOPMENT.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/development/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # 開発
 
 Tessa は SSH 越しの headless Linux マシンだけで開発できます。コンポジタも

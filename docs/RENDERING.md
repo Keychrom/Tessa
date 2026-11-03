@@ -1,5 +1,10 @@
 **English** | [日本語](RENDERING.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/rendering/>.
+<!-- tessa-site-notice:end -->
+
 # Rendering and game features
 
 Tessa exposes direct scanout, tearing, explicit synchronization, and per-output

@@ -1,5 +1,10 @@
 **日本語** | [English](GUIDE.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/guide/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # Tessa セットアップ & カスタマイズ完全ガイド
 
 このガイドは、現在の Tessa ツリーで使えるセットアップ方法とカスタマイズ

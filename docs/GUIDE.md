@@ -1,5 +1,10 @@
 **English** | [日本語](GUIDE.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/guide/>.
+<!-- tessa-site-notice:end -->
+
 # Tessa Setup & Customization Guide
 
 This guide collects the setup and customization surface of the current Tessa

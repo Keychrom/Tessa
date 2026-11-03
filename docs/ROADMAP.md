@@ -1,5 +1,10 @@
 **English** | [日本語](ROADMAP.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This document has been ported to the website. Read the current version at <https://keychrom.github.io/docs/roadmap/>.
+<!-- tessa-site-notice:end -->
+
 # Roadmap
 
 Tessa is intentionally small. The roadmap is ordered by what makes it usable as

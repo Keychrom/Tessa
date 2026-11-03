@@ -1,5 +1,10 @@
 [English](BENCHMARK.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/benchmark/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # ベンチマーク: wayland-compositor-bench
 
 Tessa を

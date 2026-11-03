@@ -1,5 +1,10 @@
 [English](ROADMAP.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> このドキュメントは Web サイトに移植されました。最新版は <https://keychrom.github.io/ja/docs/roadmap/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # ロードマップ
 
 Tessa は意図的に小さく保っています。ロードマップは「日本語で日常的に使える
