@@ -30,6 +30,8 @@ cat >"$runtime/config" <<'EOF'
 panel = false
 xwayland = false
 animations = false
+blur = false
+shadows = false
 EOF
 
 export TESSA_CONFIG="$runtime/config"
@@ -85,10 +87,13 @@ with open(sys.argv[1]) as f:
     data = json.load(f)
 applies = data["effect_applies"]
 skips = data["effect_skips"]
+blur_nodes = data["blur_nodes"]
 if applies <= 0:
     raise SystemExit(f"no effect applies recorded: {data}")
 if skips < 2:
     raise SystemExit(f"effect cache did not reuse work: applies={applies} skips={skips}")
+if blur_nodes != 0:
+    raise SystemExit(f"disabled blur allocated nodes: blur_nodes={blur_nodes}")
 PY
 echo "effect cache: ok"
 

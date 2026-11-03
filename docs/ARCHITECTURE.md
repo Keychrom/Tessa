@@ -606,6 +606,8 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   skip redundant scene setters and increment `effect_skips`; changed values
   increment `effect_applies`. `effect_applies`, `effect_skips`, and
   `blur_nodes` are exported by `perf` (text and JSON), not by `rendering`.
+  Blur and shadow scene nodes are created lazily; fullscreen clients skip blur,
+  and surfaces with effects disabled keep their nodes absent or disabled.
 - `extension_manager.zig` owns supervised extension processes. Config
   manifests carry an id, command, API version, permission scopes, and
   `requires`/`after` dependencies. `config.resolveExtensions` topologically

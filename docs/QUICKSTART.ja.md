@@ -135,6 +135,7 @@ tessa --check-config ~/.config/tessa/config
 - **「Failed to create renderer」で終了する:** 既定の scenefx ビルドは GLES2 が必要です。`-Dscenefx=false` で plain ビルドを作り、`WLR_RENDERER=pixman tessa` で起動してください。
 - **X11 アプリケーションが起動しない:** `xwayland-satellite` を導入してください。
 - **角丸やブラーが出ない:** `tessa-ctl config | grep scenefx` を確認します。`scenefx 0` なら、実行中のバイナリは `-Dscenefx=false` でビルドされています。
+- **動作が重い:** 設定で `blur = false`、`shadows = false`、`animations = false` にして `Super+R` を押してください。ブラーが最も重いエフェクトです。詳しくは[描画・ゲーム機能](RENDERING.ja.md)を参照してください。
 - **設定が読み込まれない:** `tessa --check-config` を実行し、ファイル名とパスを確認してください。
 - **解決しない:** [トラブルシューティング](GUIDE.ja.md#15-トラブルシューティング)を見るか、[GitHub](https://github.com/Keychrom/Tessa/issues) で Issue を作成してください。
 

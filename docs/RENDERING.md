@@ -191,6 +191,40 @@ the over-budget threshold. `tessa-ctl perf` also emits top-level
 `outputs[]`. Only frame-time samples are a rolling 4096-frame window; the event
 and effect counters are cumulative until `perf --reset`.
 
+## Low-end and integrated GPUs
+
+The default scenefx build favors visual quality. If `tessa-ctl perf` reports
+`over_budget`, or moving windows feels heavy, lower the effect cost first:
+
+```ini
+blur = false
+shadows = false
+animations = false
+corner_radius = 0
+```
+
+- `blur` is the largest GPU cost. Disabling it removes the backdrop blur pass;
+  fullscreen windows already skip blur automatically.
+- `shadows` removes three translucent rectangles per window.
+- `animations = false` stops per-frame scheduling for transitions.
+- `corner_radius = 0` avoids rounded-corner shader work while keeping scenefx.
+
+If you want some blur, `blur_passes = 1` with a small `blur_radius` is cheaper
+than the default three passes. Tessa creates blur and shadow scene nodes lazily:
+a build with `blur = false` or `shadows = false` does not allocate them for
+ordinary windows. `effect_skips` should grow while the scene is idle;
+`effect_applies` should only grow when a rule or window geometry changes.
+
+If the GPU or driver cannot provide GLES2, use a plain build:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
+Run it with `WLR_RENDERER=pixman tessa` when needed. `direct_scanout = true`
+remains the best path for fullscreen video and games; `tessa-ctl rendering` and
+the `scanout_frames` counter show whether it is active.
+
 ## HDR and color management: investigation
 
 HDR is **not implemented** in this change. No `wp-color-management-v1` global is

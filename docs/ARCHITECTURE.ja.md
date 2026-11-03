@@ -636,7 +636,9 @@ inhibitor が存在する間またはセッションロック中は
   同じ値の再適用は scene setter を省略して `effect_skips` を増やし、変更時は
   `effect_applies` を増やします。`effect_applies`、`effect_skips`、
   `blur_nodes` は `perf`（テキストと JSON）に公開され、`rendering` には
-  含まれません。
+  含まれません。blur と shadow のシーンノードは遅延生成され、フルスクリーン
+  クライアントは blur をスキップします。エフェクト無効時はノードを作らないか
+  無効のままにします。
 - `extension_manager.zig` は監視付き拡張プロセスを管理します。設定
   マニフェストは id、command、API バージョン、権限スコープ、
   `requires`/`after` 依存を持ち、`config.resolveExtensions` がトポロジカル

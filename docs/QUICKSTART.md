@@ -162,6 +162,9 @@ layouts, effects, the panel, and the full key reference.
 - **X11 applications do not start:** install `xwayland-satellite`.
 - **No rounded corners or blur:** check `tessa-ctl config | grep scenefx`.
   `scenefx 0` means the running binary was built with `-Dscenefx=false`.
+- **The session feels slow:** set `blur = false`, `shadows = false`, and
+  `animations = false` in the config, then press `Super+R`. Blur is the
+  heaviest effect; see [Rendering and games](RENDERING.md).
 - **The config does not load:** run `tessa --check-config` and check the file
   name and path.
 - **Still stuck:** see [Troubleshooting](GUIDE.md#15-troubleshooting) or open an

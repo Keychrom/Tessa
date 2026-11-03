@@ -223,6 +223,11 @@ animation_ms = 160
 reduce_motion = false
 reduce_motion_animations = none
 reduce_motion_fade_ms = 120
+# Low-end GPU / maximum-performance starting point:
+# blur = false
+# shadows = false
+# animations = false
+# corner_radius = 0
 # Soft stacked shadows behind tiled and floating windows.
 shadows = true
 # Rounded corners and backdrop blur are enabled by default; with -Dscenefx=false

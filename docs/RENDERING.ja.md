@@ -189,6 +189,42 @@ scene state build、commit）を次へ記録します:
 フレーム時間サンプル（4096 フレーム）だけで、イベント/エフェクトカウンタは
 `perf --reset` まで累積します。
 
+## 低性能 GPU・内蔵 GPU 向け設定
+
+既定の scenefx ビルドは見た目を優先しています。`tessa-ctl perf` が
+`over_budget` を示す、またはウィンドウ操作が重い場合は、まずエフェクトの
+コストを下げてください:
+
+```ini
+blur = false
+shadows = false
+animations = false
+corner_radius = 0
+```
+
+- `blur` は最も GPU コストが大きい設定です。無効にすると背景ブラーのパスが
+  なくなります。フルスクリーンウィンドウは自動的にブラーをスキップします。
+- `shadows` はウィンドウごとの半透明矩形 3 枚を削除します。
+- `animations = false` は遷移のフレームスケジューリングを止めます。
+- `corner_radius = 0` は scenefx のまま角丸シェーダー処理を避けます。
+
+ブラーを残したい場合は、既定の 3 パスより `blur_passes = 1` と小さめの
+`blur_radius` の方が軽くなります。Tessa は blur と shadow のシーンノードを
+遅延生成するため、`blur = false` や `shadows = false` のビルドでは通常の
+ウィンドウ用にこれらを確保しません。シーンが静止している間は
+`effect_skips` が増え、ルールやジオメトリが変わったときだけ
+`effect_applies` が増えるのが正常です。
+
+GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを使います:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dscenefx=false
+```
+
+必要なら `WLR_RENDERER=pixman tessa` で起動してください。フルスクリーン動画や
+ゲームでは `direct_scanout = true` が最良の経路です。`tessa-ctl rendering` と
+`scanout_frames` カウンタで有効か確認できます。
+
 ## HDR / color management の調査
 
 今回の変更で HDR は**実装していません**。`wp-color-management-v1` global は

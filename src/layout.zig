@@ -574,8 +574,27 @@ fn shadowsEnabled(client: *Client) bool {
     };
 }
 
+fn ensureShadowRects(client: *Client) void {
+    if (client.shadow_rects[0] != null) return;
+    const alphas = [3]f32{ 0.045, 0.055, 0.070 };
+    var i: usize = client.shadow_rects.len;
+    while (i > 0) {
+        i -= 1;
+        const col = [4]f32{ 0, 0, 0, alphas[i] };
+        const rect_raw = c.wlr_scene_rect_create(client.frame, 1, 1, &col);
+        client.shadow_rects[i] = rect_raw;
+        // The frame already contains the border, surface, and tint nodes.
+        // Keep lazily-created shadows below all of them.
+        if (rect_raw != null) {
+            const rect: *c.wlr_scene_rect = @ptrCast(@alignCast(rect_raw));
+            c.wlr_scene_node_lower_to_bottom(&rect.node);
+        }
+    }
+}
+
 fn updateShadows(client: *Client, enabled: bool, w: i32, h: i32) void {
     const show = enabled and shadowsEnabled(client);
+    if (show) ensureShadowRects(client);
     const alphas = [3]f32{ 0.045, 0.055, 0.070 };
     const offsets = [3][4]i32{
         .{ -12, -9, 24, 22 },

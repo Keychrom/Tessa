@@ -79,11 +79,14 @@ fn ensureClientBlur(client: *Client) ?*c.wlr_scene_blur {
 }
 
 pub fn applyClient(client: *Client, border_enabled: bool) void {
-    if (ensureContentBuffer(client)) |buffer| {
-        c.wlr_scene_buffer_set_opacity(buffer, types.effectiveClientOpacity(client));
+    if (comptime enabled) {
+        applyClientImpl(client, border_enabled);
+    } else {
+        if (ensureContentBuffer(client)) |buffer| {
+            c.wlr_scene_buffer_set_opacity(buffer, types.effectiveClientOpacity(client));
+        }
+        applyTint(client, border_enabled);
     }
-    applyTint(client, border_enabled);
-    if (comptime enabled) applyClientImpl(client, border_enabled);
 }
 
 fn applyTint(client: *Client, border_enabled: bool) void {
@@ -132,7 +135,9 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
     const content_radius: c_int = @min(radius, @max(0, content_max));
     const border_radius: c_int = if (radius > 0) @min(radius + bw, max_radius) else 0;
     const content = ensureContentBuffer(client);
-    const blur_on = clientBlur(client) and content != null;
+    // A fullscreen window covers the backdrop, so blur cannot contribute
+    // anything visible while it still costs an extra scene pass.
+    const blur_on = clientBlur(client) and content != null and !client.fullscreen;
     const opacity = types.effectiveClientOpacity(client);
     const tint = types.effectiveClientTint(client);
 
@@ -151,8 +156,10 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
     }
 
     if (content) |buffer| {
+        c.wlr_scene_buffer_set_opacity(buffer, opacity);
         c.wlr_scene_buffer_set_corner_radius(buffer, content_radius);
     }
+    applyTint(client, border_enabled);
     c.wlr_scene_rect_set_corner_radius(client.border_rect, border_radius);
 
     var i: usize = 0;
@@ -164,22 +171,26 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
         );
     }
 
-    if (ensureClientBlur(client)) |blur| {
-        const bw_i = @max(0, bw);
-        c.wlr_scene_blur_set_size(
-            blur,
-            @max(1, client.w - bw_i * 2),
-            @max(1, client.h - bw_i * 2),
-        );
-        c.wlr_scene_node_set_position(&blur.node, bw_i, bw_i);
-        c.wlr_scene_blur_set_corner_radius(blur, content_radius);
-        // A blur node without a transparency mask would also blur the window's
-        // own transparent regions, so only enable it once the content buffer
-        // exists and per-client blur resolves to on.
-        c.wlr_scene_node_set_enabled(&blur.node, blur_on);
-        if (content) |buffer| {
-            c.wlr_scene_blur_set_transparency_mask_source(blur, buffer);
+    if (blur_on) {
+        if (ensureClientBlur(client)) |blur| {
+            const bw_i = @max(0, bw);
+            c.wlr_scene_blur_set_size(
+                blur,
+                @max(1, client.w - bw_i * 2),
+                @max(1, client.h - bw_i * 2),
+            );
+            c.wlr_scene_node_set_position(&blur.node, bw_i, bw_i);
+            c.wlr_scene_blur_set_corner_radius(blur, content_radius);
+            // A blur node without a transparency mask would also blur the
+            // window's own transparent regions, so only enable it once the
+            // content buffer exists and per-client blur resolves to on.
+            c.wlr_scene_node_set_enabled(&blur.node, true);
+            if (content) |buffer| {
+                c.wlr_scene_blur_set_transparency_mask_source(blur, buffer);
+            }
         }
+    } else if (client.blur_node) |node| {
+        c.wlr_scene_node_set_enabled(node, false);
     }
 
     client.applied_opacity = opacity;
@@ -241,18 +252,20 @@ pub fn applyLayer(server: *Server, layer: *LayerSurface) void {
     c.wlr_scene_node_for_each_buffer(&tree.node, layerBufferCallback, &state);
 
     if (comptime enabled) {
-        if (ensureLayerBlur(layer)) |blur_node| {
-            const surface: *c.wlr_surface = @ptrCast(@alignCast(layer.wlr.surface));
-            const width = @max(1, @as(i32, @intCast(surface.current.width)));
-            const height = @max(1, @as(i32, @intCast(surface.current.height)));
-            c.wlr_scene_blur_set_size(blur_node, width, height);
-            c.wlr_scene_blur_set_corner_radius(blur_node, state.radius);
-            c.wlr_scene_node_set_enabled(&blur_node.node, state.blur and state.mask != null);
-            // One node covers the primary layer buffer. XDG popups attached to
-            // the layer keep their own buffers and are not blurred separately.
-            if (state.mask) |mask| {
-                c.wlr_scene_blur_set_transparency_mask_source(blur_node, mask);
+        if (state.blur and state.mask != null) {
+            if (ensureLayerBlur(layer)) |blur_node| {
+                const surface: *c.wlr_surface = @ptrCast(@alignCast(layer.wlr.surface));
+                const width = @max(1, @as(i32, @intCast(surface.current.width)));
+                const height = @max(1, @as(i32, @intCast(surface.current.height)));
+                c.wlr_scene_blur_set_size(blur_node, width, height);
+                c.wlr_scene_blur_set_corner_radius(blur_node, state.radius);
+                c.wlr_scene_node_set_enabled(&blur_node.node, true);
+                // One node covers the primary layer buffer. XDG popups attached to
+                // the layer keep their own buffers and are not blurred separately.
+                c.wlr_scene_blur_set_transparency_mask_source(blur_node, state.mask.?);
             }
+        } else if (layer.blur_node) |node| {
+            c.wlr_scene_node_set_enabled(node, false);
         }
     }
 }
@@ -284,19 +297,25 @@ fn popupMaskCallback(buffer_raw: [*c]c.wlr_scene_buffer, sx: c_int, sy: c_int, d
 
 fn applyImPopupImpl(popup: *ImPopup) void {
     if (popup.popup.surface == null) return;
+    if (!popup.server.config.blur) {
+        if (popup.blur_node) |node| c.wlr_scene_node_set_enabled(node, false);
+        return;
+    }
+    var mask = PopupMask{};
+    c.wlr_scene_node_for_each_buffer(&popup.scene.node, popupMaskCallback, &mask);
+    if (mask.buffer == null) {
+        if (popup.blur_node) |node| c.wlr_scene_node_set_enabled(node, false);
+        return;
+    }
     if (ensurePopupBlur(popup)) |blur| {
         const surface: *c.wlr_surface = @ptrCast(@alignCast(popup.popup.surface));
-        var mask = PopupMask{};
-        c.wlr_scene_node_for_each_buffer(&popup.scene.node, popupMaskCallback, &mask);
         c.wlr_scene_blur_set_size(
             blur,
             @max(1, @as(i32, @intCast(surface.current.width))),
             @max(1, @as(i32, @intCast(surface.current.height))),
         );
-        c.wlr_scene_node_set_enabled(&blur.node, popup.server.config.blur and mask.buffer != null);
-        if (mask.buffer) |buffer| {
-            c.wlr_scene_blur_set_transparency_mask_source(blur, buffer);
-        }
+        c.wlr_scene_node_set_enabled(&blur.node, true);
+        c.wlr_scene_blur_set_transparency_mask_source(blur, mask.buffer.?);
     }
 }
 
