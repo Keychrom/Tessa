@@ -415,13 +415,17 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 `api` はコンポジタの拡張 API と照合されます。`permissions` は `read`、
 `events`、`status`、`window`、`workspace`、`layout`、`spawn`、`panel`、
 `control`、`extensions` のカンマ区切り（`all`/`none` 可）で、既定は
-`read,status` です。`requires`/`after` は拡張 ID で、未知 ID と循環は設定
-エラーです。宣言順に起動したあと、`requires` で塞がれた分を依存順に再試行し、
-pidfd で終了を検知して指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上
-安定すると失敗回数をリセット）で再起動します。起動を塞ぐのは `requires` だけ
-です。依存先が無効・blocked・failed の間、依存元は `blocked` のままです。
-`after` は順序にだけ影響します。起動済みの依存元は、依存先が後から失敗しても
-停止されず、次回の起動試行時に再度 `requires` を確認します。
+`read,status` です。`requires`/`after` は拡張 ID で、未知 ID、重複、自己依存、
+両方への指定、循環は設定エラーです。トポロジカル順に起動し、pidfd で終了を
+検知して指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上安定すると
+失敗回数をリセット）で再起動します。`requires` は依存先が `ready` になるまで
+待ち、無効・blocked・failed の間は依存元も `blocked` です。`after` は順序に
+だけ影響します。起動済みの依存元は、依存先が後から失敗しても停止されず、次回の
+起動試行時に再度 `requires` を確認します。`extension_ready_timeout`（既定
+10000 ms、`0` で無効）は、起動したまま認証しないプロセスを停止します。
+トークンは起動ごとに再生成され、停止・無効化・クラッシュ・reload で認証済み
+接続が失効します。完全な契約は [EXTENSION-API.ja.md](EXTENSION-API.ja.md) を
+参照してください。
 
 ```text
 HELLO 1 $TESSA_EXTENSION_TOKEN
@@ -431,11 +435,16 @@ EXTENSION weather read,status
 ```
 
 権限外は `ERR forbidden <command>`、不正 token は `ERR unauthorized` を返し、
-その接続は権限なしになります。これはサンドボックスではなく協調的な制御です。
+その接続は権限なしになります。トークンを含む不正な `HELLO` も fail-closed
+です。scoped クライアントの未知コマンドは
+`ERR unknown-command <command>` になります。`subscribe state` は `read`、
+`subscribe events` は `events`、`subscribe all` は両方が必要です。
+これはサンドボックスではなく協調的な制御です。
 token を送らない `tessa-panel` と `tessa-ctl` は従来どおり全権限です。
 
 `CMD extensions`/`CMD extensions-json` で状態一覧、
 `CMD extension-enable <id> on|off` で現在のセッションだけ切り替えます。
+JSON には `last_error`、`failures`、`next_restart_ms` も含まれます。
 イベントは `extension-start`、`extension-ready`、`extension-failed`、
 `extension-stop` です。パネルの一覧は `tessa-ctl panel extensions` で開き、
 Enter で選択項目を切り替えます。
@@ -480,13 +489,19 @@ sh examples/active-window.sh
 
 ```sh
 ./scripts/build.sh
+sh tests/extensions.sh
+sh tests/extension-api.sh
 sh tests/smoke.sh
 ```
 
-設定 include、startup / workspace-change / config-reload フック、イベント
-ストリーム、ステータスの設定と削除、IPC の半クローズ処理、`foot` が
-インストールされていればウィンドウの生成・フォーカス・終了イベントを確認
-します。`TESSA_CTL_DEBUG=1 tessa-ctl events` は受信行を stderr に表示します。
+`tests/extension-api.sh` は安定版 v1 契約（fail-closed HELLO、スコープ検査、
+購読リセット、トークン回転/失効、ready timeout、`after` の起動順、JSON 診断）
+を確認します。契約本体は
+[EXTENSION-API.ja.md](EXTENSION-API.ja.md) を参照してください。
+`tests/smoke.sh` は設定 include、startup / workspace-change / config-reload
+フック、イベントストリーム、ステータスの設定と削除、IPC の半クローズ処理、
+`foot` がインストールされていればウィンドウの生成・フォーカス・終了イベントを
+確認します。`TESSA_CTL_DEBUG=1 tessa-ctl events` は受信行を stderr に表示します。
 
 ## 現在の制限
 

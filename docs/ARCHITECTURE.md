@@ -604,10 +604,12 @@ Timers and policy stay outside the compositor; swayidle is the expected driver.
   manifests carry an id, command, API version, permission scopes, and
   `requires`/`after` dependencies. `config.resolveExtensions` topologically
   sorts them and reports unknown ids/cycles. Each child gets a token in its
-  environment; `HELLO 1 <token>` maps the IPC client to its scopes. Timeout-free
-  lifecycle supervision uses pidfd and exponential restart backoff (1 s, 2 s,
-  4 s, then 8 s; a 10 s stable run resets the counter). Only `requires` blocks
-  startup; `after` affects ordering. The token is
+  environment; `HELLO 1 <token>` maps the IPC client to its scopes. Lifecycle
+  supervision uses pidfd and exponential restart backoff (1 s, 2 s,
+  4 s, then 8 s; a 10 s stable run resets the counter). `extension_ready_timeout`
+  kills a process that never authenticates. `requires` waits for `ready`, while
+  `after` affects ordering. Tokens rotate on every start, and stop/exit/reload
+  revokes authenticated connections through `ipc.revokeExtension`. The token is
   a cooperative guardrail, not a sandbox.
 - `panel_supervisor.zig` owns one panel child per output. A Linux pidfd is
   attached to the Wayland event loop, so an exit is detected without changing

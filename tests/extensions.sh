@@ -197,6 +197,16 @@ EOF
     exit 1
 }
 grep -q "dependency cycle" "$runtime/cycle.log"
+
+cat >"$runtime/duplicate-dep" <<EOF
+extension = id=a; command=true; requires=b,b
+extension = id=b; command=true
+EOF
+"$bin/tessa" --check-config "$runtime/duplicate-dep" >"$runtime/duplicate-dep.log" 2>&1 && {
+    echo "duplicate extension dependency was accepted" >&2
+    exit 1
+}
+grep -q "invalid extension requires" "$runtime/duplicate-dep.log"
 echo "extension validation: ok"
 
 tessa-ctl quit

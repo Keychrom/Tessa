@@ -330,14 +330,18 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
 `layout`, `spawn`, `panel`, `control`, and `extensions` (`all`/`none` allowed).
 The default is `read,status`. `requires` and `after` are extension ids; unknown
-ids and cycles are config errors. The supervisor starts in declaration order
-and then retries blocked entries in dependency order, uses pidfd exit detection,
+ids, duplicates, self-dependencies, an id in both lists, and cycles are config
+errors. The supervisor starts in topological order, uses pidfd exit detection,
 and restarts with exponential backoff (1 s, 2 s, 4 s, then 8 s; a run of at
-least 10 s resets the failure counter). Only `requires` blocks startup: a
-disabled, blocked, or failed required dependency keeps the dependent `blocked`.
-`after` affects ordering only. A dependent that is already running is not
-stopped when its dependency later fails; on its own next start attempt the
-requirement is checked again.
+least 10 s resets the failure counter). `requires` waits for the dependency to
+be `ready`; a disabled, blocked, or failed required dependency keeps the
+dependent `blocked`. `after` affects ordering only. A dependent that is already
+running is not stopped when its dependency later fails; on its own next start
+attempt the requirement is checked again. `extension_ready_timeout` (default
+10000 ms, `0` disables) kills a process that starts but never authenticates.
+Tokens are regenerated on every start, and stopping, disabling, crashing, or
+reloading an extension revokes its authenticated connections. The full contract
+is in [EXTENSION-API.md](EXTENSION-API.md).
 
 ```text
 HELLO 1 $TESSA_EXTENSION_TOKEN
@@ -347,13 +351,18 @@ EXTENSION weather read,status
 ```
 
 Commands outside the granted scopes return `ERR forbidden <command>`. A wrong
-token returns `ERR unauthorized` and leaves the connection with no scopes.
-This is a cooperative permission check, not a sandbox: extensions run as the
-same user and can read the token or call the socket directly. Clients that do
-not send a token, including `tessa-panel` and `tessa-ctl`, keep full access.
+token returns `ERR unauthorized` and leaves the connection with no scopes;
+malformed `HELLO` lines that contain a token are also fail-closed. Scoped
+clients get `ERR unknown-command <command>` for unknown commands. `subscribe
+state` requires `read`, `subscribe events` requires `events`, and `subscribe
+all` requires both. This is a cooperative permission check, not a sandbox:
+extensions run as the same user and can read the token or call the socket
+directly. Clients that do not send a token, including `tessa-panel` and
+`tessa-ctl`, keep full access.
 
 `CMD extensions` lists runtime state; `CMD extensions-json` returns the same
-data as JSON. `CMD extension-enable <id> on|off` changes the current session
+data as JSON, including `last_error`, `failures`, and `next_restart_ms`.
+`CMD extension-enable <id> on|off` changes the current session
 only; a config reload restores the manifest's `enabled` value. Lifecycle
 events are `extension-start`, `extension-ready` (token accepted),
 `extension-failed`, and `extension-stop`. The panel opens the Extensions
@@ -488,17 +497,23 @@ sh examples/active-window.sh
 
 ## Testing an extension
 
-The repository includes a self-contained headless test:
+The repository includes self-contained headless tests:
 
 ```sh
 ./scripts/build.sh
+sh tests/extensions.sh
+sh tests/extension-api.sh
 sh tests/smoke.sh
 ```
 
-It checks config includes, startup/workspace/config-reload hooks, the event
-stream, status set/clear, IPC half-close behavior, and (when `foot` is installed)
-window lifecycle events. `TESSA_CTL_DEBUG=1 tessa-ctl events` prints received
-lines to stderr.
+`tests/extension-api.sh` exercises the stable v1 contract: fail-closed HELLO,
+scope checks, subscription reset, token rotation/revocation, ready timeout,
+`after` ordering, and JSON diagnostics. See
+[EXTENSION-API.md](EXTENSION-API.md) for the contract itself.
+`tests/smoke.sh` checks config includes, startup/workspace/config-reload hooks,
+the event stream, status set/clear, IPC half-close behavior, and (when `foot`
+is installed) window lifecycle events. `TESSA_CTL_DEBUG=1 tessa-ctl events`
+prints received lines to stderr.
 
 ## Current limits
 

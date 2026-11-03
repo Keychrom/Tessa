@@ -635,12 +635,14 @@ inhibitor が存在する間またはセッションロック中は
 - `extension_manager.zig` は監視付き拡張プロセスを管理します。設定
   マニフェストは id、command、API バージョン、権限スコープ、
   `requires`/`after` 依存を持ち、`config.resolveExtensions` がトポロジカル
-  ソートして未知 ID と循環を診断します。子プロセスには token を渡し、
+  ソートして未知 ID、重複、循環を診断します。子プロセスには token を渡し、
   `HELLO 1 <token>` で IPC クライアントをスコープへ対応付けます。pidfd と
   指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上安定するとリセット）
-  で監視します。起動を塞ぐのは `requires` で、`after` は順序だけに影響します。
-  token はサンドボックスではなく
-  協調的なガードレールです。
+  で監視し、`extension_ready_timeout` で認証しないプロセスを停止します。
+  `requires` は依存先の `ready` を待ち、`after` は順序だけに影響します。
+  トークンは起動ごとに再生成され、停止・終了・reload では
+  `ipc.revokeExtension` が認証済み接続を失効させます。token はサンドボックス
+  ではなく協調的なガードレールです。
 - `panel_supervisor.zig` は出力ごとに 1 つのパネル子プロセスを管理します。
   Linux の pidfd を Wayland イベントループに登録するため、コンポジタ全体の
   `SIGCHLD` 処理を変えずに終了を検知できます。再起動は上限付き指数バックオフ

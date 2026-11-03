@@ -24,6 +24,7 @@ pub fn init(server: *Server) void {
     server.ipc_fd = -1;
     server.schedule_ipc = schedule;
     server.broadcast_line = broadcastLine;
+    server.revoke_extension = revokeExtension;
 
     var path_buf: [256]u8 = undefined;
     var path: []const u8 = "";
@@ -87,6 +88,7 @@ pub fn deinit(server: *Server) void {
             closeClient(cl);
         }
     }
+    collectDeadClients(server);
     if (server.ipc_idle) |src| {
         _ = c.wl_event_source_remove(src);
         server.ipc_idle = null;
@@ -114,6 +116,7 @@ fn onIdle(data: ?*anyopaque) callconv(.c) void {
     if (server.ipc_dirty) {
         broadcastState(server);
     }
+    collectDeadClients(server);
 }
 
 fn onAccept(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
@@ -151,41 +154,70 @@ fn onAccept(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
 
         core.logInfo("ipc: client connected", .{});
     }
+    collectDeadClients(server);
     return 0;
 }
 
 fn closeClient(cl: *IpcClient) void {
     if (!cl.alive) return;
     cl.alive = false;
-    const server = cl.server;
 
     if (cl.source) |src| {
         _ = c.wl_event_source_remove(src);
         cl.source = null;
     }
     _ = c.close(cl.fd);
+}
 
+fn collectDeadClients(server: *Server) void {
     var i: usize = 0;
-    while (i < server.ipcs.len) : (i += 1) {
-        if (server.ipcs[i] == cl) {
-            core.removeAt(types.IpcClient, server.ipcs[0..], &server.ipc_count, i);
-            break;
+    while (i < server.ipc_count) {
+        const cl = server.ipcs[i] orelse {
+            i += 1;
+            continue;
+        };
+        if (cl.alive) {
+            i += 1;
+            continue;
         }
+        core.removeAt(types.IpcClient, server.ipcs[0..], &server.ipc_count, i);
+        c.free(cl);
     }
-    c.free(cl);
+}
+
+pub fn revokeExtension(server: *Server, id: []const u8) void {
+    var i: usize = 0;
+    while (i < server.ipc_count) : (i += 1) {
+        const cl = server.ipcs[i] orelse continue;
+        if (cl.extension_id_len == 0) continue;
+        if (!std.mem.eql(u8, cl.extension_id[0..cl.extension_id_len], id)) continue;
+        cl.scopes = 0;
+        cl.scoped = true;
+        cl.wants_state = false;
+        cl.wants_events = false;
+        cl.json_events = false;
+        cl.rpc_subscription_len = 0;
+        core.logInfo("ipc: revoked extension connection for '{s}'", .{id});
+    }
 }
 
 fn onRead(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
     const cl: *IpcClient = @ptrCast(@alignCast(data.?));
-    if (!cl.alive) return 0;
+    const server = cl.server;
+    if (!cl.alive) {
+        collectDeadClients(server);
+        return 0;
+    }
 
     if (cl.len >= cl.buf.len) {
         closeClient(cl);
+        collectDeadClients(server);
         return 0;
     }
     const n = c.read(fd, cl.buf[cl.len..].ptr, cl.buf.len - cl.len);
     if (n <= 0) {
         closeClient(cl);
+        collectDeadClients(server);
         return 0;
     }
     cl.len += @intCast(n);
@@ -195,7 +227,7 @@ fn onRead(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
         const nl = std.mem.indexOfScalar(u8, slice, '\n') orelse break;
         const line = std.mem.trim(u8, slice[0..nl], " \t\r");
         if (line.len > 0) handleCommand(cl, line);
-        if (!cl.alive) return 0;
+        if (!cl.alive) break;
         const remain = cl.len - (nl + 1);
         if (remain > 0) std.mem.copyForwards(u8, cl.buf[0..remain], cl.buf[nl + 1 .. cl.len]);
         cl.len = remain;
@@ -204,6 +236,7 @@ fn onRead(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
     // Read queued data before honoring a half-close. A one-shot CLI may send a
     // command and close immediately, which sets POLLHUP on the same wakeup.
     if ((mask & 0x10) != 0 and cl.alive) closeClient(cl);
+    collectDeadClients(server);
     return 0;
 }
 
@@ -411,6 +444,7 @@ fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
         @memcpy(cl.rpc_subscription[0..id_text.len], id_text);
         sendJsonResult(cl, id_text, "{\"subscribed\":true,\"topic\":\"events\"}");
     } else if (std.mem.eql(u8, method, "unsubscribe")) {
+        cl.wants_state = false;
         cl.wants_events = false;
         cl.json_events = false;
         cl.rpc_subscription_len = 0;
@@ -420,17 +454,54 @@ fn handleJsonRpc(cl: *IpcClient, line: []const u8) void {
     }
 }
 
+fn clearSubscriptions(cl: *IpcClient) void {
+    cl.wants_state = false;
+    cl.wants_events = false;
+    cl.json_events = false;
+    cl.rpc_subscription_len = 0;
+}
+
+fn lineContainsExtensionToken(server: *Server, line: []const u8) bool {
+    var i: usize = 0;
+    while (i < server.extension_count) : (i += 1) {
+        const ext = &server.extensions[i];
+        if (ext.token_len == 0) continue;
+        if (std.mem.indexOf(u8, line, ext.token[0..ext.token_len]) != null) return true;
+    }
+    return false;
+}
+
 fn handleHello(cl: *IpcClient, line: []const u8) void {
     var fields: [8][]const u8 = undefined;
     const n = tokens(line, &fields);
+    const has_token_field = n > 2 and fields[2].len > 0;
+    if (has_token_field) {
+        cl.scoped = true;
+        cl.scopes = 0;
+        cl.extension_id_len = 0;
+        clearSubscriptions(cl);
+    }
+
     var requested: u32 = 1;
     if (n > 1) {
         requested = std.fmt.parseInt(u32, fields[1], 10) catch {
+            if (has_token_field or lineContainsExtensionToken(cl.server, line)) {
+                cl.scoped = true;
+                cl.scopes = 0;
+                cl.extension_id_len = 0;
+                clearSubscriptions(cl);
+            }
             sendRaw(cl, "ERR\tinvalid-version\n");
             return;
         };
     }
     if (requested == 0) {
+        if (has_token_field or lineContainsExtensionToken(cl.server, line)) {
+            cl.scoped = true;
+            cl.scopes = 0;
+            cl.extension_id_len = 0;
+            clearSubscriptions(cl);
+        }
         sendRaw(cl, "ERR\tinvalid-version\n");
         return;
     }
@@ -438,17 +509,18 @@ fn handleHello(cl: *IpcClient, line: []const u8) void {
     cl.version = negotiated;
     cl.hello = true;
 
-    if (n > 2 and fields[2].len > 0) {
-        const ext = extension_manager.authenticate(cl.server, fields[2]) orelse {
-            sendRaw(cl, "ERR\tunauthorized\n");
+    var authenticated = false;
+    if (has_token_field) {
+        if (extension_manager.authenticate(cl.server, fields[2])) |ext| {
             cl.scoped = true;
-            cl.scopes = 0;
+            cl.scopes = ext.manifest.permissions;
+            cl.extension_id_len = ext.manifest.id_len;
+            @memcpy(cl.extension_id[0..ext.manifest.id_len], ext.manifest.id[0..ext.manifest.id_len]);
+            authenticated = true;
+        } else {
+            sendRaw(cl, "ERR\tunauthorized\n");
             return;
-        };
-        cl.scoped = true;
-        cl.scopes = ext.manifest.permissions;
-        cl.extension_id_len = ext.manifest.id_len;
-        @memcpy(cl.extension_id[0..ext.manifest.id_len], ext.manifest.id[0..ext.manifest.id_len]);
+        }
     }
 
     var version_buf: [32]u8 = undefined;
@@ -457,7 +529,7 @@ fn handleHello(cl: *IpcClient, line: []const u8) void {
     var caps_buf: [256]u8 = undefined;
     const caps_line = std.fmt.bufPrint(&caps_buf, "CAPABILITIES\t{s}\n", .{api.capabilities}) catch "";
     sendRaw(cl, caps_line);
-    if (cl.scoped and cl.extension_id_len > 0) {
+    if (authenticated) {
         var perm_buf: [128]u8 = undefined;
         const perms = extension_manager.permissionsText(&perm_buf, cl.scopes);
         var response_buf: [384]u8 = undefined;
@@ -478,7 +550,7 @@ fn scopeForCommand(cmd: []const u8) u16 {
     {
         return types.EXT_PERM_READ;
     }
-    if (std.mem.eql(u8, cmd, "subscribe")) return types.EXT_PERM_EVENTS;
+    if (std.mem.eql(u8, cmd, "subscribe")) return 0;
     if (std.mem.eql(u8, cmd, "status")) return types.EXT_PERM_STATUS;
     if (std.mem.eql(u8, cmd, "workspace") or std.mem.eql(u8, cmd, "move-workspace") or
         std.mem.eql(u8, cmd, "special") or std.mem.eql(u8, cmd, "toggle-special") or
@@ -510,7 +582,7 @@ fn scopeForCommand(cmd: []const u8) u16 {
         return types.EXT_PERM_PANEL;
     }
     if (std.mem.eql(u8, cmd, "reload") or std.mem.eql(u8, cmd, "quit") or
-        std.mem.eql(u8, cmd, "mode"))
+        std.mem.eql(u8, cmd, "mode") or std.mem.eql(u8, cmd, "perf-reset"))
     {
         return types.EXT_PERM_CONTROL;
     }
@@ -532,12 +604,18 @@ fn checkScope(cl: *IpcClient, scope: u16, cmd: []const u8) bool {
 
 fn handleCommand(cl: *IpcClient, line: []const u8) void {
     const server = cl.server;
-    if (std.mem.eql(u8, line, "HELLO") or std.mem.startsWith(u8, line, "HELLO ")) {
+    if (std.mem.eql(u8, line, "HELLO") or std.mem.startsWith(u8, line, "HELLO ") or
+        std.mem.startsWith(u8, line, "HELLO\t"))
+    {
         handleHello(cl, line);
         return;
     }
     if (std.mem.eql(u8, line, "CMD HELLO") or std.mem.startsWith(u8, line, "CMD HELLO ")) {
         handleHello(cl, line["CMD ".len..]);
+        return;
+    }
+    if (std.mem.startsWith(u8, line, "CMD\tHELLO")) {
+        handleHello(cl, line["CMD\t".len..]);
         return;
     }
     if (line.len > 0 and line[0] == '{') {
@@ -546,6 +624,7 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     }
     if (std.mem.startsWith(u8, line, "CMD\t")) {
         if (handleTabCommand(cl, line[4..])) return;
+        if (cl.scoped) sendRaw(cl, "ERR\tunknown-command\tCMD\n");
         core.logInfo("ipc: unknown tab command", .{});
         return;
     }
@@ -566,19 +645,25 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         sendStateJson(server, cl);
     } else if (std.mem.eql(u8, cmd, "subscribe")) {
         var want_snapshot = false;
+        var want_state = false;
+        var want_events = false;
         var i = start + 1;
         while (i < n) : (i += 1) {
             if (std.mem.eql(u8, toks[i], "events")) {
-                cl.wants_events = true;
+                want_events = true;
             } else if (std.mem.eql(u8, toks[i], "state")) {
-                cl.wants_state = true;
+                want_state = true;
                 want_snapshot = true;
             } else if (std.mem.eql(u8, toks[i], "all")) {
-                cl.wants_state = true;
-                cl.wants_events = true;
+                want_state = true;
+                want_events = true;
                 want_snapshot = true;
             }
         }
+        if (want_state and !checkScope(cl, types.EXT_PERM_READ, "subscribe")) return;
+        if (want_events and !checkScope(cl, types.EXT_PERM_EVENTS, "subscribe")) return;
+        if (want_events) cl.wants_events = true;
+        if (want_state) cl.wants_state = true;
         core.logDebug("ipc: subscription state={} events={}", .{ cl.wants_state, cl.wants_events });
         if (want_snapshot) sendState(server, cl);
     } else if (std.mem.eql(u8, cmd, "status")) {
@@ -774,15 +859,31 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "extensions-json")) {
         sendExtensionsJson(server, cl);
     } else if (std.mem.eql(u8, cmd, "extension-enable")) {
-        if (start + 2 < n) {
-            const enabled = std.ascii.eqlIgnoreCase(toks[start + 2], "on") or
-                std.ascii.eqlIgnoreCase(toks[start + 2], "true") or
-                std.mem.eql(u8, toks[start + 2], "1");
-            if (!extension_manager.setEnabled(server, toks[start + 1], enabled)) {
-                core.logInfo("extension: unknown id '{s}'", .{toks[start + 1]});
-            }
-            broadcastState(server);
+        if (start + 2 >= n) {
+            sendRaw(cl, "ERR\tbad-argument\textension-enable\n");
+            return;
         }
+        const enabled = if (std.ascii.eqlIgnoreCase(toks[start + 2], "on") or
+            std.ascii.eqlIgnoreCase(toks[start + 2], "true") or
+            std.mem.eql(u8, toks[start + 2], "1"))
+            true
+        else if (std.ascii.eqlIgnoreCase(toks[start + 2], "off") or
+            std.ascii.eqlIgnoreCase(toks[start + 2], "false") or
+            std.mem.eql(u8, toks[start + 2], "0"))
+            false
+        else {
+            sendRaw(cl, "ERR\tbad-argument\textension-enable\n");
+            return;
+        };
+        if (!extension_manager.setEnabled(server, toks[start + 1], enabled)) {
+            core.logInfo("extension: unknown id '{s}'", .{toks[start + 1]});
+            if (cl.scoped) {
+                var id_msg: [128]u8 = undefined;
+                const msg = std.fmt.bufPrint(&id_msg, "ERR\tunknown-extension\t{s}\n", .{toks[start + 1]}) catch "";
+                sendRaw(cl, msg);
+            }
+        }
+        broadcastState(server);
     } else if (std.mem.eql(u8, cmd, "mode")) {
         if (start + 1 < n) {
             if (!modes.set(server, toks[start + 1])) {
@@ -851,6 +952,10 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         }
     } else if (std.mem.eql(u8, cmd, "quit")) {
         c.wl_display_terminate(server.display);
+    } else if (cl.scoped) {
+        var msg_buf: [160]u8 = undefined;
+        const msg = std.fmt.bufPrint(&msg_buf, "ERR\tunknown-command\t{s}\n", .{cmd}) catch "";
+        sendRaw(cl, msg);
     }
 }
 
@@ -1185,6 +1290,7 @@ fn buildConfigText(server: *Server, buf: []u8) usize {
     append(buf, &off, "panel {d}\n", .{@as(u8, if (cfg.autostart_panel) 1 else 0)});
     var module_buf: [128]u8 = undefined;
     append(buf, &off, "panel_modules {s}\n", .{panelModulesText(&module_buf, cfg.panel_modules)});
+    append(buf, &off, "extension_ready_timeout {d}\n", .{cfg.extension_ready_timeout});
     var ei: usize = 0;
     while (ei < cfg.extension_count) : (ei += 1) {
         const ext = &cfg.extensions[ei];
@@ -1677,9 +1783,10 @@ pub fn broadcastState(server: *Server) void {
     var buf: [131072]u8 = undefined;
     const len = buildState(server, &buf);
     var i: usize = 0;
-    while (i < server.ipcs.len) : (i += 1) {
+    while (i < server.ipc_count) : (i += 1) {
         const cl = server.ipcs[i] orelse continue;
-        if (!cl.wants_state) continue;
+        if (!cl.alive or !cl.wants_state) continue;
+        if (cl.scoped and (cl.scopes & types.EXT_PERM_READ) == 0) continue;
         sendRaw(cl, buf[0..len]);
     }
 }
@@ -1946,9 +2053,10 @@ fn sendJsonEvent(cl: *IpcClient, line: []const u8) void {
 
 pub fn broadcastLine(server: *Server, line: []const u8) void {
     var i: usize = 0;
-    while (i < server.ipcs.len) : (i += 1) {
+    while (i < server.ipc_count) : (i += 1) {
         const cl = server.ipcs[i] orelse continue;
-        if (!cl.wants_events) continue;
+        if (!cl.alive or !cl.wants_events) continue;
+        if (cl.scoped and (cl.scopes & types.EXT_PERM_EVENTS) == 0) continue;
         core.logDebug("ipc: event to client fd={d}", .{cl.fd});
         if (cl.json_events) {
             sendJsonEvent(cl, line);

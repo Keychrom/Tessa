@@ -169,9 +169,9 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   不透明度、角丸、ブラー/影、ボーダー幅、tint、アニメーション上書きを返す。
   リクエストは合流され、v1 ヘルパーとも互換。プロセス内プラグイン VM は
   使わない
-- 設定で宣言する監視付き拡張機能: API バージョン、権限スコープ、
-  `requires`/`after` 依存、pidfd 監視、再起動バックオフ、ライフサイクル
-  イベント、`tessa-ctl extensions`、パネルの拡張一覧
+- 設定で宣言する監視付き拡張機能: 安定版 v1 API、権限スコープ、トークン
+  回転、`requires`/`after` 依存、pidfd 監視、ready timeout、再起動バックオフ、
+  ライフサイクルイベント、`tessa-ctl extensions`、パネルの拡張一覧
 - `panel_modules` でバー/ランチャー/通知/ポップオーバーなどを選択でき、
   Waybar/Quickshell のバーと Tessa の通知やランチャーを共存可能
 - 組み合わせ可能なシェル v2 バーモジュール（表示/順序を設定可能）、
@@ -329,8 +329,8 @@ plain／scenefx の両構成で成功しています。ポータルの ScreenCas
 通知、ポインタ操作、scenefx の角丸描画も含みます。0.2.5 ではさらに
 `tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
 `tests/layout-reorder.sh`、`tests/layout-config.sh`、
-`tests/extensions.sh`、`tests/panel-modules.sh`、`tests/effect-v2.sh`、
-`tests/effect-cache.sh` も成功しています。新しいツールチェーンでの
+`tests/extensions.sh`、`tests/extension-api.sh`、`tests/panel-modules.sh`、
+`tests/effect-v2.sh`、`tests/effect-cache.sh` も成功しています。新しいツールチェーンでの
 実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は
 `-Dscenefx=true` ビルドでのみ角丸を
 検査し、それ以外ではスキップします。Kitty と実 XWayland の統合テストは
@@ -560,7 +560,8 @@ XDG_RUNTIME_DIR=/tmp/tessa-headless WAYLAND_DISPLAY=wayland-0 \
 
 headless ワークフローの詳細は
 [docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md)、拡張 API は
-[docs/EXTENDING.ja.md](docs/EXTENDING.ja.md) を参照してください。
+[docs/EXTENDING.ja.md](docs/EXTENDING.ja.md) を参照してください。安定版 v1 の
+契約は [docs/EXTENSION-API.ja.md](docs/EXTENSION-API.ja.md) にあります。
 
 ## 入力メソッド（IME）
 
@@ -1080,6 +1081,8 @@ bind = SUPER+SHIFT+T set-layout custom
   レイアウト調整、外観、カスタマイズモデル
 - [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) — コンポーネント、
   シーングラフ、IPC、layer-shell のサイズ計算、パネル描画
+- [docs/EXTENSION-API.ja.md](docs/EXTENSION-API.ja.md) — 拡張 API v1 の
+  安定性契約、権限、トークン、ライフサイクル、適合テスト
 - [docs/BENCHMARK.ja.md](docs/BENCHMARK.ja.md) — wayland-compositor-bench の
   計測結果、方法、生 JSON
 - [docs/ROADMAP.ja.md](docs/ROADMAP.ja.md) — 未実装の機能と今後の予定

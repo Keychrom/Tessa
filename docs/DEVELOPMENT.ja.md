@@ -637,6 +637,7 @@ sh tests/smoke.sh
 
 ```sh
 sh tests/extensions.sh      # マニフェスト、依存関係、token スコープ、enable/disable
+sh tests/extension-api.sh   # v1 契約: 認証、失効、timeout、JSON 診断
 sh tests/panel-modules.sh   # panel_modules の所有権と supervisor 再起動
 sh tests/effect-v2.sh       # tint とアニメーション上書き、v1 互換性
 sh tests/effect-cache.sh    # scenefx 専用の適用キャッシュカウンタ

@@ -103,6 +103,9 @@ ordering, and visible state.
       popovers, notifications, toasts, tray, media, and audio, including
       notification-owner gating and supervisor restart on mask changes.
 - [x] Extensions popover with runtime enable/disable.
+- [x] Extension API v1 stabilization: fail-closed HELLO, token rotation and
+      revocation, ready timeout, dependency readiness/order, JSON diagnostics,
+      and a conformance test plus stability contract.
 - [x] Effect-helper protocol v2: key=value partial overrides, tint, per-window
       animation durations/curves, and v1 compatibility.
 - [x] `animation_view_curve`, last-applied effect caching, and

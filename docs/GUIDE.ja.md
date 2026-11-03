@@ -177,7 +177,7 @@ X11 アプリには AUR の `xwayland-satellite-git` を使います。
 ビルドでは角丸もブラーも有効になりません。0.2.4 の Arch パッケージは
 0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
 公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
-headless スイート全 76 テストスクリプトが plain／scenefx の両構成で成功しています。
+headless スイート全 77 テストスクリプトが plain／scenefx の両構成で成功しています。
 `makepkg` が ABI や依存関係のエラーを出した場合は、`zig version` が 0.17.x、
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
@@ -480,6 +480,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `layout_helper_timeout` | `100` | ヘルパー応答タイムアウト（10〜1000 ms） |
 | `effect_helper` | 空 | ウィンドウ別の視覚効果を返す常駐ヘルパープロセス |
 | `effect_helper_timeout` | `200` | エフェクトヘルパー応答タイムアウト（20〜2000 ms） |
+| `extension_ready_timeout` | `10000` | 監視付き拡張の token 認証待ち時間（ms）。`0` で無効、1000〜60000 |
 | `frame_time_budget` | `16` | 描画コミットの予算（ms）。超過フレームを `tessa-ctl perf` が数える |
 | `direct_scanout` | `true` | 不透明なフルスクリーンクライアントでコンポジタのノードを隠し、wlroots の直接スキャンアウトを可能にする |
 | `tearing` | `off` | `off`、`fullscreen`、`force`。いずれもクライアントの async ヒントが必要 |
@@ -1876,7 +1877,11 @@ CMD quit
 `ERR\tinvalid-version` を返します。監視付き拡張は
 `TESSA_EXTENSION_TOKEN` を付け、Tessa はケイパビリティ行の後に
 `EXTENSION\t<id>\t<permissions>` を返します。不正 token は
-`ERR\tunauthorized` です。HELLO なしでコマンドを送る従来クライアント
+`ERR\tunauthorized` です。トークンを含む不正な `HELLO` は fail-closed で、
+権限を持ちません。トークン付きハンドシェイクは認証前の購読を解除するため、
+認証後に再購読してください。scoped クライアントの未知コマンドは
+`ERR\tunknown-command\t<command>` です。HELLO なしでコマンドを送る従来
+クライアント
 （line protocol 0）も互換で、全権限のままです。`tessa-ctl hello` で
 ネゴシエート結果を表示できます。
 
@@ -2052,10 +2057,15 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 `permissions` は `read`、`events`、`status`、`window`、`workspace`、
 `layout`、`spawn`、`panel`、`control`、`extensions` のカンマ区切りで、
 `all`/`none` も使えます。既定は `read,status` です。`requires` と `after`
-は依存 ID で、未知の ID と循環は設定エラーになります。スーパーバイザは
-依存順に起動し、pidfd で終了を検知して指数バックオフで再起動します。
+は依存 ID で、未知 ID、重複、自己依存、循環は設定エラーになります。
+`requires` は依存先が `ready` になるまで待ち、`after` は起動順だけを
+制御します。スーパーバイザは pidfd で終了を検知し、指数バックオフ
+（1 秒、2 秒、4 秒、以降 8 秒）で再起動します。
 子には `TESSA_EXTENSION_ID`、`TESSA_EXTENSION_TOKEN`、
 `TESSA_EXTENSION_API`、`TESSA_EXTENSION_PERMISSIONS` が渡されます。
+`extension_ready_timeout`（既定 10000 ms、`0` で無効）は、認証しない
+プロセスを停止します。トークンは起動ごとに再生成され、停止・無効化・
+クラッシュ・reload で認証済み接続が失効します。
 
 拡張はコマンド送信前に自分の token を通知します:
 
@@ -2066,15 +2076,20 @@ CAPABILITIES ...
 EXTENSION weather read,status
 ```
 
-権限外のコマンドには `ERR forbidden <command>` を返します。これは
+権限外のコマンドには `ERR forbidden <command>` を返します。scoped 拡張の
+未知コマンドは `ERR unknown-command <command>` です。トークンを含む不正な
+`HELLO` は fail-closed で、全権限には戻りません。これは
 サンドボックスではなく協調的なスコープ制御です。同じユーザーのプロセスは
 token やソケットを直接読めます。token を送らない既存クライアント
 （`tessa-panel`、`tessa-ctl`）は従来どおり全権限です。
 
 `CMD extensions` と `CMD extensions-json` で実行状態を取得できます。
-`CMD extension-enable <id> on|off` は現在のセッションだけ変更します。
+JSON の `extensions` 配列には `last_error`、`failures`、`next_restart_ms` も
+含まれます。`CMD extension-enable <id> on|off` は現在のセッションだけ
+変更します。
 パネルの拡張一覧は `tessa-ctl panel extensions` で開き、Enter で選択項目を
-有効／無効にします。
+有効／無効にします。完全な互換性契約は
+[EXTENSION-API.ja.md](EXTENSION-API.ja.md) にあります。
 
 ### 13.7 ランチャー項目
 
@@ -2406,7 +2421,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
   DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
   確認しています。0.2.5 は Arch Linux 実機で Zig 0.17 / wlroots 0.20 /
-  scenefx 0.5 の headless スイート全 76 テストスクリプトが plain／scenefx の両構成で
+  scenefx 0.5 の headless スイート全 77 テストスクリプトが plain／scenefx の両構成で
   成功しており、ポータルの ScreenCast、トレイ、通知、ポインタ操作も含みます。
   新しいツールチェーンでの実 DRM/libinput セッション検証は未実施です。
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、

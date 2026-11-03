@@ -61,6 +61,10 @@ fragments = [
     b"output-rule = output=*; adaptive-sync=maybe\n",
     b"input = type=touchpad; tap=maybe\n",
     b"effect_helper = " + b"A" * 600 + b"\n",
+    b"extension = id=x; command=true; api=999; permissions=bogus\n",
+    b"extension = id=x; command=true; requires=a,a\n",
+    b"extension = id=x; command=" + b"A" * 600 + b"\n",
+    b"extension_ready_timeout = -5\n",
 ]
 
 for i in range(count):

@@ -3,6 +3,12 @@
 //! Clients negotiate the line protocol with `HELLO`. Capabilities are additive:
 //! an older client ignores names it does not know, and a newer client can use
 //! `tessa_version` plus the individual API versions to decide what to call.
+//!
+//! `extension_api = 1` is frozen for the 0.2.x line. Additive JSON fields,
+//! commands, permissions, and error codes may be added without bumping it;
+//! removing or reordering fields, changing existing error frames, or changing
+//! token semantics requires `extension_api = 2`. The contract is documented in
+//! docs/EXTENSION-API.md.
 
 const std = @import("std");
 

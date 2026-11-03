@@ -6,7 +6,7 @@ pub const MAX_CLIENTS = 128;
 pub const MAX_OUTPUTS = 8;
 pub const MAX_LAYERS = 64;
 pub const MAX_KEYBOARDS = 16;
-pub const MAX_IPC = 8;
+pub const MAX_IPC = 32;
 pub const MAX_BINDINGS = 192;
 pub const MAX_MODES = 8;
 pub const MAX_MODE_NAME = 32;
@@ -165,9 +165,11 @@ pub const ExtensionRuntime = struct {
     fd: i32 = -1,
     source: ?*c.wl_event_source = null,
     restart_timer: ?*c.wl_event_source = null,
+    ready_timer: ?*c.wl_event_source = null,
     failures: u32 = 0,
     restarts: u32 = 0,
     started_ms: i64 = 0,
+    restart_at_ms: i64 = 0,
     ready: bool = false,
     token: [MAX_EXTENSION_TOKEN]u8 = @splat(0),
     token_len: usize = 0,
@@ -700,6 +702,7 @@ pub const Config = struct {
     effect_helper: [MAX_COMMAND]u8,
     effect_helper_len: usize,
     effect_helper_timeout: i32,
+    extension_ready_timeout: i32,
     extensions: [MAX_EXTENSIONS]ExtensionManifest,
     extension_count: usize,
     extension_order: [MAX_EXTENSIONS]u8,
@@ -1411,6 +1414,7 @@ pub const Server = struct {
     ipc_dirty: bool,
     schedule_ipc: ?*const fn (*Server) void,
     broadcast_line: ?*const fn (*Server, []const u8) void,
+    revoke_extension: ?*const fn (*Server, []const u8) void,
     reload_runtime: ?*const fn (*Server) void,
     save_display_state: ?*const fn (*Server) void,
 

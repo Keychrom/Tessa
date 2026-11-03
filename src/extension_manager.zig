@@ -15,7 +15,7 @@ const event_names = @import("event_names.zig");
 const Server = types.Server;
 const ExtensionRuntime = types.ExtensionRuntime;
 
-const INITIAL_RESTART_MS: i32 = 500;
+const INITIAL_RESTART_MS: i32 = 1000;
 const MAX_RESTART_MS: i32 = 8000;
 const STABLE_RUN_MS: i64 = 10_000;
 var token_counter: u64 = 0;
@@ -97,13 +97,29 @@ fn depsSatisfied(server: *Server, ext: *ExtensionRuntime) bool {
     while (i < ext.manifest.require_count) : (i += 1) {
         const dep_id = ext.manifest.requires[i][0..ext.manifest.require_lens[i]];
         const dep = findById(server, dep_id) orelse return false;
-        if (dep.state != .running and dep.state != .ready) return false;
+        if (dep.state != .ready) return false;
     }
     return true;
 }
 
 fn disarmRestart(ext: *ExtensionRuntime) void {
     if (ext.restart_timer) |timer| _ = c.wl_event_source_timer_update(timer, 0);
+    ext.restart_at_ms = 0;
+}
+
+fn disarmReady(ext: *ExtensionRuntime) void {
+    if (ext.ready_timer) |timer| _ = c.wl_event_source_timer_update(timer, 0);
+}
+
+fn revokeClients(server: *Server, ext: *ExtensionRuntime) void {
+    if (server.revoke_extension) |revoke| {
+        revoke(server, ext.manifest.id[0..ext.manifest.id_len]);
+    }
+}
+
+fn processAlive(pid: i32) bool {
+    if (pid <= 0) return false;
+    return c.kill(pid, 0) == 0;
 }
 
 fn closePidfd(ext: *ExtensionRuntime) void {
@@ -122,6 +138,7 @@ fn emitLifecycle(server: *Server, name: []const u8, ext: *ExtensionRuntime) void
         .name = name,
         .arg = ext.manifest.id[0..ext.manifest.id_len],
     });
+    core.markDirty(server);
 }
 
 fn setError(ext: *ExtensionRuntime, message: []const u8) void {
@@ -130,20 +147,28 @@ fn setError(ext: *ExtensionRuntime, message: []const u8) void {
 
 fn scheduleRestart(server: *Server, ext: *ExtensionRuntime) void {
     if (!ext.manifest.enabled) return;
-    var delay = INITIAL_RESTART_MS;
-    var i: u32 = 0;
-    while (i < ext.failures and delay < MAX_RESTART_MS) : (i += 1) {
-        delay *= 2;
+    var delay: i32 = INITIAL_RESTART_MS;
+    if (ext.failures > 0) {
+        var shift = ext.failures - 1;
+        if (shift > 3) shift = 3;
+        const shift_bits: u5 = @intCast(shift);
+        delay = @as(i32, 1000) << shift_bits;
     }
     if (delay > MAX_RESTART_MS) delay = MAX_RESTART_MS;
+    ext.restart_at_ms = currentMs() + delay;
     if (ext.restart_timer) |timer| {
         _ = c.wl_event_source_timer_update(timer, delay);
+        core.logInfo("extension '{s}' restarting in {d} ms (failure {d})", .{
+            ext.manifest.id[0..ext.manifest.id_len],
+            delay,
+            ext.failures,
+        });
+    } else {
+        setError(ext, "restart timer unavailable");
+        core.logInfo("extension '{s}' cannot restart: timer unavailable", .{
+            ext.manifest.id[0..ext.manifest.id_len],
+        });
     }
-    core.logInfo("extension '{s}' restarting in {d} ms (failure {d})", .{
-        ext.manifest.id[0..ext.manifest.id_len],
-        delay,
-        ext.failures,
-    });
     _ = server;
 }
 
@@ -154,8 +179,15 @@ fn onExit(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
     const server = ext.server orelse return 0;
     const pid = ext.pid;
     ext.pid = -1;
+    ext.ready = false;
+    disarmReady(ext);
     closePidfd(ext);
-    if (ext.state == .stopped or ext.state == .disabled) return 0;
+    revokeClients(server, ext);
+
+    if (ext.state == .stopped or ext.state == .disabled) {
+        core.markDirty(server);
+        return 0;
+    }
 
     const now = currentMs();
     if (ext.started_ms > 0 and now - ext.started_ms >= STABLE_RUN_MS) {
@@ -163,9 +195,8 @@ fn onExit(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
     } else {
         ext.failures += 1;
     }
-    ext.ready = false;
     ext.state = .failed;
-    setError(ext, "process exited");
+    if (ext.last_error_len == 0) setError(ext, "process exited");
     emitLifecycle(server, event_names.extension_failed, ext);
     core.logInfo("extension '{s}' process {d} exited", .{
         ext.manifest.id[0..ext.manifest.id_len],
@@ -178,28 +209,64 @@ fn onExit(fd: c_int, mask: u32, data: ?*anyopaque) callconv(.c) c_int {
 fn onRestartTimer(data: ?*anyopaque) callconv(.c) c_int {
     const ext: *ExtensionRuntime = @ptrCast(@alignCast(data.?));
     const server = ext.server orelse return 0;
+    ext.restart_at_ms = 0;
     if (ext.state != .failed or ext.pid > 0) return 0;
     startOne(server, ext);
+    advance(server);
     return 0;
+}
+
+fn onReadyTimer(data: ?*anyopaque) callconv(.c) c_int {
+    const ext: *ExtensionRuntime = @ptrCast(@alignCast(data.?));
+    const server = ext.server orelse return 0;
+    if (ext.ready or ext.pid <= 0 or ext.state != .running) return 0;
+    setError(ext, "ready timeout");
+    ext.state = .failed;
+    revokeClients(server, ext);
+    core.logInfo("extension '{s}' did not authenticate before the ready timeout", .{
+        ext.manifest.id[0..ext.manifest.id_len],
+    });
+    _ = c.kill(-ext.pid, c.SIGKILL);
+    _ = c.kill(ext.pid, c.SIGKILL);
+    if (ext.source == null) {
+        ext.pid = -1;
+        ext.failures += 1;
+        scheduleRestart(server, ext);
+    }
+    core.markDirty(server);
+    return 0;
+}
+
+fn armReadyTimer(server: *Server, ext: *ExtensionRuntime) void {
+    if (server.config.extension_ready_timeout <= 0) return;
+    if (ext.ready_timer) |timer| {
+        _ = c.wl_event_source_timer_update(timer, server.config.extension_ready_timeout);
+    } else {
+        setError(ext, "ready timer unavailable");
+    }
 }
 
 pub fn startOne(server: *Server, ext: *ExtensionRuntime) void {
     if (!ext.manifest.enabled) {
         ext.state = .disabled;
+        core.markDirty(server);
         return;
     }
     if (ext.manifest.command_len == 0) {
         ext.state = .failed;
         setError(ext, "missing command");
+        emitLifecycle(server, event_names.extension_failed, ext);
         return;
     }
     if (!depsSatisfied(server, ext)) {
         ext.state = .blocked;
+        setError(ext, "dependency not ready");
+        core.markDirty(server);
         return;
     }
     if (ext.pid > 0) return;
 
-    if (ext.token_len == 0) makeToken(ext);
+    makeToken(ext);
 
     var id_buf: [types.MAX_EXTENSION_ID + 1]u8 = undefined;
     core.copyZ(&id_buf, ext.manifest.id[0..ext.manifest.id_len]);
@@ -216,11 +283,13 @@ pub fn startOne(server: *Server, ext: *ExtensionRuntime) void {
     ext.state = .running;
     ext.ready = false;
     ext.last_error_len = 0;
+    ext.restart_at_ms = 0;
     const pid = c.fork();
     if (pid < 0) {
         ext.state = .failed;
         ext.failures += 1;
         setError(ext, "fork failed");
+        emitLifecycle(server, event_names.extension_failed, ext);
         scheduleRestart(server, ext);
         return;
     }
@@ -239,51 +308,65 @@ pub fn startOne(server: *Server, ext: *ExtensionRuntime) void {
     if (ext.started_ms > 0) ext.restarts += 1;
     ext.pid = pid;
     ext.started_ms = currentMs();
-    if (!ext.ready) ext.state = .running;
+
+    const pidfd = openPidfd(pid);
+    if (pidfd) |fd| {
+        ext.fd = fd;
+        const loop = c.wl_display_get_event_loop(server.display);
+        const source = c.wl_event_loop_add_fd(
+            loop,
+            fd,
+            @intCast(c.WL_EVENT_READABLE),
+            onExit,
+            ext,
+        );
+        if (source) |src| {
+            ext.source = src;
+        } else {
+            _ = c.close(fd);
+            ext.fd = -1;
+            setError(ext, "pidfd event source unavailable");
+        }
+    } else if (!processAlive(pid)) {
+        ext.pid = -1;
+        ext.state = .failed;
+        ext.failures += 1;
+        setError(ext, "process exited before monitoring");
+        emitLifecycle(server, event_names.extension_failed, ext);
+        scheduleRestart(server, ext);
+        return;
+    } else {
+        setError(ext, "pidfd unavailable");
+    }
+
     emitLifecycle(server, event_names.extension_start, ext);
     core.logInfo("extension '{s}' started (pid {d}, api {d})", .{
         ext.manifest.id[0..ext.manifest.id_len],
         pid,
         ext.manifest.api,
     });
-
-    const pidfd = openPidfd(pid) orelse {
-        core.logInfo("extension '{s}': pidfd_open failed; crash recovery disabled", .{
-            ext.manifest.id[0..ext.manifest.id_len],
-        });
-        return;
-    };
-    ext.fd = pidfd;
-    const loop = c.wl_display_get_event_loop(server.display);
-    const source = c.wl_event_loop_add_fd(
-        loop,
-        pidfd,
-        @intCast(c.WL_EVENT_READABLE),
-        onExit,
-        ext,
-    );
-    if (source == null) {
-        _ = c.close(pidfd);
-        ext.fd = -1;
-        return;
-    }
-    ext.source = source;
+    armReadyTimer(server, ext);
 }
 
 pub fn stopOne(server: *Server, ext: *ExtensionRuntime, intentional: bool) void {
-    _ = server;
     disarmRestart(ext);
-    closePidfd(ext);
+    disarmReady(ext);
+    revokeClients(server, ext);
     const was_active = ext.state == .running or ext.state == .ready or ext.state == .starting;
     if (ext.pid > 0) {
+        _ = c.kill(-ext.pid, c.SIGTERM);
         _ = c.kill(ext.pid, c.SIGTERM);
         ext.pid = -1;
     }
+    closePidfd(ext);
     ext.ready = false;
+    ext.started_ms = 0;
+    ext.failures = 0;
     ext.state = if (ext.manifest.enabled) .stopped else .disabled;
     if (intentional and was_active) {
-        if (ext.server) |srv| emitLifecycle(srv, event_names.extension_stop, ext);
+        emitLifecycle(server, event_names.extension_stop, ext);
     }
+    core.markDirty(server);
 }
 
 fn advance(server: *Server) void {
@@ -326,11 +409,22 @@ pub fn startAll(server: *Server) void {
     while (i < server.extension_count) : (i += 1) {
         const ext = &server.extensions[i];
         ext.restart_timer = c.wl_event_loop_add_timer(loop, onRestartTimer, ext);
-        if (!ext.manifest.enabled) {
-            ext.state = .disabled;
-            continue;
+        ext.ready_timer = c.wl_event_loop_add_timer(loop, onReadyTimer, ext);
+        if (!ext.manifest.enabled) ext.state = .disabled;
+    }
+
+    if (server.extension_order_count > 0) {
+        i = 0;
+        while (i < server.extension_order_count) : (i += 1) {
+            const index: usize = server.extension_order[i];
+            if (index >= server.extension_count) continue;
+            startOne(server, &server.extensions[index]);
         }
-        startOne(server, ext);
+    } else {
+        i = 0;
+        while (i < server.extension_count) : (i += 1) {
+            startOne(server, &server.extensions[i]);
+        }
     }
     advance(server);
     server.extensions_started = true;
@@ -339,10 +433,14 @@ pub fn startAll(server: *Server) void {
 pub fn reload(server: *Server) void {
     var i: usize = 0;
     while (i < server.extension_count) : (i += 1) {
-        stopOne(server, &server.extensions[i], false);
+        stopOne(server, &server.extensions[i], true);
         if (server.extensions[i].restart_timer) |timer| {
             _ = c.wl_event_source_remove(timer);
             server.extensions[i].restart_timer = null;
+        }
+        if (server.extensions[i].ready_timer) |timer| {
+            _ = c.wl_event_source_remove(timer);
+            server.extensions[i].ready_timer = null;
         }
     }
     startAll(server);
@@ -355,6 +453,10 @@ pub fn shutdown(server: *Server) void {
         if (server.extensions[i].restart_timer) |timer| {
             _ = c.wl_event_source_remove(timer);
             server.extensions[i].restart_timer = null;
+        }
+        if (server.extensions[i].ready_timer) |timer| {
+            _ = c.wl_event_source_remove(timer);
+            server.extensions[i].ready_timer = null;
         }
     }
     server.extensions_started = false;
@@ -370,6 +472,8 @@ pub fn authenticate(server: *Server, token: []const u8) ?*ExtensionRuntime {
         if (!ext.ready) {
             ext.ready = true;
             ext.state = .ready;
+            ext.restart_at_ms = 0;
+            disarmReady(ext);
             emitLifecycle(server, event_names.extension_ready, ext);
             advance(server);
         }
@@ -386,7 +490,7 @@ pub fn setEnabled(server: *Server, id: []const u8, enabled: bool) bool {
         ext.manifest.enabled = enabled;
         if (!enabled) {
             stopOne(server, ext, true);
-        } else if (ext.state == .disabled or ext.state == .stopped) {
+        } else if (ext.pid <= 0) {
             ext.state = .stopped;
             startOne(server, ext);
             advance(server);

@@ -165,10 +165,12 @@ layout = master
 
 # Supervised extensions. Each entry starts one long-lived process. The process
 # connects to the IPC socket and sends `HELLO 1 $TESSA_EXTENSION_TOKEN` to
-# identify itself. Permissions are cooperative scopes, not a sandbox:
-# read, events, status, window, workspace, layout, spawn, panel, control,
-# extensions (or all/none). `requires` blocks startup until the dependency is
-# running; `after` only affects startup order.
+# identify itself. Tokens rotate on every start; stopping or reloading an
+# extension revokes its authenticated connections. Permissions are cooperative
+# scopes, not a sandbox: read, events, status, window, workspace, layout, spawn,
+# panel, control, extensions (or all/none). `requires` waits until the
+# dependency is ready; `after` only affects startup order.
+# extension_ready_timeout = 10000
 # extension = id=weather; command=weatherd; api=1; permissions=read,status
 # extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weather
 

@@ -308,7 +308,13 @@ pub fn buildExtensionsArray(server: *Server, buf: []u8) usize {
             if (j > 0) addRaw(buf, &off, ",");
             addString(buf, &off, ext.manifest.after[j][0..ext.manifest.after_lens[j]]);
         }
-        addRaw(buf, &off, "]}");
+        addRaw(buf, &off, "],\"last_error\":");
+        addString(buf, &off, ext.last_error[0..ext.last_error_len]);
+        add(buf, &off, ",\"failures\":{d},\"next_restart_ms\":{d}", .{
+            ext.failures,
+            if (ext.restart_at_ms > core.timeNowMs()) ext.restart_at_ms - core.timeNowMs() else 0,
+        });
+        addRaw(buf, &off, "}");
     }
     addRaw(buf, &off, "]");
     return off;
@@ -402,6 +408,7 @@ pub fn buildConfig(server: *Server, buf: []u8) usize {
     addString(buf, &off, cfg.animation_view_curve[0..cfg.animation_view_curve_len]);
     addRaw(buf, &off, ",\"panel_modules\":");
     addPanelModules(buf, &off, cfg.panel_modules);
+    add(buf, &off, ",\"extension_ready_timeout\":{d}", .{cfg.extension_ready_timeout});
     addRaw(buf, &off, ",\"extensions\":[");
     wi = 0;
     while (wi < cfg.extension_count) : (wi += 1) {

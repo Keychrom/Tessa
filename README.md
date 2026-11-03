@@ -166,9 +166,10 @@ Highlights include:
   per-window opacity, corner radius, blur/shadow, border-width, tint, and
   animation overrides; requests are coalesced, v1 helpers remain compatible,
   and there is no in-process plugin VM
-- supervised extensions declared in config with API version, capability
-  scopes, and `requires`/`after` dependencies; pidfd supervision, restart
-  backoff, lifecycle events, `tessa-ctl extensions`, and an Extensions popover
+- supervised extensions declared in config with a stable v1 API, capability
+  scopes, rotating tokens, and `requires`/`after` dependencies; pidfd
+  supervision, ready timeout, restart backoff, lifecycle events,
+  `tessa-ctl extensions`, and an Extensions popover
 - selectable panel modules (`panel_modules`) so an external Waybar/Quickshell
   bar can coexist with Tessa notifications, launcher, or popovers
 - composable shell v2 bar modules with configurable order and visibility,
@@ -318,7 +319,8 @@ both plain and scenefx builds, including end-to-end portal ScreenCast, tray,
 notifications, pointer interaction, and scenefx corner rendering. The 0.2.5
 tree additionally passes `tests/layout-scrolling.sh`, `tests/layout-modes.sh`,
 `tests/layout-reorder.sh`, `tests/layout-config.sh`, `tests/extensions.sh`,
-`tests/panel-modules.sh`, `tests/effect-v2.sh`, and `tests/effect-cache.sh`.
+`tests/extension-api.sh`, `tests/panel-modules.sh`, `tests/effect-v2.sh`, and
+`tests/effect-cache.sh`.
 A real DRM/libinput session on the new toolchain is still pending.
 
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
@@ -546,7 +548,8 @@ surface currently has keyboard focus. This is also how the IME and panel
 keyboard paths are tested without a TTY.
 
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the headless workflow and
-[docs/EXTENDING.md](docs/EXTENDING.md) for scripting and extension APIs.
+[docs/EXTENDING.md](docs/EXTENDING.md) for scripting and extension APIs. The
+stable v1 contract is [docs/EXTENSION-API.md](docs/EXTENSION-API.md).
 
 ## Input methods
 
@@ -1052,6 +1055,8 @@ protocol.
   tuning, appearance, and the customization model
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — components, scene graph, IPC,
   layer-shell sizing, panel rendering
+- [docs/EXTENSION-API.md](docs/EXTENSION-API.md) — the stable extension API v1
+  contract, permissions, tokens, lifecycle, and conformance tests
 - [docs/BENCHMARK.md](docs/BENCHMARK.md) — wayland-compositor-bench results,
   method, and raw JSON for the reference session
 - [docs/ROADMAP.md](docs/ROADMAP.md) — what is missing and what comes next

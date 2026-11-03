@@ -102,6 +102,9 @@ Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手
       notifications、toasts、tray、media、audio の所有権分離。
       通知所有者の制御と、マスク変更時の supervisor 再起動を含む。
 - [x] 拡張一覧ポップオーバーと実行時 enable/disable。
+- [x] 拡張 API v1 の安定化: fail-closed HELLO、トークン回転と失効、
+      ready timeout、依存の ready 待ちと起動順、JSON 診断、適合テストと
+      安定性契約。
 - [x] effect helper v2: key=value の部分上書き、tint、ウィンドウ別
       アニメーション時間/カーブ、v1 互換。
 - [x] `animation_view_curve`、effect の last-applied キャッシュ、

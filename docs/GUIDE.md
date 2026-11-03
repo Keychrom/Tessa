@@ -467,6 +467,7 @@ edits are rejected and keep the previous configuration.
 | `layout_helper_timeout` | `100` | Helper timeout in ms (10–1000) |
 | `effect_helper` | empty | Long-lived per-window visual effect helper |
 | `effect_helper_timeout` | `200` | Effect-helper timeout in ms (20–2000) |
+| `extension_ready_timeout` | `10000` | Time to wait for a supervised extension's token handshake in ms (`0` disables; 1000–60000) |
 | `frame_time_budget` | `16` | Render-commit budget in ms; frames above it are counted by `tessa-ctl perf` |
 | `direct_scanout` | `true` | Hide compositor nodes for an opaque fullscreen client so wlroots can scan it out directly |
 | `tearing` | `off` | `off`, `fullscreen`, or `force`; always requires the client's async hint |
@@ -1785,7 +1786,11 @@ open for commands. The capability list includes `extensions`, `effects2`, and
 `shell-modules`. Unknown/newer versions negotiate down to 1; a non-numeric
 version gets `ERR\tinvalid-version`. A supervised extension appends its
 `TESSA_EXTENSION_TOKEN`; Tessa replies with `EXTENSION\t<id>\t<permissions>`
-after the capability line. An unknown token gets `ERR\tunauthorized`.
+after the capability line. An unknown token gets `ERR\tunauthorized`; a
+malformed `HELLO` that contains a token is fail-closed and keeps no
+permissions. A token handshake clears subscriptions made before authentication,
+so re-subscribe afterwards. Scoped clients get
+`ERR\tunknown-command\t<command>` for unknown commands.
 Clients that send commands directly remain compatible (line protocol 0) and
 keep full access. `tessa-ctl hello` prints the negotiated version and
 capability list.
@@ -2022,10 +2027,15 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
 `layout`, `spawn`, `panel`, `control`, `extensions`; use `all` or `none` for the
 extremes. The default is `read,status`. `requires` and `after` are dependency
-ids; unknown ids and cycles are config errors. The supervisor starts extensions
-in dependency order, uses pidfd exit detection and exponential restart backoff,
-and passes `TESSA_EXTENSION_ID`, `TESSA_EXTENSION_TOKEN`,
-`TESSA_EXTENSION_API`, and `TESSA_EXTENSION_PERMISSIONS`.
+ids; unknown ids, duplicates, self-dependencies, and cycles are config errors.
+`requires` waits until the dependency is `ready`, while `after` only sets the
+startup order. The supervisor uses pidfd exit detection and exponential restart
+backoff (1 s, 2 s, 4 s, then 8 s), and passes `TESSA_EXTENSION_ID`,
+`TESSA_EXTENSION_TOKEN`, `TESSA_EXTENSION_API`, and
+`TESSA_EXTENSION_PERMISSIONS`. `extension_ready_timeout` (default 10000 ms,
+`0` disables) kills a process that never authenticates. Tokens rotate on every
+start; stopping, disabling, crashing, or reloading an extension revokes its
+authenticated connections.
 
 The process identifies itself before sending commands:
 
@@ -2036,20 +2046,25 @@ CAPABILITIES ...
 EXTENSION weather read,status
 ```
 
-A missing or wrong permission gets `ERR forbidden <command>`. This is a
-cooperative scope check, not a sandbox: the extension runs as the same user and
-can read files, the token, or the socket directly. Clients that do not send a
-token keep the legacy full-access behavior, including `tessa-panel` and
+A missing or wrong permission gets `ERR forbidden <command>`. Unknown commands
+from a scoped extension return `ERR unknown-command <command>`. A malformed
+`HELLO` that contains a token is fail-closed and does not regain full access.
+This is a cooperative scope check, not a sandbox: the extension runs as the same
+user and can read files, the token, or the socket directly. Clients that do not
+send a token keep the legacy full-access behavior, including `tessa-panel` and
 `tessa-ctl`.
 
 `CMD extensions` and `CMD extensions-json` list the runtime state. `EXT` state
 lines use
 `EXT <id> <state> <api> <pid> <ready> <restarts> <enabled> <permissions>`;
 states are `disabled`, `blocked`, `stopped`, `starting`, `running`, `ready`,
-and `failed` (`starting` is reserved and not currently emitted).
-`CMD extension-enable <id> on|off` changes the current session only. The
+and `failed` (`starting` is reserved and not currently emitted). The JSON
+`extensions` array also includes `last_error`, `failures`, and
+`next_restart_ms`. `CMD extension-enable <id> on|off` changes the current session
+only. The
 panel's Extensions popover is opened with `tessa-ctl panel extensions` and
-toggles the selected entry with Enter.
+toggles the selected entry with Enter. The full compatibility contract is in
+[EXTENSION-API.md](EXTENSION-API.md).
 
 ### 13.7 Launcher entries
 
@@ -2373,7 +2388,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
   output, keyboard, mouse, IME, and XWayland clients have been validated on
-  0.2.4. The 0.2.5 headless suite (76 test scripts) passes on Arch Linux with Zig 0.17,
+  0.2.4. The 0.2.5 headless suite (77 test scripts) passes on Arch Linux with Zig 0.17,
   wlroots 0.20, and scenefx 0.5 in both plain and scenefx builds, including
   portal ScreenCast, tray, notifications, and pointer interaction. A real
   DRM/libinput session on the new toolchain is still pending. Per-device

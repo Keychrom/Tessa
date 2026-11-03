@@ -32,6 +32,7 @@ pub fn initDefaults(cfg: *Config) void {
     cfg.grid_columns = 0;
     cfg.layout_helper_timeout = 100;
     cfg.effect_helper_timeout = 200;
+    cfg.extension_ready_timeout = 10_000;
     cfg.frame_time_budget = 16;
     cfg.direct_scanout = true;
     cfg.tearing = .off;
@@ -865,6 +866,10 @@ fn addExtensionDeps(
         const name = std.mem.trim(u8, raw, " \t");
         if (name.len == 0) continue;
         if (count.* >= types.MAX_EXTENSION_DEPS or !validExtensionId(name)) return false;
+        var i: usize = 0;
+        while (i < count.*) : (i += 1) {
+            if (std.mem.eql(u8, dest[i][0..lens[i]], name)) return false;
+        }
         core.copyString(&dest[count.*], &lens[count.*], name);
         count.* += 1;
     }
@@ -965,6 +970,24 @@ fn addExtension(server: *Server, path: []const u8, line: u32, value: []const u8)
     if (findExtensionIndex(cfg, manifest.id[0..manifest.id_len]) != null) {
         addIssue(server, path, line, "duplicate extension id '{s}'", .{manifest.id[0..manifest.id_len]});
         return;
+    }
+    var dep_i: usize = 0;
+    while (dep_i < manifest.require_count) : (dep_i += 1) {
+        const dep = manifest.requires[dep_i][0..manifest.require_lens[dep_i]];
+        if (std.mem.eql(u8, dep, manifest.id[0..manifest.id_len])) {
+            addIssue(server, path, line, "extension '{s}' requires itself", .{dep});
+            return;
+        }
+        var after_i: usize = 0;
+        while (after_i < manifest.after_count) : (after_i += 1) {
+            if (std.mem.eql(u8, dep, manifest.after[after_i][0..manifest.after_lens[after_i]])) {
+                addIssue(server, path, line, "extension '{s}' lists '{s}' in both requires and after", .{
+                    manifest.id[0..manifest.id_len],
+                    dep,
+                });
+                return;
+            }
+        }
     }
     if (manifest.api == 0 or manifest.api > api.extension_api) {
         addIssue(server, path, line, "extension '{s}' requires unsupported api {d}", .{
@@ -2888,6 +2911,10 @@ fn loadPath(
             server.config.panel_modules_set = true;
         } else if (std.mem.eql(u8, key, "extension") or std.mem.eql(u8, key, "plugin")) {
             addExtension(server, path, line_no, value);
+        } else if (std.mem.eql(u8, key, "extension_ready_timeout") or
+            std.mem.eql(u8, key, "extension-ready-timeout"))
+        {
+            if (parseIntValue(i32, server, path, line_no, key, value)) |v| server.config.extension_ready_timeout = v;
         } else if (std.mem.eql(u8, key, "animations")) {
             if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.animations = v;
         } else if (std.mem.eql(u8, key, "reduce_motion")) {
@@ -3256,6 +3283,13 @@ pub fn load(server: *Server) void {
     if (server.config.layout_helper_timeout > 1000) server.config.layout_helper_timeout = 1000;
     if (server.config.effect_helper_timeout < 20) server.config.effect_helper_timeout = 20;
     if (server.config.effect_helper_timeout > 2000) server.config.effect_helper_timeout = 2000;
+    if (server.config.extension_ready_timeout < 0) server.config.extension_ready_timeout = 0;
+    if (server.config.extension_ready_timeout > 0 and
+        server.config.extension_ready_timeout < 1000)
+    {
+        server.config.extension_ready_timeout = 1000;
+    }
+    if (server.config.extension_ready_timeout > 60_000) server.config.extension_ready_timeout = 60_000;
     if (server.config.frame_time_budget < 1) server.config.frame_time_budget = 1;
     if (server.config.frame_time_budget > 1000) server.config.frame_time_budget = 1000;
     if (server.config.animation_ms < 0) server.config.animation_ms = 0;
