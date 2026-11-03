@@ -1,5 +1,10 @@
 **English** | [日本語](README.ja.md)
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> This README is also published on the website. For the full documentation and searchable reference, see <https://keychrom.github.io/docs/>.
+<!-- tessa-site-notice:end -->
+
 # Tessa
 
 A quiet, tiled Wayland desktop written in Zig on top of wlroots.

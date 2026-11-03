@@ -1,5 +1,10 @@
 [English](README.md) | **日本語**
 
+<!-- tessa-site-notice:start -->
+> [!NOTE]
+> この README は Web サイトの概要としても公開されています。詳しくは <https://keychrom.github.io/ja/docs/> を参照してください。
+<!-- tessa-site-notice:end -->
+
 # Tessa
 
 wlroots の上に Zig で実装した、静かなタイル型 Wayland デスクトップです。
