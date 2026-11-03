@@ -7,6 +7,8 @@
 
 # Tessa セットアップ & カスタマイズ完全ガイド
 
+> **Tessa を初めて使う場合** は[クイックスタート](QUICKSTART.ja.md)から始めてください。インストール、最初の起動、基本のキー操作をまとめています。
+
 このガイドは、現在の Tessa ツリーで使えるセットアップ方法とカスタマイズ
 項目を一か所にまとめたものです。0.7 ロードマップまでの実装を対象にし、
 special ワークスペース、シェル v2、エフェクトヘルパー、性能計測、対話型
@@ -294,6 +296,13 @@ DRM バックエンドは logind/seat のアクティブセッションと入力
 
 # システム全体へ（sudo）
 sudo PREFIX=/usr/local ./scripts/install-session.sh
+```
+
+scenefx なしの plain ビルドにする場合は、どちらかのコマンドに
+`-Dscenefx=false` を追加します（Ubuntu 26.04 など）。
+
+```sh
+./scripts/install-session.sh -Dscenefx=false
 ```
 
 インストーラーは次を配置します。

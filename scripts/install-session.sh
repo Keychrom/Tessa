@@ -2,11 +2,13 @@
 # Build and install Tessa, its panel, and a Wayland session file.
 # Default prefix is ~/.local. For a system-wide install:
 #   sudo PREFIX=/usr/local ./scripts/install-session.sh
+# Extra arguments are passed to scripts/build.sh, for example:
+#   ./scripts/install-session.sh -Dscenefx=false
 set -eu
 cd "$(dirname "$0")/.."
 prefix="${PREFIX:-$HOME/.local}"
 
-./scripts/build.sh -Doptimize=ReleaseSafe --prefix "$prefix"
+./scripts/build.sh -Doptimize=ReleaseSafe --prefix "$prefix" "$@"
 install -Dm755 scripts/tessa-session "$prefix/bin/tessa-session"
 desktop="$prefix/share/wayland-sessions/tessa.desktop"
 install -Dm644 session/tessa.desktop "$desktop"
