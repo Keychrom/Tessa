@@ -415,7 +415,7 @@ ZIG="$HOME/.local/zig-0.17.0/zig" ./scripts/build-deb.sh
 パッケージは 0.2.4 が最後です。`debian/control` は
 `libwlroots-0.20-dev` を要求するよう更新しています。
 
-詳細は [packaging/README.md](packaging/README.md) を参照してください。
+詳細は [packaging/README.ja.md](packaging/README.ja.md) を参照してください。
 
 画面共有には `xdg-desktop-portal`、`xdg-desktop-portal-wlr`、PipeWire が
 必要です。同梱の `packaging/portal/tessa.portal` をシステムへ入れると

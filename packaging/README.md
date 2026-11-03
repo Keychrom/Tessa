@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Packaging Tessa
 
 Tessa requires Zig 0.17 and links the wlroots 0.20 ABI. Distribution packages
