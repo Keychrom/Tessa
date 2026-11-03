@@ -17,6 +17,7 @@ fn usage() void {
         "  perf [--json] [--reset]       print frame-time statistics\n" ++
         "  perf --watch[=SECS]           stream frame-time statistics\n" ++
         "  rendering [--json]            print renderer, scanout, and sync status\n" ++
+        "  shell                         print panel and external-shell role ownership\n" ++
         "  extensions [--json]           list supervised extensions and scopes\n" ++
         "  extension-enable <id> on|off  enable or disable an extension at runtime\n" ++
         "  events [topic]                stream extension events (default: all)\n" ++
@@ -456,6 +457,19 @@ fn printRendering(json: bool) !void {
         writeLine(line);
         return;
     }
+    while (try reader.next(&line_buf)) |line| {
+        writeLine(line);
+        if (std.mem.eql(u8, line, "END")) return;
+    }
+    return error.Closed;
+}
+
+fn printShell() !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "CMD shell\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [65536]u8 = undefined;
     while (try reader.next(&line_buf)) |line| {
         writeLine(line);
         if (std.mem.eql(u8, line, "END")) return;
@@ -944,6 +958,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runPerf(args)
     else if (std.mem.eql(u8, cmd, "rendering"))
         runRendering(args)
+    else if (std.mem.eql(u8, cmd, "shell"))
+        printShell()
     else if (std.mem.eql(u8, cmd, "extensions"))
         runExtensions(args)
     else if (std.mem.eql(u8, cmd, "extension-enable"))

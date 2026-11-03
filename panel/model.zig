@@ -35,8 +35,59 @@ pub const BarModule = enum {
     media,
     tray,
     status,
+    layout,
+    groups,
+    mode,
+    effects,
 };
 pub const BAR_MODULE_COUNT = @typeInfo(BarModule).@"enum".field_names.len;
+
+pub const BarModuleSpec = struct {
+    module: BarModule,
+    name: []const u8,
+    description: []const u8,
+    context: bool = false,
+    default: bool = false,
+};
+
+pub const bar_module_specs = [_]BarModuleSpec{
+    .{ .module = .logo, .name = "logo", .description = "Tessa mark and launcher shortcut", .default = true },
+    .{ .module = .workspaces, .name = "workspaces", .description = "Nine workspace pills", .default = true },
+    .{ .module = .chips, .name = "chips", .description = "Window chips for the active workspace", .default = true },
+    .{ .module = .clock, .name = "clock", .description = "Clock and date", .default = true },
+    .{ .module = .battery, .name = "battery", .description = "Battery status", .default = true },
+    .{ .module = .network, .name = "network", .description = "Network status", .default = true },
+    .{ .module = .volume, .name = "volume", .description = "Volume indicator", .default = true },
+    .{ .module = .stats, .name = "stats", .description = "CPU, memory, and trend sparkline", .default = true },
+    .{ .module = .media, .name = "media", .description = "MPRIS media controls", .default = true },
+    .{ .module = .tray, .name = "tray", .description = "StatusNotifier tray icons", .default = true },
+    .{ .module = .status, .name = "status", .description = "Extension status entries", .default = true },
+    .{ .module = .layout, .name = "layout", .description = "Active tiling layout", .context = true },
+    .{ .module = .groups, .name = "groups", .description = "Window group indicator", .context = true },
+    .{ .module = .mode, .name = "mode", .description = "Active input mode", .context = true },
+    .{ .module = .effects, .name = "effects", .description = "Blur, shadow, and animation state", .context = true },
+};
+
+pub fn barModuleByName(name: []const u8) ?BarModule {
+    for (bar_module_specs) |spec| {
+        if (std.mem.eql(u8, name, spec.name)) return spec.module;
+    }
+    if (std.mem.eql(u8, name, "mark")) return .logo;
+    if (std.mem.eql(u8, name, "workspace")) return .workspaces;
+    if (std.mem.eql(u8, name, "title") or std.mem.eql(u8, name, "windows")) return .chips;
+    if (std.mem.eql(u8, name, "date")) return .clock;
+    if (std.mem.eql(u8, name, "audio")) return .volume;
+    if (std.mem.eql(u8, name, "cpu") or std.mem.eql(u8, name, "memory")) return .stats;
+    return null;
+}
+
+pub const DEFAULT_BAR_MODULE_COUNT = blk: {
+    var count: usize = 0;
+    for (bar_module_specs) |spec| {
+        if (spec.default) count += 1;
+    }
+    break :blk count;
+};
 
 pub const MODULE_BACKGROUND: u16 = 1 << 0;
 pub const MODULE_BAR: u16 = 1 << 1;
@@ -168,6 +219,10 @@ pub const WindowInfo = struct {
     fullscreen: bool = false,
     scratchpad: bool = false,
     visible: bool = true,
+    group_id: u32 = 0,
+    group_active: bool = false,
+    column: i32 = -1,
+    tile: i32 = -1,
     app_id: [64]u8 = @splat(0),
     app_len: usize = 0,
     title: [160]u8 = @splat(0),
@@ -355,6 +410,10 @@ pub const Panel = struct {
     scale: i32 = 1,
 
     active_ws: usize = 1,
+    active_layout: [24]u8 = @splat(0),
+    active_layout_len: usize = 0,
+    input_mode: [24]u8 = @splat(0),
+    input_mode_len: usize = 0,
     ws_names: [WS_COUNT][MAX_WORKSPACE_NAME]u8 = undefined,
     ws_name_lens: [WS_COUNT]usize = @splat(0),
     occ: [10]u32 = @splat(0),
@@ -583,8 +642,12 @@ pub const Panel = struct {
         .media,
         .tray,
         .status,
+        .layout,
+        .groups,
+        .mode,
+        .effects,
     },
-    bar_module_count: usize = BAR_MODULE_COUNT,
+    bar_module_count: usize = DEFAULT_BAR_MODULE_COUNT,
     show_logo: bool = true,
     show_workspaces: bool = true,
     show_chips: bool = true,
@@ -596,6 +659,13 @@ pub const Panel = struct {
     show_media: bool = true,
     show_tray: bool = true,
     show_status: bool = true,
+    show_layout: bool = false,
+    show_groups: bool = false,
+    show_mode: bool = false,
+    show_effects: bool = false,
+    blur_enabled: bool = true,
+    shadows_enabled: bool = true,
+    animations_enabled: bool = true,
     font: [64]u8 = undefined,
     font_len: usize = 0,
     bar_font: [64]u8 = undefined,
@@ -975,6 +1045,10 @@ fn disableAllBarModules() void {
     g.show_media = false;
     g.show_tray = false;
     g.show_status = false;
+    g.show_layout = false;
+    g.show_groups = false;
+    g.show_mode = false;
+    g.show_effects = false;
 }
 
 /// Comma/space-separated module list. Unknown names are ignored so a panel
@@ -987,32 +1061,7 @@ fn parseBarLayout(value: []const u8) void {
     var it = std.mem.tokenizeAny(u8, value, ", \t|");
     while (it.next()) |raw| {
         const name = trim(raw);
-        const module: BarModule = if (std.mem.eql(u8, name, "logo") or std.mem.eql(u8, name, "mark"))
-            .logo
-        else if (std.mem.eql(u8, name, "workspaces") or std.mem.eql(u8, name, "workspace"))
-            .workspaces
-        else if (std.mem.eql(u8, name, "title") or std.mem.eql(u8, name, "chips") or
-            std.mem.eql(u8, name, "windows"))
-            .chips
-        else if (std.mem.eql(u8, name, "clock") or std.mem.eql(u8, name, "date"))
-            .clock
-        else if (std.mem.eql(u8, name, "battery"))
-            .battery
-        else if (std.mem.eql(u8, name, "network"))
-            .network
-        else if (std.mem.eql(u8, name, "volume") or std.mem.eql(u8, name, "audio"))
-            .volume
-        else if (std.mem.eql(u8, name, "stats") or std.mem.eql(u8, name, "cpu") or
-            std.mem.eql(u8, name, "memory"))
-            .stats
-        else if (std.mem.eql(u8, name, "media"))
-            .media
-        else if (std.mem.eql(u8, name, "tray"))
-            .tray
-        else if (std.mem.eql(u8, name, "status"))
-            .status
-        else
-            continue;
+        const module = barModuleByName(name) orelse continue;
 
         var seen = false;
         for (g.bar_modules[0..g.bar_module_count]) |existing| {
@@ -1039,6 +1088,10 @@ fn parseBarLayout(value: []const u8) void {
             .media => g.show_media = true,
             .tray => g.show_tray = true,
             .status => g.show_status = true,
+            .layout => g.show_layout = true,
+            .groups => g.show_groups = true,
+            .mode => g.show_mode = true,
+            .effects => g.show_effects = true,
         }
     }
 }
@@ -1142,6 +1195,12 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
         } else if (std.mem.eql(u8, key, "toast_fg") or std.mem.eql(u8, key, "toast-fg")) {
             hexColor(val, &g.toast_fg);
             g.toast_fg_set = true;
+        } else if (std.mem.eql(u8, key, "blur")) {
+            g.blur_enabled = parsePanelBool(val) orelse g.blur_enabled;
+        } else if (std.mem.eql(u8, key, "shadows")) {
+            g.shadows_enabled = parsePanelBool(val) orelse g.shadows_enabled;
+        } else if (std.mem.eql(u8, key, "animations")) {
+            g.animations_enabled = parsePanelBool(val) orelse g.animations_enabled;
         } else if (std.mem.eql(u8, key, "accent")) {
             hexColor(val, &g.accent);
         } else if (std.mem.eql(u8, key, "bg")) {
@@ -1374,8 +1433,12 @@ pub fn loadConfig() void {
         .media,
         .tray,
         .status,
+        .layout,
+        .groups,
+        .mode,
+        .effects,
     };
-    g.bar_module_count = BAR_MODULE_COUNT;
+    g.bar_module_count = DEFAULT_BAR_MODULE_COUNT;
     g.show_logo = true;
     g.show_workspaces = true;
     g.show_chips = true;
@@ -1387,6 +1450,13 @@ pub fn loadConfig() void {
     g.show_media = true;
     g.show_tray = true;
     g.show_status = true;
+    g.show_layout = false;
+    g.show_groups = false;
+    g.show_mode = false;
+    g.show_effects = false;
+    g.blur_enabled = true;
+    g.shadows_enabled = true;
+    g.animations_enabled = true;
     g.accent = .{ 0.886, 0.408, 0.31 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
     g.bg_top = .{ 0, 0, 0 };
@@ -1505,6 +1575,139 @@ pub fn printConfigSummary() void {
         g.wallpaper_image[0..g.wallpaper_image_len],
         @tagName(g.wallpaper_fit),
     });
+}
+
+fn stdoutWrite(s: []const u8) void {
+    _ = c.write(1, s.ptr, s.len);
+}
+
+fn writeRgbToken(name: []const u8, rgb: [3]f64, first: *bool) void {
+    if (!first.*) stdoutWrite(",");
+    first.* = false;
+    var buf: [160]u8 = undefined;
+    const text = std.fmt.bufPrint(
+        &buf,
+        "\"{s}\":[{d:.4},{d:.4},{d:.4}]",
+        .{ name, rgb[0], rgb[1], rgb[2] },
+    ) catch return;
+    stdoutWrite(text);
+}
+
+/// Built-in module catalogue for `tessa-panel --list-modules`.
+pub fn printModules(json: bool) void {
+    const surfaces = [_]struct { name: []const u8, description: []const u8 }{
+        .{ .name = "background", .description = "Wallpaper and background surface" },
+        .{ .name = "bar", .description = "Layer-shell taskbar" },
+        .{ .name = "launcher", .description = "Searchable application launcher" },
+        .{ .name = "popovers", .description = "Calendar, power, clipboard, media, tray, audio, screenshot" },
+        .{ .name = "notifications", .description = "Desktop notification service" },
+        .{ .name = "toasts", .description = "Notification toast surfaces" },
+        .{ .name = "tray", .description = "StatusNotifier tray integration" },
+        .{ .name = "media", .description = "MPRIS media integration" },
+        .{ .name = "audio", .description = "Volume backend integration" },
+    };
+
+    if (json) {
+        stdoutWrite("{\"schema\":1,\"bar\":[");
+        for (bar_module_specs, 0..) |spec, i| {
+            if (i > 0) stdoutWrite(",");
+            var buf: [320]u8 = undefined;
+            const text = std.fmt.bufPrint(
+                &buf,
+                "{{\"id\":\"{s}\",\"default\":{s},\"context\":{s},\"description\":\"{s}\"}}",
+                .{
+                    spec.name,
+                    if (spec.default) "true" else "false",
+                    if (spec.context) "true" else "false",
+                    spec.description,
+                },
+            ) catch "";
+            stdoutWrite(text);
+        }
+        stdoutWrite("],\"surfaces\":[");
+        for (surfaces, 0..) |surface, i| {
+            if (i > 0) stdoutWrite(",");
+            var buf: [256]u8 = undefined;
+            const text = std.fmt.bufPrint(
+                &buf,
+                "{{\"id\":\"{s}\",\"description\":\"{s}\"}}",
+                .{ surface.name, surface.description },
+            ) catch "";
+            stdoutWrite(text);
+        }
+        stdoutWrite("]}\n");
+        return;
+    }
+
+    for (bar_module_specs) |spec| {
+        var buf: [320]u8 = undefined;
+        const text = std.fmt.bufPrint(
+            &buf,
+            "BAR\t{s}\t{s}\t{s}\t{s}\n",
+            .{
+                spec.name,
+                if (spec.default) "default" else "opt-in",
+                if (spec.context) "context" else "core",
+                spec.description,
+            },
+        ) catch "";
+        stdoutWrite(text);
+    }
+    for (surfaces) |surface| {
+        var buf: [256]u8 = undefined;
+        const text = std.fmt.bufPrint(&buf, "SURFACE\t{s}\t{s}\n", .{
+            surface.name,
+            surface.description,
+        }) catch "";
+        stdoutWrite(text);
+    }
+}
+
+/// Resolved semantic tokens for external shells and theme tooling.
+pub fn printThemeJson() void {
+    stdoutWrite("{\"schema\":1,\"tokens\":{");
+    var first = true;
+    writeRgbToken("accent", g.accent, &first);
+    writeRgbToken("background", g.bg_rgb, &first);
+    writeRgbToken("wallpaper.top", if (g.bg_top_set) g.bg_top else g.bg_rgb, &first);
+    writeRgbToken("wallpaper.bottom", if (g.bg_bottom_set) g.bg_bottom else g.bg_rgb, &first);
+    writeRgbToken("panel.background", g.panel_bg, &first);
+    writeRgbToken("panel.foreground", g.panel_fg, &first);
+    writeRgbToken("bar.background", g.bar_bg, &first);
+    writeRgbToken("bar.foreground", g.bar_fg, &first);
+    writeRgbToken("launcher.background", g.launcher_bg, &first);
+    writeRgbToken("launcher.foreground", g.launcher_fg, &first);
+    writeRgbToken("popover.background", g.popover_bg, &first);
+    writeRgbToken("popover.foreground", g.popover_fg, &first);
+    writeRgbToken("toast.background", g.toast_bg, &first);
+    writeRgbToken("toast.foreground", g.toast_fg, &first);
+    stdoutWrite("},\"fonts\":{");
+    var buf: [384]u8 = undefined;
+    const fonts = std.fmt.bufPrint(
+        &buf,
+        "\"body\":\"{s}\",\"bar\":\"{s}\",\"launcher\":\"{s}\",\"popover\":\"{s}\",\"toast\":\"{s}\"",
+        .{ g.font[0..g.font_len], barFont(), launcherFont(), popoverFont(), toastFont() },
+    ) catch "";
+    stdoutWrite(fonts);
+    stdoutWrite("},\"bar\":{");
+    const geometry = std.fmt.bufPrint(
+        &buf,
+        "\"height\":{d},\"top_margin\":{d},\"side_margin\":{d}",
+        .{ g.bar_height, g.bar_top_margin, g.bar_side_margin },
+    ) catch "";
+    stdoutWrite(geometry);
+    stdoutWrite("},\"effects\":{");
+    const effects = std.fmt.bufPrint(
+        &buf,
+        "\"blur\":{s},\"shadows\":{s},\"animations\":{s}",
+        .{
+            if (g.blur_enabled) "true" else "false",
+            if (g.shadows_enabled) "true" else "false",
+            if (g.animations_enabled) "true" else "false",
+        },
+    ) catch "";
+    stdoutWrite(effects);
+    stdoutWrite("}}\n");
 }
 
 pub fn updateClock() bool {

@@ -55,7 +55,7 @@ done
 
 tessa-ctl hello >"$runtime/hello.out"
 grep -qF "VERSION	1" "$runtime/hello.out"
-grep -qF "CAPABILITIES	state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules" "$runtime/hello.out"
+grep -qF "CAPABILITIES	state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules,shell" "$runtime/hello.out"
 echo "HELLO negotiation: ok"
 
 python3 - "$TESSA_IPC" <<'PY'

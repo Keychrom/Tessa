@@ -1238,7 +1238,9 @@ startup = waybar
 `tray`, `media`, and `audio` (`volume`); `all`/`none` are aliases. The key also
 accepts `panel-modules`. The supervisor restarts the panel when the mask changes. If both
 Tessa's bar and an external bar reserve the same edge, both exclusive zones are
-honored and the desktop becomes shorter; disable one of them.
+honored and the desktop becomes shorter; disable one of them. Run
+`tessa-ctl shell` to see which roles Tessa Panel owns and which external
+layer-shell clients are present.
 
 Waybar 0.15 uses layer-shell directly and can use the standard workspace and
 toplevel protocols:

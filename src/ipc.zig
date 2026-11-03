@@ -546,7 +546,7 @@ fn scopeForCommand(cmd: []const u8) u16 {
         std.mem.eql(u8, cmd, "config") or std.mem.eql(u8, cmd, "config-json") or
         std.mem.eql(u8, cmd, "config-compare") or std.mem.eql(u8, cmd, "perf") or
         std.mem.eql(u8, cmd, "perf-json") or std.mem.eql(u8, cmd, "rendering") or
-        std.mem.eql(u8, cmd, "rendering-json"))
+        std.mem.eql(u8, cmd, "rendering-json") or std.mem.eql(u8, cmd, "shell"))
     {
         return types.EXT_PERM_READ;
     }
@@ -912,6 +912,8 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         sendRendering(server, cl, false);
     } else if (std.mem.eql(u8, cmd, "rendering-json")) {
         sendRendering(server, cl, true);
+    } else if (std.mem.eql(u8, cmd, "shell")) {
+        sendShell(server, cl);
     } else if (std.mem.eql(u8, cmd, "reload")) {
         if (server.reload_runtime) |reload| reload(server);
         broadcastState(server);
@@ -1720,6 +1722,64 @@ fn appendRenderingOutputsJson(buf: []u8, off: *usize, server: *Server) void {
         });
     }
     append(buf, off, "]", .{});
+}
+
+fn panelIsRunning(server: *Server) bool {
+    var i: usize = 0;
+    while (i < server.outputs.len) : (i += 1) {
+        const out = server.outputs[i] orelse continue;
+        if (out.panel.supervised and out.panel.pid > 0) return true;
+    }
+    return false;
+}
+
+fn sendShell(server: *Server, cl: *IpcClient) void {
+    var module_buf: [128]u8 = undefined;
+    const modules = panelModulesText(&module_buf, server.config.panel_modules);
+    var line_buf: [320]u8 = undefined;
+    const running = panelIsRunning(server);
+    const header = std.fmt.bufPrint(
+        &line_buf,
+        "PANEL\tautostart={d}\trunning={d}\tmodules={s}\n",
+        .{
+            @as(u8, if (server.config.autostart_panel) 1 else 0),
+            @as(u8, if (running) 1 else 0),
+            modules,
+        },
+    ) catch "PANEL\n";
+    sendRaw(cl, header);
+
+    const roles = [_]struct { name: []const u8, bit: u16 }{
+        .{ .name = "background", .bit = types.PANEL_MODULE_BACKGROUND },
+        .{ .name = "bar", .bit = types.PANEL_MODULE_BAR },
+        .{ .name = "launcher", .bit = types.PANEL_MODULE_LAUNCHER },
+        .{ .name = "popovers", .bit = types.PANEL_MODULE_POPOVERS },
+        .{ .name = "notifications", .bit = types.PANEL_MODULE_NOTIFICATIONS },
+        .{ .name = "tray", .bit = types.PANEL_MODULE_TRAY },
+    };
+    for (roles) |role| {
+        const owner = if (running and (server.config.panel_modules & role.bit) != 0)
+            "tessa-panel"
+        else
+            "none";
+        const line = std.fmt.bufPrint(&line_buf, "ROLE\t{s}\t{s}\n", .{ role.name, owner }) catch "";
+        sendRaw(cl, line);
+    }
+
+    var i: usize = 0;
+    while (i < server.layers.len) : (i += 1) {
+        const layer = server.layers[i] orelse continue;
+        if (!layer.mapped) continue;
+        const ns = core.cstr(layer.wlr.namespace);
+        if (std.mem.startsWith(u8, ns, "tessa-")) continue;
+        const line = std.fmt.bufPrint(&line_buf, "EXTERNAL\t{s}\t{s}\t{d}\n", .{
+            ns,
+            core.outputName(layer.output),
+            layer.visual_layer,
+        }) catch "";
+        sendRaw(cl, line);
+    }
+    sendRaw(cl, "END\n");
 }
 
 fn sendRendering(server: *Server, cl: *IpcClient, json: bool) void {

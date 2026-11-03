@@ -43,6 +43,7 @@ tessa-ctl panel screenshot             # 範囲/全画面スクリーンショ�
 tessa-ctl panel media                  # MPRIS メディア操作
 tessa-ctl panel tray                   # StatusNotifier トレイ
 tessa-ctl panel audio                  # 音量操作
+tessa-ctl shell                        # パネルと外部シェルのロール所有状態
 tessa-ctl notify-action 12 reply       # 通知アクションを実行
 tessa-ctl panel power HEADLESS-2        # 出力を指定
 tessa-ctl layout grid                   # 現在のワークスペースのレイアウトを設定/巡回
@@ -55,6 +56,31 @@ tessa-ctl quit
 `dispatch` は先頭に `CMD` を付け、残りをコンポジタコマンドとして送ります。
 ソケットパスは `$TESSA_IPC`、なければ
 `$XDG_RUNTIME_DIR/tessa.sock` です。
+
+## パネルモジュールとテーマトークン
+
+内蔵パネルはコンポジタを起動せずにカタログを出力できます:
+
+```sh
+tessa-panel --list-modules          # テキスト形式の一覧
+tessa-panel --list-modules --json   # 機械可読なレジストリ
+tessa-panel --theme-json            # 解決済みセマンティックトークン
+```
+
+`--list-modules` はコアモジュールとコンテキストモジュールを区別します。
+`layout`、`groups`、`mode`、`effects` は既存の IPC スナップショットから
+コンポジタ状態を読むコンテキストモジュールで、別のシェルプロセスを起動しません。
+このレジストリは将来の外部モジュールプロトコルの互換面になります。
+
+`--theme-json` は解決済みの色、フォント、バー寸法、エフェクト状態を出力します。
+外部シェルは Tessa の設定形式を解釈せずに、この JSON から見た目を合わせられます。
+パネル側の設定、出力ルール、テーマロールが反映された値です。
+
+セッション中は `tessa-ctl shell` でシェルロールの所有状態を確認できます。
+background、bar、launcher、popovers、notifications、tray の `ROLE` 行と、
+Tessa 以外のレイヤーシェル（Waybar、Quickshell など）の `EXTERNAL` 行を
+表示します。部分的な共存時に、どのシェルがどの役割を持っているかを
+推測せずに確認できます。
 
 ## 状態と購読
 

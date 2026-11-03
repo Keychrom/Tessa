@@ -260,8 +260,11 @@ panel_fg = #eef2f8
 # Composable bar modules. The list selects visible modules and orders the
 # right-hand cluster (first listed is closest to the right edge). logo/workspaces/chips stay anchored.
 # Names: logo, workspaces, chips, clock, battery, network, volume, stats, media,
-# tray, status. Unknown names are ignored for forward compatibility.
+# tray, status, layout, groups, mode, effects. Unknown names are ignored for
+# forward compatibility. layout/groups/mode/effects expose compositor context.
 # bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
+# Context-aware bar:
+# bar_layout = logo,workspaces,chips,layout,groups,mode,effects,clock,tray,status
 # Per-surface fonts and colors. Unset values fall back to `font` and panel_fg.
 # bar-font = Inter
 # launcher-font = Inter

@@ -932,6 +932,13 @@ IPC から操作できます。プロトコルの詳細は
 - シェル v2 として、選択・順序指定可能なバーモジュール、サーフェス別の
   フォントと前景/背景色、PNG または PPM シェーダー壁紙、バー・ポップオーバー・
   トーストへのレイヤールールを追加しました。
+- バーモジュールのレジストリは `tessa-panel --list-modules`（`--json` で
+  機械可読）で確認できます。`layout`、`groups`、`mode`、`effects` は
+  コンポジタの状態を読むコンテキストモジュールです。`tessa-panel --theme-json`
+  は解決済みの色・フォント・バー寸法・エフェクト状態を外部シェル向けに
+  エクスポートします。
+- `tessa-ctl shell` は Tessa Panel が所有するシェルロールと、Waybar や
+  Quickshell などの外部レイヤーシェルを表示します。
 - `tessa-ctl perf` と `frame_time_budget` で描画コミット時間を計測できます。
   ヘッドレスベンチマークは `tests/performance.sh` です。
 - 内蔵パネルは pidfd で終了を検知し、上限付き指数バックオフで再起動します。

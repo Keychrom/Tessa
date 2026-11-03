@@ -787,6 +787,62 @@ fn paintTrayIcon(cr: *c.cairo_t, item: *const m.TrayItem, x: f64, y: f64, size: 
     }
 }
 
+fn layoutLabel() []const u8 {
+    const layout = g.active_layout[0..g.active_layout_len];
+    if (std.mem.eql(u8, layout, "master")) return "MASTER";
+    if (std.mem.eql(u8, layout, "mosaic")) return "MOSAIC";
+    if (std.mem.eql(u8, layout, "grid")) return "GRID";
+    if (std.mem.eql(u8, layout, "columns")) return "COLUMNS";
+    if (std.mem.eql(u8, layout, "scrolling")) return "SCROLL";
+    if (std.mem.eql(u8, layout, "monocle")) return "MONOCLE";
+    if (std.mem.eql(u8, layout, "stacking")) return "STACK";
+    return if (layout.len > 0) layout else "LAYOUT";
+}
+
+const GroupSummary = struct { count: u32 = 0, active: u32 = 0 };
+
+fn groupSummary() GroupSummary {
+    var ids: [m.MAX_WINDOWS]u32 = undefined;
+    var count: u32 = 0;
+    var summary = GroupSummary{};
+    var wi: usize = 0;
+    while (wi < g.window_count) : (wi += 1) {
+        const w = &g.windows[wi];
+        if (w.ws != g.active_ws or w.group_id == 0) continue;
+        if (w.group_active) summary.active = w.group_id;
+        var seen = false;
+        var ii: usize = 0;
+        while (ii < count) : (ii += 1) {
+            if (ids[ii] == w.group_id) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen and count < ids.len) {
+            ids[count] = w.group_id;
+            count += 1;
+        }
+    }
+    summary.count = count;
+    return summary;
+}
+
+fn drawContextPill(cr: *c.cairo_t, right: f64, cy: f64, label: []const u8, alpha: f64) f64 {
+    const tw = textWidth(cr, label, MONO, "Medium", 8.2, 0.8);
+    const pill_w = tw + 18.0;
+    const x = right - pill_w;
+    fillRound(cr, x, cy - 10, pill_w, 20, 6, .{
+        g.accent[0], g.accent[1], g.accent[2], alpha,
+    });
+    strokeRound(cr, x + 0.5, cy - 9.5, pill_w - 1, 19, 5.5, .{
+        g.accent[0], g.accent[1], g.accent[2], 0.22,
+    }, 1.0);
+    _ = drawTextCentered(cr, label, x + 9, cy + 0.3, MONO, "Medium", 8.2, .{
+        g.accent[0], g.accent[1], g.accent[2], 0.96,
+    }, tw + 2, 0.8);
+    return x - 10.0;
+}
+
 pub fn drawBar(s: *m.Surface) void {
     const d = begin(s) orelse return;
     const cr = d.cr;
@@ -1171,6 +1227,63 @@ pub fn drawBar(s: *m.Surface) void {
                     right = right - status_total - 12.0;
                     right_first = false;
                 }
+            },
+            .layout => {
+                if (!g.show_layout) continue;
+                if (right - 96.0 < cx + 12.0) continue;
+                right = drawContextPill(cr, right, cy, layoutLabel(), 0.08);
+                right_first = false;
+            },
+            .groups => {
+                if (!g.show_groups) continue;
+                const summary = groupSummary();
+                if (summary.count == 0) continue;
+                var buf: [32]u8 = undefined;
+                const label = if (summary.active > 0)
+                    std.fmt.bufPrint(&buf, "G{d}/{d}", .{ summary.active, summary.count }) catch "G"
+                else
+                    std.fmt.bufPrint(&buf, "G{d}", .{summary.count}) catch "G";
+                if (right - 80.0 < cx + 12.0) continue;
+                right = drawContextPill(cr, right, cy, label, if (summary.active > 0) 0.14 else 0.07);
+                right_first = false;
+            },
+            .mode => {
+                if (!g.show_mode or g.input_mode_len == 0) continue;
+                const mode = g.input_mode[0..g.input_mode_len];
+                if (std.mem.eql(u8, mode, "default")) continue;
+                var label_buf: [24]u8 = undefined;
+                const label_len = @min(mode.len, label_buf.len);
+                for (mode[0..label_len], 0..) |ch, i| {
+                    label_buf[i] = if (ch >= 'a' and ch <= 'z') ch - 32 else ch;
+                }
+                if (right - 96.0 < cx + 12.0) continue;
+                right = drawContextPill(cr, right, cy, label_buf[0..label_len], 0.14);
+                right_first = false;
+            },
+            .effects => {
+                if (!g.show_effects) continue;
+                const pill_w = 48.0;
+                const x = right - pill_w;
+                if (x < cx + 12.0) continue;
+                fillRound(cr, x, cy - 10, pill_w, 20, 6, .{
+                    g.accent[0], g.accent[1], g.accent[2], 0.055,
+                });
+                strokeRound(cr, x + 0.5, cy - 9.5, pill_w - 1, 19, 5.5, .{
+                    g.accent[0], g.accent[1], g.accent[2], 0.18,
+                }, 1.0);
+                _ = drawTextCentered(cr, "FX", x + 8, cy + 0.3, MONO, "Medium", 8.0, .{
+                    g.accent[0], g.accent[1], g.accent[2], 0.9,
+                }, 18, 0.6);
+                const states = [3]bool{ g.blur_enabled, g.shadows_enabled, g.animations_enabled };
+                var di: usize = 0;
+                while (di < states.len) : (di += 1) {
+                    const alpha: f64 = if (states[di]) 0.92 else 0.16;
+                    fillRound(cr, x + 24.0 + @as(f64, @floatFromInt(di)) * 6.0, cy - 1.5, 3, 3, 1, .{
+                        g.accent[0], g.accent[1], g.accent[2], alpha,
+                    });
+                }
+                right = x - 10.0;
+                right_first = false;
             },
             else => {},
         }

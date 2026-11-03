@@ -43,6 +43,7 @@ tessa-ctl panel screenshot             # region/full screenshot UI
 tessa-ctl panel media                  # MPRIS controls
 tessa-ctl panel tray                   # StatusNotifier tray
 tessa-ctl panel audio                  # volume controls
+tessa-ctl shell                        # panel and external shell role ownership
 tessa-ctl notify-action 12 reply       # invoke a notification action
 tessa-ctl panel power HEADLESS-2        # target a specific output
 tessa-ctl layout grid                   # set/cycle current workspace layout
@@ -54,6 +55,32 @@ tessa-ctl quit
 
 `dispatch` adds `CMD` and sends the rest of the line as a compositor command.
 The socket path is `$TESSA_IPC`, or `$XDG_RUNTIME_DIR/tessa.sock`.
+
+## Panel modules and theme tokens
+
+The built-in panel exposes its catalogue without a running compositor:
+
+```sh
+tessa-panel --list-modules          # text catalogue
+tessa-panel --list-modules --json   # machine-readable registry
+tessa-panel --theme-json            # resolved semantic tokens
+```
+
+`--list-modules` distinguishes core modules from context modules. The context
+modules `layout`, `groups`, `mode`, and `effects` read compositor state over the
+existing IPC snapshot; they do not start a second shell process. The same
+registry is the compatibility surface for a future external module protocol.
+
+`--theme-json` exports resolved colors, fonts, bar geometry, and effect
+switches. External shells can consume it to match Tessa without importing
+Tessa's config format. Panel-only settings are resolved first, so the JSON
+reflects output rules and theme roles.
+
+Use `tessa-ctl shell` to inspect shell role ownership while a session is
+running. It prints `PANEL` and `ROLE` lines for background, bar, launcher,
+popovers, notifications, and tray, followed by `EXTERNAL` entries for non-Tessa
+layer-shell clients. This makes partial coexistence explicit instead of
+requiring a guess about which shell owns a surface.
 
 ## State and subscriptions
 

@@ -54,7 +54,7 @@ v1 で安定とみなすもの:
 ```text
 HELLO <version> [<token>]
 VERSION	1
-CAPABILITIES	state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules
+CAPABILITIES	state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules,shell
 EXTENSION	<id>	<permissions>
 ```
 

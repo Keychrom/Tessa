@@ -113,6 +113,12 @@ if ! grep -q "Bar configured" "$runtime/waybar.log"; then
     exit 1
 fi
 echo "waybar layer: ok"
+tessa-ctl shell | grep -qF "EXTERNAL	waybar	HEADLESS-1	2" || {
+    echo "shell status did not report Waybar" >&2
+    tessa-ctl shell >&2 || true
+    exit 1
+}
+echo "external shell status: ok"
 
 tessa-ctl spawn foot -T ExternalShell >/dev/null
 sleep 1

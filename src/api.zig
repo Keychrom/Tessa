@@ -23,7 +23,7 @@ pub const layout_api: u8 = 2;
 pub const effect_api: u8 = 2;
 
 pub const capabilities =
-    "state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules";
+    "state,config,events,subscriptions,config-compare,perf,rendering,special,groups,extensions,effects2,shell-modules,shell";
 
 pub fn writeVersionJson(writer: anytype) !void {
     try writer.print(

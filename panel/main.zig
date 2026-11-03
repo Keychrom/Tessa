@@ -3227,6 +3227,8 @@ fn handleStateLine(line: []const u8) void {
         g.is_focused_output = false;
         g.status_count = 0;
         g.extension_count = 0;
+        g.active_layout_len = 0;
+        g.input_mode_len = 0;
         g.ipc_in_state = true;
         return;
     }
@@ -3290,7 +3292,7 @@ fn handleStateLine(line: []const u8) void {
     }
 
     if (std.mem.startsWith(u8, line, "WIN\t")) {
-        var fields: [15][]const u8 = undefined;
+        var fields: [20][]const u8 = undefined;
         var count: usize = 0;
         var start: usize = 0;
         var i: usize = 0;
@@ -3317,6 +3319,12 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
         if (count >= 14) w.scratchpad = std.mem.eql(u8, fields[13], "1");
         if (count >= 15) w.visible = std.mem.eql(u8, fields[14], "1");
+        if (count >= 17) {
+            w.group_id = std.fmt.parseInt(u32, fields[15], 10) catch 0;
+            w.group_active = std.mem.eql(u8, fields[16], "1");
+        }
+        if (count >= 19) w.column = std.fmt.parseInt(i32, fields[17], 10) catch -1;
+        if (count >= 20) w.tile = std.fmt.parseInt(i32, fields[18], 10) catch -1;
         g.window_count += 1;
         return;
     }
@@ -3327,10 +3335,12 @@ fn handleStateLine(line: []const u8) void {
         const name = it.next() orelse return;
         const ws_s = it.next() orelse return;
         const focused_s = it.next() orelse return;
+        const layout = it.next() orelse "";
         const ws = std.fmt.parseInt(usize, ws_s, 10) catch return;
         if (g.target_name_len > 0 and std.mem.eql(u8, name, g.target_name[0..g.target_name_len])) {
             if (ws >= 1 and ws <= 9) g.active_ws = ws;
             g.is_focused_output = std.mem.eql(u8, focused_s, "1");
+            m.copyTrunc(&g.active_layout, &g.active_layout_len, layout);
         }
         if (std.mem.eql(u8, focused_s, "1")) {
             const changed = g.focused_output_name_len != name.len or
@@ -3340,6 +3350,9 @@ fn handleStateLine(line: []const u8) void {
                 if (g.notification_count > 0) updateToastsSurface();
             }
         }
+    } else if (std.mem.eql(u8, cmd, "MODE")) {
+        const mode_name = it.next() orelse return;
+        m.copyTrunc(&g.input_mode, &g.input_mode_len, mode_name);
     } else if (std.mem.eql(u8, cmd, "ACTIVE")) {
         const s = it.next() orelse return;
         const v = std.fmt.parseInt(usize, s, 10) catch return;
@@ -3677,13 +3690,31 @@ pub fn main(init: std.process.Init.Minimal) !void {
     g.audio_fd = -1;
 
     var check_only = false;
+    var list_modules = false;
+    var list_json = false;
+    var theme_json = false;
     var args = init.args.iterate();
     defer args.deinit();
     _ = args.next();
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--check") or std.mem.eql(u8, arg, "--print-config")) {
             check_only = true;
+        } else if (std.mem.eql(u8, arg, "--list-modules")) {
+            list_modules = true;
+        } else if (std.mem.eql(u8, arg, "--json")) {
+            list_json = true;
+        } else if (std.mem.eql(u8, arg, "--theme-json")) {
+            theme_json = true;
         }
+    }
+    if (list_modules) {
+        m.printModules(list_json);
+        return;
+    }
+    if (theme_json) {
+        m.loadConfig();
+        m.printThemeJson();
+        return;
     }
     if (check_only) {
         m.loadConfig();

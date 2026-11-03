@@ -45,7 +45,7 @@ bg_bottom = #000000
 wallpaper_art = false
 wallpaper_shader = $runtime/shader.sh
 wallpaper_fit = stretch
-bar_layout = logo, workspaces, clock, tray, status
+bar_layout = logo, workspaces, clock, layout, groups, mode, effects, tray, status
 bar_font = DejaVu Sans
 launcher-font = Noto Sans
 popover_font = Terminus
@@ -80,11 +80,37 @@ grep -qF "panel bar-fg=0.063,0.125,0.188 launcher-fg=0.125,0.188,0.251 popover-f
     cat "$runtime/check.log" >&2
     exit 1
 }
-grep -qF "panel modules=logo,workspaces,clock,tray,status" "$runtime/check.log" || {
+grep -qF "panel modules=logo,workspaces,clock,layout,groups,mode,effects,tray,status" "$runtime/check.log" || {
     echo "bar module order was not parsed" >&2
     cat "$runtime/check.log" >&2
     exit 1
 }
+"$bin/tessa-panel" --list-modules --json >"$runtime/modules.json"
+python3 - "$runtime/modules.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+bar = {item["id"]: item for item in data["bar"]}
+for name in ("layout", "groups", "mode", "effects"):
+    item = bar.get(name)
+    if not item or not item["context"]:
+        raise SystemExit(f"missing context module: {name}")
+if not data["surfaces"]:
+    raise SystemExit("surface module catalogue is empty")
+PY
+"$bin/tessa-panel" --theme-json >"$runtime/theme.json" 2>/dev/null
+python3 - "$runtime/theme.json" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+tokens = data["tokens"]
+for name in ("accent", "panel.background", "bar.background", "launcher.foreground"):
+    if name not in tokens or len(tokens[name]) != 3:
+        raise SystemExit(f"missing theme token: {name}")
+if data["fonts"]["bar"] != "DejaVu Sans":
+    raise SystemExit(f"theme font export mismatch: {data['fonts']}")
+if data["effects"]["animations"] is not False:
+    raise SystemExit(f"effect state export mismatch: {data['effects']}")
+PY
+echo "panel module registry and theme tokens: ok"
 grep -qF "wallpaper shader frame 64x64" "$runtime/check.log" || {
     echo "wallpaper shader did not produce a frame" >&2
     cat "$runtime/check.log" >&2
@@ -137,6 +163,12 @@ tessa-ctl config-check | grep -qF "config: ok" || {
 }
 wait_log "tessa-panel: bar:"
 sleep 0.3
+"$bin/tessa-ctl" shell | grep -qF "ROLE	bar	tessa-panel" || {
+    echo "shell status did not report the integrated bar" >&2
+    "$bin/tessa-ctl" shell >&2 || true
+    exit 1
+}
+echo "shell role status: ok"
 grim -o HEADLESS-1 "$runtime/shader.png"
 rgb=$(python3 "$root/tests/png-pixel.py" "$runtime/shader.png" 960 540)
 awk -v rgb="$rgb" 'BEGIN { split(rgb, c, " "); if (c[1] < 190 || c[1] > 210 || c[2] < 30 || c[2] > 50 || c[3] < 80 || c[3] > 100) exit 1 }' || {

@@ -938,6 +938,13 @@ The 0.7 customization-parity items are implemented:
 - Shell v2 adds selectable/ordered bar modules, per-surface fonts and
   foreground/background colors, PNG or PPM-shader wallpapers, and layer rules
   for the bar, popovers, and toasts.
+- The bar module registry is exposed by `tessa-panel --list-modules` (add
+  `--json` for tools). Built-in context modules include `layout`, `groups`,
+  `mode`, and `effects`; they read compositor state rather than spawning a
+  separate shell process. `tessa-panel --theme-json` exports resolved semantic
+  color, font, geometry, and effect tokens for external shells.
+- `tessa-ctl shell` reports which shell roles Tessa Panel owns and lists
+  external layer-shell clients such as Waybar or Quickshell.
 - `tessa-ctl perf` and `frame_time_budget` expose render-commit timings; the
   headless benchmark is `tests/performance.sh`.
 - The built-in panel is supervised with pidfd exit detection and bounded
