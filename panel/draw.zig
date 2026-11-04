@@ -1916,6 +1916,9 @@ pub fn drawToasts(s: *m.Surface) void {
     const bg = g.toast_bg;
     const fg = g.toast_fg;
     const fam = m.toastFont();
+    // Leave a clear gutter before the close button; long CJK bodies must
+    // ellipsize instead of running into the card edge.
+    const text_max = W - 110.0;
     g.toast_hit_count = 0;
     g.toast_action_hit_count = 0;
 
@@ -1952,6 +1955,12 @@ pub fn drawToasts(s: *m.Surface) void {
         c.cairo_fill(cr);
         c.cairo_pattern_destroy(top_pat);
 
+        // Keep text and actions inside the rounded card even when a client
+        // sends an unusually long, unbreakable string.
+        c.cairo_save(cr);
+        roundRect(cr, 0, y, W, height, 14);
+        c.cairo_clip(cr);
+
         paintNotificationIcon(cr, n, 16, y + 26, 28);
 
         var app_buf: [80]u8 = undefined;
@@ -1959,21 +1968,21 @@ pub fn drawToasts(s: *m.Surface) void {
         const app_line = toastLine(&app_buf, app);
         _ = drawText(cr, app_line, 54, y + 10, fam, "Medium", 7.2, .{
             0.68, 0.74, 0.84, 0.55,
-        }, W - 96, 0.9);
+        }, text_max, 0.9);
 
         var summary_buf: [180]u8 = undefined;
         const summary_text = if (n.summary_len > 0) n.summary[0..n.summary_len] else "Notification";
         const summary = toastLine(&summary_buf, summary_text);
         _ = drawText(cr, summary, 54, y + 23, fam, "Semi-Bold", 10.4, .{
             fg[0], fg[1], fg[2], 0.98,
-        }, W - 96, 0);
+        }, text_max, 0);
 
         if (n.body_len > 0) {
             var body_buf: [560]u8 = undefined;
             const body = toastLine(&body_buf, n.body[0..n.body_len]);
             _ = drawTextMarkup(cr, body, 54, y + 44, fam, "Regular", 8.3, .{
                 0.68, 0.74, 0.83, 0.72,
-            }, W - 96, 0);
+            }, text_max, 0);
         }
 
         _ = drawTextCentered(cr, "\xc3\x97", W - 22, y + 20, fam, "Medium", 12.0, .{
@@ -2031,6 +2040,8 @@ pub fn drawToasts(s: *m.Surface) void {
                 shown += 1;
             }
         }
+
+        c.cairo_restore(cr);
 
         if (g.toast_hit_count < g.toast_hits.len) {
             g.toast_hits[g.toast_hit_count] = .{
