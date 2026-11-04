@@ -22,7 +22,7 @@ CHECK=0
 ZIG_VERSION=0.17.1
 
 usage() {
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 log() { printf '\n==> %s\n' "$*"; }
