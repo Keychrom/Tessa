@@ -13,7 +13,7 @@ build dependencies:
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 Then build the `tessa-git` package:
@@ -55,6 +55,10 @@ output_name=HDMI-A-1
 
 ## Debian / Ubuntu
 
+For a normal install, use the [Ubuntu / Debian installer](https://keychrom.github.io/docs/install-script/).
+The rest of this section documents the legacy `.deb` build for downstream
+packaging.
+
 The `debian/` directory at the repository root uses debhelper and Zig. Build on
 a machine with the development packages in `debian/control`:
 
@@ -79,7 +83,7 @@ The script runs `dpkg-buildpackage -b -us -uc -d`, collects the `.deb`,
 older Zig; the script verifies the supplied Zig is 0.17.x instead.
 
 The package installs the same binaries, session entry, example config, and
-portal selector. The `libwlroots-0.20-dev` build dependency and the linked
+portal selector. The wlroots 0.20 development files and the linked
 `wlroots-0.20` pkg-config name pin the compositor ABI.
 
 Zig 0.17 is required. If the distribution packages an older Zig, install the

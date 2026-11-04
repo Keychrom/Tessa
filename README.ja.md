@@ -26,43 +26,32 @@ Waybar / Rofi / wofi は必須ではありませんが、layer-shell 対応の�
 フックを一冊にまとめた
 [セットアップ＆カスタマイズ完全ガイド](docs/GUIDE.ja.md) もあります。
 
-## Ubuntu 26.04 へのインストール
+## Ubuntu / Debian へのインストール
 
-[v0.2.4 リリースページ](https://github.com/Keychrom/Tessa/releases/tag/v0.2.4)
-に amd64 用のビルド済みパッケージがあります。通常はこの方法を推奨します。
-バイナリパッケージの利用に Zig や wlroots の開発ヘッダーは不要です。
-
-```sh
-sudo apt update
-sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
-grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.4_amd64.deb
-```
-
-> **0.2.4 が最後の `.deb` リリースになる可能性があります。** Zig 0.16 /
-> wlroots 0.19 を前提にした最後のパッケージとして計画しています。現在の
-> ソースツリー（`0.2.5`）は Zig 0.17 / wlroots 0.20 / scenefx 0.5 を対象と
-> するため、新しいツールチェーンではソースビルドまたは Arch パッケージを
-> 使用してください。
-
-`apt` が実行時ライブラリ、コンポジタ、パネル、CLI、セッションエントリ、
-設定例、ポータル設定、man ページを導入します。実用的な追加パッケージ:
+[Ubuntu / Debian インストーラー](https://keychrom.github.io/ja/docs/install-script/)
+を使います。現在の `0.2.5` ツリー、Zig 0.17、wlroots 0.20、scenefx 0.5、
+不足している Wayland ライブラリを `/opt/tessa` にビルドし、ディストリビューションの
+ライブラリは置き換えません。
 
 ```sh
-sudo apt install kitty wlr-randr grim dbus \
-  fcitx5 fcitx5-mozc \
-  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa
+./install.sh --check
+./install.sh
 ```
 
-`xwayland-satellite` は Ubuntu 26.04 のパッケージにはないため、X11
-アプリケーションが必要なら上流から導入してください。既定の
-`xwayland = true` のまま satellite がない場合は警告が出ます。
+既定では `kitty`、Inter / JetBrains Mono / Noto CJK、fcitx5 + Mozc、ポータル、
+PipeWire も導入します。これらを入れない場合は `--minimal`、scenefx の
+エフェクトなしでビルドする場合は `--plain` を使います。インストーラーは
+試験的なため、実行前に
+[テスト状況](https://keychrom.github.io/ja/docs/install-script/)を確認してください。
 
-ログアウトし、GDM / SDDM などのセッション選択で **Tessa** を選びます。
-`.deb` が `/usr/share/wayland-sessions/tessa.desktop` を導入するので、
-下のソース用セッションインストーラーは開発時だけ必要です。
+`xwayland-satellite` は Ubuntu / Debian のパッケージにはないため、X11
+アプリケーションが必要なら上流から導入するか、`TESSA_XWAYLAND_BIN` に
+パスを設定してください。ログアウトし、GDM / SDDM などのセッション選択で
+**Tessa** を選びます。インストーラーが
+`/usr/share/wayland-sessions/tessa.desktop` と `/usr/local/bin` の
+エントリーポイントを用意します。
 
 TTY で最初の動作確認をする場合:
 
@@ -70,16 +59,16 @@ TTY で最初の動作確認をする場合:
 tessa
 ```
 
-終了は `Super+Shift+E` です。パッケージの確認:
+終了は `Super+Shift+E` です。インストールの確認:
 
 ```sh
-dpkg -s tessa
+command -v tessa tessa-panel tessa-ctl
 tessa-ctl config-check
 ```
 
-以前 `/usr/local` に手動インストールしたTessaがある場合は、どちらか一方に
-揃えてください。通常は `/usr/local/bin` が `/usr/bin` より先に来るため、
-手動版のバイナリが使われ続けます。
+以前 `/usr/local` に手動インストールした Tessa がある場合は、どちらか一方に
+揃えてください。インストーラーは古い手動インストールが使う
+`/usr/local/bin` のラッパーとセッションエントリを置き換えます。
 
 ## Arch Linux へのインストール
 
@@ -90,7 +79,7 @@ Arch 公式リポジトリの `zig`、`wlroots0.20`、`scenefx` で提供され�
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 続いて Tessa の PKGBUILD からインストールします:
@@ -110,14 +99,33 @@ tessa-ctl config-check
 command -v tessa tessa-panel tessa-ctl
 ```
 
-実用的な追加パッケージ:
+#### 推奨パッケージ
+
+ターミナル、出力・スクリーンショット用ツール、画面共有ポータル、
+セッションユーティリティ、日本語入力環境を導入します:
 
 ```sh
-sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
-  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+sudo pacman -S --needed foot kitty wlr-randr grim swaylock swayidle wlopm \
+  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire \
+  fcitx5 fcitx5-mozc
 ```
 
-X11 アプリケーションには AUR の `xwayland-satellite-git` を導入します。
+X11 アプリケーションを使う場合は、AUR の `xwayland-satellite-git` を導入します:
+
+```sh
+git clone https://aur.archlinux.org/xwayland-satellite-git.git
+cd xwayland-satellite-git
+makepkg -si
+```
+
+AUR ヘルパーを使う場合:
+
+```sh
+paru -S foot kitty wlr-randr grim swaylock swayidle wlopm dbus \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire \
+  fcitx5 fcitx5-mozc xwayland-satellite-git
+```
+
 PKGBUILD は `scenefx` に依存し、既定で角丸と背景ブラーを有効にしてビルド
 します。これらのエフェクトなしの plain wlroots シーンでビルドする場合は、
 ソースから `-Dscenefx=false` を付けてください。TTY にログインして `tessa` を
@@ -391,7 +399,7 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 
 開発、Ubuntu 26.04 / Arch Linux 以外、または scenefx なしの plain ビルドでは
 こちらを使います。通常利用なら、それぞれのディストリビューション向けの
-`.deb` または Arch の `tessa-git` パッケージで十分です。
+Ubuntu / Debian インストーラーまたは Arch の `tessa-git` パッケージで十分です。
 
 必要なもの:
 
@@ -401,7 +409,7 @@ Tessa の目的は Hyprland を機能で上回ることではありません。�
 - 既定の角丸・背景ブラービルド用の
   [scenefx](https://github.com/wlrfx/scenefx) **0.5** 開発ファイル
   （`pkg-config --modversion scenefx-0.5`）
-- Wayland、xkbcommon、pixman、libdrm、libinput、libseat、libudev、EGL/GLES、
+- Wayland、xkbcommon、pixman、libdrm、libinput、seat/udev、EGL/GLES、
   wayland-protocols 1.47 以降（生成 enum ヘッダー用）
 - パネルと通知用の Cairo / Pango / GLib (GIO) 開発ファイル
 - フォント: Inter、JetBrains Mono、Noto Sans CJK JP などの CJK フォント
@@ -427,7 +435,8 @@ ZIG="$HOME/.local/zig-0.17.0/zig" ./scripts/build-deb.sh
 
 `.deb` の定義は下流のパッケージング用に残していますが、公開済みの Debian
 パッケージは 0.2.4 が最後です。`debian/control` は
-`libwlroots-0.20-dev` を要求するよう更新しています。
+wlroots 0.20 の開発ファイルを要求するよう更新しています。Ubuntu 26.04 には
+提供されていないため、通常のインストールには上記のインストーラーを使ってください。
 
 詳細は [packaging/README.ja.md](packaging/README.ja.md) を参照してください。
 
@@ -444,7 +453,7 @@ Ubuntu 26.04 の場合、ディストリビューションの Zig が古けれ�
 
 ```sh
 sudo apt install build-essential pkg-config git \
-  libwayland-dev wayland-protocols libwlroots-0.20-dev \
+  libwayland-dev wayland-protocols \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
@@ -452,8 +461,12 @@ sudo apt install build-essential pkg-config git \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
 
-Ubuntu 26.04 には scenefx 0.5 の開発パッケージがありません。既定の
-エフェクトビルドを使うには scenefx をソースからビルドするか、
+Ubuntu 26.04 の wlroots は 0.19 で、0.20 は提供されていません。上記の
+インストーラーは wlroots 0.20 と scenefx 0.5 を `/opt/tessa` にビルドする
+ため、完全なツールチェーンが必要な場合はそちらを使ってください。
+
+手動のソースビルドで既定のエフェクトを使うには scenefx 0.5 をソースから
+ビルドするか、
 `-Dscenefx=false` を付けて plain wlroots シーンでビルドしてください。
 
 Arch Linux では上記「Arch Linux へのインストール」の手順で公式の `zig`、
@@ -537,7 +550,8 @@ wlroots が DRM バックエンドと libinput を自動検出します。Tessa 
 
 ### ディスプレイマネージャ / セッションファイル
 
-バイナリパッケージはセッションエントリを導入済みです。この手順はソース
+Ubuntu / Debian インストーラーと Arch パッケージはセッションエントリを
+導入済みです。この手順はソース
 ビルドから実行する場合だけ使います:
 
 ```sh

@@ -17,8 +17,8 @@ KDE. Save your work and log out before starting it.
 
 You need:
 
-- Arch Linux, Ubuntu 26.04, or another Linux distribution with a working
-  Wayland/DRM graphics stack
+- Arch Linux, Ubuntu/Debian (via `install.sh`), or another Linux
+  distribution with a working Wayland/DRM graphics stack
 - Zig 0.17, wlroots 0.20, and scenefx 0.5 for a source build
 - A terminal emulator; Tessa's default is `kitty`
 - A normal user account with access to the graphical session (do not run Tessa
@@ -36,7 +36,7 @@ Install the build dependencies:
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 Build and install the `tessa-git` package:
@@ -50,34 +50,50 @@ makepkg -si
 The package installs `tessa`, `tessa-panel`, `tessa-ctl`, the session entry,
 an example config, and the screen-sharing portal selector.
 
-Install a terminal:
+#### Recommended packages
+
+Install the terminal, output and screenshot tools, screen-sharing portals, and
+session utilities:
 
 ```sh
-sudo pacman -S --needed kitty
+sudo pacman -S --needed foot kitty wlr-randr grim swaylock swayidle wlopm \
+  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire
 ```
 
-For X11 applications, install `xwayland-satellite-git` from the AUR. It is
-optional; Wayland-native applications work without it.
-
-### Ubuntu 26.04
-
-The simplest path is the `0.2.4` amd64 package. It is the last planned `.deb`
-release; use a 0.2.5 source build for the current scenefx default.
+For X11 applications, install `xwayland-satellite-git` from the AUR:
 
 ```sh
-sudo apt update
-sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
-grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.4_amd64.deb
-sudo apt install kitty
+git clone https://aur.archlinux.org/xwayland-satellite-git.git
+cd xwayland-satellite-git
+makepkg -si
 ```
 
-For the current `0.2.5` tree, use the
-[source build](GUIDE.md#23-build-from-source-development). Ubuntu 26.04 has no
-scenefx package; build with `-Dscenefx=false` if you do not want to install
-scenefx from source.
+With an AUR helper, the same set is:
+
+```sh
+paru -S foot kitty wlr-randr grim swaylock swayidle wlopm dbus \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire xwayland-satellite-git
+```
+
+### Ubuntu / Debian (recommended)
+
+Use the [Ubuntu / Debian installer](https://keychrom.github.io/docs/install-script/).
+It installs the current `0.2.5` tree and builds Zig 0.17, wlroots 0.20,
+scenefx 0.5, and any missing Wayland libraries under `/opt/tessa` without
+replacing the system libraries.
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa
+./install.sh --check
+./install.sh
+```
+
+The default install includes a terminal, fonts, fcitx5 + Mozc, portals, and
+PipeWire. Use `--minimal` to skip those packages, or `--plain` to build
+without scenefx effects. The installer is experimental; read its
+[testing status](https://keychrom.github.io/docs/install-script/) before
+running it.
 
 ### Other distributions
 

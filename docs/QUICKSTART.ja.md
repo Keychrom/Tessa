@@ -15,7 +15,7 @@ Tessa は GNOME や KDE の中で起動するアプリではなく、Wayland セ
 
 必要なもの:
 
-- Arch Linux、Ubuntu 26.04、または Wayland/DRM のグラフィックス環境が動作する Linux
+- Arch Linux、Ubuntu/Debian（`install.sh` を使用）、または Wayland/DRM のグラフィックス環境が動作する Linux
 - ソースビルドの場合は Zig 0.17、wlroots 0.20、scenefx 0.5
 - ターミナル（Tessa の既定は `kitty`）
 - グラフィカルセッションにアクセスできる一般ユーザー（root で実行しない）
@@ -31,7 +31,7 @@ Tessa は GNOME や KDE の中で起動するアプリではなく、Wayland セ
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 `tessa-git` パッケージをビルドしてインストールします:
@@ -44,29 +44,44 @@ makepkg -si
 
 パッケージは `tessa`、`tessa-panel`、`tessa-ctl`、セッションエントリ、設定例、画面共有用ポータルセレクタをインストールします。
 
-ターミナルを導入します:
+#### 推奨パッケージ
+
+ターミナル、出力・スクリーンショット用ツール、画面共有ポータル、セッションユーティリティを導入します:
 
 ```sh
-sudo pacman -S --needed kitty
+sudo pacman -S --needed foot kitty wlr-randr grim swaylock swayidle wlopm \
+  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire \
+  fcitx5 fcitx5-mozc
 ```
 
-X11 アプリケーションを使う場合は、AUR の `xwayland-satellite-git` を導入します。任意の依存で、Wayland ネイティブのアプリはこれがなくても動作します。
-
-### Ubuntu 26.04
-
-最も簡単なのは `0.2.4` の amd64 パッケージです。最後の予定 `.deb` リリースで、現在の scenefx 既定ビルドを使う場合は 0.2.5 をソースからビルドします。
+X11 アプリケーションを使う場合は、AUR の `xwayland-satellite-git` を導入します:
 
 ```sh
-sudo apt update
-sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
-grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.4_amd64.deb
-sudo apt install kitty
+git clone https://aur.archlinux.org/xwayland-satellite-git.git
+cd xwayland-satellite-git
+makepkg -si
 ```
 
-現在の `0.2.5` ツリーを使う場合は[ソースビルド](GUIDE.ja.md#23-ソースからビルド開発向け)を参照してください。Ubuntu 26.04 には scenefx パッケージがないため、scenefx をソースから入れない場合は `-Dscenefx=false` でビルドします。
+AUR ヘルパーを使う場合:
+
+```sh
+paru -S foot kitty wlr-randr grim swaylock swayidle wlopm dbus \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire \
+  fcitx5 fcitx5-mozc xwayland-satellite-git
+```
+
+### Ubuntu / Debian（推奨）
+
+[Ubuntu / Debian インストーラー](https://keychrom.github.io/ja/docs/install-script/) を使います。現在の `0.2.5` ツリーをインストールし、Zig 0.17、wlroots 0.20、scenefx 0.5、不足している Wayland ライブラリを `/opt/tessa` にビルドします。システムの Wayland ライブラリは置き換えません。
+
+```sh
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa
+./install.sh --check
+./install.sh
+```
+
+既定ではターミナル、フォント、fcitx5 + Mozc、ポータル、PipeWire も導入します。これらを入れない場合は `--minimal`、scenefx のエフェクトなしでビルドする場合は `--plain` を使います。インストーラーは試験的なため、実行前に[テスト状況](https://keychrom.github.io/ja/docs/install-script/)を確認してください。
 
 ### その他のディストリビューション
 

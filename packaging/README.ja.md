@@ -11,7 +11,7 @@ Arch の公式リポジトリは Zig 0.17 を `zig`、wlroots 0.20 を `wlroots0
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 次に `tessa-git` パッケージをビルドします:
@@ -43,6 +43,10 @@ output_name=HDMI-A-1
 
 ## Debian / Ubuntu
 
+通常のインストールには
+[Ubuntu / Debian インストーラー](https://keychrom.github.io/ja/docs/install-script/)
+を使ってください。ここから先は、下流パッケージング向けの旧 `.deb` ビルド手順です。
+
 リポジトリルートの `debian/` ディレクトリは debhelper と Zig を使用します。`debian/control` に記載された開発パッケージが入ったマシンでビルドします:
 
 ```sh
@@ -57,7 +61,7 @@ Debian ビルドは `-Dscenefx=false` を渡します。Ubuntu 26.04 には scen
 
 このスクリプトは `dpkg-buildpackage -b -us -uc -d` を実行し、`.deb`、`.buildinfo`、`.changes` を `dist/` に集めてパッケージのメタデータを表示します。`-d` は宣言されたビルド依存関係のチェックを省略します。Ubuntu 26.04 は古い Zig を同梱しているためです。代わりに、スクリプトが指定された Zig のバージョンが 0.17.x であることを検証します。
 
-パッケージは同じバイナリ、セッションエントリ、設定例、ポータルセレクタをインストールします。`libwlroots-0.20-dev` のビルド依存関係と、リンク時に使う `wlroots-0.20` の pkg-config 名がコンポジタの ABI を固定します。
+パッケージは同じバイナリ、セッションエントリ、設定例、ポータルセレクタをインストールします。wlroots 0.20 の開発ファイルと、リンク時に使う `wlroots-0.20` の pkg-config 名がコンポジタの ABI を固定します。
 
 Zig 0.17 が必要です。ディストリビューションが古い Zig を同梱している場合は、上流の 0.17 ツールチェーンをインストールし、ビルド前に `ZIG=...` で指定してください。最初のパッケージ監査には `lintian dist/*.deb` を実行します。
 

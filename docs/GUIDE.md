@@ -31,15 +31,15 @@ and `tessa-ctl config` prints the effective values and parsed rules.
 
 ### Required
 
-For a normal install on Ubuntu 26.04, use the prebuilt `.deb` in section 2.1.
-On Arch Linux, use the AUR-backed PKGBUILD in section 2.2. The Zig/wlroots
+For a normal install on Ubuntu or Debian, use the `install.sh` installer in
+section 2.1. On Arch Linux, use the PKGBUILD in section 2.2. The Zig/wlroots
 development requirements below apply only to source and package builds.
 
 - Linux (development is tested on Ubuntu 26.04)
 - Zig **0.17.0**
 - wlroots **0.20** development files
 - Wayland, wayland-protocols >= 1.47, xkbcommon, pixman, libdrm, libinput,
-  libseat, libudev, EGL/GLES
+  seat/udev, EGL/GLES
 - Cairo, Pango, GLib/GIO for the panel and notifications
 - Fonts: Inter, JetBrains Mono, Noto Sans CJK JP (or equivalent)
 - A terminal; the default command is `kitty` (`terminal = foot` is fine)
@@ -49,13 +49,17 @@ package is older):
 
 ```sh
 sudo apt install build-essential pkg-config git \
-  libwayland-dev wayland-protocols libwlroots-0.20-dev \
+  libwayland-dev wayland-protocols \
   libxkbcommon-dev libpixman-1-dev libdrm-dev libinput-dev \
   libseat-dev libudev-dev libegl-dev libgles2-mesa-dev \
   libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev \
   fonts-inter fonts-jetbrains-mono fonts-noto-cjk \
   xwayland xauth xterm fcitx5 fcitx5-mozc
 ```
+
+Ubuntu 26.04 packages wlroots 0.19, not 0.20. The installer in 2.1 builds
+wlroots 0.20 and scenefx 0.5 under `/opt/tessa`; use it for a complete
+toolchain.
 
 On Arch Linux, the official `zig` (0.17) and `wlroots0.20` match this tree.
 Install them as shown in section 2.2.
@@ -86,60 +90,49 @@ ldconfig -p | grep wlroots
 
 ## 2. Install or Build
 
-### 2.1 Binary package (Ubuntu 26.04)
+### 2.1 Ubuntu / Debian installer
 
-The recommended install uses the `v0.2.4` amd64 package:
+Use the [Ubuntu / Debian installer](https://keychrom.github.io/docs/install-script/)
+for a normal install. It installs the current `0.2.5` tree, builds Zig 0.17,
+wlroots 0.20, scenefx 0.5, and any missing Wayland libraries under
+`/opt/tessa`, and leaves the distribution's Wayland libraries untouched.
 
 ```sh
-sudo apt update
-sudo apt install curl
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/tessa_0.2.4_amd64.deb
-curl -fLO https://github.com/Keychrom/Tessa/releases/download/v0.2.4/SHA256SUMS
-grep ' tessa_0.2.4_amd64.deb$' SHA256SUMS | sha256sum -c -
-sudo apt install ./tessa_0.2.4_amd64.deb
+git clone https://github.com/Keychrom/Tessa.git
+cd Tessa
+./install.sh --check
+./install.sh
 ```
 
-> **0.2.4 may be the final `.deb` release.** It is the last package planned
-> against Zig 0.16 and wlroots 0.19. The current source tree (`0.2.5`) targets
-> Zig 0.17, wlroots 0.20, and scenefx 0.5; use a source build or the Arch
-> package for the new toolchain.
+The installer places:
 
-The package installs:
-
-- `/usr/bin/tessa`, `/usr/bin/tessa-panel`, `/usr/bin/tessa-ctl`
-- `/usr/bin/tessa-session`
+- `/opt/tessa/bin/tessa`, `tessa-panel`, and `tessa-ctl`
+- `/opt/tessa/bin/tessa-session`
+- `/usr/local/bin` wrappers for the four commands
 - `/usr/share/wayland-sessions/tessa.desktop`
-- `/usr/share/tessa/config.example`
 - `/usr/share/xdg-desktop-portal/portals/tessa.portal`
-- man pages and documentation
+- an example config and the Vermilion Ink theme
+
+The default install also adds a terminal, fonts, fcitx5 + Mozc, portals, and
+PipeWire. Use `--minimal` to skip those packages or `--plain` to build without
+scenefx effects. The installer is experimental; read its
+[testing status](https://keychrom.github.io/docs/install-script/) before using
+it.
 
 Log out and select **Tessa** in GDM, SDDM, greetd, or another display manager.
 The session entry starts the installed compositor and panel directly; the
 source session installer in section 3.2 is only for development.
 
-Useful optional packages:
+Verify the installation:
 
 ```sh
-sudo apt install kitty wlr-randr grim dbus \
-  fcitx5 fcitx5-mozc \
-  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
-```
-
-`xwayland-satellite` is not packaged in Ubuntu 26.04. Install it from upstream
-if X11 applications are needed; otherwise `xwayland = true` will log a warning
-and X11 clients will not start.
-
-Verify the package and configuration:
-
-```sh
-dpkg -s tessa
-command -v tessa tessa-panel tessa-ctl
 tessa-ctl config-check
+command -v tessa tessa-panel tessa-ctl
 ```
 
 If Tessa was previously installed manually under `/usr/local`, keep only one
-installation. `/usr/local/bin` normally precedes `/usr/bin` in `PATH`, so the
-manual binaries would otherwise win.
+installation. The installer replaces the `/usr/local/bin` wrappers and session
+entry used by an older manual install.
 
 ### 2.2 Arch Linux
 
@@ -149,7 +142,7 @@ Arch's official repositories provide `zig` 0.17, `wlroots0.20`, and `scenefx`
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libseat libudev libegl libgles2 mesa cairo pango glib2
+  libegl mesa cairo pango glib2
 ```
 
 Then build and install Tessa:
@@ -160,9 +153,8 @@ cd Tessa/packaging/arch
 makepkg -si
 ```
 
-The resulting `tessa-git` package installs the same files as the `.deb`
-(binaries, session entry, config example, portal selector, man pages, and
-documentation) under `/usr`.
+The resulting `tessa-git` package installs the binaries, session entry, config
+example, portal selector, man pages, and documentation under `/usr`.
 
 Verify:
 
@@ -171,21 +163,39 @@ tessa-ctl config-check
 command -v tessa tessa-panel tessa-ctl
 ```
 
-Useful optional packages:
+#### Recommended packages
+
+Install the terminal, output and screenshot tools, screen-sharing portals, and
+session utilities:
 
 ```sh
-sudo pacman -S --needed kitty wlr-randr grim dbus fcitx5 fcitx5-mozc \
-  xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+sudo pacman -S --needed foot kitty wlr-randr grim swaylock swayidle wlopm \
+  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire
 ```
 
-For X11 applications, use AUR `xwayland-satellite-git`. The PKGBUILD depends on
-`scenefx` and enables rounded corners and blur by default; pass
-`-Dscenefx=false` to a source build for the plain wlroots scene. The 0.2.4 Arch
-package was built and exercised with the 0.16/0.19 AUR toolchain. The 0.2.5
-PKGBUILD has been built and installed on Arch Linux with the official `zig` and
-`wlroots0.20`, and the full headless suite passes in plain and scenefx builds.
-If `makepkg` reports an ABI or dependency problem, confirm `zig version` is
-0.17.x and `pkg-config --modversion wlroots-0.20` is 0.20.x.
+For X11 applications, install `xwayland-satellite-git` from the AUR:
+
+```sh
+git clone https://aur.archlinux.org/xwayland-satellite-git.git
+cd xwayland-satellite-git
+makepkg -si
+```
+
+With an AUR helper, the same set is:
+
+```sh
+paru -S foot kitty wlr-randr grim swaylock swayidle wlopm dbus \
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire xwayland-satellite-git
+```
+
+The PKGBUILD depends on `scenefx` and enables rounded corners and blur by
+default; pass `-Dscenefx=false` to a source build for the plain wlroots scene.
+The 0.2.4 Arch package was built and exercised with the 0.16/0.19 AUR
+toolchain. The 0.2.5 PKGBUILD has been built and installed on Arch Linux with
+the official `zig` and `wlroots0.20`, and the full headless suite passes in
+plain and scenefx builds. If `makepkg` reports an ABI or dependency problem,
+confirm `zig version` is 0.17.x and
+`pkg-config --modversion wlroots-0.20` is 0.20.x.
 
 ### 2.3 Build from source (development)
 
@@ -281,8 +291,8 @@ Quit with `Super+Shift+E` or `tessa-ctl quit`.
 
 ### 3.2 Display-manager session
 
-The `.deb` and Arch `tessa-git` packages already install the session entry.
-Use this only for a source build:
+The Ubuntu/Debian installer and Arch `tessa-git` package already install the
+session entry. Use this only for a source build:
 
 ```sh
 # Per-user install
@@ -293,7 +303,7 @@ sudo PREFIX=/usr/local ./scripts/install-session.sh
 ```
 
 Add `-Dscenefx=false` to either command for a plain build without scenefx,
-for example on Ubuntu 26.04:
+for example when the GPU cannot provide GLES2:
 
 ```sh
 ./scripts/install-session.sh -Dscenefx=false
