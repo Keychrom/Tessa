@@ -1,7 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Fcitx 5
-Comment=Start the input method framework
-Exec=fcitx5 -d
-OnlyShowIn=Tessa;
-X-GNOME-Autostart-enabled=true
