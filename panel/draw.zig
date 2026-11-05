@@ -4019,13 +4019,12 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         if (m.controlFeatureEnabled(.battery) and g.battery_percent >= 0) {
             var bbuf: [32]u8 = undefined;
             const btext = std.fmt.bufPrint(&bbuf, "{d}%", .{g.battery_percent}) catch "?";
-            _ = drawBatteryIndicator(cr, left_x + 76, by + 10, fg);
-            _ = drawText(cr, btext, bx + 46, by + 3, MONO, "Medium", 10.0, .{
-                fg[0], fg[1], fg[2], 0.88,
-            }, 60, 0);
-            _ = drawText(cr, if (g.battery_charging) "Charging" else "Battery", bx + 46, by + 17, fam, "Regular", 7.0, .{
-                0.64, 0.70, 0.80, 0.5,
-            }, 70, 0);
+            _ = drawText(cr, btext, bx, by + 2, MONO, "Medium", 12.0, .{
+                fg[0], fg[1], fg[2], 0.9,
+            }, 80, 0);
+            _ = drawText(cr, if (g.battery_charging) "CHARGING" else "BATTERY", bx, by + 20, MONO, "Medium", 6.4, .{
+                0.64, 0.70, 0.80, 0.45,
+            }, 90, 0.6);
         }
         if (m.controlFeatureEnabled(.power)) {
             drawPowerButtons(cr, left_x + 16, left_y + 54, col_w - 32);
