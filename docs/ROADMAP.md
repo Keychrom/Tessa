@@ -290,6 +290,9 @@ config editor/diff preview) are complete; 0.7 builds on them.
 - [x] Shell extension surface: directory theme packages with hot reload,
       declarative widget popovers attached to external status entries, and
       priority-based built-in bar overflow with a clickable hidden-module list.
+- [x] Launcher presentation: centered (Wofi-style) and start-menu layouts
+      (`launcher_style`), staggered result reveal, sliding selection, and
+      adjustable wallpaper art opacity.
 - [x] Shader/effect hooks through the long-lived process protocol; no
       in-process plugin VM.
 - [x] Performance guardrails: headless benchmarks and a frame-time budget for
