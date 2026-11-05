@@ -489,7 +489,8 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
             c.cairo_line_to(cr, bx + size, by + size * 0.55);
             c.cairo_line_to(cr, bx + size * 0.2, by + size);
             c.cairo_close_path(cr);
-            setColor(cr, .{ 1.0, 1.0, 1.0, (if (tri % 2 == 0) 0.010 else 0.004) * art });
+            const tri_alpha: f64 = if (tri % 2 == 0) 0.010 else 0.004;
+            setColor(cr, .{ 1.0, 1.0, 1.0, tri_alpha * art });
             c.cairo_fill(cr);
             setColor(cr, .{ 1.0, 1.0, 1.0, 0.012 * art });
             c.cairo_set_line_width(cr, 0.8);
