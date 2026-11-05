@@ -111,6 +111,10 @@ fn disable(reason: []const u8) void {
     logUnavailable(reason);
 }
 
+pub fn fail(reason: []const u8) void {
+    disable(reason);
+}
+
 /// Drop the GPU context after a config change so a fixed renderer setting can
 /// be retried without restarting the panel.
 pub fn reset() void {

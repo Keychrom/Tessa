@@ -606,7 +606,10 @@ fn drawBackgroundGpu(s: *m.Surface) bool {
         destroyBuffers(s);
     }
     if (m.g.bg_base_dirty) {
-        const base = renderBackgroundBase(s) orelse return false;
+        const base = renderBackgroundBase(s) orelse {
+            gpu.fail("wallpaper base render failed");
+            return false;
+        };
         defer c.cairo_surface_destroy(base);
         if (!gpu.setBase(s, base)) return false;
         m.g.bg_base_dirty = false;
