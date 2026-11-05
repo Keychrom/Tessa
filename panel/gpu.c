@@ -29,6 +29,7 @@ struct TessaGpu {
     EGLContext context;
     EGLConfig config;
     GLuint program;
+    GLuint overlay_program;
     GLuint vbo;
     GLint attr_pos;
     GLint uniform_tex;
@@ -48,6 +49,10 @@ struct TessaGpu {
     GLint uniform_art;
     GLint uniform_prev_art;
     GLint uniform_fade;
+    GLint overlay_attr_pos;
+    GLint overlay_uniform_tex;
+    GLint overlay_uniform_mat;
+    GLint overlay_uniform_alpha;
     int ready;
     char error[256];
 };
@@ -63,6 +68,26 @@ struct TessaGpuSurface {
     int width;
     int height;
 };
+
+static const char *OVERLAY_VERTEX_SHADER =
+    "#version 100\n"
+    "attribute vec2 a_pos;\n"
+    "uniform mat3 u_mat;\n"
+    "varying vec2 v_uv;\n"
+    "void main() {\n"
+    "    v_uv = a_pos * 0.5 + 0.5;\n"
+    "    gl_Position = vec4((u_mat * vec3(a_pos, 1.0)).xy, 0.0, 1.0);\n"
+    "}\n";
+
+static const char *OVERLAY_FRAGMENT_SHADER =
+    "#version 100\n"
+    "precision mediump float;\n"
+    "varying vec2 v_uv;\n"
+    "uniform sampler2D u_tex;\n"
+    "uniform float u_alpha;\n"
+    "void main() {\n"
+    "    gl_FragColor = texture2D(u_tex, v_uv) * u_alpha;\n"
+    "}\n";
 
 static const char *VERTEX_SHADER =
     "#version 100\n"
@@ -284,6 +309,52 @@ static int ensure_program(TessaGpu *gpu) {
     return 1;
 }
 
+static int ensure_overlay_program(TessaGpu *gpu) {
+    if (gpu->overlay_program != 0) return 1;
+    GLuint vs = compile_shader(gpu, GL_VERTEX_SHADER, OVERLAY_VERTEX_SHADER);
+    if (vs == 0) return 0;
+    GLuint fs = compile_shader(gpu, GL_FRAGMENT_SHADER, OVERLAY_FRAGMENT_SHADER);
+    if (fs == 0) {
+        glDeleteShader(vs);
+        return 0;
+    }
+    GLuint program = glCreateProgram();
+    if (program == 0) {
+        glDeleteShader(vs);
+        glDeleteShader(fs);
+        return 0;
+    }
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glBindAttribLocation(program, 0, "a_pos");
+    glLinkProgram(program);
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+    GLint ok = 0;
+    glGetProgramiv(program, GL_LINK_STATUS, &ok);
+    if (!ok) {
+        char log[1024];
+        GLsizei len = 0;
+        glGetProgramInfoLog(program, sizeof(log), &len, log);
+        gpu_error(gpu, "overlay program link failed: %.*s", (int)len, log);
+        glDeleteProgram(program);
+        return 0;
+    }
+    gpu->overlay_program = program;
+    gpu->overlay_attr_pos = glGetAttribLocation(program, "a_pos");
+    gpu->overlay_uniform_tex = glGetUniformLocation(program, "u_tex");
+    gpu->overlay_uniform_mat = glGetUniformLocation(program, "u_mat");
+    gpu->overlay_uniform_alpha = glGetUniformLocation(program, "u_alpha");
+    if (gpu->overlay_attr_pos < 0 || gpu->overlay_uniform_tex < 0 ||
+        gpu->overlay_uniform_mat < 0 || gpu->overlay_uniform_alpha < 0) {
+        gpu_error(gpu, "overlay shader interface is incomplete");
+        glDeleteProgram(program);
+        gpu->overlay_program = 0;
+        return 0;
+    }
+    return 1;
+}
+
 static int choose_config(TessaGpu *gpu, int alpha) {
     EGLint attrs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -361,6 +432,10 @@ void tessa_gpu_destroy(TessaGpu *gpu) {
             if (gpu->program != 0) {
                 glDeleteProgram(gpu->program);
                 gpu->program = 0;
+            }
+            if (gpu->overlay_program != 0) {
+                glDeleteProgram(gpu->overlay_program);
+                gpu->overlay_program = 0;
             }
             if (gpu->vbo != 0) {
                 glDeleteBuffers(1, &gpu->vbo);
@@ -621,6 +696,49 @@ int tessa_gpu_draw(TessaGpuSurface *surface, const TessaGpuParams *params) {
 
     if (!eglSwapBuffers(gpu->display, surface->egl_surface)) {
         gpu_error(gpu, "eglSwapBuffers failed (0x%x)", eglGetError());
+        return 0;
+    }
+    return 1;
+}
+
+int tessa_gpu_draw_overlay(TessaGpuSurface *surface, const TessaGpuOverlayParams *params) {
+    if (surface == NULL || surface->gpu == NULL || !surface->gpu->ready || params == NULL) {
+        return 0;
+    }
+    if (surface->texture == 0) return 0;
+    TessaGpu *gpu = surface->gpu;
+    if (!eglMakeCurrent(gpu->display, surface->egl_surface, surface->egl_surface, gpu->context)) {
+        gpu_error(gpu, "eglMakeCurrent failed while drawing overlay (0x%x)", eglGetError());
+        return 0;
+    }
+    if (!ensure_overlay_program(gpu)) return 0;
+    glViewport(0, 0, surface->width, surface->height);
+    float dim = params->dim;
+    if (dim < 0.0f) dim = 0.0f;
+    if (dim > 1.0f) dim = 1.0f;
+    glClearColor(0.0f, 0.0f, 0.0f, dim);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+
+    glUseProgram(gpu->overlay_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, surface->texture);
+    glUniform1i(gpu->overlay_uniform_tex, 0);
+    glUniformMatrix3fv(gpu->overlay_uniform_mat, 1, GL_FALSE, params->matrix);
+    glUniform1f(gpu->overlay_uniform_alpha, params->alpha);
+
+    glBindBuffer(GL_ARRAY_BUFFER, gpu->vbo);
+    glEnableVertexAttribArray((GLuint)gpu->overlay_attr_pos);
+    glVertexAttribPointer((GLuint)gpu->overlay_attr_pos, 2, GL_FLOAT, GL_FALSE, 0, (const void *)0);
+    glDrawArrays(GL_TRIANGLES, 0, 3);
+    glDisableVertexAttribArray((GLuint)gpu->overlay_attr_pos);
+
+    if (!eglSwapBuffers(gpu->display, surface->egl_surface)) {
+        gpu_error(gpu, "eglSwapBuffers failed while drawing overlay (0x%x)", eglGetError());
         return 0;
     }
     return 1;

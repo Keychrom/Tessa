@@ -83,3 +83,9 @@ int tessa_gpu_draw(TessaGpuSurface *surface, const TessaGpuParams *params) {
     (void)params;
     return 0;
 }
+
+int tessa_gpu_draw_overlay(TessaGpuSurface *surface, const TessaGpuOverlayParams *params) {
+    (void)surface;
+    (void)params;
+    return 0;
+}

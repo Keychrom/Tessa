@@ -250,8 +250,14 @@ uploaded as a transparent texture. Palette changes cross-fade over 300 ms.
    overlay or a fullscreen window is visible, and when `animations = false` or
    `reduce_motion = true`.
 
-The launcher, bar, popovers, and toasts stay on the Cairo path. This is the
-first stage of the GPU panel renderer, not a full UI rewrite.
+The launcher, bar, popovers, and toasts stay on the Cairo path by default.
+`overlay_renderer = gpu` is an opt-in first stage for the launcher and popovers:
+Cairo renders the final overlay content once per state change, uploads it as a
+texture, and the GPU applies the open/close scale, fade, and drop. Cairo is not
+re-run on animation frames. Row stagger and the sliding selection marker remain
+Cairo-only in this phase; a later layered renderer can restore them on the GPU.
+
+This is the first stage of the GPU panel renderer, not a full UI rewrite.
 
 Requirements and fallback:
 

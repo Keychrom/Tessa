@@ -580,6 +580,7 @@ stagger, and slides its selection marker between results.
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
 | `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
 | `panel_renderer` | `cairo` | Background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
+| `overlay_renderer` | `cairo` | Launcher/popover presentation: `cairo` or `gpu` (cached Cairo texture, GPU scale/fade) |
 | `wallpaper_engine` | `cairo` | With `panel_renderer = gpu`: `cairo` texture or `procedural` GPU-generated Vermilion Ink |
 | `wallpaper_animation` | `off` | GPU wallpaper motion: `off`, `on`, or `auto` (pause on battery and after `wallpaper_idle_pause`) |
 | `wallpaper_idle_pause` | `120` | Seconds without input before `auto` pauses; `0` disables the idle pause |

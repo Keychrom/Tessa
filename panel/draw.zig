@@ -278,6 +278,15 @@ pub fn setSurfaceScale(s: *m.Surface, scale: i32) void {
             return;
         }
     }
+    if (s.kind == .overlay and m.g.overlay_renderer == .gpu and s.configured) {
+        const physical: u32 = @intCast(scl);
+        if (gpu.configure(s, s.width * physical, s.height * physical)) {
+            destroyBuffers(s);
+            m.g.overlay_content_dirty = true;
+            s.dirty = true;
+            return;
+        }
+    }
     destroyBuffers(s);
     s.dirty = true;
 }
@@ -297,6 +306,15 @@ pub fn configureSurface(s: *m.Surface, width: u32, height: u32) void {
             destroyBuffers(s);
             m.g.bg_base_dirty = true;
             m.g.mark_dirty = true;
+            s.dirty = true;
+            return;
+        }
+    }
+    if (s.kind == .overlay and m.g.overlay_renderer == .gpu) {
+        const physical: u32 = @intCast(@max(1, s.scale));
+        if (gpu.configure(s, width * physical, height * physical)) {
+            destroyBuffers(s);
+            m.g.overlay_content_dirty = true;
             s.dirty = true;
             return;
         }
@@ -3240,33 +3258,7 @@ fn drawModulePopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_panel = .{ .x = x, .y = y, .w = w, .h = h };
 }
 
-pub fn drawOverlay(s: *m.Surface) void {
-    const d = begin(s) orelse return;
-    const cr = d.cr;
-    const W: f64 = @floatFromInt(s.width);
-    const H: f64 = @floatFromInt(s.height);
-    const t = std.math.clamp(g.menu_anim, 0.0, 1.0);
-
-    if (g.overlay_mode == .screenshot) {
-        drawScreenshotOverlay(cr, W, H, t);
-        end(s, d);
-        return;
-    }
-
-    const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
-
-    // The audio controls are a compact drop-down bar, so leave the desktop
-    // visible instead of dimming the whole overlay.
-    if (g.overlay_mode != .audio) {
-        fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });
-        const vp = c.cairo_pattern_create_radial(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.8);
-        c.cairo_pattern_add_color_stop_rgba(vp, 0, 0, 0, 0, 0);
-        c.cairo_pattern_add_color_stop_rgba(vp, 1, 0, 0, 0, 0.42 * t);
-        c.cairo_set_source(cr, vp);
-        c.cairo_paint(cr);
-        c.cairo_pattern_destroy(vp);
-    }
-
+fn drawOverlayCore(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     if (g.overlay_mode == .launcher) {
         const start_style = g.launcher_open_style == .start;
         const l = if (start_style) m.startMenuLayout(W, H) else m.launcherLayout(W, H);
@@ -3324,5 +3316,132 @@ pub fn drawOverlay(s: *m.Surface) void {
         drawModulePopover(cr, W, H, t);
     }
 
+}
+
+fn renderOverlayBase(s: *m.Surface) ?*c.cairo_surface_t {
+    const scale: u32 = @intCast(@max(1, s.scale));
+    const buf_w = s.width * scale;
+    const buf_h = s.height * scale;
+    if (buf_w == 0 or buf_h == 0) return null;
+    const img = c.cairo_image_surface_create(
+        c.CAIRO_FORMAT_ARGB32,
+        @intCast(buf_w),
+        @intCast(buf_h),
+    );
+    if (img == null or c.cairo_surface_status(img) != c.CAIRO_STATUS_SUCCESS) {
+        if (img) |surface| c.cairo_surface_destroy(surface);
+        return null;
+    }
+    const cr = c.cairo_create(img) orelse {
+        c.cairo_surface_destroy(img);
+        return null;
+    };
+    const scl: f64 = @floatFromInt(scale);
+    c.cairo_scale(cr, scl, scl);
+    setCairoQuality(cr);
+    const old_selected = m.g.selected_anim;
+    m.g.selected_anim = @floatFromInt(m.g.selected);
+    drawOverlayCore(cr, @floatFromInt(s.width), @floatFromInt(s.height), 1.0);
+    m.g.selected_anim = old_selected;
+    c.cairo_destroy(cr);
+    c.cairo_surface_flush(img);
+    return img;
+}
+
+fn overlayMatrix(s: *m.Surface, t: f64) [9]f32 {
+    const W: f64 = @floatFromInt(s.width);
+    const H: f64 = @floatFromInt(s.height);
+    var scale: f64 = 1.0;
+    var offset_y: f64 = 0.0;
+    var pivot_x: f64 = W / 2.0;
+    var pivot_y: f64 = H / 2.0;
+    if (m.g.overlay_mode == .launcher) {
+        const l = if (m.g.launcher_open_style == .start)
+            m.startMenuLayout(W, H)
+        else
+            m.launcherLayout(W, H);
+        if (m.g.launcher_open_style == .start) {
+            scale = 0.985 + 0.015 * t;
+            offset_y = (1.0 - t) * 14.0;
+            pivot_x = l.x;
+            pivot_y = l.y;
+        } else {
+            scale = 0.97 + 0.03 * t;
+            offset_y = (1.0 - t) * 8.0;
+            pivot_x = l.x + 380.0;
+            pivot_y = l.y + 310.0;
+        }
+    }
+    const px = (pivot_x / W) * 2.0 - 1.0;
+    const py = 1.0 - (pivot_y / H) * 2.0;
+    const oy = py * (1.0 - scale) - (offset_y / H) * 2.0;
+    return .{
+        @floatCast(scale), 0.0, 0.0,
+        0.0, @floatCast(scale), 0.0,
+        @floatCast(px * (1.0 - scale)), @floatCast(oy), 1.0,
+    };
+}
+
+fn drawOverlayGpu(s: *m.Surface) bool {
+    if (g.overlay_mode == .screenshot) return false;
+    if (!gpu.ready()) return false;
+    if (s.gpu == null) {
+        const physical: u32 = @intCast(@max(1, s.scale));
+        if (!gpu.configure(s, s.width * physical, s.height * physical)) return false;
+        destroyBuffers(s);
+    }
+    if (g.overlay_content_dirty) {
+        const base = renderOverlayBase(s) orelse {
+            gpu.fail("overlay base render failed");
+            return false;
+        };
+        defer c.cairo_surface_destroy(base);
+        if (!gpu.setBase(s, base)) return false;
+        g.overlay_content_dirty = false;
+    }
+    const t = std.math.clamp(m.g.menu_anim, 0.0, 1.0);
+    const dim: f64 = if (m.g.overlay_mode == .audio)
+        0.0
+    else if (m.g.overlay_mode == .launcher)
+        0.52
+    else
+        0.30;
+    if (!gpu.drawOverlay(s, @floatCast(t), @floatCast(dim * t), overlayMatrix(s, t))) {
+        return false;
+    }
+    s.dirty = false;
+    return true;
+}
+
+pub fn drawOverlay(s: *m.Surface) void {
+    if (m.g.overlay_renderer == .gpu) {
+        if (drawOverlayGpu(s)) return;
+        gpu.destroySurface(s);
+    }
+    const d = begin(s) orelse return;
+    const cr = d.cr;
+    const W: f64 = @floatFromInt(s.width);
+    const H: f64 = @floatFromInt(s.height);
+    const t = std.math.clamp(g.menu_anim, 0.0, 1.0);
+
+    if (g.overlay_mode == .screenshot) {
+        drawScreenshotOverlay(cr, W, H, t);
+        end(s, d);
+        return;
+    }
+
+    const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
+
+    if (g.overlay_mode != .audio) {
+        fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });
+        const vp = c.cairo_pattern_create_radial(W / 2, H / 2, H * 0.12, W / 2, H / 2, H * 0.8);
+        c.cairo_pattern_add_color_stop_rgba(vp, 0, 0, 0, 0, 0);
+        c.cairo_pattern_add_color_stop_rgba(vp, 1, 0, 0, 0, 0.42 * t);
+        c.cairo_set_source(cr, vp);
+        c.cairo_paint(cr);
+        c.cairo_pattern_destroy(vp);
+    }
+
+    drawOverlayCore(cr, W, H, t);
     end(s, d);
 }

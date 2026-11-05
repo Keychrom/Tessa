@@ -16,6 +16,12 @@ typedef struct TessaGpu TessaGpu;
 typedef struct TessaGpuSurface TessaGpuSurface;
 
 typedef struct {
+    float matrix[9];
+    float alpha;
+    float dim;
+} TessaGpuOverlayParams;
+
+typedef struct {
     float top[3];
     float bottom[3];
     float accent[3];
@@ -60,5 +66,6 @@ int tessa_gpu_set_mark(
 void tessa_gpu_clear_mark(TessaGpuSurface *surface);
 
 int tessa_gpu_draw(TessaGpuSurface *surface, const TessaGpuParams *params);
+int tessa_gpu_draw_overlay(TessaGpuSurface *surface, const TessaGpuOverlayParams *params);
 
 #endif

@@ -592,6 +592,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
 | `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
 | `panel_renderer` | `cairo` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。利用できなければ Cairo へ自動フォールバック） |
+| `overlay_renderer` | `cairo` | ランチャー／ポップオーバー: `cairo` または `gpu`（Cairo 内容をテクスチャ化し GPU で拡大／フェード） |
 | `wallpaper_engine` | `cairo` | `panel_renderer = gpu` 時の壁紙: `cairo`（テクスチャ）または `procedural`（GPU が Vermilion Ink を生成） |
 | `wallpaper_animation` | `off` | GPU 壁紙の動き: `off`、`on`、または `auto`（バッテリー駆動と `wallpaper_idle_pause` 経過後に停止） |
 | `wallpaper_idle_pause` | `120` | 無入力で `auto` が停止するまでの秒数。`0` で無効 |

@@ -31,6 +31,7 @@ cat > "$runtime/config" <<CONF
 panel = true
 xwayland = false
 panel_renderer = gpu
+overlay_renderer = gpu
 wallpaper_animation = true
 wallpaper_fps = 30
 CONF
@@ -48,7 +49,7 @@ export TESSA_DEBUG=1
 export TESSA_PANEL_DEBUG=1
 
 "$bin/tessa-panel" --check >"$runtime/check.log" 2>&1
-grep -qF "panel renderer=gpu wallpaper-engine=cairo wallpaper-animation=on fps=30 idle-pause=120" "$runtime/check.log" || {
+grep -qF "panel renderer=gpu overlay-renderer=gpu wallpaper-engine=cairo wallpaper-animation=on fps=30 idle-pause=120" "$runtime/check.log" || {
     echo "panel renderer config was not parsed" >&2
     cat "$runtime/check.log" >&2
     exit 1
@@ -127,6 +128,12 @@ fi
 
 tessa-ctl launcher
 wait_log "tessa-panel: launcher style:"
+sleep 0.5
+if grep -qE 'overlay program link failed|overlay draw failed' "$runtime/tessa.log"; then
+    echo "GPU overlay failed" >&2
+    grep -E 'overlay program link failed|overlay draw failed' "$runtime/tessa.log" >&2
+    exit 1
+fi
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true
 tpid=

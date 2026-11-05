@@ -3225,6 +3225,8 @@ fn loadPath(
             std.mem.eql(u8, key, "launcher-style") or
             std.mem.eql(u8, key, "panel_renderer") or
             std.mem.eql(u8, key, "panel-renderer") or
+            std.mem.eql(u8, key, "overlay_renderer") or
+            std.mem.eql(u8, key, "overlay-renderer") or
             std.mem.eql(u8, key, "wallpaper_engine") or
             std.mem.eql(u8, key, "wallpaper-engine") or
             std.mem.eql(u8, key, "popover_font") or

@@ -68,6 +68,8 @@ default desktop safe.
       `wallpaper_animation`, and automatic Cairo fallback.
 - [x] Procedural GPU wallpaper engine (`wallpaper_engine = procedural`) with
       palette cross-fades and a Cairo-rendered corner mark.
+- [x] Opt-in GPU overlay presentation (`overlay_renderer = gpu`): cached Cairo
+      content with GPU open/close scale, fade, and drop.
 - [x] Investigate HDR/color management: wlroots 0.20 exposes color-management
       v1 and output color transforms, but Tessa's GLES2/scenefx path and the
       absence of tone mapping require a Vulkan-renderer design first.

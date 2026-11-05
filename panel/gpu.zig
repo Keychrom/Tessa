@@ -235,6 +235,19 @@ pub fn draw(s: *m.Surface, palette: Palette, time: f64, animate: bool, procedura
     return true;
 }
 
+pub fn drawOverlay(s: *m.Surface, alpha: f32, dim: f32, matrix: [9]f32) bool {
+    const surface = s.gpu orelse return false;
+    var params: c.TessaGpuOverlayParams = undefined;
+    params.matrix = matrix;
+    params.alpha = alpha;
+    params.dim = dim;
+    if (c.tessa_gpu_draw_overlay(surface, &params) == 0) {
+        disable("overlay draw failed");
+        return false;
+    }
+    return true;
+}
+
 pub fn destroySurface(s: *m.Surface) void {
     if (s == &m.g.bg) cancelFrame();
     if (s.gpu) |surface| {

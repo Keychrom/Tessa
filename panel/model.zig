@@ -24,6 +24,7 @@ pub const MAX_EXTENSIONS = 16;
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
 pub const LauncherStyle = enum { centered, start };
 pub const PanelRenderer = enum { cairo, gpu };
+pub const OverlayRenderer = enum { cairo, gpu };
 pub const WallpaperAnimation = enum { off, on, auto };
 pub const WallpaperEngine = enum { cairo, procedural };
 pub const WallpaperFit = enum { cover, contain, stretch };
@@ -633,7 +634,6 @@ pub const Panel = struct {
     running: bool = false,
     next_clock_ms: i64 = 0,
     next_cpu_ms: i64 = 0,
-    next_blink_ms: i64 = 0,
     next_system_ms: i64 = 0,
     next_wallpaper_ms: i64 = 0,
     last_input_ms: i64 = 0,
@@ -656,6 +656,7 @@ pub const Panel = struct {
     wallpaper_fit: WallpaperFit = .cover,
     wallpaper_surface: ?*c.cairo_surface_t = null,
     panel_renderer: PanelRenderer = .cairo,
+    overlay_renderer: OverlayRenderer = .cairo,
     wallpaper_engine: WallpaperEngine = .cairo,
     wallpaper_animation: WallpaperAnimation = .off,
     wallpaper_fps: i32 = 30,
@@ -663,6 +664,7 @@ pub const Panel = struct {
     reduce_motion: bool = false,
     bg_base_dirty: bool = true,
     mark_dirty: bool = true,
+    overlay_content_dirty: bool = true,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
     bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
@@ -1451,6 +1453,12 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             } else if (std.mem.eql(u8, val, "cairo") or std.mem.eql(u8, val, "software")) {
                 g.panel_renderer = .cairo;
             }
+        } else if (std.mem.eql(u8, key, "overlay_renderer") or std.mem.eql(u8, key, "overlay-renderer")) {
+            if (std.mem.eql(u8, val, "gpu") or std.mem.eql(u8, val, "egl")) {
+                g.overlay_renderer = .gpu;
+            } else if (std.mem.eql(u8, val, "cairo") or std.mem.eql(u8, val, "software")) {
+                g.overlay_renderer = .cairo;
+            }
         } else if (std.mem.eql(u8, key, "wallpaper_engine") or std.mem.eql(u8, key, "wallpaper-engine")) {
             if (std.mem.eql(u8, val, "procedural") or std.mem.eql(u8, val, "gpu") or std.mem.eql(u8, val, "shader")) {
                 g.wallpaper_engine = .procedural;
@@ -1769,6 +1777,7 @@ pub fn loadConfig() void {
     g.launcher_style = .centered;
     g.launcher_open_style = .centered;
     g.panel_renderer = .cairo;
+    g.overlay_renderer = .cairo;
     g.wallpaper_engine = .cairo;
     g.wallpaper_animation = .off;
     g.wallpaper_fps = 30;
@@ -1776,6 +1785,7 @@ pub fn loadConfig() void {
     g.reduce_motion = false;
     g.bg_base_dirty = true;
     g.mark_dirty = true;
+    g.overlay_content_dirty = true;
     g.next_wallpaper_ms = 0;
     g.selected_anim = 0;
     copyTrunc(&g.font, &g.font_len, "Inter");
@@ -1887,6 +1897,7 @@ pub fn loadConfig() void {
     loadWallpaperImage();
     g.bg_base_dirty = true;
     g.mark_dirty = true;
+    g.overlay_content_dirty = true;
     g.next_wallpaper_ms = 0;
     g.bar_height = std.math.clamp(g.bar_height, 32, 96);
     g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
@@ -1946,8 +1957,9 @@ pub fn printConfigSummary() void {
         g.wallpaper_image[0..g.wallpaper_image_len],
         @tagName(g.wallpaper_fit),
     });
-    std.debug.print("panel renderer={s} wallpaper-engine={s} wallpaper-animation={s} fps={d} idle-pause={d}\n", .{
+    std.debug.print("panel renderer={s} overlay-renderer={s} wallpaper-engine={s} wallpaper-animation={s} fps={d} idle-pause={d}\n", .{
         @tagName(g.panel_renderer),
+        @tagName(g.overlay_renderer),
         @tagName(g.wallpaper_engine),
         @tagName(g.wallpaper_animation),
         g.wallpaper_fps,

@@ -75,6 +75,7 @@ fn destroyOverlay() void {
     g.next_wallpaper_ms = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
     destroyTextInput();
+    gpu.destroySurface(s);
     draw.destroyBuffers(s);
     if (s.layer) |ls| c.zwlr_layer_surface_v1_destroy(ls);
     if (s.wl) |wl| c.wl_surface_destroy(wl);
@@ -308,7 +309,7 @@ fn onTiPreedit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8,
     g.preedit_begin = begin;
     g.preedit_end = end;
     logDebug("preedit len={d}", .{g.preedit_len});
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
 }
 
 fn onTiCommit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8) callconv(.c) void {
@@ -318,7 +319,7 @@ fn onTiCommit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8) 
     if (text != null) appendQueryUtf8(std.mem.span(text));
     g.preedit_len = 0;
     g.preedit[0] = 0;
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
     syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_INPUT_METHOD);
 }
 
@@ -334,7 +335,7 @@ fn onTiDelete(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, before: u32, after: 
     g.selected = 0;
     g.scroll = 0;
     m.recomputeResults();
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
     syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_INPUT_METHOD);
 }
 
@@ -342,7 +343,7 @@ fn onTiDone(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, serial: u32) callconv(
     _ = data;
     _ = ti;
     _ = serial;
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
 }
 
 fn createTextInput() void {
@@ -452,12 +453,12 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.menu_anim_start = m.nowMs();
     g.next_wallpaper_ms = 0;
     if (mode == .launcher) g.selected_anim = @floatFromInt(g.selected);
-    g.next_blink_ms = m.nowMs() + 500;
     if (mode == .launcher) {
         enableTextInput();
     } else {
         disableTextInput();
     }
+    g.overlay_content_dirty = true;
     g.overlay.?.dirty = true;
     g.bar.dirty = true;
 }
@@ -489,6 +490,7 @@ fn openLauncherStyle(query_arg: []const u8, style: m.LauncherStyle) void {
             return;
         } else {
             m.setQuery(query_arg);
+            g.overlay_content_dirty = true;
             g.overlay.?.dirty = true;
             return;
         }
@@ -720,16 +722,22 @@ fn tickAnimation(now: i64) void {
     p = std.math.clamp(p, 0, 1);
     const eased = 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
     g.menu_anim = g.menu_from + (g.menu_target - g.menu_from) * eased;
+    var animating = p < 1.0;
     if (g.launcher_open) {
         const target = @as(f64, @floatFromInt(g.selected));
-        const diff = target - g.selected_anim;
-        if (@abs(diff) > 0.004) {
-            g.selected_anim += diff * 0.30;
-        } else {
+        if (g.overlay_renderer == .gpu) {
             g.selected_anim = target;
+        } else {
+            const diff = target - g.selected_anim;
+            if (@abs(diff) > 0.004) {
+                g.selected_anim += diff * 0.30;
+                animating = true;
+            } else {
+                g.selected_anim = target;
+            }
         }
     }
-    s.dirty = true;
+    if (animating) s.dirty = true;
     if (p >= 1.0) {
         g.menu_anim = g.menu_target;
         if (g.menu_target == 0 and g.launcher_open == false) {
@@ -782,6 +790,7 @@ fn runPowerAction(index: usize) void {
 }
 
 fn refreshOverlay() void {
+    g.overlay_content_dirty = true;
     if (g.overlay) |s| s.dirty = true;
 }
 
@@ -983,6 +992,7 @@ fn reloadPanelConfig() void {
     const old_top = g.bar_top_margin;
     const old_side = g.bar_side_margin;
     const old_renderer = g.panel_renderer;
+    const old_overlay_renderer = g.overlay_renderer;
     var old_volume_status: [512]u8 = undefined;
     var old_volume_up: [512]u8 = undefined;
     var old_volume_down: [512]u8 = undefined;
@@ -1005,6 +1015,13 @@ fn reloadPanelConfig() void {
     } else if (g.panel_renderer == .gpu) {
         g.bg_base_dirty = true;
         g.bg.dirty = true;
+    }
+    if (old_overlay_renderer != g.overlay_renderer) {
+        if (g.overlay) |ov| {
+            gpu.destroySurface(ov);
+            ov.dirty = true;
+        }
+        g.overlay_content_dirty = true;
     }
     const volume_changed =
         old_status_len != g.volume_status_len or
@@ -1034,7 +1051,7 @@ fn reloadPanelConfig() void {
     g.bg.dirty = true;
     g.bar.dirty = true;
     if (g.toasts) |toasts| toasts.dirty = true;
-    if (g.overlay) |ov| ov.dirty = true;
+    refreshOverlay();
     logMsg("config reloaded ({d} launcher entries)", .{g.app_list.count});
 }
 
@@ -1069,9 +1086,8 @@ fn appendQueryUtf8(data: []const u8) void {
     g.selected = 0;
     g.scroll = 0;
     m.recomputeResults();
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
     syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
-    g.next_blink_ms = m.nowMs() + 500;
 }
 
 fn backspaceQuery() void {
@@ -1083,9 +1099,8 @@ fn backspaceQuery() void {
     g.selected = 0;
     g.scroll = 0;
     m.recomputeResults();
-    if (g.overlay) |s| s.dirty = true;
+    refreshOverlay();
     syncTextInput(c.ZWP_TEXT_INPUT_V3_CHANGE_CAUSE_OTHER);
-    g.next_blink_ms = m.nowMs() + 500;
 }
 
 fn onKeyboardKeymap(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, format: u32, fd: c_int, size: u32) callconv(.c) void {
@@ -1317,7 +1332,7 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         if (g.result_count > 0) {
             g.selected = if (g.selected == 0) g.result_count - 1 else g.selected - 1;
             ensureSelectionVisible();
-            if (g.overlay) |s| s.dirty = true;
+            refreshOverlay();
         }
         return;
     }
@@ -1325,7 +1340,7 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         if (g.result_count > 0) {
             g.selected = (g.selected + 1) % g.result_count;
             ensureSelectionVisible();
-            if (g.overlay) |s| s.dirty = true;
+            refreshOverlay();
         }
         return;
     }
@@ -1333,7 +1348,7 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         if (g.result_count > 0) {
             g.selected = if (g.selected == 0) g.result_count - 1 else g.selected - 1;
             ensureSelectionVisible();
-            if (g.overlay) |s| s.dirty = true;
+            refreshOverlay();
         }
         return;
     }
@@ -1341,26 +1356,26 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
         if (g.result_count > 0) {
             g.selected = @min(g.selected + 7, g.result_count - 1);
             ensureSelectionVisible();
-            if (g.overlay) |s| s.dirty = true;
+            refreshOverlay();
         }
         return;
     }
     if (sym == c.XKB_KEY_Page_Up) {
         g.selected = g.selected -| 7;
         ensureSelectionVisible();
-        if (g.overlay) |s| s.dirty = true;
+        refreshOverlay();
         return;
     }
     if (sym == c.XKB_KEY_Home) {
         g.selected = 0;
         ensureSelectionVisible();
-        if (g.overlay) |s| s.dirty = true;
+        refreshOverlay();
         return;
     }
     if (sym == c.XKB_KEY_End) {
         if (g.result_count > 0) g.selected = g.result_count - 1;
         ensureSelectionVisible();
-        if (g.overlay) |s| s.dirty = true;
+        refreshOverlay();
         return;
     }
 
@@ -3338,7 +3353,7 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
                 g.selected = g.selected -| 1;
             }
             ensureSelectionVisible();
-            if (g.overlay) |s| s.dirty = true;
+            refreshOverlay();
         }
     }
 }
@@ -3421,7 +3436,7 @@ fn handleStateLine(line: []const u8) void {
             if (ws >= 1 and ws <= 9) g.occ[ws] += 1;
         }
         g.bar.dirty = true;
-        if (g.overlay) |ov| ov.dirty = true;
+        refreshOverlay();
         if (c.getenv("TESSA_PANEL_DEBUG") != null) {
             logMsg("state: output={s} ws={d} windows={d}", .{
                 g.target_name[0..g.target_name_len],
@@ -3731,10 +3746,6 @@ fn updateTimers(now: i64) void {
         if (updateSystemAndLog()) g.bar.dirty = true;
         g.next_system_ms = now + 5000;
     }
-    if (g.launcher_open and now >= g.next_blink_ms) {
-        if (g.overlay) |s| s.dirty = true;
-        g.next_blink_ms = now + 500;
-    }
     if (gpu.animationActive(now) or gpu.fading()) {
         if (g.next_wallpaper_ms == 0) g.next_wallpaper_ms = now;
         if (now >= g.next_wallpaper_ms) {
@@ -3764,7 +3775,6 @@ fn pollTimeout(now: i64) c_int {
     var next = g.next_clock_ms;
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;
     if (g.next_system_ms < next) next = g.next_system_ms;
-    if (g.launcher_open and g.next_blink_ms < next) next = g.next_blink_ms;
     if ((gpu.animationActive(now) or gpu.fading()) and !frame_blocked and
         g.next_wallpaper_ms > 0 and g.next_wallpaper_ms < next)
     {
@@ -4038,7 +4048,6 @@ pub fn main(init: std.process.Init.Minimal) !void {
     g.next_clock_ms = now + 1000;
     g.next_cpu_ms = now + 2000;
     g.next_system_ms = now + 5000;
-    g.next_blink_ms = now + 500;
     g.last_input_ms = now;
 
     eventLoop();
