@@ -66,7 +66,7 @@ props = {
         },
         "org.freedesktop.NetworkManager.Device.Wireless": {
             "AccessPoints": GLib.Variant("ao", [AP1, AP2]),
-            "ActiveAccessPoint": GLib.Variant("o", AP2),
+            "ActiveAccessPoint": GLib.Variant("o", "/"),
             "HwAddress": GLib.Variant("s", "00:11:22:33:44:55"),
         },
     },
