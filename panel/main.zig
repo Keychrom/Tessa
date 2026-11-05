@@ -936,7 +936,7 @@ fn controlInputAppendUtf8(text: []const u8) void {
     if (text.len == 0) return;
     const hidden = g.wifi_modal == .wifi_hidden;
     const numeric = g.bt_agent == .passkey or g.bt_agent == .pin;
-    var filtered: [MAX_CONTROL_INPUT]u8 = undefined;
+    var filtered: [m.MAX_CONTROL_INPUT]u8 = undefined;
     var n: usize = 0;
     for (text) |ch| {
         if (numeric and (ch < '0' or ch > '9')) continue;
@@ -1024,7 +1024,7 @@ fn controlCancelModal() void {
 
 fn controlConfirmModal() void {
     if (g.bt_agent != .none) {
-        var buf: [MAX_CONTROL_INPUT + 1]u8 = @splat(0);
+        var buf: [m.MAX_CONTROL_INPUT + 1]u8 = @splat(0);
         const text: [*:0]const u8 = if (g.bt_agent == .pin or g.bt_agent == .passkey)
             zText(buf.len, &buf, g.control_input[0..g.control_input_len])
         else
@@ -1042,7 +1042,7 @@ fn controlConfirmModal() void {
     if (g.wifi_modal == .wifi_password or g.wifi_modal == .wifi_hidden) {
         var path_buf: [m.MAX_WIFI_PATH + 1]u8 = @splat(0);
         var ssid_buf: [m.MAX_WIFI_SSID + 1]u8 = @splat(0);
-        var psk_buf: [MAX_CONTROL_INPUT + 1]u8 = @splat(0);
+        var psk_buf: [m.MAX_CONTROL_INPUT + 1]u8 = @splat(0);
         var ssid: []const u8 = g.control_ssid[0..g.control_ssid_len];
         var path: []const u8 = "";
         var hidden: c_int = 0;
@@ -3295,8 +3295,8 @@ fn parseSystemState(payload: []const u8) void {
                 }
             },
             0x11 => tlvStr(data, &g.wifi_ssid, &g.wifi_ssid_len),
-            0x12 => if (len >= 1) g.wifi_signal = data[0],
-            0x13 => if (len >= 1) g.wifi_state = data[0],
+            0x12 => { if (len >= 1) g.wifi_signal = data[0]; },
+            0x13 => { if (len >= 1) g.wifi_state = data[0]; },
             0x14 => tlvStr(data, &g.wifi_error, &g.wifi_error_len),
             0x15 => {
                 g.wifi_ap_count = 0;
@@ -3410,11 +3410,11 @@ fn parseSystemState(payload: []const u8) void {
                 if (!present) g.brightness_percent = -1;
                 g.ppd_available = (flags & 2) != 0;
             },
-            0x31 => if (len >= 1) g.brightness_percent = data[0],
-            0x32 => if (len >= 4) g.brightness_max = tlvU32(data, 0),
+            0x31 => { if (len >= 1) g.brightness_percent = data[0]; },
+            0x32 => { if (len >= 4) g.brightness_max = tlvU32(data, 0); },
             0x33 => tlvStr(data, &g.brightness_name, &g.brightness_name_len),
             0x34 => tlvStr(data, &g.ppd_profile, &g.ppd_profile_len),
-            0x35 => if (len >= 1) g.ppd_profile_count = 0,
+            0x35 => { if (len >= 1) g.ppd_profile_count = 0; },
             0x36 => {
                 if (g.ppd_profile_count < g.ppd_profiles.len) {
                     const idx = g.ppd_profile_count;
@@ -3444,7 +3444,7 @@ fn parseAgentPrompt(payload: []const u8) void {
         if (i + len > payload.len) break;
         const data = payload[i .. i + len];
         switch (tag) {
-            1 => if (len >= 1) kind = data[0],
+            1 => { if (len >= 1) kind = data[0]; },
             2 => passkey = data,
             3 => name = data,
             else => {},
@@ -4352,12 +4352,14 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
             const target: m.DragTarget = @enumFromInt(h.value);
             switch (target) {
                 .volume => {
-                    g.volume_percent = std.math.clamp(g.volume_percent + (if (v > 0) -3 else 3), 0, 100);
+                    const delta: i32 = if (v > 0) -3 else 3;
+                    g.volume_percent = std.math.clamp(g.volume_percent + delta, 0, 100);
                     g.volume_muted = false;
                     tessa_audio_set_percent(g.volume_percent);
                 },
                 .brightness => {
-                    g.brightness_percent = std.math.clamp(g.brightness_percent + (if (v > 0) -3 else 3), 0, 100);
+                    const delta: i32 = if (v > 0) -3 else 3;
+                    g.brightness_percent = std.math.clamp(g.brightness_percent + delta, 0, 100);
                     tessa_system_set_brightness(g.brightness_percent);
                 },
                 .seek => {

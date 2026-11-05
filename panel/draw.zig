@@ -4014,7 +4014,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         const sys_h = 96.0;
         controlCard(cr, left_x, left_y, col_w, sys_h);
         controlSection(cr, "SYSTEM", left_x + 16, left_y + 13, col_w - 32);
-        var bx = left_x + 16;
+        const bx = left_x + 16;
         const by = left_y + 30;
         if (m.controlFeatureEnabled(.battery) and g.battery_percent >= 0) {
             var bbuf: [32]u8 = undefined;
@@ -4282,7 +4282,6 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
 }
 
 fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
-    _ = H;
     const l = m.controlCenterLayout(W, H);
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1.0;
@@ -4429,7 +4428,7 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
         });
         _ = drawText(cr, if (d.name_len > 0) d.name[0..d.name_len] else "Unknown device", x + 30, y + 5, fam, "Medium", 9.0, .{
             fg[0], fg[1], fg[2], 0.9,
-        }, w - (if (paired) 150 else 80), 0);
+        }, w - (if (paired) 150.0 else 80.0), 0);
         const detail = if (connected) "Connected" else if (paired) "Paired" else "Available";
         _ = drawText(cr, detail, x + 30, y + 21, fam, "Regular", 7.0, .{
             0.64, 0.70, 0.80, 0.5,
@@ -4699,7 +4698,7 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
                 0.64, 0.70, 0.80, 0.55,
             }, mw - 36, 0);
             fillRound(cr, mx + 18, my + 84, mw - 36, 30, 8, .{ 1, 1, 1, 0.055 });
-            var masked: [MAX_CONTROL_INPUT]u8 = @splat('*');
+            var masked: [m.MAX_CONTROL_INPUT]u8 = @splat('*');
             const plen = @min(g.control_input_len, masked.len);
             _ = drawText(cr, if (g.bt_agent == .passkey) masked[0..plen] else g.control_input[0..g.control_input_len], mx + 28, my + 93, MONO, "Medium", 11.0, .{
                 fg[0], fg[1], fg[2], 0.9,
@@ -4726,7 +4725,7 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
             0.64, 0.70, 0.80, 0.45,
         }, 0, 1.0);
         fillRound(cr, mx + 18, my + 104, mw - 36, 28, 7, .{ 1, 1, 1, if (g.control_field == 1) 0.10 else 0.045 });
-        var masked: [MAX_CONTROL_INPUT]u8 = @splat('*');
+        var masked: [m.MAX_CONTROL_INPUT]u8 = @splat('*');
         const plen = @min(g.control_input_len, masked.len);
         _ = drawText(cr, masked[0..plen], mx + 27, my + 112, MONO, "Medium", 9.0, .{
             fg[0], fg[1], fg[2], 0.9,
@@ -4737,7 +4736,7 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
             0.64, 0.70, 0.80, 0.45,
         }, 0, 1.0);
         fillRound(cr, mx + 18, my + 58, mw - 36, 30, 7, .{ 1, 1, 1, 0.08 });
-        var masked: [MAX_CONTROL_INPUT]u8 = @splat('*');
+        var masked: [m.MAX_CONTROL_INPUT]u8 = @splat('*');
         const plen = @min(g.control_input_len, masked.len);
         _ = drawText(cr, masked[0..plen], mx + 27, my + 67, MONO, "Medium", 10.0, .{
             fg[0], fg[1], fg[2], 0.9,

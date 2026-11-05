@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "system.h"
 
 #include <gio/gio.h>
@@ -109,6 +107,8 @@ static gboolean stopping;
 static guint32 features = 0xffffffffu;
 static guint poll_source;
 static guint object_registration;
+
+static void send_state(void);
 
 static gboolean wifi_present;
 static gboolean wifi_enabled;
