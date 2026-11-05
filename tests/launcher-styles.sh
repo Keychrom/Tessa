@@ -77,9 +77,18 @@ wait_log "tessa-panel: launcher style: start"
 
 tessa-ctl panel centered
 wait_log "tessa-panel: launcher style: centered"
+if [ -n "${TESSA_CAPTURE_DIR:-}" ] && command -v grim >/dev/null 2>&1; then
+    mkdir -p "$TESSA_CAPTURE_DIR"
+    sleep 0.4
+    grim "$TESSA_CAPTURE_DIR/launcher-centered.png"
+fi
 
 tessa-ctl panel start
 wait_log "tessa-panel: launcher style: start"
+if [ -n "${TESSA_CAPTURE_DIR:-}" ] && command -v grim >/dev/null 2>&1; then
+    sleep 0.4
+    grim "$TESSA_CAPTURE_DIR/launcher-start.png"
+fi
 
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true

@@ -14,9 +14,16 @@ jobs:
       - name: Install dependencies and build plain Tessa
         run: ./install.sh --minimal --plain
       - name: Install test tools
-        run: sudo apt-get update && sudo apt-get install -y foot wtype
+        run: sudo apt-get update && sudo apt-get install -y foot wtype grim
       - name: Launcher styles
         run: sh tests/launcher-styles.sh
+        env:
+          TESSA_CAPTURE_DIR: ${{ github.workspace }}/captures
+      - name: Upload launcher captures
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-captures
+          path: captures
       - name: Panel popovers
         run: sh tests/panel-popovers.sh
       - name: Interaction regression
