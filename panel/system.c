@@ -455,6 +455,47 @@ static void poll_wifi(void) {
             break;
         }
     }
+    // Merge multiple BSSIDs that advertise the same SSID. Keep the active or
+    // strongest entry and carry over saved/active/security flags.
+    for (guint i = 0; i < ap_count; i++) {
+        for (guint j = i + 1; j < ap_count;) {
+            if (aps[i].ssid_len == aps[j].ssid_len &&
+                    memcmp(aps[i].ssid, aps[j].ssid, aps[i].ssid_len) == 0) {
+                aps[i].flags |= aps[j].flags;
+                if ((aps[j].flags & AP_ACTIVE) || (!(aps[i].flags & AP_ACTIVE) && aps[j].signal > aps[i].signal)) {
+                    char keep_path[MAX_PATH];
+                    char keep_conn[MAX_PATH];
+                    copy_trunc(keep_path, sizeof(keep_path), aps[i].path);
+                    copy_trunc(keep_conn, sizeof(keep_conn), aps[i].conn_path);
+                    aps[i].signal = aps[j].signal;
+                    aps[i].flags = aps[j].flags | (aps[i].flags & (AP_SAVED | AP_ACTIVE));
+                    copy_trunc(aps[i].path, sizeof(aps[i].path), aps[j].path);
+                    if (aps[j].conn_path[0]) copy_trunc(aps[i].conn_path, sizeof(aps[i].conn_path), aps[j].conn_path);
+                    else copy_trunc(aps[i].conn_path, sizeof(aps[i].conn_path), keep_conn);
+                    (void)keep_path;
+                }
+                memmove(&aps[j], &aps[j + 1], (ap_count - j - 1) * sizeof(WifiAp));
+                ap_count--;
+            } else {
+                j++;
+            }
+        }
+    }
+    // Active first, then saved, then stronger signal.
+    for (guint i = 0; i < ap_count; i++) {
+        for (guint j = i + 1; j < ap_count; j++) {
+            guint32 fi = aps[i].flags, fj = aps[j].flags;
+            gboolean swap = FALSE;
+            if ((fj & AP_ACTIVE) && !(fi & AP_ACTIVE)) swap = TRUE;
+            else if (((fi & AP_ACTIVE) == (fj & AP_ACTIVE)) && (fj & AP_SAVED) && !(fi & AP_SAVED)) swap = TRUE;
+            else if (((fi & (AP_ACTIVE | AP_SAVED)) == (fj & (AP_ACTIVE | AP_SAVED))) && aps[j].signal > aps[i].signal) swap = TRUE;
+            if (swap) {
+                WifiAp tmp = aps[i];
+                aps[i] = aps[j];
+                aps[j] = tmp;
+            }
+        }
+    }
     wifi_scanning = FALSE;
     g_variant_unref(wireless);
 }
