@@ -4437,7 +4437,8 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
         if (d.battery >= 0) {
             var bb: [16]u8 = undefined;
             const bt = std.fmt.bufPrint(&bb, "{d}%", .{d.battery}) catch "";
-            _ = drawText(cr, bt, x + w - (if (paired) 150 else 38), y + 10, MONO, "Medium", 7.4, .{
+            const battery_x: f64 = if (paired) 150.0 else 38.0;
+            _ = drawText(cr, bt, x + w - battery_x, y + 10, MONO, "Medium", 7.4, .{
                 accent[0], accent[1], accent[2], 0.7,
             }, 0, 0);
         }
