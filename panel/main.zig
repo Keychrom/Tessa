@@ -3744,7 +3744,7 @@ fn updateTimers(now: i64) void {
 }
 
 fn pollTimeout(now: i64) c_int {
-    if (g.bg.dirty or g.bar.dirty) return 0;
+    if ((g.bg.configured and g.bg.dirty) or (g.bar.configured and g.bar.dirty)) return 0;
     if (gpuAnimationActive() and g.next_wallpaper_ms == 0) return 0;
     if (g.toasts) |s| {
         if (s.dirty) return 0;
