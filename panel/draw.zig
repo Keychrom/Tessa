@@ -4014,7 +4014,8 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
         }
         if (show_ppd) {
-            const py = left_y + (if (show_focus) 50.0 else 10.0);
+            var py: f64 = left_y + 10.0;
+            if (show_focus) py = left_y + 50.0;
             _ = drawText(cr, "POWER PROFILE", left_x + 16, py, MONO, "Medium", 6.2, .{
                 0.64, 0.70, 0.80, 0.42,
             }, 100, 0.8);
