@@ -2430,6 +2430,7 @@ fn notificationRemoveAt(index: usize, notify_service: bool, reason: u32) void {
     }
     g.notification_count -= 1;
     updateToastsSurface();
+    if (g.overlay_mode == .control) refreshOverlay();
     if (notify_service) tessa_notifications_close(id, reason);
     logDebug("notification: removed id={d} total={d}", .{ id, g.notification_count });
 }
@@ -2567,6 +2568,7 @@ fn notificationAdd(
         g.notifications[0] = entry;
     }
     updateToastsSurface();
+    if (g.overlay_mode == .control) refreshOverlay();
     logDebug("notification: added id={d} total={d} actions={d} icon={d}x{d}", .{
         id,
         g.notification_count,

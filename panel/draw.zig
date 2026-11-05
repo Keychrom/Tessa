@@ -3993,20 +3993,41 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     }
     left_y += conn_h + 12.0;
 
-    if (m.controlFeatureEnabled(.focus)) {
-        const focus_h = 50.0;
+    const show_focus = m.controlFeatureEnabled(.focus);
+    const show_ppd = m.controlFeatureEnabled(.power_profile) and g.ppd_available;
+    if (show_focus or show_ppd) {
+        const focus_h: f64 = (if (show_focus) 50.0 else 0.0) + (if (show_ppd) 44.0 else 0.0);
         controlCard(cr, left_x, left_y, col_w, focus_h);
-        drawMoonGlyph(cr, left_x + 28, left_y + 25, 16.0, .{
-            accent[0], accent[1], accent[2], 0.85,
-        });
-        _ = drawText(cr, "Focus", left_x + 48, left_y + 14, fam, "Semi-Bold", 10.0, .{
-            fg[0], fg[1], fg[2], 0.94,
-        }, col_w - 120, 0);
-        _ = drawText(cr, if (g.dnd) "Notifications silenced" else "Notifications allowed", left_x + 48, left_y + 29, fam, "Regular", 7.2, .{
-            0.64, 0.70, 0.80, 0.52,
-        }, col_w - 120, 0);
-        controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.dnd);
-        addOverlayHit(left_x + 8, left_y + 6, col_w - 16, focus_h - 12, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
+        if (show_focus) {
+            drawMoonGlyph(cr, left_x + 28, left_y + 25, 16.0, .{
+                accent[0], accent[1], accent[2], 0.85,
+            });
+            _ = drawText(cr, "Focus", left_x + 48, left_y + 14, fam, "Semi-Bold", 10.0, .{
+                fg[0], fg[1], fg[2], 0.94,
+            }, col_w - 120, 0);
+            _ = drawText(cr, if (g.dnd) "Notifications silenced" else "Notifications allowed", left_x + 48, left_y + 29, fam, "Regular", 7.2, .{
+                0.64, 0.70, 0.80, 0.52,
+            }, col_w - 120, 0);
+            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.dnd);
+            addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
+        }
+        if (show_ppd) {
+            const py = left_y + (if (show_focus) 50.0 else 10.0);
+            _ = drawText(cr, "POWER PROFILE", left_x + 16, py, MONO, "Medium", 6.2, .{
+                0.64, 0.70, 0.80, 0.42,
+            }, 100, 0.8);
+            const gap = 5.0;
+            const bw = (col_w - 32.0 - gap * 2.0) / 3.0;
+            var pi: usize = 0;
+            while (pi < g.ppd_profile_count and pi < 3) : (pi += 1) {
+                const name = g.ppd_profiles[pi][0..g.ppd_profile_lens[pi]];
+                const active = name.len == g.ppd_profile_len and
+                    std.mem.eql(u8, name, g.ppd_profile[0..g.ppd_profile_len]);
+                const bx = left_x + 16.0 + @as(f64, @floatFromInt(pi)) * (bw + gap);
+                drawControlButton(cr, name, bx, py + 12, bw, 20, active);
+                addOverlayHit(bx, py + 12, bw, 20, .{ .kind = .control_profile, .value = pi });
+            }
+        }
         left_y += focus_h + 12.0;
     }
 
@@ -4281,8 +4302,8 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
 }
 
 fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
-    std.debug.print("tessa-panel: control draw t={d:.3} anim={d:.3}
-", .{ t, g.menu_anim });
+
+
     const l = m.controlCenterLayout(W, H);
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1.0;
