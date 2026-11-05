@@ -285,6 +285,9 @@ panel_fg = #eef2f8
 # launcher-bg = #0d1220
 # popover-bg = #0d1220
 # toast-bg = #0e1320
+# Launcher layout: centered (Wofi-style) or start (Windows-style, anchored
+# below the bar). The default is centered.
+# launcher_style = centered
 # Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
 # wallpaper_art = false for a clean gradient without ink/sun/water artwork.
 # wallpaper_image replaces the gradient/art with a PNG (absolute path or ~/...);
@@ -295,6 +298,9 @@ panel_fg = #eef2f8
 # bg_top = #162038
 # bg_bottom = #070a12
 # wallpaper_art = true
+# Dim the ink/sun/water artwork behind translucent windows. 1.0 keeps the
+# original intensity; 0.0 disables the artwork.
+# wallpaper_art_opacity = 0.55
 # wallpaper_image = ~/Pictures/wallpaper.png
 # wallpaper_shader = ~/.config/tessa/wallpaper.ppm.sh
 # wallpaper_fit = cover

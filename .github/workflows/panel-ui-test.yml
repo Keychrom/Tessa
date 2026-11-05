@@ -1,0 +1,23 @@
+name: Panel UI test
+
+on:
+  push:
+    branches: [panel-ui-test]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies and build plain Tessa
+        run: ./install.sh --minimal --plain
+      - name: Install test tools
+        run: sudo apt-get update && sudo apt-get install -y foot wtype
+      - name: Launcher styles
+        run: sh tests/launcher-styles.sh
+      - name: Panel popovers
+        run: sh tests/panel-popovers.sh
+      - name: Interaction regression
+        run: sh tests/interaction.sh

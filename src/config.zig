@@ -3221,6 +3221,8 @@ fn loadPath(
             std.mem.eql(u8, key, "launcher-fg") or
             std.mem.eql(u8, key, "launcher_bg") or
             std.mem.eql(u8, key, "launcher-bg") or
+            std.mem.eql(u8, key, "launcher_style") or
+            std.mem.eql(u8, key, "launcher-style") or
             std.mem.eql(u8, key, "popover_font") or
             std.mem.eql(u8, key, "popover-font") or
             std.mem.eql(u8, key, "popover_fg") or
@@ -3236,6 +3238,8 @@ fn loadPath(
             std.mem.eql(u8, key, "bg_top") or
             std.mem.eql(u8, key, "bg_bottom") or
             std.mem.eql(u8, key, "wallpaper_art") or
+            std.mem.eql(u8, key, "wallpaper_art_opacity") or
+            std.mem.eql(u8, key, "wallpaper-art-opacity") or
             std.mem.eql(u8, key, "wallpaper_image") or
             std.mem.eql(u8, key, "wallpaper-image") or
             std.mem.eql(u8, key, "wallpaper_shader") or

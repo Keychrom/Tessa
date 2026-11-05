@@ -22,6 +22,7 @@ pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 pub const MAX_EXTENSIONS = 16;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
+pub const LauncherStyle = enum { centered, start };
 pub const WallpaperFit = enum { cover, contain, stretch };
 pub const BarModule = enum {
     logo,
@@ -197,6 +198,8 @@ pub const HitKind = enum {
     extension,
     module_action,
     bar_overflow,
+    launcher_lock,
+    launcher_power,
 };
 
 pub const Hit = struct {
@@ -597,6 +600,9 @@ pub const Panel = struct {
     screenshot_dir_len: usize = 0,
 
     launcher_open: bool = false,
+    launcher_style: LauncherStyle = .centered,
+    launcher_open_style: LauncherStyle = .centered,
+    selected_anim: f64 = 0,
     query: [128]u8 = @splat(0),
     query_len: usize = 0,
     preedit: [128]u8 = @splat(0),
@@ -633,6 +639,7 @@ pub const Panel = struct {
     bg_bottom: [3]f64 = .{ 0, 0, 0 },
     bg_bottom_set: bool = false,
     wallpaper_art: bool = true,
+    wallpaper_art_opacity: f64 = 0.55,
     wallpaper_image: [512]u8 = undefined,
     wallpaper_image_len: usize = 0,
     wallpaper_shader: [512]u8 = undefined,
@@ -739,6 +746,19 @@ pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
         .y = (h - 620.0 * scale) / 2.0 - 8.0 * scale,
         .scale = scale,
     };
+}
+
+/// Compact Windows-style start menu, anchored below the left side of the bar.
+/// The 360x620 design is scaled down on small outputs.
+pub fn startMenuLayout(w: f64, h: f64) LauncherLayout {
+    const margin: f64 = @floatFromInt(g.bar_side_margin);
+    const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
+    const x = margin;
+    const y = bar_bottom + 8.0;
+    const fit_x = (w - margin * 2.0) / 360.0;
+    const fit_y = (h - y - 16.0) / 620.0;
+    const scale = std.math.clamp(@min(1.0, @min(fit_x, fit_y)), 0.35, 1.0);
+    return .{ .x = x, .y = y, .scale = scale };
 }
 
 pub fn barFont() []const u8 {
@@ -1402,6 +1422,12 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
                 std.mem.eql(u8, val, "yes") or std.mem.eql(u8, val, "on");
         } else if (std.mem.eql(u8, key, "panel_modules") or std.mem.eql(u8, key, "panel-modules")) {
             _ = parsePanelModules(val);
+        } else if (std.mem.eql(u8, key, "launcher_style") or std.mem.eql(u8, key, "launcher-style")) {
+            if (std.mem.eql(u8, val, "start") or std.mem.eql(u8, val, "windows")) {
+                g.launcher_style = .start;
+            } else if (std.mem.eql(u8, val, "centered") or std.mem.eql(u8, val, "wofi")) {
+                g.launcher_style = .centered;
+            }
         } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
             hexColor(val, &g.bar_bg);
             g.bar_bg_set = true;
@@ -1444,6 +1470,10 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             g.bg_bottom_set = true;
         } else if (std.mem.eql(u8, key, "wallpaper_art")) {
             g.wallpaper_art = parsePanelBool(val) orelse g.wallpaper_art;
+        } else if (std.mem.eql(u8, key, "wallpaper_art_opacity") or std.mem.eql(u8, key, "wallpaper-art-opacity")) {
+            if (std.fmt.parseFloat(f64, val)) |v| {
+                g.wallpaper_art_opacity = std.math.clamp(v, 0.0, 1.0);
+            } else |_| {}
         } else if (std.mem.eql(u8, key, "wallpaper_image") or std.mem.eql(u8, key, "wallpaper-image")) {
             copyTrunc(&g.wallpaper_image, &g.wallpaper_image_len, val);
         } else if (std.mem.eql(u8, key, "wallpaper_shader") or std.mem.eql(u8, key, "wallpaper-shader")) {
@@ -1691,6 +1721,9 @@ fn resolveTerminal() void {
 pub fn loadConfig() void {
     copyTrunc(&g.terminal, &g.terminal_len, "kitty");
     g.terminal_explicit = false;
+    g.launcher_style = .centered;
+    g.launcher_open_style = .centered;
+    g.selected_anim = 0;
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.bar_font_len = 0;
     g.launcher_font_len = 0;
@@ -1744,6 +1777,7 @@ pub fn loadConfig() void {
     g.bg_bottom = .{ 0, 0, 0 };
     g.bg_bottom_set = false;
     g.wallpaper_art = true;
+    g.wallpaper_art_opacity = 0.55;
     g.panel_bg = .{ 0.055, 0.075, 0.115 };
     g.panel_fg = .{ 0.93, 0.95, 0.98 };
     g.bar_bg = g.panel_bg;

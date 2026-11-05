@@ -246,6 +246,15 @@ fn computeSearchRect() void {
     if (s.width == 0 or s.height == 0) return;
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
+    if (g.launcher_open_style == .start) {
+        const l = m.startMenuLayout(W, H);
+        const x: i32 = @intFromFloat(@round(l.x + 64.0 * l.scale));
+        const y: i32 = @intFromFloat(@round(l.y + 31.0 * l.scale));
+        const w: i32 = @max(1, @as(i32, @intFromFloat(@round(l.scale))));
+        const h: i32 = @max(8, @as(i32, @intFromFloat(@round(20.0 * l.scale))));
+        g.search_rect = .{ x, y, w, h };
+        return;
+    }
     const l = m.launcherLayout(W, H);
     const x: i32 = @intFromFloat(@round(l.x + 78.0 * l.scale));
     const y: i32 = @intFromFloat(@round(l.y + 106.0 * l.scale));
@@ -438,6 +447,7 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.menu_from = g.menu_anim;
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
+    if (mode == .launcher) g.selected_anim = @floatFromInt(g.selected);
     g.next_blink_ms = m.nowMs() + 500;
     if (mode == .launcher) {
         enableTextInput();
@@ -449,6 +459,18 @@ fn beginOverlay(mode: m.OverlayMode) void {
 }
 
 fn openLauncher(query_arg: []const u8) void {
+    openLauncherStyle(query_arg, g.launcher_style);
+}
+
+fn openStartMenu(query_arg: []const u8) void {
+    openLauncherStyle(query_arg, .start);
+}
+
+fn openCenteredLauncher(query_arg: []const u8) void {
+    openLauncherStyle(query_arg, .centered);
+}
+
+fn openLauncherStyle(query_arg: []const u8, style: m.LauncherStyle) void {
     if (!m.moduleEnabled(m.MODULE_LAUNCHER)) return;
     if (g.overlay != null and
         (g.overlay_mode != .launcher or !g.launcher_open or g.menu_target == 0))
@@ -456,22 +478,27 @@ fn openLauncher(query_arg: []const u8) void {
         destroyOverlay();
     }
     if (g.overlay != null and g.launcher_open) {
-        if (query_arg.len == 0) {
+        if (style != g.launcher_open_style) {
+            destroyOverlay();
+        } else if (query_arg.len == 0) {
             closeOverlay();
             return;
+        } else {
+            m.setQuery(query_arg);
+            g.overlay.?.dirty = true;
+            return;
         }
-        m.setQuery(query_arg);
-        g.overlay.?.dirty = true;
-        return;
     }
 
     // Rescan on every fresh open so newly installed .desktop entries appear
     // without restarting Tessa or the panel.
     refreshApps();
     if (!ensureOverlay()) return;
+    g.launcher_open_style = style;
     beginOverlay(.launcher);
     m.setQuery(query_arg);
     g.overlay.?.dirty = true;
+    logDebug("launcher style: {s}", .{@tagName(style)});
 }
 
 fn openCalendar() void {
@@ -658,6 +685,12 @@ fn openPanel(name: []const u8) void {
         openAudio();
     } else if (std.mem.eql(u8, name, "extensions")) {
         openExtensions();
+    } else if (std.mem.eql(u8, name, "launcher") or std.mem.eql(u8, name, "centered") or
+        std.mem.eql(u8, name, "wofi"))
+    {
+        openCenteredLauncher("");
+    } else if (std.mem.eql(u8, name, "start") or std.mem.eql(u8, name, "start-menu")) {
+        openStartMenu("");
     } else if (std.mem.startsWith(u8, name, "module ")) {
         openModulePopoverById(std.mem.trim(u8, name[7..], " \t"));
     } else {
@@ -678,11 +711,20 @@ fn closeOverlay() void {
 
 fn tickAnimation(now: i64) void {
     const s = g.overlay orelse return;
-    const dur: i64 = 150;
+    const dur: i64 = 220;
     var p = @as(f64, @floatFromInt(now - g.menu_anim_start)) / @as(f64, @floatFromInt(dur));
     p = std.math.clamp(p, 0, 1);
     const eased = 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
     g.menu_anim = g.menu_from + (g.menu_target - g.menu_from) * eased;
+    if (g.launcher_open) {
+        const target = @as(f64, @floatFromInt(g.selected));
+        const diff = target - g.selected_anim;
+        if (@abs(diff) > 0.004) {
+            g.selected_anim += diff * 0.30;
+        } else {
+            g.selected_anim = target;
+        }
+    }
     s.dirty = true;
     if (p >= 1.0) {
         g.menu_anim = g.menu_target;
@@ -767,6 +809,8 @@ fn activateOverlayHit(h: m.Hit) void {
         .calendar_next => shiftCalendar(1),
         .calendar_today => resetCalendar(),
         .power => runPowerAction(h.value),
+        .launcher_lock => runPowerAction(0),
+        .launcher_power => openPower(),
         .clipboard_entry => clipboardSelect(h.value),
         .clipboard_clear => clipboardClear(),
         .media_prev => mediaCommand(3),
@@ -987,7 +1031,7 @@ fn launchSelected() void {
 }
 
 fn ensureSelectionVisible() void {
-    const visible: usize = 7;
+    const visible: usize = if (g.launcher_open_style == .start) 9 else 7;
     if (g.result_count == 0) {
         g.selected = 0;
         g.scroll = 0;
@@ -3675,7 +3719,8 @@ fn pollTimeout(now: i64) c_int {
     }
     if (g.overlay) |s| {
         if (s.dirty) return 0;
-        if (now - g.menu_anim_start < 180) return 16;
+        if (now - g.menu_anim_start < 260) return 16;
+        if (g.launcher_open and @abs(@as(f64, @floatFromInt(g.selected)) - g.selected_anim) > 0.004) return 16;
     }
     var next = g.next_clock_ms;
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;

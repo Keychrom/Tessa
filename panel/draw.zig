@@ -434,11 +434,12 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
 
     const accent = g.accent;
     if (g.wallpaper_art) {
+        const art = std.math.clamp(g.wallpaper_art_opacity, 0.0, 1.0);
         // broad wash
         c.cairo_save(cr);
         c.cairo_translate(cr, w * 0.78, h * 0.24);
         c.cairo_scale(cr, 1.7, 1.0);
-        radialFill(cr, 0, 0, 0, h * 0.44, .{ accent[0], accent[1], accent[2], 0.12 }, .{ accent[0], accent[1], accent[2], 0.0 });
+        radialFill(cr, 0, 0, 0, h * 0.44, .{ accent[0], accent[1], accent[2], 0.12 * art }, .{ accent[0], accent[1], accent[2], 0.0 });
         c.cairo_restore(cr);
 
         // ink blots
@@ -461,18 +462,18 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
         const cx = w * 0.79;
         const cy = h * 0.235;
         const sr = h * 0.155;
-        radialFill(cr, cx, cy, sr * 0.65, sr * 2.8, .{ accent[0], accent[1], accent[2], 0.18 }, .{ accent[0], accent[1], accent[2], 0.0 });
+        radialFill(cr, cx, cy, sr * 0.65, sr * 2.8, .{ accent[0], accent[1], accent[2], 0.18 * art }, .{ accent[0], accent[1], accent[2], 0.0 });
 
         c.cairo_save(cr);
         c.cairo_new_sub_path(cr);
         c.cairo_arc(cr, cx, cy, sr, 0, PI * 2.0);
         c.cairo_clip(cr);
-        paintGradientRect(cr, cx - sr, cy - sr, sr * 2, sr * 2, .{ 0.93, 0.47, 0.35, 0.58 }, .{ 0.55, 0.15, 0.15, 0.26 });
+        paintGradientRect(cr, cx - sr, cy - sr, sr * 2, sr * 2, .{ 0.93, 0.47, 0.35, 0.58 * art }, .{ 0.55, 0.15, 0.15, 0.26 * art });
         c.cairo_restore(cr);
 
         c.cairo_new_sub_path(cr);
         c.cairo_arc(cr, cx, cy, sr * 1.26, 0, PI * 2.0);
-        setColor(cr, .{ accent[0], accent[1], accent[2], 0.18 });
+        setColor(cr, .{ accent[0], accent[1], accent[2], 0.18 * art });
         c.cairo_set_line_width(cr, 1.0);
         c.cairo_stroke(cr);
 
@@ -1380,6 +1381,95 @@ fn addOverlayHit(x: f64, y: f64, w: f64, h: f64, hit: m.Hit) void {
     g.overlay_hit_count += 1;
 }
 
+fn launcherRowReveal(row: usize, t: f64) f64 {
+    const delay = 0.10 + @as(f64, @floatFromInt(row)) * 0.035;
+    const span = @max(0.001, 1.0 - delay);
+    const p = std.math.clamp((t - delay) / span, 0.0, 1.0);
+    return 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
+}
+
+/// Shared application list for the wide Wofi-style launcher and the compact
+/// start menu. Hits use the unscaled row position so the reveal animation
+/// cannot move the clickable target.
+fn drawLauncherRows(
+    cr: *c.cairo_t,
+    row_x: f64,
+    row_w: f64,
+    row_y0: f64,
+    row_h: f64,
+    row_gap: f64,
+    visible: usize,
+    compact: bool,
+    t: f64,
+) void {
+    const accent = g.accent;
+    const fg = g.launcher_fg;
+    const fam = m.launcherFont();
+    const stride = row_h + row_gap;
+
+    // The selection marker glides between rows when the keyboard moves.
+    const sel_row = g.selected_anim - @as(f64, @floatFromInt(g.scroll));
+    if (g.result_count > 0 and sel_row > -1.0 and
+        sel_row < @as(f64, @floatFromInt(visible)))
+    {
+        const hy = row_y0 + sel_row * stride;
+        fillRound(cr, row_x, hy, row_w, row_h, 10, .{ accent[0], accent[1], accent[2], 0.16 * t });
+        strokeRound(cr, row_x + 0.5, hy + 0.5, row_w - 1, row_h - 1, 9.5, .{ accent[0], accent[1], accent[2], 0.22 * t }, 1.0);
+        fillRound(cr, row_x + 1.5, hy + 12, 3, row_h - 24, 1.5, .{ accent[0], accent[1], accent[2], 0.95 * t });
+    }
+
+    var row: usize = 0;
+    while (row < visible) : (row += 1) {
+        const idx = g.scroll + row;
+        if (idx >= g.result_count) break;
+        const app_index = g.results[idx];
+        if (app_index >= g.app_list.count) continue;
+        const app = &g.app_list.apps[app_index];
+        const base_y = row_y0 + @as(f64, @floatFromInt(row)) * stride;
+        const reveal = launcherRowReveal(row, t);
+        if (reveal <= 0.002) continue;
+        const y = base_y + (1.0 - reveal) * 8.0;
+        const selected = idx == g.selected;
+        const hovered = row == g.overlay_row_hover;
+
+        c.cairo_push_group(cr);
+        if (hovered and selected == false) {
+            fillRound(cr, row_x, y, row_w, row_h, 10, .{ 1, 1, 1, 0.045 });
+        }
+
+        const icon_size: f64 = if (compact) 28.0 else 32.0;
+        const icon_x = row_x + (if (compact) 10.0 else 14.0);
+        const icon_y = y + (row_h - icon_size) / 2.0;
+        const col = appColor(app);
+        fillRound(cr, icon_x, icon_y, icon_size, icon_size, if (compact) 8.0 else 9.0, .{ col[0], col[1], col[2], 0.9 });
+        var gbuf: [8]u8 = undefined;
+        const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
+        _ = drawTextCentered(cr, glyph, icon_x + (if (compact) 6.5 else 7.0), y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
+
+        const text_x = icon_x + icon_size + (if (compact) 10.0 else 14.0);
+        if (compact) {
+            _ = drawText(cr, app.name[0..app.name_len], text_x, y + 9, fam, "Semi-Bold", 10.8, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - (text_x - row_x) - 34, 0);
+        } else {
+            _ = drawText(cr, app.name[0..app.name_len], text_x, y + 10, fam, "Semi-Bold", 11.2, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - (text_x - row_x) - 64, 0);
+            _ = drawText(cr, app.comment[0..app.comment_len], text_x, y + 28, fam, "Regular", 8.7, .{ 0.62, 0.68, 0.77, 0.62 }, row_w - (text_x - row_x) - 64, 0);
+        }
+
+        if (app.terminal) {
+            const tag_w: f64 = if (compact) 30.0 else 34.0;
+            const tag_x = row_x + row_w - tag_w - (if (compact) 8.0 else 10.0);
+            fillRound(cr, tag_x, y + (row_h - 16) / 2.0, tag_w, 16, 5, .{ 1, 1, 1, 0.05 });
+            _ = drawTextCentered(cr, "TERM", tag_x + 3, y + row_h / 2.0, MONO, "Medium", 6.4, .{ 0.65, 0.71, 0.81, 0.6 }, 0, 0.7);
+        }
+        if (selected) {
+            _ = drawTextCentered(cr, "\xe2\x86\xb5", row_x + row_w - 22, y + row_h / 2.0, MONO, "Medium", if (compact) 10.5 else 12.0, .{ accent[0], accent[1], accent[2], 0.95 }, 0, 0);
+        }
+
+        c.cairo_pop_group_to_source(cr);
+        c.cairo_paint_with_alpha(cr, reveal);
+        addOverlayHit(row_x, base_y, row_w, row_h, .{ .kind = .app, .value = app_index });
+    }
+}
+
 fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64) void {
     const accent = g.accent;
     const bg = g.launcher_bg;
@@ -1505,45 +1595,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
         _ = drawTextCentered(cr, "Nothing matches", px + pw / 2.0 - 70, py + 370, fam, "Semi-Bold", 13.0, .{ 0.86, 0.89, 0.94, 0.75 }, 140, 0);
         _ = drawTextCentered(cr, "Try another word, or open a terminal.", px + pw / 2.0 - 110, py + 392, fam, "Regular", 9.2, .{ 0.60, 0.66, 0.75, 0.55 }, 220, 0);
     } else {
-        var row: usize = 0;
-        while (row < visible) : (row += 1) {
-            const idx = g.scroll + row;
-            if (idx >= g.result_count) break;
-            const app_index = g.results[idx];
-            if (app_index >= g.app_list.count) continue;
-            const app = &g.app_list.apps[app_index];
-            const y = row_y0 + @as(f64, @floatFromInt(row)) * (row_h + row_gap);
-            const selected = idx == g.selected;
-            const hovered = row == g.overlay_row_hover;
-
-            if (selected) {
-                fillRound(cr, row_x, y, row_w, row_h, 10, .{ accent[0], accent[1], accent[2], 0.14 });
-                strokeRound(cr, row_x + 0.5, y + 0.5, row_w - 1, row_h - 1, 9.5, .{ accent[0], accent[1], accent[2], 0.20 }, 1.0);
-                fillRound(cr, row_x + 1.5, y + 13, 3, 22, 1.5, .{ accent[0], accent[1], accent[2], 0.95 });
-            } else if (hovered) {
-                fillRound(cr, row_x, y, row_w, row_h, 10, .{ 1, 1, 1, 0.035 });
-            }
-
-            const col = appColor(app);
-            fillRound(cr, row_x + 14, y + 8, 32, 32, 9, .{ col[0], col[1], col[2], 0.9 });
-            var gbuf: [8]u8 = undefined;
-            const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
-            _ = drawTextCentered(cr, glyph, row_x + 21, y + 24, fam, "Semi-Bold", 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
-
-            _ = drawText(cr, app.name[0..app.name_len], row_x + 60, y + 10, fam, "Semi-Bold", 11.2, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - 130, 0);
-            _ = drawText(cr, app.comment[0..app.comment_len], row_x + 60, y + 28, fam, "Regular", 8.7, .{ 0.62, 0.68, 0.77, 0.62 }, row_w - 130, 0);
-
-            if (app.terminal) {
-                fillRound(cr, row_x + row_w - 78, y + 16, 34, 16, 5, .{ 1, 1, 1, 0.05 });
-                _ = drawTextCentered(cr, "TERM", row_x + row_w - 72, y + 24.5, MONO, "Medium", 6.4, .{ 0.65, 0.71, 0.81, 0.6 }, 0, 0.7);
-            }
-            if (selected) {
-                const arrow = "\xe2\x86\xb5";
-                _ = drawTextCentered(cr, arrow, row_x + row_w - 27, y + 24, MONO, "Medium", 12.0, .{ accent[0], accent[1], accent[2], 0.95 }, 0, 0);
-            }
-
-            addOverlayHit(row_x, y, row_w, row_h, .{ .kind = .app, .value = app_index });
-        }
+        drawLauncherRows(cr, row_x, row_w, row_y0, row_h, row_gap, visible, false, t);
     }
 
     // footer
@@ -1557,6 +1609,181 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     _ = drawText(cr, "\xe2\x86\x91\xe2\x86\x93  navigate      \xe2\x86\xb5  open      esc  close", px + 34, py + ph - 38, fam, "Medium", 8.2, .{ 0.60, 0.66, 0.75, 0.55 }, 0, 0.6);
     drawPetal(cr, px + pw - 96, py + ph - 33, 5, .{ 1, 1, 1, 0.18 });
     _ = drawText(cr, "TESSA", px + pw - 86, py + ph - 38, fam, "Semi-Bold", 7.2, .{ 1, 1, 1, 0.22 }, 0, 1.4);
+
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, t);
+}
+
+fn drawStartMenu(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64) void {
+    const accent = g.accent;
+    const bg = g.launcher_bg;
+    const fg = g.launcher_fg;
+    const fam = m.launcherFont();
+
+    c.cairo_push_group(cr);
+
+    var i: usize = 0;
+    while (i < 6) : (i += 1) {
+        const expand = 6.0 + @as(f64, @floatFromInt(i)) * 5.0;
+        fillRound(cr, px - expand, py - expand + 7, pw + expand * 2, ph + expand * 2, 22 + expand, .{ 0, 0, 0, 0.040 });
+    }
+
+    fillRound(cr, px, py, pw, ph, 22, .{ bg[0], bg[1], bg[2], 0.975 });
+    roundRect(cr, px, py, pw, ph, 22);
+    linearGradient(cr, px, py, px, py + ph, .{
+        std.math.clamp(bg[0] * 1.45 + 0.008, 0, 1),
+        std.math.clamp(bg[1] * 1.45 + 0.008, 0, 1),
+        std.math.clamp(bg[2] * 1.45 + 0.008, 0, 1),
+        0.98,
+    }, .{ bg[0] * 0.62, bg[1] * 0.62, bg[2] * 0.68, 0.99 });
+    c.cairo_fill(cr);
+    strokeRound(cr, px + 0.5, py + 0.5, pw - 1, ph - 1, 21.5, .{ 1, 1, 1, 0.10 }, 1.0);
+
+    const top_pat = c.cairo_pattern_create_linear(px + 28, 0, px + pw - 28, 0);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 0, accent[0], accent[1], accent[2], 0);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 0.5, accent[0], accent[1], accent[2], 0.68);
+    c.cairo_pattern_add_color_stop_rgba(top_pat, 1, accent[0], accent[1], accent[2], 0);
+    c.cairo_set_source(cr, top_pat);
+    c.cairo_rectangle(cr, px + 18, py + 1, pw - 36, 1.2);
+    c.cairo_fill(cr);
+    c.cairo_pattern_destroy(top_pat);
+
+    // Search field
+    const sx = px + 20;
+    const sy = py + 18;
+    const sw = pw - 40;
+    const sh = 46.0;
+    fillRound(cr, sx, sy, sw, sh, 12, .{ 1, 1, 1, 0.050 });
+    strokeRound(cr, sx + 0.5, sy + 0.5, sw - 1, sh - 1, 11.5, .{ 1, 1, 1, 0.085 }, 1.0);
+
+    c.cairo_new_sub_path(cr);
+    c.cairo_arc(cr, sx + 22, sy + 22, 5.2, 0, PI * 2.0);
+    setColor(cr, .{ accent[0], accent[1], accent[2], 0.9 });
+    c.cairo_set_line_width(cr, 1.4);
+    c.cairo_stroke(cr);
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, sx + 26, sy + 26.5);
+    c.cairo_line_to(cr, sx + 31, sy + 31.5);
+    c.cairo_stroke(cr);
+
+    const query = g.query[0..g.query_len];
+    const preedit = g.preedit[0..g.preedit_len];
+    const text_x = sx + 42.0;
+    if (query.len == 0 and preedit.len == 0) {
+        _ = drawTextCentered(cr, "Search applications...", text_x, sy + sh / 2.0, fam, "Regular", 11.6, .{ 0.56, 0.61, 0.70, 0.78 }, sw - 104, 0);
+    } else {
+        var cursor_x = text_x;
+        if (query.len > 0) {
+            const size = drawTextCentered(cr, query, cursor_x, sy + sh / 2.0, fam, "Regular", 11.6, .{ fg[0], fg[1], fg[2], 0.98 }, sw - 104, 0);
+            cursor_x += size.w;
+        }
+        if (preedit.len > 0) {
+            const psize = drawTextCentered(cr, preedit, cursor_x, sy + sh / 2.0, fam, "Regular", 11.6, .{ accent[0], accent[1], accent[2], 0.98 }, sw - 104, 0);
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, cursor_x, sy + 31);
+            c.cairo_line_to(cr, cursor_x + psize.w, sy + 31);
+            setColor(cr, .{ accent[0], accent[1], accent[2], 0.55 });
+            c.cairo_set_line_width(cr, 1.0);
+            c.cairo_stroke(cr);
+            cursor_x += psize.w;
+        }
+        if (@mod(m.nowMs(), 1000) < 520) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, cursor_x + 1.5, sy + 14);
+            c.cairo_line_to(cr, cursor_x + 1.5, sy + 32);
+            setColor(cr, .{ accent[0], accent[1], accent[2], 0.9 });
+            c.cairo_set_line_width(cr, 1.4);
+            c.cairo_stroke(cr);
+        }
+    }
+
+    fillRound(cr, sx + sw - 42, sy + 14, 30, 18, 5, .{ 1, 1, 1, 0.045 });
+    _ = drawTextCentered(cr, "ESC", sx + sw - 34.5, sy + 23, MONO, "Medium", 6.8, .{ 0.65, 0.71, 0.81, 0.55 }, 0, 0.8);
+
+    // Section label
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, px + 20, py + 78);
+    c.cairo_line_to(cr, px + pw - 20, py + 78);
+    setColor(cr, .{ 1, 1, 1, 0.055 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const label = if (query.len == 0) "APPLICATIONS" else "RESULTS";
+    _ = drawText(cr, label, px + 22, py + 90, fam, "Semi-Bold", 7.4, .{ 0.64, 0.70, 0.80, 0.42 }, 0, 1.6);
+    var count_buf: [32]u8 = undefined;
+    const count = std.fmt.bufPrint(&count_buf, "{d}", .{g.result_count}) catch "";
+    const count_w = textWidth(cr, count, MONO, "Medium", 7.2, 0.8);
+    _ = drawText(cr, count, px + pw - 22 - count_w, py + 90, MONO, "Medium", 7.2, .{ 0.60, 0.66, 0.76, 0.42 }, 0, 0.8);
+
+    g.overlay_hit_count = 0;
+    g.overlay_panel = .{ .x = px, .y = py, .w = pw, .h = ph };
+
+    const row_x = px + 16;
+    const row_w = pw - 32;
+    const row_h = 42.0;
+    const row_gap = 4.0;
+    const row_y0 = py + 108;
+    const visible: usize = 9;
+
+    if (g.result_count == 0) {
+        drawPetal(cr, px + pw / 2.0, py + 310, 16, .{ 1, 1, 1, 0.10 });
+        _ = drawTextCentered(cr, "Nothing matches", px + pw / 2.0 - 64, py + 354, fam, "Semi-Bold", 12.0, .{ 0.86, 0.89, 0.94, 0.75 }, 128, 0);
+    } else {
+        drawLauncherRows(cr, row_x, row_w, row_y0, row_h, row_gap, visible, true, t);
+    }
+
+    // User / session footer
+    const footer_y = py + ph - 82.0;
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, px + 18, footer_y);
+    c.cairo_line_to(cr, px + pw - 18, footer_y);
+    setColor(cr, .{ 1, 1, 1, 0.055 });
+    c.cairo_set_line_width(cr, 1);
+    c.cairo_stroke(cr);
+
+    const footer_t = std.math.clamp((t - 0.18) / 0.82, 0.0, 1.0);
+    if (footer_t > 0.002) {
+        c.cairo_push_group(cr);
+        const avatar_x = px + 38;
+        const avatar_y = py + ph - 42;
+        fillCircle(cr, avatar_x, avatar_y, 18, .{ 1, 1, 1, 0.055 });
+        c.cairo_new_sub_path(cr);
+        c.cairo_arc(cr, avatar_x, avatar_y, 18, 0, PI * 2.0);
+        setColor(cr, .{ accent[0], accent[1], accent[2], 0.42 });
+        c.cairo_set_line_width(cr, 1.0);
+        c.cairo_stroke(cr);
+        drawPetal(cr, avatar_x, avatar_y, 8.5, .{ accent[0], accent[1], accent[2], 0.95 });
+
+        const user: []const u8 = if (c.getenv("USER")) |u| std.mem.span(u) else "user";
+        const host: []const u8 = if (c.getenv("HOSTNAME")) |h| std.mem.span(h) else "linux";
+        _ = drawText(cr, user, px + 64, py + ph - 58, fam, "Semi-Bold", 10.8, .{ fg[0], fg[1], fg[2], 0.94 }, pw - 140, 0);
+        _ = drawText(cr, host, px + 64, py + ph - 40, fam, "Regular", 8.0, .{ 0.62, 0.68, 0.77, 0.58 }, pw - 140, 0);
+
+        const lock_cx = px + pw - 72;
+        const power_cx = px + pw - 34;
+        const icon_cy = py + ph - 42;
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, lock_cx, icon_cy - 3, 5.5, PI, 2.0 * PI);
+        setColor(cr, .{ fg[0], fg[1], fg[2], 0.78 });
+        c.cairo_set_line_width(cr, 1.5);
+        c.cairo_stroke(cr);
+        fillRound(cr, lock_cx - 7, icon_cy - 3, 14, 11, 3, .{ fg[0], fg[1], fg[2], 0.78 });
+        addOverlayHit(lock_cx - 16, icon_cy - 16, 32, 32, .{ .kind = .launcher_lock });
+
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, power_cx, icon_cy, 7.5, -PI / 2.0 + 0.62, 3.0 * PI / 2.0 - 0.62);
+        setColor(cr, .{ fg[0], fg[1], fg[2], 0.78 });
+        c.cairo_set_line_width(cr, 1.5);
+        c.cairo_stroke(cr);
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, power_cx, icon_cy - 10);
+        c.cairo_line_to(cr, power_cx, icon_cy - 2);
+        c.cairo_stroke(cr);
+        addOverlayHit(power_cx - 16, icon_cy - 16, 32, 32, .{ .kind = .launcher_power });
+
+        c.cairo_pop_group_to_source(cr);
+        c.cairo_paint_with_alpha(cr, footer_t);
+    }
 
     c.cairo_pop_group_to_source(cr);
     c.cairo_paint_with_alpha(cr, t);
@@ -2886,27 +3113,44 @@ pub fn drawOverlay(s: *m.Surface) void {
     }
 
     if (g.overlay_mode == .launcher) {
-        const l = m.launcherLayout(W, H);
+        const start_style = g.launcher_open_style == .start;
+        const l = if (start_style) m.startMenuLayout(W, H) else m.launcherLayout(W, H);
         g.overlay_hit_scale = l.scale;
         g.overlay_hit_x = l.x;
         g.overlay_hit_y = l.y;
 
-        const anim = 0.984 + 0.016 * t;
         c.cairo_save(cr);
         c.cairo_translate(cr, l.x, l.y);
         c.cairo_scale(cr, l.scale, l.scale);
-        c.cairo_translate(cr, 380.0, 310.0);
-        c.cairo_scale(cr, anim, anim);
-        c.cairo_translate(cr, -380.0, -310.0);
-        drawLauncherPanel(cr, 0, 0, 760, 620, t);
+        if (start_style) {
+            // The start menu grows downward from the bar edge, like a native
+            // desktop start menu, instead of scaling around its center.
+            const drop = (1.0 - t) * 14.0;
+            const anim = 0.985 + 0.015 * t;
+            c.cairo_translate(cr, 0, drop);
+            c.cairo_scale(cr, anim, anim);
+            drawStartMenu(cr, 0, 0, 360, 620, t);
+            g.overlay_panel = .{
+                .x = l.x,
+                .y = l.y,
+                .w = 360.0 * l.scale,
+                .h = 620.0 * l.scale,
+            };
+        } else {
+            const anim = 0.97 + 0.03 * t;
+            c.cairo_translate(cr, 380.0, 310.0);
+            c.cairo_scale(cr, anim, anim);
+            c.cairo_translate(cr, -380.0, -310.0);
+            c.cairo_translate(cr, 0, (1.0 - t) * 8.0);
+            drawLauncherPanel(cr, 0, 0, 760, 620, t);
+            g.overlay_panel = .{
+                .x = l.x,
+                .y = l.y,
+                .w = 760.0 * l.scale,
+                .h = 620.0 * l.scale,
+            };
+        }
         c.cairo_restore(cr);
-
-        g.overlay_panel = .{
-            .x = l.x,
-            .y = l.y,
-            .w = 760.0 * l.scale,
-            .h = 620.0 * l.scale,
-        };
     } else if (g.overlay_mode == .calendar) {
         drawCalendarPopover(cr, W, H, t);
     } else if (g.overlay_mode == .power) {
