@@ -126,6 +126,11 @@ sudo nixos-rebuild switch --flake .#tessa-vm
 
           services.displayManager.sddm.enable = true;
 
+          # 3D アクセラレーションがないと SDDM の Wayland グリーターが
+          # 失敗することがあるため、VM では X11 グリーターを使う。
+          services.displayManager.sddm.wayland.enable = false;
+          services.xserver.enable = true;
+
           # テスト VM 専用: Tessa セッションへ自動ログイン。
           services.displayManager.autoLogin.enable = true;
           services.displayManager.autoLogin.user = "suiren";

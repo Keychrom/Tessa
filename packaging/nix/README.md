@@ -127,6 +127,11 @@ input is used for the module and the `tessa-plain` package:
 
           services.displayManager.sddm.enable = true;
 
+          # Without 3D acceleration the SDDM Wayland greeter may fail; use the
+          # X11 greeter on a VM.
+          services.displayManager.sddm.wayland.enable = false;
+          services.xserver.enable = true;
+
           # Test VM only: boot straight into the Tessa session.
           services.displayManager.autoLogin.enable = true;
           services.displayManager.autoLogin.user = "suiren";
