@@ -2897,6 +2897,7 @@ fn processMediaMessages() void {
                     }
                     c.cairo_surface_mark_dirty(surface);
                     g.media_art_surface = surface;
+                    logDebug("media: artwork {d}x{d}", .{ w, h });
                 } else if (surface != null) {
                     c.cairo_surface_destroy(surface);
                 }

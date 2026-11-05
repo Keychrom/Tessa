@@ -15,7 +15,8 @@ BUS_NAME = "org.mpris.MediaPlayer2.tessatest"
 PATH = "/org/mpris/MediaPlayer2"
 PLAYER = "org.mpris.MediaPlayer2.Player"
 
-state = {"status": "Playing", "title": "Test Song"}
+state = {"status": "Playing", "title": "Test Song", "position": 30000000}
+ART_URL = os.environ.get("FAKE_ART_URL", "")
 conn = None
 
 
@@ -23,7 +24,11 @@ def metadata_variant():
     metadata = {
         "xesam:title": GLib.Variant("s", state["title"]),
         "xesam:artist": GLib.Variant("as", ["Test Artist"]),
+        "mpris:length": GLib.Variant("x", 180000000),
+        "mpris:trackid": GLib.Variant("o", "/org/mpris/MediaPlayer2/Track/1"),
     }
+    if ART_URL:
+        metadata["mpris:artUrl"] = GLib.Variant("s", ART_URL)
     return GLib.Variant("a{sv}", metadata)
 
 
@@ -34,6 +39,7 @@ def on_properties(connection, sender, path, interface, method, params, invocatio
             values = {
                 "PlaybackStatus": GLib.Variant("s", state["status"]),
                 "Metadata": metadata_variant(),
+                "Position": GLib.Variant("x", state["position"]),
             }
             invocation.return_value(GLib.Variant("(a{sv})", (values,)))
             return
@@ -53,6 +59,9 @@ def on_player(connection, sender, path, interface, method, params, invocation):
         state["title"] = "Track 2"
     elif method == "Previous":
         state["title"] = "Test Song"
+    elif method == "SetPosition":
+        _track, position = params.unpack()
+        state["position"] = position
     invocation.return_value(None)
 
 
@@ -69,6 +78,10 @@ def register(connection):
         <method name="PlayPause"/>
         <method name="Next"/>
         <method name="Previous"/>
+        <method name="SetPosition">
+          <arg type="o" direction="in"/>
+          <arg type="x" direction="in"/>
+        </method>
       </interface>
     </node>
     """
