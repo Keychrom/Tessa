@@ -606,8 +606,7 @@ static gboolean wifi_connect_cb(gpointer data) {
         GVariant *settings = make_settings(req->ssid, (guint8)strlen(req->ssid),
             req->psk, req->hidden != 0, sae);
         const char *specific = req->ap_path[0] ? req->ap_path : "/";
-        g_printerr("tessa-system: settings type=%s ssid=%s psk_len=%zu path=%s specific=%s\n",
-            g_variant_get_type_string(settings), req->ssid, strlen(req->psk), wifi_dev, specific);
+
         GVariant *children[3] = {
             g_variant_ref_sink(settings),
             g_variant_new_object_path(wifi_dev),
