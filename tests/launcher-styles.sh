@@ -86,8 +86,9 @@ fi
 tessa-ctl panel start
 wait_log "tessa-panel: launcher style: start"
 if [ -n "${TESSA_CAPTURE_DIR:-}" ] && command -v grim >/dev/null 2>&1; then
-    sleep 0.4
+    sleep 1.0
     grim "$TESSA_CAPTURE_DIR/launcher-start.png"
+    cp "$runtime/tessa.log" "$TESSA_CAPTURE_DIR/tessa.log"
 fi
 
 tessa-ctl quit
