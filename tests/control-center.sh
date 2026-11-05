@@ -77,7 +77,7 @@ wait_log() {
 
 wait_log "tessa-panel: state: output=HEADLESS-1"
 
-"$bin/tessa-panel" --check >"$runtime/check.out"
+"$bin/tessa-panel" --check >"$runtime/check.out" 2>&1
 grep -q "panel style=unified" "$runtime/check.out"
 grep -q "control-features=wifi,bluetooth,focus,notifications,media,volume,brightness,power_profile,battery,quick_actions,tray,calendar,power" "$runtime/check.out"
 
@@ -86,7 +86,7 @@ panel = true
 panel_style = classic
 control_features = wifi
 EOF
-TESSA_CONFIG="$runtime/classic.conf" "$bin/tessa-panel" --check >"$runtime/classic.out"
+TESSA_CONFIG="$runtime/classic.conf" "$bin/tessa-panel" --check >"$runtime/classic.out" 2>&1
 grep -q "panel style=classic" "$runtime/classic.out"
 grep -q "control-features=wifi$" "$runtime/classic.out"
 
@@ -94,7 +94,7 @@ cat > "$runtime/none.conf" <<EOF
 panel = true
 control_features = none
 EOF
-TESSA_CONFIG="$runtime/none.conf" "$bin/tessa-panel" --check >"$runtime/none.out"
+TESSA_CONFIG="$runtime/none.conf" "$bin/tessa-panel" --check >"$runtime/none.out" 2>&1
 grep -q "control-features=$" "$runtime/none.out"
 
 tessa-ctl panel control >/dev/null

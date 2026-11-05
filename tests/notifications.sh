@@ -217,6 +217,8 @@ out=$(notify "test-app" 0 "Expiring" "Should disappear" 1000)
 id=$(printf '%s\n' "$out" | notification_id)
 wait_log "notification: added id=$id total=1"
 wait_log "notification: toast expired id=$id"
+gdbus call --session     --dest org.freedesktop.Notifications     --object-path /org/freedesktop/Notifications     --method org.freedesktop.Notifications.CloseNotification "$id" >/dev/null
+wait_log "notification: removed id=$id total=0"
 echo "notification expiry: ok (history retained)"
 
 out=$(notify "test-app" 0 "First" "base" 10000)
