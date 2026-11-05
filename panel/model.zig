@@ -1044,6 +1044,7 @@ pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
 /// Compact Windows-style start menu, anchored to the bar edge. The 360x620
 /// design is scaled down on small outputs.
 pub fn startMenuLayout(w: f64, h: f64) LauncherLayout {
+    const side: f64 = @floatFromInt(g.bar_side_margin);
     const edge: f64 = @floatFromInt(g.bar_top_margin);
     const thickness: f64 = @floatFromInt(g.bar_height);
     const gap = 8.0;
@@ -1097,6 +1098,7 @@ pub fn barHorizontal() bool {
 /// Bar rectangle in output coordinates. The surface itself is configured by
 /// the compositor; this mirrors the anchors and margins used by createBar().
 pub fn barOutputRect(w: f64, h: f64) struct { x: f64, y: f64, w: f64, h: f64 } {
+    const side: f64 = @floatFromInt(g.bar_side_margin);
     const edge: f64 = @floatFromInt(g.bar_top_margin);
     const thickness: f64 = @floatFromInt(g.bar_height);
     return switch (g.bar_position) {
