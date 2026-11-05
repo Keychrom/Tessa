@@ -305,6 +305,8 @@ panel_fg = #eef2f8
 # EGL/GLES2 presents it and a shader adds subtle water/ink motion. Falls back
 # to Cairo when EGL/GLES is unavailable or presentation fails.
 # panel_renderer = gpu
+# With panel_renderer = gpu: cairo (Cairo texture) or procedural (GPU-generated).
+# wallpaper_engine = procedural
 # off, on, or auto (auto pauses on battery and after wallpaper_idle_pause).
 # wallpaper_animation = auto
 # wallpaper_fps = 30

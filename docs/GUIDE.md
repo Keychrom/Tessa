@@ -580,6 +580,7 @@ stagger, and slides its selection marker between results.
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
 | `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
 | `panel_renderer` | `cairo` | Background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
+| `wallpaper_engine` | `cairo` | With `panel_renderer = gpu`: `cairo` texture or `procedural` GPU-generated Vermilion Ink |
 | `wallpaper_animation` | `off` | GPU wallpaper motion: `off`, `on`, or `auto` (pause on battery and after `wallpaper_idle_pause`) |
 | `wallpaper_idle_pause` | `120` | Seconds without input before `auto` pauses; `0` disables the idle pause |
 | `wallpaper_fps` | `30` | GPU wallpaper frame rate (1–120) |
@@ -596,9 +597,13 @@ stagger, and slides its selection marker between results.
 Changing bar geometry recreates the bar layer surface and updates its exclusive
 zone.
 
-`panel_renderer = gpu` keeps Cairo as the source of truth for the wallpaper:
-the panel renders it once, uploads it as a texture, and an EGL/GLES2 shader
-adds the optional water/ink motion. `wallpaper_animation = auto` pauses on
+`panel_renderer = gpu` with the default `wallpaper_engine = cairo` keeps Cairo as
+the source of truth for the wallpaper: the panel renders it once, uploads it as
+a texture, and an EGL/GLES2 shader adds the optional water/ink motion.
+`wallpaper_engine = procedural` instead generates the gradient, ink, sun, and
+water directly in the shader and only uploads the small corner mark; palette
+changes cross-fade over 300 ms. `wallpaper_image` and `wallpaper_shader` keep
+the texture path. `wallpaper_animation = auto` pauses on
 battery power, after `wallpaper_idle_pause` seconds without input, and whenever
 a fullscreen window is visible; `on` ignores the battery and idle checks but
 still pauses for fullscreen and overlays. It needs a usable client-side EGL/GLES

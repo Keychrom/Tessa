@@ -228,8 +228,8 @@ the `scanout_frames` counter show whether it is active.
 ## GPU panel background (opt-in)
 
 `tessa-panel` normally renders with Cairo into `wl_shm` buffers. Setting
-`panel_renderer = gpu` keeps Cairo as the source of truth but changes how the
-background layer is presented:
+`panel_renderer = gpu` changes how the background layer is presented. With the
+default `wallpaper_engine = cairo`:
 
 1. On configure, scale change, or config reload, the panel renders the existing
    wallpaper (gradient, ink, sun, image or shader frame, and signature) into a
@@ -238,6 +238,12 @@ background layer is presented:
 3. A `wl_egl_window` plus an EGL/GLES2 context presents a fullscreen triangle.
    The fragment shader samples the texture and adds restrained water ripples,
    ink drift, and a slow sun pulse.
+
+With `wallpaper_engine = procedural`, steps 1-2 are skipped for the background:
+the shader generates the gradient, wash, ink, sun, water lines, grain, and
+vignette directly. The small corner mark is still rendered by Cairo once and
+uploaded as a transparent texture. Palette changes cross-fade over 300 ms.
+`wallpaper_image` and `wallpaper_shader` continue to use the texture path.
 4. `wallpaper_animation = on` schedules redraws at `wallpaper_fps` (default
    30). `auto` additionally pauses on battery power and after
    `wallpaper_idle_pause` seconds without input. Both modes pause while an

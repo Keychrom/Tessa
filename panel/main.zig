@@ -3735,7 +3735,7 @@ fn updateTimers(now: i64) void {
         if (g.overlay) |s| s.dirty = true;
         g.next_blink_ms = now + 500;
     }
-    if (gpu.animationActive(now)) {
+    if (gpu.animationActive(now) or gpu.fading()) {
         if (g.next_wallpaper_ms == 0) g.next_wallpaper_ms = now;
         if (now >= g.next_wallpaper_ms) {
             g.bg.dirty = true;
@@ -3752,7 +3752,7 @@ fn pollTimeout(now: i64) c_int {
     if (frame_blocked and now - g.gpu_frame_ms >= 250) return 0;
     if (((g.bg.configured and g.bg.dirty) or (g.bar.configured and g.bar.dirty)) and
         !frame_blocked) return 0;
-    if (gpu.animationActive(now) and g.next_wallpaper_ms == 0 and !frame_blocked) return 0;
+    if ((gpu.animationActive(now) or gpu.fading()) and g.next_wallpaper_ms == 0 and !frame_blocked) return 0;
     if (g.toasts) |s| {
         if (s.dirty) return 0;
     }
@@ -3765,7 +3765,7 @@ fn pollTimeout(now: i64) c_int {
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;
     if (g.next_system_ms < next) next = g.next_system_ms;
     if (g.launcher_open and g.next_blink_ms < next) next = g.next_blink_ms;
-    if (gpu.animationActive(now) and !frame_blocked and
+    if ((gpu.animationActive(now) or gpu.fading()) and !frame_blocked and
         g.next_wallpaper_ms > 0 and g.next_wallpaper_ms < next)
     {
         next = g.next_wallpaper_ms;

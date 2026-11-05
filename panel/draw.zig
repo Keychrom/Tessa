@@ -273,6 +273,7 @@ pub fn setSurfaceScale(s: *m.Surface, scale: i32) void {
         if (gpu.configure(s, s.width * physical, s.height * physical)) {
             destroyBuffers(s);
             m.g.bg_base_dirty = true;
+            m.g.mark_dirty = true;
             s.dirty = true;
             return;
         }
@@ -295,6 +296,7 @@ pub fn configureSurface(s: *m.Surface, width: u32, height: u32) void {
         if (gpu.configure(s, width * physical, height * physical)) {
             destroyBuffers(s);
             m.g.bg_base_dirty = true;
+            m.g.mark_dirty = true;
             s.dirty = true;
             return;
         }
@@ -598,6 +600,55 @@ fn renderBackgroundBase(s: *m.Surface) ?*c.cairo_surface_t {
     return img;
 }
 
+fn renderBackgroundMark(s: *m.Surface) ?*c.cairo_surface_t {
+    const scale: u32 = @intCast(@max(1, s.scale));
+    const img = c.cairo_image_surface_create(
+        c.CAIRO_FORMAT_ARGB32,
+        @intCast(220 * scale),
+        @intCast(60 * scale),
+    );
+    if (img == null or c.cairo_surface_status(img) != c.CAIRO_STATUS_SUCCESS) {
+        if (img) |surface| c.cairo_surface_destroy(surface);
+        return null;
+    }
+    const cr = c.cairo_create(img) orelse {
+        c.cairo_surface_destroy(img);
+        return null;
+    };
+    const scl: f64 = @floatFromInt(scale);
+    c.cairo_scale(cr, scl, scl);
+    setCairoQuality(cr);
+    drawPetal(cr, 70, 30, 7, .{ 1, 1, 1, 0.16 });
+    _ = drawText(cr, "TESSA", 84, 24, m.popoverFont(), "Semi-Bold", 8, .{ 1, 1, 1, 0.20 }, 0, 2.4);
+    _ = drawText(cr, "SUMI SHELL / 01", 84, 36, MONO, "Medium", 6.5, .{ 1, 1, 1, 0.10 }, 0, 1.2);
+    c.cairo_destroy(cr);
+    c.cairo_surface_flush(img);
+    return img;
+}
+
+fn backgroundPalette() gpu.Palette {
+    const bg = m.g.bg_rgb;
+    const top: [3]f64 = if (m.g.bg_top_set) m.g.bg_top else .{
+        std.math.clamp(bg[0] * 1.9 + 0.012, 0, 1),
+        std.math.clamp(bg[1] * 1.9 + 0.018, 0, 1),
+        std.math.clamp(bg[2] * 1.9 + 0.030, 0, 1),
+    };
+    const bottom: [3]f64 = if (m.g.bg_bottom_set) m.g.bg_bottom else .{
+        bg[0] * 0.55,
+        bg[1] * 0.55,
+        bg[2] * 0.6,
+    };
+    return .{
+        .top = .{ @floatCast(top[0]), @floatCast(top[1]), @floatCast(top[2]) },
+        .bottom = .{ @floatCast(bottom[0]), @floatCast(bottom[1]), @floatCast(bottom[2]) },
+        .accent = .{ @floatCast(m.g.accent[0]), @floatCast(m.g.accent[1]), @floatCast(m.g.accent[2]) },
+        .art = if (m.g.wallpaper_art)
+            @floatCast(std.math.clamp(m.g.wallpaper_art_opacity, 0, 1))
+        else
+            0.0,
+    };
+}
+
 fn drawBackgroundGpu(s: *m.Surface) bool {
     if (!gpu.ready()) return false;
     if (s.gpu == null) {
@@ -605,7 +656,17 @@ fn drawBackgroundGpu(s: *m.Surface) bool {
         if (!gpu.configure(s, s.width * physical, s.height * physical)) return false;
         destroyBuffers(s);
     }
-    if (m.g.bg_base_dirty) {
+    const has_image = m.g.wallpaper_image_len > 0 or m.g.wallpaper_shader_len > 0;
+    const procedural = m.g.wallpaper_engine == .procedural and !has_image;
+    if (procedural) {
+        if (m.g.mark_dirty) {
+            if (renderBackgroundMark(s)) |mark| {
+                defer c.cairo_surface_destroy(mark);
+                _ = gpu.setMark(s, mark);
+            }
+            m.g.mark_dirty = false;
+        }
+    } else if (m.g.bg_base_dirty) {
         const base = renderBackgroundBase(s) orelse {
             gpu.fail("wallpaper base render failed");
             return false;
@@ -620,7 +681,7 @@ fn drawBackgroundGpu(s: *m.Surface) bool {
     else
         0.0;
     const framed = if (animate) gpu.requestFrame(s) else false;
-    if (!gpu.draw(s, time, animate)) {
+    if (!gpu.draw(s, backgroundPalette(), time, animate, procedural)) {
         gpu.cancelFrame();
         return false;
     }

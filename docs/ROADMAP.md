@@ -66,6 +66,8 @@ default desktop safe.
 - [x] Opt-in EGL/GLES2 panel background renderer: Cairo-authored wallpaper
       texture, shader water/ink animation, `panel_renderer`,
       `wallpaper_animation`, and automatic Cairo fallback.
+- [x] Procedural GPU wallpaper engine (`wallpaper_engine = procedural`) with
+      palette cross-fades and a Cairo-rendered corner mark.
 - [x] Investigate HDR/color management: wlroots 0.20 exposes color-management
       v1 and output color transforms, but Tessa's GLES2/scenefx path and the
       absence of tone mapping require a Vulkan-renderer design first.

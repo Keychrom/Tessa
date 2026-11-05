@@ -228,8 +228,8 @@ GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを
 ## GPU パネル背景（opt-in）
 
 `tessa-panel` は通常 Cairo で `wl_shm` バッファへ描画します。
-`panel_renderer = gpu` にしても壁紙の見た目は Cairo が正のままです。変わるのは
-背景レイヤーの提示方法だけです:
+`panel_renderer = gpu` は背景レイヤーの提示方法を変えます。既定の
+`wallpaper_engine = cairo` では:
 
 1. configure、スケール変更、設定リロード時に、既存の壁紙（グラデーション、
    インク、太陽、画像またはシェーダーフレーム、署名）を物理解像度の Cairo
@@ -238,6 +238,12 @@ GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを
 3. `wl_egl_window` と EGL/GLES2 コンテキストでフルスクリーン三角形を描画し、
    フラグメントシェーダーが水面のさざ波、インクの揺らぎ、太陽の淡い脈動を
    加えます。
+
+`wallpaper_engine = procedural` では背景の 1〜2 を省略し、グラデーション、
+ウォッシュ、インク、太陽、水面、グレイン、ビネットをシェーダーで直接生成
+します。小さなコーナーマークだけは Cairo で一度描いて透明テクスチャとして
+アップロードします。パレット変更は 300ms でクロスフェードします。
+`wallpaper_image` と `wallpaper_shader` はテクスチャ経路のままです。
 4. `wallpaper_animation = on` で `wallpaper_fps`（既定30）の間隔で再描画
    します。`auto` はさらにバッテリー駆動時と、`wallpaper_idle_pause` 秒間
    入力がないときに停止します。どちらもオーバーレイ／フルスクリーン表示中、

@@ -60,9 +60,26 @@ int tessa_gpu_set_base(
     return 0;
 }
 
-int tessa_gpu_draw(TessaGpuSurface *surface, float time, int animate) {
+int tessa_gpu_set_mark(
+    TessaGpuSurface *surface,
+    const unsigned char *argb_pixels,
+    int width,
+    int height,
+    int stride) {
     (void)surface;
-    (void)time;
-    (void)animate;
+    (void)argb_pixels;
+    (void)width;
+    (void)height;
+    (void)stride;
+    return 0;
+}
+
+void tessa_gpu_clear_mark(TessaGpuSurface *surface) {
+    (void)surface;
+}
+
+int tessa_gpu_draw(TessaGpuSurface *surface, const TessaGpuParams *params) {
+    (void)surface;
+    (void)params;
     return 0;
 }

@@ -48,7 +48,7 @@ export TESSA_DEBUG=1
 export TESSA_PANEL_DEBUG=1
 
 "$bin/tessa-panel" --check >"$runtime/check.log" 2>&1
-grep -qF "panel renderer=gpu wallpaper-animation=on fps=30 idle-pause=120" "$runtime/check.log" || {
+grep -qF "panel renderer=gpu wallpaper-engine=cairo wallpaper-animation=on fps=30 idle-pause=120" "$runtime/check.log" || {
     echo "panel renderer config was not parsed" >&2
     cat "$runtime/check.log" >&2
     exit 1

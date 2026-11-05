@@ -104,6 +104,10 @@ fn fullscreenVisible() bool {
     return false;
 }
 
+pub fn fading() bool {
+    return fade_start != 0;
+}
+
 pub fn animationActive(now: i64) bool {
     if (m.g.panel_renderer != .gpu or !ready()) return false;
     if (m.g.wallpaper_animation == .off) return false;
@@ -156,9 +160,75 @@ pub fn setBase(s: *m.Surface, image: *c.cairo_surface_t) bool {
     return true;
 }
 
-pub fn draw(s: *m.Surface, time: f64, animate: bool) bool {
+pub const Palette = struct {
+    top: [3]f32,
+    bottom: [3]f32,
+    accent: [3]f32,
+    art: f32,
+};
+
+var last_palette: Palette = undefined;
+var prev_palette: Palette = undefined;
+var palette_valid = false;
+var fade_start: i64 = 0;
+
+fn samePalette(a: Palette, b: Palette) bool {
+    return std.mem.eql(f32, a.top[0..], b.top[0..]) and
+        std.mem.eql(f32, a.bottom[0..], b.bottom[0..]) and
+        std.mem.eql(f32, a.accent[0..], b.accent[0..]) and
+        a.art == b.art;
+}
+
+pub fn setMark(s: *m.Surface, image: *c.cairo_surface_t) bool {
     const surface = s.gpu orelse return false;
-    if (c.tessa_gpu_draw(surface, @floatCast(time), if (animate) 1 else 0) == 0) {
+    if (c.cairo_surface_get_type(image) != c.CAIRO_SURFACE_TYPE_IMAGE) return false;
+    c.cairo_surface_flush(image);
+    const data = c.cairo_image_surface_get_data(image) orelse return false;
+    const width = c.cairo_image_surface_get_width(image);
+    const height = c.cairo_image_surface_get_height(image);
+    const stride = c.cairo_image_surface_get_stride(image);
+    return c.tessa_gpu_set_mark(surface, data, width, height, stride) != 0;
+}
+
+pub fn draw(s: *m.Surface, palette: Palette, time: f64, animate: bool, procedural: bool) bool {
+    const surface = s.gpu orelse return false;
+    if (!procedural) {
+        last_palette = palette;
+        prev_palette = palette;
+        palette_valid = true;
+        fade_start = 0;
+    } else if (!palette_valid) {
+        last_palette = palette;
+        prev_palette = palette;
+        palette_valid = true;
+        fade_start = 0;
+    } else if (!samePalette(last_palette, palette)) {
+        prev_palette = last_palette;
+        last_palette = palette;
+        fade_start = m.nowMs();
+    }
+    const now = m.nowMs();
+    var fade: f32 = 1.0;
+    if (fade_start != 0) {
+        fade = std.math.clamp(@as(f32, @floatFromInt(now - fade_start)) / 300.0, 0.0, 1.0);
+        if (fade >= 1.0) fade_start = 0;
+    }
+
+    var params: c.TessaGpuParams = undefined;
+    params.top = palette.top;
+    params.bottom = palette.bottom;
+    params.accent = palette.accent;
+    params.bg = .{ 0.039, 0.059, 0.102 };
+    params.art = palette.art;
+    params.prev_top = prev_palette.top;
+    params.prev_bottom = prev_palette.bottom;
+    params.prev_accent = prev_palette.accent;
+    params.prev_art = prev_palette.art;
+    params.fade = fade;
+    params.time = @floatCast(time);
+    params.animate = if (animate) 1 else 0;
+    params.procedural = if (procedural) 1 else 0;
+    if (c.tessa_gpu_draw(surface, &params) == 0) {
         disable("background draw failed");
         return false;
     }

@@ -592,6 +592,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
 | `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
 | `panel_renderer` | `cairo` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。利用できなければ Cairo へ自動フォールバック） |
+| `wallpaper_engine` | `cairo` | `panel_renderer = gpu` 時の壁紙: `cairo`（テクスチャ）または `procedural`（GPU が Vermilion Ink を生成） |
 | `wallpaper_animation` | `off` | GPU 壁紙の動き: `off`、`on`、または `auto`（バッテリー駆動と `wallpaper_idle_pause` 経過後に停止） |
 | `wallpaper_idle_pause` | `120` | 無入力で `auto` が停止するまでの秒数。`0` で無効 |
 | `wallpaper_fps` | `30` | GPU 壁紙のフレームレート（1〜120） |
@@ -608,9 +609,13 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 `bar_height` などを変更すると、設定リロード時にバーの layer surface が
 作り直され、予約領域も更新されます。
 
-`panel_renderer = gpu` は壁紙の見た目を Cairo のまま保ちます。パネルが一度だけ
-Cairo で描いてテクスチャとしてアップロードし、EGL/GLES2 のシェーダーが任意の
-水面／インクの動きを加えます。`wallpaper_animation = auto` はバッテリー駆動時、
+`panel_renderer = gpu` の既定 `wallpaper_engine = cairo` は壁紙の見た目を
+Cairo のまま保ちます。パネルが一度だけ Cairo で描いてテクスチャとして
+アップロードし、EGL/GLES2 のシェーダーが任意の水面／インクの動きを加えます。
+`wallpaper_engine = procedural` はグラデーション、インク、太陽、水面を
+シェーダーで直接生成し、小さなコーナーマークだけをアップロードします。
+パレット変更は 300ms でクロスフェードします。`wallpaper_image` と
+`wallpaper_shader` はテクスチャ経路を使います。`wallpaper_animation = auto` はバッテリー駆動時、
 `wallpaper_idle_pause` 秒間入力がないとき、フルスクリーンウィンドウ表示中に
 停止します。`on` はバッテリーとアイドル判定を無視しますが、フルスクリーンと
 オーバーレイ表示中は停止します。コンポジタへ提示できるクライアント側 EGL/GLES
