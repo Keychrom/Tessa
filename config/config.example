@@ -258,6 +258,9 @@ panel = true
 # Panel geometry and bar palette. Changes apply on config reload; a geometry
 # change recreates the bar layer surface.
 bar_height = 44
+# Bar edge: top (default), bottom, left, or right. bar_top_margin is the
+# distance from that edge; bar_side_margin is the inset along the bar.
+bar_position = top
 bar_top_margin = 12
 bar_side_margin = 16
 panel_bg = #0e1320
@@ -291,7 +294,7 @@ panel_fg = #eef2f8
 # popover-bg = #0d1220
 # toast-bg = #0e1320
 # Launcher layout: centered (Wofi-style) or start (Windows-style, anchored
-# below the bar). The default is centered.
+# to the bar edge). The default is centered.
 # launcher_style = centered
 # Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
 # wallpaper_art = false for a clean gradient without ink/sun/water artwork.

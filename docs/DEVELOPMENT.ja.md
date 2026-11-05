@@ -280,6 +280,15 @@ sh tests/modes.sh
 sh tests/panel-theme.sh
 ```
 
+`tests/bar-position.sh` は headless コンポジタを既定の上バーで起動し、
+`bar_position=bottom`、`left`、`right` でリロードします。再作成された
+layer surface の寸法（横長／縦長）と、各リロード後もパネルが動作している
+ことを確認します。
+
+```sh
+sh tests/bar-position.sh
+```
+
 ### アニメーション/視覚設定のテスト
 
 `tests/animations.sh` はパネルなしのプライベートな headless コンポジタを

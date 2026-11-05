@@ -205,7 +205,7 @@ stop_compositor
 write_config true
 start_compositor
 wait_state "OUT HEADLESS-1 1 1 master"
-wait_log "tessa-panel: bar: 56px top=8 side=20"
+wait_log "tessa-panel: bar: position=top 56px edge=8 inset=20"
 echo "panel output theme: ok"
 
 stop_compositor

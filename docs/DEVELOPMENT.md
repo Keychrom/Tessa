@@ -356,6 +356,15 @@ panel.
 sh tests/panel-theme.sh
 ```
 
+`tests/bar-position.sh` starts a headless compositor with the default top bar,
+then reloads with `bar_position=bottom`, `left`, and `right`. It checks the
+recreated layer surface dimensions (horizontal versus vertical) and that the
+panel survives each reload.
+
+```sh
+sh tests/bar-position.sh
+```
+
 ### Animation and visual test
 
 `tests/animations.sh` starts a private headless compositor without the panel,

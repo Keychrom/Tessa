@@ -23,6 +23,7 @@ pub const MAX_EXTENSIONS = 16;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
 pub const LauncherStyle = enum { centered, start };
+pub const BarPosition = enum { top, bottom, left, right };
 pub const PanelRenderer = enum { cairo, gpu };
 pub const OverlayRenderer = enum { cairo, gpu };
 pub const WallpaperAnimation = enum { off, on, auto };
@@ -684,6 +685,7 @@ pub const Panel = struct {
     popover_fg_set: bool = false,
     toast_fg_set: bool = false,
     bar_height: i32 = 44,
+    bar_position: BarPosition = .top,
     bar_top_margin: i32 = 12,
     bar_side_margin: i32 = 16,
     bar_layout: [256]u8 = undefined,
@@ -767,17 +769,72 @@ pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
     };
 }
 
-/// Compact Windows-style start menu, anchored below the left side of the bar.
-/// The 360x620 design is scaled down on small outputs.
+/// Compact Windows-style start menu, anchored to the bar edge. The 360x620
+/// design is scaled down on small outputs.
 pub fn startMenuLayout(w: f64, h: f64) LauncherLayout {
-    const margin: f64 = @floatFromInt(g.bar_side_margin);
-    const bar_bottom: f64 = @floatFromInt(g.bar_top_margin + g.bar_height);
-    const x = margin;
-    const y = bar_bottom + 8.0;
-    const fit_x = (w - margin * 2.0) / 360.0;
-    const fit_y = (h - y - 16.0) / 620.0;
+    const side: f64 = @floatFromInt(g.bar_side_margin);
+    const edge: f64 = @floatFromInt(g.bar_top_margin);
+    const thickness: f64 = @floatFromInt(g.bar_height);
+    const gap = 8.0;
+
+    var avail_w = w - side * 2.0;
+    var avail_h = h - (edge + thickness + gap) - 8.0;
+    switch (g.bar_position) {
+        .left, .right => {
+            avail_w = w - (edge + thickness + gap) - 8.0;
+            avail_h = h - side * 2.0;
+        },
+        else => {},
+    }
+    const fit_x = avail_w / 360.0;
+    const fit_y = avail_h / 620.0;
     const scale = std.math.clamp(@min(1.0, @min(fit_x, fit_y)), 0.35, 1.0);
+
+    var x = side;
+    var y = edge + thickness + gap;
+    switch (g.bar_position) {
+        .bottom => y = h - edge - thickness - gap - 620.0 * scale,
+        .left => {
+            x = edge + thickness + gap;
+            y = side;
+        },
+        .right => {
+            x = w - edge - thickness - gap - 360.0 * scale;
+            y = side;
+        },
+        else => {},
+    }
+    x = std.math.clamp(x, 8.0, @max(8.0, w - 360.0 * scale - 8.0));
+    y = std.math.clamp(y, 8.0, @max(8.0, h - 620.0 * scale - 8.0));
     return .{ .x = x, .y = y, .scale = scale };
+}
+
+/// Direction the start menu slides from while opening.
+pub fn startMenuSlide() struct { x: f64, y: f64 } {
+    return switch (g.bar_position) {
+        .top => .{ .x = 0, .y = 14 },
+        .bottom => .{ .x = 0, .y = -14 },
+        .left => .{ .x = 14, .y = 0 },
+        .right => .{ .x = -14, .y = 0 },
+    };
+}
+
+pub fn barHorizontal() bool {
+    return g.bar_position == .top or g.bar_position == .bottom;
+}
+
+/// Bar rectangle in output coordinates. The surface itself is configured by
+/// the compositor; this mirrors the anchors and margins used by createBar().
+pub fn barOutputRect(w: f64, h: f64) struct { x: f64, y: f64, w: f64, h: f64 } {
+    const side: f64 = @floatFromInt(g.bar_side_margin);
+    const edge: f64 = @floatFromInt(g.bar_top_margin);
+    const thickness: f64 = @floatFromInt(g.bar_height);
+    return switch (g.bar_position) {
+        .top => .{ .x = side, .y = edge, .w = w - side * 2.0, .h = thickness },
+        .bottom => .{ .x = side, .y = h - edge - thickness, .w = w - side * 2.0, .h = thickness },
+        .left => .{ .x = edge, .y = side, .w = thickness, .h = h - side * 2.0 },
+        .right => .{ .x = w - edge - thickness, .y = side, .w = thickness, .h = h - side * 2.0 },
+    };
 }
 
 pub fn barFont() []const u8 {
@@ -1309,6 +1366,69 @@ pub fn planBar(width: f64, available: f64) BarPlan {
     return planBarImpl(width, available, false);
 }
 
+/// Approximate row height used by the vertical (left/right) bar. Keep this in
+/// sync with drawBarVertical().
+pub fn barModuleHeight(module: BarModule) f64 {
+    return switch (module) {
+        .clock => 46.0,
+        .battery, .network, .volume => 26.0,
+        .stats => 38.0,
+        .media => 28.0,
+        .tray => @max(24.0, @as(f64, @floatFromInt(g.tray_count)) * 24.0),
+        .status => @max(24.0, @as(f64, @floatFromInt(g.status_count)) * 24.0),
+        .layout, .groups, .mode, .effects => 24.0,
+        .logo, .workspaces, .chips => 0.0,
+    };
+}
+
+/// Overflow plan for a vertical bar. Each module is one or more stacked rows;
+/// hidden modules collapse into the same "+N" chip as the horizontal bar.
+pub fn planBarVertical(available: f64) BarPlan {
+    var plan = BarPlan{};
+    if (!g.bar_overflow or available <= 0) return plan;
+
+    var candidates: [BAR_MODULE_COUNT]BarModule = undefined;
+    var candidate_count: usize = 0;
+    var total: f64 = 0;
+    for (g.bar_modules[0..g.bar_module_count]) |module| {
+        switch (module) {
+            .logo, .workspaces, .chips => continue,
+            else => {},
+        }
+        if (!barModuleActive(module)) continue;
+        candidates[candidate_count] = module;
+        candidate_count += 1;
+        total += barModuleHeight(module);
+    }
+    if (candidate_count > 1) {
+        total += @as(f64, @floatFromInt(candidate_count - 1)) * 6.0;
+    }
+
+    var remaining = candidate_count;
+    while (remaining > 0 and total + 24.0 > available) {
+        var lowest: ?usize = null;
+        for (candidates[0..candidate_count], 0..) |module, i| {
+            if (plan.hidden[@intFromEnum(module)]) continue;
+            if (lowest) |best| {
+                if (g.bar_priorities[@intFromEnum(module)] <
+                    g.bar_priorities[@intFromEnum(candidates[best])])
+                {
+                    lowest = i;
+                }
+            } else {
+                lowest = i;
+            }
+        }
+        const index = lowest orelse break;
+        const module = candidates[index];
+        plan.hidden[@intFromEnum(module)] = true;
+        plan.hidden_count += 1;
+        total -= barModuleHeight(module) + 6.0;
+        remaining -= 1;
+    }
+    return plan;
+}
+
 /// Diagnostic used by `tessa-panel --bar-plan WIDTH [LEFT]`: assumes every
 /// configured right-cluster module is active, so priorities can be tuned
 /// without opening a session at that size.
@@ -1545,6 +1665,18 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             hexColor(val, &g.panel_fg);
         } else if (std.mem.eql(u8, key, "bar_height")) {
             g.bar_height = std.fmt.parseInt(i32, val, 10) catch g.bar_height;
+        } else if (std.mem.eql(u8, key, "bar_position") or std.mem.eql(u8, key, "bar-position")) {
+            if (std.mem.eql(u8, val, "top")) {
+                g.bar_position = .top;
+            } else if (std.mem.eql(u8, val, "bottom")) {
+                g.bar_position = .bottom;
+            } else if (std.mem.eql(u8, val, "left")) {
+                g.bar_position = .left;
+            } else if (std.mem.eql(u8, val, "right")) {
+                g.bar_position = .right;
+            } else {
+                std.debug.print("tessa-panel: invalid bar_position '{s}' (top|bottom|left|right)\n", .{val});
+            }
         } else if (std.mem.eql(u8, key, "bar_top_margin")) {
             g.bar_top_margin = std.fmt.parseInt(i32, val, 10) catch g.bar_top_margin;
         } else if (std.mem.eql(u8, key, "bar_side_margin")) {
@@ -1861,6 +1993,7 @@ pub fn loadConfig() void {
     g.popover_fg_set = false;
     g.toast_fg_set = false;
     g.bar_height = 44;
+    g.bar_position = .top;
     g.bar_top_margin = 12;
     g.bar_side_margin = 16;
     copyTrunc(&g.power_lock, &g.power_lock_len, "loginctl lock-session");
@@ -1926,6 +2059,12 @@ pub fn printConfigSummary() void {
         g.toast_fg[0],    g.toast_fg[1],    g.toast_fg[2],
     });
     std.debug.print("panel bar-layout={s}\n", .{g.bar_layout[0..g.bar_layout_len]});
+    std.debug.print("panel bar-position={s} bar-height={d} top-margin={d} side-margin={d}\n", .{
+        @tagName(g.bar_position),
+        g.bar_height,
+        g.bar_top_margin,
+        g.bar_side_margin,
+    });
     std.debug.print("panel panel-modules=", .{});
     const module_items = [_]struct { bit: u16, name: []const u8 }{
         .{ .bit = MODULE_BACKGROUND, .name = "background" },

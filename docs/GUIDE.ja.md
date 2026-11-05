@@ -613,9 +613,10 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | キー | 既定値 | 内容 |
 | --- | --- | --- |
 | `panel` / `autostart_panel` | `true` | `tessa-panel` を出力ごとに自動起動 |
-| `bar_height` | `44` | バーの高さ（32〜96） |
-| `bar_top_margin` | `12` | 上端からの距離（0〜64） |
-| `bar_side_margin` | `16` | 左右マージン（0〜128） |
+| `bar_height` | `44` | バーの太さ／高さ（32〜96） |
+| `bar_position` | `top` | バーの位置: `top`、`bottom`、`left`、`right` |
+| `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
+| `bar_side_margin` | `16` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
 | `panel_bg` | `#0e131d` | `panel.background` と各サーフェス既定値の基底背景色 |
 | `panel_fg` | `#edf2fa` | `panel.foreground` と各サーフェス既定値の基底前景色 |
 | `panel_modules` | 全部 | 有効にするパネル要素: `background`、`bar`、`launcher`、`popovers`、`notifications`、`toasts`、`tray`、`media`、`audio`。`all`/`none` も可 |
@@ -624,7 +625,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar-fg`、`launcher-fg`、`popover-fg`、`toast-fg` | `panel_fg` | サーフェス別前景色 |
 | `bar-bg`、`launcher-bg`、`popover-bg`、`toast-bg` | `panel_bg` | サーフェス別背景色 |
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
-| `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
+| `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー端に合わせた Windows 風メニュー） |
 | `panel_renderer` | `cairo` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。利用できなければ Cairo へ自動フォールバック） |
 | `overlay_renderer` | `cairo` | ランチャー／ポップオーバー: `cairo` または `gpu`（Cairo 内容をテクスチャ化し GPU で拡大／フェード） |
 | `wallpaper_engine` | `cairo` | `panel_renderer = gpu` 時の壁紙: `cairo`（テクスチャ）または `procedural`（GPU が Vermilion Ink を生成） |
@@ -641,8 +642,11 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `volume_down` | 空 | 音量下げコマンド |
 | `volume_mute` | 空 | ミュート切り替えコマンド |
 
-`bar_height` などを変更すると、設定リロード時にバーの layer surface が
-作り直され、予約領域も更新されます。
+`bar_height` や `bar_position` を変更すると、設定リロード時にバーの layer
+surface が作り直され、予約領域も更新されます。`left`/`right` では縦長の
+バーになり、ワークスペースとウィンドウチップが上から、ステータス
+モジュールが下から積み上がります。ランチャーとポップオーバーも選んだ端に
+合わせて表示されます。
 
 `panel_renderer = gpu` の既定 `wallpaper_engine = cairo` は壁紙の見た目を
 Cairo のまま保ちます。パネルが一度だけ Cairo で描いてテクスチャとして

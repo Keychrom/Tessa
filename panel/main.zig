@@ -180,24 +180,66 @@ fn applyPanelScale(scale: i32) void {
 }
 
 fn createBar() void {
+    const anchors: u32 = switch (g.bar_position) {
+        .top => @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+        .bottom => @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+        .left => @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM),
+        .right => @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+            c.ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM),
+    };
+    const horizontal = m.barHorizontal();
+    var top: i32 = 0;
+    var right: i32 = 0;
+    var bottom: i32 = 0;
+    var left: i32 = 0;
+    switch (g.bar_position) {
+        .top => {
+            top = g.bar_top_margin;
+            left = g.bar_side_margin;
+            right = g.bar_side_margin;
+        },
+        .bottom => {
+            bottom = g.bar_top_margin;
+            left = g.bar_side_margin;
+            right = g.bar_side_margin;
+        },
+        .left => {
+            left = g.bar_top_margin;
+            top = g.bar_side_margin;
+            bottom = g.bar_side_margin;
+        },
+        .right => {
+            right = g.bar_top_margin;
+            top = g.bar_side_margin;
+            bottom = g.bar_side_margin;
+        },
+    }
     const created = createLayerSurface(
         &g.bar,
         g.target_output,
         .bar,
         @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
-        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
-        0,
-        @intCast(g.bar_height),
-        g.bar_top_margin,
-        g.bar_side_margin,
-        0,
-        g.bar_side_margin,
+        anchors,
+        if (horizontal) 0 else @intCast(g.bar_height),
+        if (horizontal) @intCast(g.bar_height) else 0,
+        top,
+        right,
+        bottom,
+        left,
         g.bar_height,
         0,
         "tessa-bar",
     );
     if (created) {
-        logMsg("bar: {d}px top={d} side={d}", .{
+        logMsg("bar: position={s} {d}px edge={d} inset={d}", .{
+            @tagName(g.bar_position),
             g.bar_height,
             g.bar_top_margin,
             g.bar_side_margin,
@@ -991,6 +1033,7 @@ fn reloadPanelConfig() void {
     const old_height = g.bar_height;
     const old_top = g.bar_top_margin;
     const old_side = g.bar_side_margin;
+    const old_position = g.bar_position;
     const old_renderer = g.panel_renderer;
     const old_overlay_renderer = g.overlay_renderer;
     var old_volume_status: [512]u8 = undefined;
@@ -1035,7 +1078,7 @@ fn reloadPanelConfig() void {
     refreshApps();
     if (volume_changed) restartAudioService();
     if (g.bar_height != old_height or g.bar_top_margin != old_top or
-        g.bar_side_margin != old_side)
+        g.bar_side_margin != old_side or g.bar_position != old_position)
     {
         destroyBar();
         createBar();
@@ -1043,7 +1086,7 @@ fn reloadPanelConfig() void {
         g.bar.dirty = true;
     }
     if (g.bar_height != old_height or g.bar_top_margin != old_top or
-        g.bar_side_margin != old_side)
+        g.bar_side_margin != old_side or g.bar_position != old_position)
     {
         destroyToasts();
         updateToastsSurface();
@@ -1818,19 +1861,26 @@ fn updateToastsSurface() void {
 
     const s = @as(*m.Surface, @ptrCast(@alignCast(c.calloc(1, @sizeOf(m.Surface)).?)));
     s.* = std.mem.zeroes(m.Surface);
-    const top = g.bar_top_margin + g.bar_height + 8;
+    const right_bar = g.bar_position == .right;
+    const toast_top = if (g.bar_position == .top)
+        g.bar_top_margin + g.bar_height + 8
+    else
+        g.bar_side_margin;
     if (!createLayerSurface(
         s,
         if (focused) |info| info.wl else g.target_output,
         .toasts,
         @intCast(c.ZWLR_LAYER_SHELL_V1_LAYER_TOP),
-        @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
+        if (right_bar)
+            @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT)
+        else
+            @intCast(c.ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | c.ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT),
         @intCast(TOAST_WIDTH),
         @intCast(height),
-        top,
-        g.bar_side_margin,
+        toast_top,
+        if (right_bar) 0 else g.bar_side_margin,
         0,
-        0,
+        if (right_bar) g.bar_side_margin else 0,
         0,
         0,
         "tessa-notifications",

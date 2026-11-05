@@ -305,7 +305,7 @@ restarts were exercised by
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
-`tests/panel-theme.sh`,
+`tests/panel-theme.sh`, `tests/bar-position.sh`,
 `tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,

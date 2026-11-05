@@ -583,9 +583,10 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `border_inactive` | 非フォーカス時ボーダー色 |
 | `border_width` | ボーダー幅（論理ピクセル） |
 | `font` | パネル/ランチャーのフォント |
-| `bar_height` | バーの高さ（32〜96 論理ピクセル） |
-| `bar_top_margin` | 上端からの距離（0〜64） |
-| `bar_side_margin` | 左右マージン（0〜128） |
+| `bar_height` | バーの太さ／高さ（32〜96 論理ピクセル） |
+| `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
+| `bar_top_margin` | 選んだ端からの距離（0〜64） |
+| `bar_side_margin` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
 | `panel_bg` | バーの背景色 |
 | `panel_fg` | バーの主要テキスト色 |
 | `bg_top` | 壁紙グラデーションの上端色。未指定なら `bg` から導出 |
@@ -626,6 +627,12 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 ロゴ、ワークスペースピル、ウィンドウチップは固定位置のままです。
 `tessa-panel --list-modules` はモジュール一覧と、コンポジタ文脈を公開する
 モジュールかどうかを表示します。
+
+`bar_position = left` または `right` では同じモジュールを縦に積みます。
+ロゴ、ワークスペースピル、ウィンドウチップが上から、右側クラスタが下から
+並びます。モジュールはコンパクト表示（アイコン、短いラベル、省略テキスト）
+になり、オーバーフローは幅ではなく行の高さで判定します。`start` ランチャーと
+ポップオーバーはバーの横に開きます。
 
 ```ini
 bar_layout = logo, workspaces, chips, layout, groups, mode, effects, clock, tray, status

@@ -581,9 +581,10 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `border_inactive` | unfocused border color |
 | `border_width` | border thickness in logical pixels |
 | `font` | panel/launcher family |
-| `bar_height` | bar height in logical pixels (32–96) |
-| `bar_top_margin` | distance from the top edge (0–64) |
-| `bar_side_margin` | left/right margin (0–128) |
+| `bar_height` | bar thickness/height in logical pixels (32–96) |
+| `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
+| `bar_top_margin` | distance from the chosen edge (0–64) |
+| `bar_side_margin` | inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
 | `panel_bg` | bar background color |
 | `panel_fg` | bar primary text color |
 | `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
@@ -624,6 +625,12 @@ without a restart. Theme packages are loaded through `theme`; see below.
 closest to the right edge). The logo, workspace pills, and window chips keep
 their anchored positions. `tessa-panel --list-modules` prints the registry,
 including whether a module exposes compositor context.
+
+With `bar_position = left` or `right`, the same modules stack vertically: the
+logo, workspace pills, and window chips from the top, and the right-hand cluster
+from the bottom. Modules are compact (icons, short labels, truncated text) and
+overflow is based on row heights instead of widths. The start launcher and
+popovers open beside the bar.
 
 ```ini
 bar_layout = logo, workspaces, chips, layout, groups, mode, effects, clock, tray, status

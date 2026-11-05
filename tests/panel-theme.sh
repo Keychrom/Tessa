@@ -95,7 +95,7 @@ wait_log() {
     exit 1
 }
 
-wait_log "tessa-panel: bar: 64px top=6 side=10"
+wait_log "tessa-panel: bar: position=top 64px edge=6 inset=10"
 for var in TESSA_PANEL_OUTPUT_MAKE TESSA_PANEL_OUTPUT_MODEL TESSA_PANEL_OUTPUT_SERIAL; do
     if ! grep -q "^$var=" "$runtime/panel-env"; then
         echo "panel did not receive $var" >&2
@@ -109,7 +109,7 @@ echo "panel theme initial: ok"
 
 write_config 72 20 8 "#203040"
 tessa-ctl dispatch reload
-wait_log "tessa-panel: bar: 72px top=20 side=8"
+wait_log "tessa-panel: bar: position=top 72px edge=20 inset=8"
 if ! pgrep -x tessa-panel >/dev/null 2>&1; then
     echo "panel died while recreating its bar" >&2
     cat "$runtime/tessa.log" >&2

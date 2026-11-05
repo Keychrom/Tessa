@@ -601,9 +601,10 @@ stagger, and slides its selection marker between results.
 | --- | --- | --- |
 | `panel` / `autostart_panel` | `true` | Auto-start `tessa-panel` per output |
 | `panel_modules` | all | Enabled panel parts: `background`, `bar`, `launcher`, `popovers`, `notifications`, `toasts`, `tray`, `media`, `audio`; also `all`/`none` |
-| `bar_height` | `44` | Bar height (32–96) |
-| `bar_top_margin` | `12` | Distance from the top (0–64) |
-| `bar_side_margin` | `16` | Left/right margin (0–128) |
+| `bar_height` | `44` | Bar thickness/height (32–96) |
+| `bar_position` | `top` | Bar edge: `top`, `bottom`, `left`, or `right` |
+| `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
+| `bar_side_margin` | `16` | Inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
 | `panel_bg` | `#0e131d` | Base panel background used by `panel.background` and per-surface defaults |
 | `panel_fg` | `#edf2fa` | Base panel foreground used by `panel.foreground` and per-surface defaults |
 | `bar_layout` | all modules | Comma/space-separated module list; selects and orders the right cluster |
@@ -611,7 +612,7 @@ stagger, and slides its selection marker between results.
 | `bar-fg`, `launcher-fg`, `popover-fg`, `toast-fg` | `panel_fg` | Per-surface foreground colors |
 | `bar-bg`, `launcher-bg`, `popover-bg`, `toast-bg` | `panel_bg` | Per-surface background colors |
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
-| `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
+| `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu anchored to the bar edge) |
 | `panel_renderer` | `cairo` | Background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
 | `overlay_renderer` | `cairo` | Launcher/popover presentation: `cairo` or `gpu` (cached Cairo texture, GPU scale/fade) |
 | `wallpaper_engine` | `cairo` | With `panel_renderer = gpu`: `cairo` texture or `procedural` GPU-generated Vermilion Ink |
@@ -628,8 +629,10 @@ stagger, and slides its selection marker between results.
 | `volume_down` | empty | Volume-down command |
 | `volume_mute` | empty | Mute-toggle command |
 
-Changing bar geometry recreates the bar layer surface and updates its exclusive
-zone.
+Changing bar geometry or `bar_position` recreates the bar layer surface and
+updates its exclusive zone. On `left`/`right` the bar becomes a vertical strip:
+workspaces and window chips stack from the top, and status modules stack upward
+from the bottom. The launcher and popovers anchor to the chosen edge.
 
 `panel_renderer = gpu` with the default `wallpaper_engine = cairo` keeps Cairo as
 the source of truth for the wallpaper: the panel renders it once, uploads it as
