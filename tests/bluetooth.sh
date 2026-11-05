@@ -121,7 +121,7 @@ wait_fake() {
     exit 1
 }
 
-wait_log "tessa-panel: system: bt=1"
+wait_log "bt=1 powered=true"
 tessa-ctl panel bluetooth >/dev/null
 wait_log "tessa-panel: control: open view=bluetooth"
 wait_log "layer map: tessa-overlay layer=3 keyboard=1"
