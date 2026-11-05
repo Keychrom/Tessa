@@ -4426,9 +4426,10 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
         } else .{
             fg[0], fg[1], fg[2], 0.45,
         });
+        const name_max: f64 = if (paired) 150.0 else 80.0;
         _ = drawText(cr, if (d.name_len > 0) d.name[0..d.name_len] else "Unknown device", x + 30, y + 5, fam, "Medium", 9.0, .{
             fg[0], fg[1], fg[2], 0.9,
-        }, w - (if (paired) 150.0 else 80.0), 0);
+        }, w - name_max, 0);
         const detail = if (connected) "Connected" else if (paired) "Paired" else "Available";
         _ = drawText(cr, detail, x + 30, y + 21, fam, "Regular", 7.0, .{
             0.64, 0.70, 0.80, 0.5,
@@ -4748,9 +4749,10 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
     drawControlButton(cr, "CONNECT", mx + mw - 90, my + mh - 42, 72, 26, true);
     addOverlayHit(mx + mw - 90, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.modal_confirm) });
 
+    const field_y: f64 = if (g.wifi_modal == .wifi_hidden) 104.0 else 58.0;
     g.control_input_rect = .{
         @intFromFloat(mx * @as(f64, @floatFromInt(g.scale))),
-        @intFromFloat((my + (if (g.wifi_modal == .wifi_hidden) 104.0 else 58.0)) * @as(f64, @floatFromInt(g.scale))),
+        @intFromFloat((my + field_y) * @as(f64, @floatFromInt(g.scale))),
         @intFromFloat((mw - 36.0) * @as(f64, @floatFromInt(g.scale))),
         @intFromFloat(30.0 * @as(f64, @floatFromInt(g.scale))),
     };
