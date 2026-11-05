@@ -77,6 +77,23 @@ wait_log() {
 
 wait_log "tessa-panel: state: output=HEADLESS-1"
 
+wait_log_count() {
+    pattern=$1
+    count=$2
+    i=0
+    while [ "$i" -lt 100 ]; do
+        n=$(grep -cF "$pattern" "$runtime/tessa.log" 2>/dev/null || true)
+        if [ "${n:-0}" -ge "$count" ]; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 0.1
+    done
+    echo "log did not reach $count occurrences of: $pattern" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+}
+
 "$bin/tessa-panel" --check >"$runtime/check.out" 2>&1
 grep -q "panel style=unified" "$runtime/check.out"
 grep -q "control-features=wifi,bluetooth,focus,notifications,media,volume,brightness,power_profile,battery,quick_actions,tray,calendar,power" "$runtime/check.out"
@@ -106,6 +123,7 @@ echo "control center home + close: ok"
 
 tessa-ctl panel wifi >/dev/null
 wait_log "tessa-panel: control: open view=wifi"
+wait_log_count "layer map: tessa-overlay layer=3 keyboard=1" 2
 wtype -k Escape
 wait_log "tessa-panel: control: view=home"
 wtype -k Escape
@@ -114,6 +132,7 @@ echo "wifi view + back: ok"
 
 tessa-ctl panel bluetooth >/dev/null
 wait_log "tessa-panel: control: open view=bluetooth"
+wait_log_count "layer map: tessa-overlay layer=3 keyboard=1" 3
 wtype -k Escape
 wait_log "tessa-panel: control: view=home"
 wtype -k Escape
@@ -122,6 +141,7 @@ echo "bluetooth view + back: ok"
 
 tessa-ctl panel notifications >/dev/null
 wait_log "tessa-panel: control: open view=notifications"
+wait_log_count "layer map: tessa-overlay layer=3 keyboard=1" 4
 wtype -k Escape
 wait_log "tessa-panel: control: view=home"
 wtype -k Escape
