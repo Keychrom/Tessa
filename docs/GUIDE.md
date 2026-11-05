@@ -603,6 +603,9 @@ stagger, and slides its selection marker between results.
 | `panel_modules` | all | Enabled panel parts: `background`, `bar`, `launcher`, `popovers`, `notifications`, `toasts`, `tray`, `media`, `audio`; also `all`/`none` |
 | `bar_height` | `44` | Bar thickness/height (32–96) |
 | `bar_position` | `top` | Bar edge: `top`, `bottom`, `left`, or `right` |
+| `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
+| `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
+| `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
 | `bar_side_margin` | `16` | Inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
 | `panel_bg` | `#0e131d` | Base panel background used by `panel.background` and per-surface defaults |
@@ -1763,11 +1766,50 @@ the selection without keyboard focus. Treat session applications as trusted.
 - `Up`/`Down`, `Enter`, `Esc`, or click
 - Lock/Suspend/Reboot/Power Off commands are configurable
 
+### Control center
+
+`panel_style = classic` (default) keeps the separate clock, volume, media,
+tray, Wi-Fi, and Bluetooth popovers. `panel_style = unified` adds a Controls
+button to the bar and replaces the bar's popover entry points with one control
+center:
+
+- Wi-Fi: NetworkManager scan, signal, WPA2/WPA3-PSK and open networks, hidden
+  SSIDs, saved connections, connect/disconnect/forget, radio on/off
+- Bluetooth: BlueZ adapter power, discovery, device list, pair/connect/
+  disconnect/forget, battery percentage, pairing confirmation and passkey
+  prompts
+- Focus (do-not-disturb), notification history (50 entries), clear, actions
+- Volume and brightness sliders, power profile (power-profiles-daemon)
+- Media card with local `file://` artwork, progress, and click-to-seek
+- Battery, lock/suspend/reboot/power off, screenshot, clipboard, settings, and
+  up to four `control_action` buttons
+
+`control_features` hides individual features (for example
+`control_features = wifi, bluetooth, volume, notifications`). In classic mode
+the same key gates the Wi-Fi/Bluetooth popovers and the Bluetooth indicator.
+The clock still opens the calendar, the tray opens the tray view, and the
+power menu opens the power view in unified mode.
+
+Wi-Fi uses the system NetworkManager D-Bus API. Basic WPA2/WPA3-PSK, open, and
+hidden networks are supported; 802.1X/EAP, VPNs, and captive portals are not.
+Bluetooth uses BlueZ directly. The pairing agent is registered only by the
+primary panel, so pairing on a secondary output is intentionally unavailable.
+Notification history is in memory and is shown by the notification-owner panel
+only.
+
+Brightness uses `/sys/class/backlight` and logind `SetBrightness`; desktops
+without a backlight hide the slider. Power profiles require
+power-profiles-daemon. NetworkManager, BlueZ, power-profiles-daemon, and logind
+are optional runtime services. If a service is missing, the control center
+shows an unavailable state instead of failing the panel.
+
 ### Notifications
 
 The panel owns `org.freedesktop.Notifications`:
 
 - Replacement, close, expiry
+- A 50-entry in-memory history with Focus/DND, clear, and actions in the
+  unified control center
 - Action buttons and the `default` action
 - `image-data`, `image-path`, `icon-name`
 - Pango markup
@@ -1785,7 +1827,7 @@ output pinning.
 - Clock/calendar
 - Battery
 - Default-route network state
-- MPRIS media (first player, no album art)
+- MPRIS media (first player, local album artwork in the control center)
 - StatusNotifier tray (no DBusMenu)
 - Volume (`wpctl`/`pactl`/`amixer`)
 - Up to eight custom status entries

@@ -20,6 +20,7 @@ Build-Depends: debhelper-compat (= 13),
                libcairo2-dev,
                libpango1.0-dev,
                libglib2.0-dev,
+               libgdk-pixbuf-2.0-dev,
                libfontconfig1-dev
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
@@ -30,6 +31,8 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, xcursor-themes
 Recommends: xwayland-satellite, foot | kitty
 Suggests: kitty, swaylock, swayidle, wlopm, dbus,
+          network-manager, bluez, power-profiles-daemon, upower,
+          polkitd | policykit-1,
           xdg-desktop-portal, xdg-desktop-portal-wlr, pipewire
 Description: quiet tiled Wayland compositor and desktop shell
  Tessa is a wlroots-based tiled Wayland compositor written in Zig. It includes

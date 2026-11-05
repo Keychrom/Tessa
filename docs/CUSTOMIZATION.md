@@ -583,6 +583,9 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `font` | panel/launcher family |
 | `bar_height` | bar thickness/height in logical pixels (32–96) |
 | `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
+| `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
+| `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
+| `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | distance from the chosen edge (0–64) |
 | `bar_side_margin` | inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
 | `panel_bg` | bar background color |

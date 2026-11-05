@@ -216,9 +216,8 @@ echo "CloseNotification: ok"
 out=$(notify "test-app" 0 "Expiring" "Should disappear" 1000)
 id=$(printf '%s\n' "$out" | notification_id)
 wait_log "notification: added id=$id total=1"
-wait_log_count "layer map: tessa-notifications layer=2 keyboard=0" 2
-wait_log "notification: removed id=$id total=0"
-echo "notification expiry + toast recreation: ok"
+wait_log "notification: toast expired id=$id"
+echo "notification expiry: ok (history retained)"
 
 out=$(notify "test-app" 0 "First" "base" 10000)
 id=$(printf '%s\n' "$out" | notification_id)

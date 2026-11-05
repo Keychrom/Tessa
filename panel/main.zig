@@ -2595,6 +2595,7 @@ fn expireNotifications(now: i64) void {
         if (n.toast_visible and n.expire_ms > 0 and now >= n.expire_ms) {
             n.toast_visible = false;
             changed = true;
+            logMsg("notification: toast expired id={d} total={d}", .{ n.id, g.notification_count });
         }
     }
     if (changed) {

@@ -6,7 +6,7 @@ pkgdesc="A quiet tiled Wayland compositor and desktop shell written in Zig"
 arch=('x86_64')
 url="https://github.com/Keychrom/Tessa"
 license=('MIT')
-depends=('wlroots0.20' 'scenefx' 'wayland' 'libinput' 'libxkbcommon' 'pixman' 'libdrm' 'cairo' 'pango' 'glib2' 'libglvnd' 'xcursor-themes')
+depends=('wlroots0.20' 'scenefx' 'wayland' 'libinput' 'libxkbcommon' 'pixman' 'libdrm' 'cairo' 'pango' 'glib2' 'gdk-pixbuf2' 'libglvnd' 'xcursor-themes')
 makedepends=('git' 'zig')
 optdepends=(
     'xwayland-satellite-git: run X11 applications'
@@ -18,6 +18,11 @@ optdepends=(
     'swayidle: idle management and locking'
     'wlopm: output power management'
     'dbus: desktop notifications'
+    'networkmanager: Wi-Fi control center'
+    'bluez: Bluetooth control center'
+    'power-profiles-daemon: power profile switch'
+    'upower: battery information'
+    'polkit: authorization for NetworkManager and Bluetooth'
     'fcitx5: input method framework'
     'fcitx5-mozc: Japanese input'
     'xdg-desktop-portal: desktop portals'

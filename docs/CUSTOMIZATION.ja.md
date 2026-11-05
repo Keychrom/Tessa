@@ -585,6 +585,9 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `font` | パネル/ランチャーのフォント |
 | `bar_height` | バーの太さ／高さ（32〜96 論理ピクセル） |
 | `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
+| `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
+| `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
+| `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
 | `panel_bg` | バーの背景色 |

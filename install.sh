@@ -111,7 +111,7 @@ APT_PACKAGES=(
     libwayland-dev wayland-protocols libxkbcommon-dev libpixman-1-dev libdrm-dev
     libinput-dev libevdev-dev libmtdev-dev libwacom-dev libseat-dev libudev-dev
     libegl-dev libgles-dev libgbm-dev libglvnd-dev
-    libcairo2-dev libpango1.0-dev libglib2.0-dev libfontconfig1-dev
+    libcairo2-dev libpango1.0-dev libglib2.0-dev libgdk-pixbuf-2.0-dev libfontconfig1-dev
     libdisplay-info-dev libliftoff-dev liblcms2-dev hwdata
     libxcb1-dev libxcb-dri3-dev libxcb-present-dev libxcb-render0-dev
     libxcb-render-util0-dev libxcb-shm0-dev libxcb-xfixes0-dev libxcb-xinput-dev
@@ -124,6 +124,7 @@ RECOMMENDED_PACKAGES=(
     fcitx5 fcitx5-mozc
     xdg-desktop-portal xdg-desktop-portal-wlr pipewire wireplumber dbus-user-session
     wlr-randr grim xwayland
+    network-manager bluez power-profiles-daemon upower policykit-1
 )
 
 have_pkg() {

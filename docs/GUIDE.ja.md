@@ -615,6 +615,9 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `panel` / `autostart_panel` | `true` | `tessa-panel` を出力ごとに自動起動 |
 | `bar_height` | `44` | バーの太さ／高さ（32〜96） |
 | `bar_position` | `top` | バーの位置: `top`、`bottom`、`left`、`right` |
+| `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
+| `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
+| `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | `16` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
 | `panel_bg` | `#0e131d` | `panel.background` と各サーフェス既定値の基底背景色 |
@@ -1783,6 +1786,41 @@ Fcitx5 は実行中キーボードグラブを保持します。Tessa は入力�
 - `TESSA` マーク右クリックで電源メニュー
 - `Up`/`Down`、`Enter`、`Esc`、クリック
 - Lock/Suspend/Reboot/Power Off のコマンドを設定可能
+
+### コントロールパネル
+
+`panel_style = classic`（既定）は、時計・音量・メディア・トレイ・Wi-Fi・
+Bluetooth の個別ポップオーバーを維持します。`panel_style = unified` ではバーに
+Controls ボタンが追加され、バーの各ポップオーバー入口が1つのコントロールパネルに
+まとまります。
+
+- Wi-Fi: NetworkManager のスキャン、電波強度、WPA2/WPA3-PSK・オープン、
+  隠しSSID、保存済み接続、接続/切断/忘れる、ラジオON/OFF
+- Bluetooth: BlueZ のアダプタ電源、探索、デバイス一覧、ペアリング/接続/
+  切断/忘れる、バッテリー残量、確認・パスキー入力
+- Focus（通知の一時停止）、通知履歴（50件）、クリア、アクション
+- 音量・輝度スライダー、電源プロファイル（power-profiles-daemon）
+- メディアカード（ローカルの `file://` ジャケット、進行バー、クリックシーク）
+- バッテリー、ロック/サスペンド/再起動/電源OFF、スクリーンショット、
+  クリップボード、設定、最大4件の `control_action`
+
+`control_features` で機能単位に表示を切り替えられます（例:
+`control_features = wifi, bluetooth, volume, notifications`）。classic では
+同じキーが Wi-Fi/Bluetooth ポップオーバーと Bluetooth インジケータを制御します。
+unified では時計がカレンダー、トレイがトレイビュー、電源メニューが電源ビューを
+開きます。
+
+Wi-Fi はシステムの NetworkManager D-Bus API を使います。WPA2/WPA3-PSK、
+オープン、隠しSSID に対応し、802.1X/EAP・VPN・キャプティブポータルは対象外です。
+Bluetooth は BlueZ を直接使い、ペアリングエージェントはプライマリパネルだけが
+登録します（セカンダリ出力ではペアリング不可）。通知履歴はメモリ内で、
+通知オーナーのパネルだけに表示されます。
+
+輝度は `/sys/class/backlight` と logind の `SetBrightness` を使い、バックライトが
+ない環境ではスライダーを隠します。電源プロファイルには
+power-profiles-daemon が必要です。NetworkManager、BlueZ、
+power-profiles-daemon、logind は任意の実行時サービスで、ない場合は
+「利用不可」表示になりパネル自体は継続します。
 
 ### 12.5 通知
 

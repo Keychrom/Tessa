@@ -76,6 +76,31 @@ in
         manager still needs to be enabled separately.
       '';
     };
+
+    networkmanager = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Enable NetworkManager so the Tessa control center can manage Wi-Fi.
+        This changes the system network configuration; enable it only when
+        NetworkManager is the intended network backend.
+      '';
+    };
+
+    bluetooth = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Enable BlueZ for the Tessa Bluetooth control center.";
+    };
+
+    powerProfiles = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Enable power-profiles-daemon for the Tessa power profile switch.
+        Do not enable it together with TLP or auto-cpufreq.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -110,6 +135,9 @@ in
     security.polkit.enable = lib.mkDefault true;
     services.dbus.enable = lib.mkDefault true;
     hardware.graphics.enable = lib.mkDefault true;
+    services.networkmanager.enable = lib.mkIf cfg.networkmanager true;
+    hardware.bluetooth.enable = lib.mkIf cfg.bluetooth true;
+    services.power-profiles-daemon.enable = lib.mkIf cfg.powerProfiles true;
 
     xdg.portal = lib.mkIf cfg.portals {
       enable = lib.mkDefault true;

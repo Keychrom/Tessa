@@ -263,6 +263,19 @@ bar_height = 44
 bar_position = top
 bar_top_margin = 12
 bar_side_margin = 16
+# Panel style: classic (default) keeps the separate calendar/audio/media/tray
+# popovers. unified adds a Controls button and one control center for Wi-Fi,
+# Bluetooth, focus, volume, brightness, media, notifications, power profiles,
+# battery, tray, calendar, power actions, and quick actions.
+panel_style = classic
+# Features shown in the unified control center. In classic mode this gates the
+# Wi-Fi/Bluetooth popovers and the Bluetooth indicator. Comma, space, or `|`
+# separated; `all` and `none` are accepted.
+# Names: wifi, bluetooth, focus, notifications, media, volume, brightness,
+# power_profile, battery, quick_actions, tray, calendar, power.
+control_features = all
+# Add a quick action (repeatable, up to four): Label | command.
+# control_action = Screen record | wf-recorder -f ~/Videos/record.mp4
 panel_bg = #0e1320
 panel_fg = #eef2f8
 # Composable bar modules. The list selects visible modules and orders the
