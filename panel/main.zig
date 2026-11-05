@@ -1860,6 +1860,42 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             if (n > 0) controlInputAppendUtf8(buf[0..@intCast(n)]);
             return;
         }
+        if (g.overlay_mode == .control and g.control_view == .wifi) {
+            if (sym == c.XKB_KEY_Up) {
+                g.wifi_selected = g.wifi_selected -| 1;
+                g.wifi_scroll = g.wifi_selected -| 3;
+                refreshOverlay();
+                return;
+            }
+            if (sym == c.XKB_KEY_Down) {
+                if (g.wifi_selected + 1 < g.wifi_ap_count) g.wifi_selected += 1;
+                g.wifi_scroll = g.wifi_selected -| 3;
+                refreshOverlay();
+                return;
+            }
+            if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+                wifiConnectIndex(g.wifi_selected);
+                return;
+            }
+        }
+        if (g.overlay_mode == .control and g.control_view == .bluetooth) {
+            if (sym == c.XKB_KEY_Up) {
+                g.bt_selected = g.bt_selected -| 1;
+                g.bt_scroll = g.bt_selected -| 3;
+                refreshOverlay();
+                return;
+            }
+            if (sym == c.XKB_KEY_Down) {
+                if (g.bt_selected + 1 < g.bt_count) g.bt_selected += 1;
+                g.bt_scroll = g.bt_selected -| 3;
+                refreshOverlay();
+                return;
+            }
+            if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+                btPrimaryAction(g.bt_selected);
+                return;
+            }
+        }
         if (sym == c.XKB_KEY_Escape) {
             controlBack();
             return;
@@ -3340,8 +3376,6 @@ fn parseSystemState(payload: []const u8) void {
             0x14 => tlvStr(data, &g.wifi_error, &g.wifi_error_len),
             0x15 => {
                 g.wifi_ap_count = 0;
-                g.wifi_selected = 0;
-                g.wifi_scroll = 0;
             },
             0x16 => {
                 if (g.wifi_ap_count >= m.MAX_WIFI_APS) {
@@ -3398,8 +3432,6 @@ fn parseSystemState(payload: []const u8) void {
             0x22 => tlvStr(data, &g.bt_error, &g.bt_error_len),
             0x23 => {
                 g.bt_count = 0;
-                g.bt_selected = 0;
-                g.bt_scroll = 0;
             },
             0x24 => {
                 if (g.bt_count >= m.MAX_BT_DEVICES) {
@@ -3466,6 +3498,18 @@ fn parseSystemState(payload: []const u8) void {
         }
         i += len;
     }
+    if (g.wifi_selected >= g.wifi_ap_count) g.wifi_selected = 0;
+    if (g.bt_selected >= g.bt_count) g.bt_selected = 0;
+    logDebug("system: wifi aps={d} present={} enabled={} ssid={s} bt={d} powered={} bright={d} ppd={s}", .{
+        g.wifi_ap_count,
+        g.wifi_present,
+        g.wifi_enabled,
+        g.wifi_ssid[0..g.wifi_ssid_len],
+        g.bt_count,
+        g.bt_powered,
+        g.brightness_percent,
+        g.ppd_profile[0..g.ppd_profile_len],
+    });
     g.bar.dirty = true;
     if (g.overlay_mode == .control or g.overlay_mode == .wifi or g.overlay_mode == .bluetooth) {
         refreshOverlay();

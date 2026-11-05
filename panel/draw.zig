@@ -4372,9 +4372,10 @@ fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) v
         const active = (ap.flags & m.WIFI_AP_ACTIVE) != 0;
         const secured = (ap.flags & m.WIFI_AP_SECURED) != 0;
         const saved = (ap.flags & m.WIFI_AP_SAVED) != 0;
-        if (active) fillRound(cr, x - 6, y - 2, w + 12, row_h - 4, 10, .{
+        const selected = i == g.wifi_selected;
+        if (active or selected) fillRound(cr, x - 6, y - 2, w + 12, row_h - 4, 10, if (active) .{
             accent[0], accent[1], accent[2], 0.10,
-        });
+        } else .{ 1, 1, 1, 0.045 });
         drawWifiGlyph(cr, x + 10, y + 15, 15.0, if (active) .{
             accent[0], accent[1], accent[2], 0.92,
         } else .{
@@ -4448,9 +4449,10 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
         const d = &g.bt_devices[i];
         const connected = (d.flags & m.BT_DEVICE_CONNECTED) != 0;
         const paired = (d.flags & m.BT_DEVICE_PAIRED) != 0;
-        if (connected) fillRound(cr, x - 6, y - 2, w + 12, row_h - 6, 10, .{
+        const selected = i == g.bt_selected;
+        if (connected or selected) fillRound(cr, x - 6, y - 2, w + 12, row_h - 6, 10, if (connected) .{
             accent[0], accent[1], accent[2], 0.10,
-        });
+        } else .{ 1, 1, 1, 0.045 });
         drawBluetoothGlyph(cr, x + 10, y + 16, 15.0, if (connected) .{
             accent[0], accent[1], accent[2], 0.9,
         } else .{
