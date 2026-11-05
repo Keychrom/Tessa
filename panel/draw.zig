@@ -1661,7 +1661,7 @@ pub fn drawBar(s: *m.Surface) void {
             fillRound(cr, cx + 6, cy - 8, 16, 16, 5, .{ col[0], col[1], col[2], 0.92 });
             var gbuf: [8]u8 = undefined;
             const glyph = upperFirst(&gbuf, firstGlyph(label));
-            _ = drawTextCentered(cr, glyph, cx + 10.6, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
+            _ = drawTextCenteredX(cr, glyph, cx + 14.0, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
 
             _ = drawTextCentered(cr, label, cx + 28, cy + 0.2, m.barFont(), "Medium", 9.6, if (focused) .{ 1, 1, 1, 0.96 } else .{ 0.68, 0.74, 0.84, 0.9 }, chip_w - 36, 0);
             addBarHit(cx, chip_y, chip_w, chip_h, .{ .kind = .window, .value = w.id });
@@ -2104,14 +2104,13 @@ fn drawLauncherRows(
         const icon_size: f64 = if (compact) 28.0 else 32.0;
         const icon_inset: f64 = if (compact) 10.0 else 14.0;
         const text_gap: f64 = if (compact) 10.0 else 14.0;
-        const glyph_inset: f64 = if (compact) 6.5 else 7.0;
         const icon_x = row_x + icon_inset;
         const icon_y = y + (row_h - icon_size) / 2.0;
         const col = appColor(app);
         fillRound(cr, icon_x, icon_y, icon_size, icon_size, if (compact) 8.0 else 9.0, .{ col[0], col[1], col[2], 0.9 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
-        _ = drawTextCentered(cr, glyph, icon_x + glyph_inset, y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
+        _ = drawTextCenteredX(cr, glyph, icon_x + icon_size / 2.0, y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
 
         const text_x = icon_x + icon_size + text_gap;
         if (compact) {
@@ -2718,7 +2717,7 @@ fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     fillRound(cr, today_x, today_y, 56, 24, 7, .{
         1, 1, 1, if (today_hover) 0.09 else 0.045,
     });
-    _ = drawTextCentered(cr, "TODAY", today_x + 28, today_y + 12, MONO, "Medium", 6.8, .{
+    _ = drawTextCenteredX(cr, "TODAY", today_x + 28, today_y + 12, MONO, "Medium", 6.8, .{
         0.72, 0.78, 0.87, 0.72,
     }, 0, 0.6);
     addOverlayHit(today_x - x, today_y - y, 56, 24, .{ .kind = .calendar_today });
@@ -3131,7 +3130,7 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     fillRound(cr, clear_x, clear_y, 62, 24, 7, .{
         1, 1, 1, if (clear_hover and g.clipboard_count > 0) 0.09 else 0.045,
     });
-    _ = drawTextCentered(cr, "CLEAR", clear_x + 31, clear_y + 12, MONO, "Medium", 6.8, .{
+    _ = drawTextCenteredX(cr, "CLEAR", clear_x + 31, clear_y + 12, MONO, "Medium", 6.8, .{
         0.72, 0.78, 0.87, if (g.clipboard_count > 0) 0.72 else 0.28,
     }, 0, 0.6);
     addOverlayHit(clear_x - x, clear_y - y, 62, 24, .{ .kind = .clipboard_clear });
@@ -3681,7 +3680,7 @@ fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
                 1, 1, 1, 0.07,
             }, 1);
         }
-        _ = drawTextCentered(cr, labels[i], bx + 20, button_y + button_h / 2.0, fam, "Semi-Bold", 9.4, if (primary) .{
+        _ = drawTextCenteredX(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, fam, "Semi-Bold", 9.4, if (primary) .{
             0.055, 0.075, 0.105, if (active) 1.0 else 0.6,
         } else .{ 0.82, 0.87, 0.94, if (active) 0.9 else 0.4 }, 0, 0);
         addOverlayHit(bx - x, button_y - y, button_w, button_h, .{ .kind = hits[i] });
@@ -4697,7 +4696,7 @@ fn drawControlPower(cr: *c.cairo_t, l: m.ControlLayout) void {
             accent[0], accent[1], accent[2], 0.12,
         });
         fillRound(cr, x, y + 4, 30, 30, 9, .{ accent[0], accent[1], accent[2], 0.78 });
-        _ = drawTextCentered(cr, m.power_labels[i][0..1], x + 15, y + 19, fam, "Semi-Bold", 11.0, .{
+        _ = drawTextCenteredX(cr, m.power_labels[i][0..1], x + 15, y + 19, fam, "Semi-Bold", 11.0, .{
             0.055, 0.075, 0.105, 1.0,
         }, 0, 0);
         _ = drawText(cr, m.power_labels[i], x + 42, y + 4, fam, "Semi-Bold", 10.4, .{
