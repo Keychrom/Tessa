@@ -4070,7 +4070,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     }
 
     if (m.controlFeatureEnabled(.battery) or m.controlFeatureEnabled(.power)) {
-        const sys_h = 96.0;
+        const sys_h = 104.0;
         controlCard(cr, left_x, left_y, col_w, sys_h);
         controlSection(cr, "SYSTEM", left_x + 16, left_y + 13, col_w - 32);
         const bx = left_x + 16;
@@ -4086,7 +4086,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             }, 90, 0.6);
         }
         if (m.controlFeatureEnabled(.power)) {
-            drawPowerButtons(cr, left_x + 16, left_y + 54, col_w - 32);
+            drawPowerButtons(cr, left_x + 16, left_y + 64, col_w - 32);
         }
         left_y += sys_h + 12.0;
     }
