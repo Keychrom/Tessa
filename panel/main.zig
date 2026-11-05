@@ -4112,6 +4112,10 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
 
 fn handleInputButton(button: u32, state: u32) void {
     noteInput();
+    logDebug("panel button {x} state={d} surface={s} at {d:.0},{d:.0}", .{
+        button, state, if (g.pointer_surface) |ps| @tagName(ps.kind) else "none",
+        g.pointer_x, g.pointer_y,
+    });
     const pointer_surface = g.pointer_surface orelse return;
     if (g.overlay_mode == .screenshot and g.overlay == pointer_surface) {
         if (button == 0x110) {
