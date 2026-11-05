@@ -528,9 +528,9 @@ static GVariant *make_settings(const char *ssid, guint8 ssid_len, const char *ps
     return g_variant_builder_end(&all);
 }
 
-static void wifi_toggle_cb(gpointer data) {
+static gboolean wifi_toggle_cb(gpointer data) {
     (void)data;
-    if (!bus) return;
+    if (!bus) return G_SOURCE_REMOVE;
     gboolean next = !wifi_enabled;
     GError *err = NULL;
     GVariant *reply = g_dbus_connection_call_sync(
@@ -544,11 +544,12 @@ static void wifi_toggle_cb(gpointer data) {
     }
     poll_wifi();
     if ((features & FEATURE_BT) == 0) send_state();
+    return G_SOURCE_REMOVE;
 }
 
-static void wifi_scan_cb(gpointer data) {
+static gboolean wifi_scan_cb(gpointer data) {
     (void)data;
-    if (!bus || wifi_dev[0] == '\0') return;
+    if (!bus || wifi_dev[0] == '\0') return G_SOURCE_REMOVE;
     GVariantBuilder b;
     g_variant_builder_init(&b, G_VARIANT_TYPE("a{sv}"));
     GVariant *opts = g_variant_builder_end(&b);
@@ -564,6 +565,7 @@ static void wifi_scan_cb(gpointer data) {
     wifi_scanning = TRUE;
     poll_wifi();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 typedef struct {
@@ -579,11 +581,11 @@ static void connect_request_free(ConnectRequest *req) {
     g_free(req);
 }
 
-static void wifi_connect_cb(gpointer data) {
+static gboolean wifi_connect_cb(gpointer data) {
     ConnectRequest *req = data;
     if (!bus || !req) {
         connect_request_free(req);
-        return;
+        return G_SOURCE_REMOVE;
     }
     WifiAp *ap = NULL;
     for (guint i = 0; i < ap_count; i++) {
@@ -628,11 +630,12 @@ static void wifi_connect_cb(gpointer data) {
     connect_request_free(req);
     poll_wifi();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
-static void wifi_disconnect_cb(gpointer data) {
+static gboolean wifi_disconnect_cb(gpointer data) {
     (void)data;
-    if (!bus || wifi_dev[0] == '\0') return;
+    if (!bus || wifi_dev[0] == '\0') return G_SOURCE_REMOVE;
     GVariant *dev = get_all(NM_NAME, wifi_dev, NM_DEVICE);
     char active[MAX_PATH] = "";
     if (dev) {
@@ -652,11 +655,12 @@ static void wifi_disconnect_cb(gpointer data) {
     }
     poll_wifi();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
-static void wifi_forget_cb(gpointer data) {
+static gboolean wifi_forget_cb(gpointer data) {
     char *path = data;
-    if (!path) return;
+    if (!path) return G_SOURCE_REMOVE;
     if (bus) {
         GError *err = NULL;
         GVariant *reply = g_dbus_connection_call_sync(
@@ -671,6 +675,7 @@ static void wifi_forget_cb(gpointer data) {
     g_free(path);
     poll_wifi();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static void send_agent_prompt(int kind, const char *name, const char *passkey) {
@@ -923,9 +928,9 @@ static void poll_bt(void) {
     }
 }
 
-static void bt_toggle_cb(gpointer data) {
+static gboolean bt_toggle_cb(gpointer data) {
     (void)data;
-    if (!bus || bt_adapter[0] == '\0') return;
+    if (!bus || bt_adapter[0] == '\0') return G_SOURCE_REMOVE;
     GError *err = NULL;
     GVariant *reply = g_dbus_connection_call_sync(
         bus, BLUEZ_NAME, bt_adapter, "org.freedesktop.DBus.Properties", "Set",
@@ -938,11 +943,12 @@ static void bt_toggle_cb(gpointer data) {
     }
     poll_bt();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
-static void bt_discovery_cb(gpointer data) {
+static gboolean bt_discovery_cb(gpointer data) {
     gboolean on = GPOINTER_TO_INT(data) != 0;
-    if (!bus || bt_adapter[0] == '\0') return;
+    if (!bus || bt_adapter[0] == '\0') return G_SOURCE_REMOVE;
     GError *err = NULL;
     GVariant *reply = g_dbus_connection_call_sync(
         bus, BLUEZ_NAME, bt_adapter, ADAPTER_IFACE, on ? "StartDiscovery" : "StopDiscovery",
@@ -954,6 +960,7 @@ static void bt_discovery_cb(gpointer data) {
     }
     poll_bt();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static void bt_connect_done(GObject *source, GAsyncResult *res, gpointer data) {
@@ -969,11 +976,11 @@ static void bt_connect_done(GObject *source, GAsyncResult *res, gpointer data) {
     send_state();
 }
 
-static void bt_connect_cb(gpointer data) {
+static gboolean bt_connect_cb(gpointer data) {
     BtDevice *d = data;
     if (!bus || !d) {
         g_free(d);
-        return;
+        return G_SOURCE_REMOVE;
     }
     g_dbus_connection_call(
         bus, BLUEZ_NAME, d->path, DEVICE_IFACE,
@@ -981,6 +988,7 @@ static void bt_connect_cb(gpointer data) {
         NULL, NULL, G_DBUS_CALL_FLAGS_NONE, 15000, NULL,
         bt_connect_done, NULL);
     g_free(d);
+    return G_SOURCE_REMOVE;
 }
 
 static void bt_pair_done(GObject *source, GAsyncResult *res, gpointer data) {
@@ -1002,24 +1010,25 @@ static void bt_pair_done(GObject *source, GAsyncResult *res, gpointer data) {
     send_state();
 }
 
-static void bt_pair_cb(gpointer data) {
+static gboolean bt_pair_cb(gpointer data) {
     char *path = data;
     if (!bus || !path) {
         g_free(path);
-        return;
+        return G_SOURCE_REMOVE;
     }
     g_dbus_connection_call(
         bus, BLUEZ_NAME, path, DEVICE_IFACE, "Pair",
         NULL, NULL, G_DBUS_CALL_FLAGS_NONE, 60000, NULL,
         bt_pair_done, g_strdup(path));
     g_free(path);
+    return G_SOURCE_REMOVE;
 }
 
-static void bt_forget_cb(gpointer data) {
+static gboolean bt_forget_cb(gpointer data) {
     char *path = data;
     if (!bus || !path) {
         g_free(path);
-        return;
+        return G_SOURCE_REMOVE;
     }
     if (bt_adapter[0]) {
         GError *err = NULL;
@@ -1035,6 +1044,7 @@ static void bt_forget_cb(gpointer data) {
     g_free(path);
     poll_bt();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static void agent_reply_cb(gpointer data) {
@@ -1045,18 +1055,18 @@ static void agent_reply_cb(gpointer data) {
 static int pending_agent_code;
 static char pending_agent_text[128];
 
-static void agent_reply_impl(gpointer data) {
+static gboolean agent_reply_impl(gpointer data) {
     (void)data;
     if (!agent_call) {
         agent_kind = AGENT_NONE;
-        return;
+        return G_SOURCE_REMOVE;
     }
     GDBusMethodInvocation *call = agent_call;
     int kind = agent_kind;
     agent_done();
     if (pending_agent_code != 0) {
         g_dbus_method_invocation_return_dbus_error(call, "org.bluez.Error.Rejected", "Rejected");
-        return;
+        return G_SOURCE_REMOVE;
     }
     if (kind == AGENT_PIN) {
         g_dbus_method_invocation_return_value(call, g_variant_new("(s)", pending_agent_text));
@@ -1067,6 +1077,7 @@ static void agent_reply_impl(gpointer data) {
         g_dbus_method_invocation_return_value(call, NULL);
     }
     memset(pending_agent_text, 0, sizeof(pending_agent_text));
+    return G_SOURCE_REMOVE;
 }
 
 static void read_backlight(void) {
@@ -1128,16 +1139,16 @@ static void ensure_login_session(void) {
     }
 }
 
-static void set_brightness_cb(gpointer data) {
+static gboolean set_brightness_cb(gpointer data) {
     int percent = GPOINTER_TO_INT(data);
     read_backlight();
-    if (!bl_present || bl_max == 0) return;
+    if (!bl_present || bl_max == 0) return G_SOURCE_REMOVE;
     if (percent < 0) percent = 0;
     if (percent > 100) percent = 100;
     guint32 value = (guint32)lround((double)bl_max * (double)percent / 100.0);
     if (value < 1) value = 1;
     ensure_login_session();
-    if (!bus) return;
+    if (!bus) return G_SOURCE_REMOVE;
     GError *err = NULL;
     GVariant *reply = g_dbus_connection_call_sync(
         bus, LOGIN_NAME, login_session, LOGIN_SESSION, "SetBrightness",
@@ -1147,6 +1158,7 @@ static void set_brightness_cb(gpointer data) {
     if (err) g_error_free(err);
     read_backlight();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static void poll_ppd(void) {
@@ -1180,11 +1192,11 @@ static void poll_ppd(void) {
     g_variant_unref(dict);
 }
 
-static void set_profile_cb(gpointer data) {
+static gboolean set_profile_cb(gpointer data) {
     char *name = data;
     if (!bus || !name) {
         g_free(name);
-        return;
+        return G_SOURCE_REMOVE;
     }
     GError *err = NULL;
     GVariant *reply = g_dbus_connection_call_sync(
@@ -1196,6 +1208,7 @@ static void set_profile_cb(gpointer data) {
     g_free(name);
     poll_ppd();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static void send_state(void) {
@@ -1297,14 +1310,15 @@ static gboolean poll_all(gpointer data) {
     return G_SOURCE_CONTINUE;
 }
 
-static void set_features_cb(gpointer data) {
+static gboolean set_features_cb(gpointer data) {
     (void)data;
-    if (stopping) return;
+    if (stopping) return G_SOURCE_REMOVE;
     if (features & FEATURE_WIFI) poll_wifi();
     if (features & FEATURE_BT) poll_bt();
     if (features & FEATURE_BRIGHTNESS) read_backlight();
     if (features & FEATURE_PPD) poll_ppd();
     send_state();
+    return G_SOURCE_REMOVE;
 }
 
 static gpointer system_thread(gpointer data) {
