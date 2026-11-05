@@ -1398,12 +1398,36 @@ fn drawBarVertical(s: *m.Surface) void {
         if (shown > 0) y += 4.0;
     }
 
-    const available = H - 8.0 - (y + 8.0);
+    const controls_reserve: f64 = if (g.panel_style == .unified) 34.0 else 0.0;
+    const available = H - 8.0 - (y + 8.0) - controls_reserve;
     const plan = m.planBarVertical(available);
     g.bar_hidden = plan.hidden;
     g.bar_hidden_count = plan.hidden_count;
 
     var bottom = H - 8.0;
+    if (g.panel_style == .unified) {
+        const controls_h = 28.0;
+        bottom -= controls_h;
+        const hovered = g.hover.kind == .controls;
+        fillRound(cr, 5, bottom, W - 10, controls_h, 8, if (hovered)
+            .{ accent[0], accent[1], accent[2], 0.16 }
+        else
+            .{ 1, 1, 1, 0.045 });
+        strokeRound(cr, 5.5, bottom + 0.5, W - 11, controls_h - 1, 7.5, if (hovered)
+            .{ accent[0], accent[1], accent[2], 0.30 }
+        else
+            .{ 1, 1, 1, 0.055 }, 1.0);
+        drawControlsGlyph(cr, (W - 14.0) / 2.0, bottom + controls_h / 2.0, .{
+            fg[0], fg[1], fg[2], if (hovered) 0.95 else 0.66,
+        });
+        if (g.notification_count > 0) {
+            fillCircle(cr, W - 9.0, bottom + 6.0, 3.0, .{
+                accent[0], accent[1], accent[2], 0.95,
+            });
+        }
+        addBarHit(4, bottom, W - 8, controls_h, .{ .kind = .controls });
+        bottom -= 6.0;
+    }
     if (plan.hidden_count > 0) {
         const more_h = 22.0;
         bottom -= more_h;
