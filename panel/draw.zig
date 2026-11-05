@@ -88,6 +88,15 @@ fn drawTextCentered(cr: *c.cairo_t, text: []const u8, x: f64, cy: f64, family: [
     return .{ .w = w, .h = h };
 }
 
+/// Center a single line horizontally on `cx`. `drawTextCentered` takes the
+/// left edge; this variant measures first so callers can pass a true center.
+fn drawTextCenteredX(cr: *c.cairo_t, text: []const u8, cx: f64, cy: f64, family: []const u8, style: []const u8, size: f64, col: [4]f64, max_w: f64, spacing: f64) TextSize {
+    if (text.len == 0) return .{};
+    const tw = textWidth(cr, text, family, style, size, spacing);
+    const visible = if (max_w > 1.0) @min(tw, max_w) else tw;
+    return drawTextCentered(cr, text, cx - visible / 2.0, cy, family, style, size, col, max_w, spacing);
+}
+
 fn drawTextMarkup(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, family: []const u8, style: []const u8, size: f64, col: [4]f64, max_w: f64, spacing: f64) TextSize {
     if (text.len == 0) return .{};
     var fam_buf: [128:0]u8 = undefined;
@@ -921,7 +930,7 @@ fn paintNotificationIcon(cr: *c.cairo_t, n: *const m.NotificationEntry, x: f64, 
         const app = if (n.app_len > 0) n.app[0..n.app_len] else "Notification";
         var glyph_buf: [8]u8 = undefined;
         const glyph = upperFirst(&glyph_buf, firstGlyph(app));
-        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.8, y + size / 2.0 + 0.4, m.popoverFont(), "Semi-Bold", 10.5, .{
+        _ = drawTextCenteredX(cr, glyph, x + size / 2.0, y + size / 2.0 + 0.4, m.popoverFont(), "Semi-Bold", 10.5, .{
             1, 1, 1, 0.96,
         }, 0, 0);
     }
@@ -973,7 +982,7 @@ fn paintTrayIcon(cr: *c.cairo_t, item: *const m.TrayItem, x: f64, y: f64, size: 
         fillRound(cr, x, y, size, size, 6, .{ col[0], col[1], col[2], 0.92 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(if (label.len > 0) label else "T"));
-        _ = drawTextCentered(cr, glyph, x + size / 2.0 - 2.4, y + size / 2.0 + 0.3, m.popoverFont(), "Semi-Bold", 8.0, .{ 1, 1, 1, 0.95 }, 0, 0);
+        _ = drawTextCenteredX(cr, glyph, x + size / 2.0, y + size / 2.0 + 0.3, m.popoverFont(), "Semi-Bold", 8.0, .{ 1, 1, 1, 0.95 }, 0, 0);
     }
 
     if (item.status == 2) {
@@ -1911,7 +1920,7 @@ pub fn drawBar(s: *m.Surface) void {
                         const icon = st.icon[0..st.icon_len];
                         if (icon.len > 0) {
                             const icon_w = textWidth(cr, icon, m.barFont(), "Medium", 9.0, 0);
-                            _ = drawTextCentered(cr, icon, sx + 9.0 + icon_w / 2.0, cy + 0.3, m.barFont(), "Medium", 9.0, col, icon_w + 2.0, 0);
+                            _ = drawTextCenteredX(cr, icon, sx + 9.0 + icon_w / 2.0, cy + 0.3, m.barFont(), "Medium", 9.0, col, icon_w + 2.0, 0);
                             text_x += icon_w + 5.0;
                         }
                         _ = drawTextCentered(cr, st.text[0..st.text_len], text_x, cy + 0.3, m.barFont(), "Medium", 8.4, col, status_w - (text_x - sx) - 10.0, 0);
@@ -2251,8 +2260,8 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
 
     if (g.result_count == 0) {
         drawPetal(cr, px + pw / 2.0, py + 320, 18, .{ 1, 1, 1, 0.10 });
-        _ = drawTextCentered(cr, "Nothing matches", px + pw / 2.0 - 70, py + 370, fam, "Semi-Bold", 13.0, .{ 0.86, 0.89, 0.94, 0.75 }, 140, 0);
-        _ = drawTextCentered(cr, "Try another word, or open a terminal.", px + pw / 2.0 - 110, py + 392, fam, "Regular", 9.2, .{ 0.60, 0.66, 0.75, 0.55 }, 220, 0);
+        _ = drawTextCenteredX(cr, "Nothing matches", px + pw / 2.0, py + 370, fam, "Semi-Bold", 13.0, .{ 0.86, 0.89, 0.94, 0.75 }, 140, 0);
+        _ = drawTextCenteredX(cr, "Try another word, or open a terminal.", px + pw / 2.0, py + 392, fam, "Regular", 9.2, .{ 0.60, 0.66, 0.75, 0.55 }, 220, 0);
     } else {
         drawLauncherRows(cr, row_x, row_w, row_y0, row_h, row_gap, visible, false, t);
     }
@@ -2386,7 +2395,7 @@ fn drawStartMenu(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64) voi
 
     if (g.result_count == 0) {
         drawPetal(cr, px + pw / 2.0, py + 310, 16, .{ 1, 1, 1, 0.10 });
-        _ = drawTextCentered(cr, "Nothing matches", px + pw / 2.0 - 64, py + 354, fam, "Semi-Bold", 12.0, .{ 0.86, 0.89, 0.94, 0.75 }, 128, 0);
+        _ = drawTextCenteredX(cr, "Nothing matches", px + pw / 2.0, py + 354, fam, "Semi-Bold", 12.0, .{ 0.86, 0.89, 0.94, 0.75 }, 128, 0);
     } else {
         drawLauncherRows(cr, row_x, row_w, row_y0, row_h, row_gap, visible, true, t);
     }
@@ -2645,7 +2654,7 @@ fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     var col: usize = 0;
     while (col < 7) : (col += 1) {
         const cx = grid_x + @as(f64, @floatFromInt(col)) * cell_w + cell_w / 2.0;
-        _ = drawTextCentered(cr, weekday_short[col], cx, y + 88, MONO, "Medium", 7.1, .{
+        _ = drawTextCenteredX(cr, weekday_short[col], cx, y + 88, MONO, "Medium", 7.1, .{
             0.58, 0.64, 0.74, 0.55,
         }, 0, 0.8);
     }
@@ -2677,7 +2686,7 @@ fn drawCalendarPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         }
         var day_buf: [4]u8 = undefined;
         const day_text = std.fmt.bufPrint(&day_buf, "{d}", .{day}) catch "";
-        _ = drawTextCentered(cr, day_text, cx, cy + 0.3, MONO, "Medium", 9.6, if (is_today) .{
+        _ = drawTextCenteredX(cr, day_text, cx, cy + 0.3, MONO, "Medium", 9.6, if (is_today) .{
             0.055, 0.075, 0.105, 1.0,
         } else .{ 0.79, 0.84, 0.91, 0.92 }, 0, 0);
     }
@@ -2944,7 +2953,7 @@ pub fn drawToasts(s: *m.Surface) void {
                     action.label[0..action.label_len]
                 else
                     action.key[0..action.key_len];
-                _ = drawTextCentered(cr, label, bx + button_w / 2.0, y + 76 + button_h / 2.0, fam, "Semi-Bold", 8.4, .{
+                _ = drawTextCenteredX(cr, label, bx + button_w / 2.0, y + 76 + button_h / 2.0, fam, "Semi-Bold", 8.4, .{
                     0.88, 0.92, 0.97, 0.95,
                 }, button_w - 12, 0);
                 if (g.toast_action_hit_count < g.toast_action_hits.len) {
@@ -3050,10 +3059,10 @@ fn drawClipboardPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 
     if (g.clipboard_count == 0) {
         drawPetal(cr, x + w / 2.0, y + 150, 17, .{ 1, 1, 1, 0.10 });
-        _ = drawTextCentered(cr, "Clipboard history is empty", x + w / 2.0 - 130, y + 188, fam, "Semi-Bold", 12.5, .{
+        _ = drawTextCenteredX(cr, "Clipboard history is empty", x + w / 2.0, y + 188, fam, "Semi-Bold", 12.5, .{
             0.86, 0.89, 0.94, 0.75,
         }, 260, 0);
-        _ = drawTextCentered(cr, "Copy text in any application, then open this again.", x + w / 2.0 - 190, y + 210, fam, "Regular", 9.0, .{
+        _ = drawTextCenteredX(cr, "Copy text in any application, then open this again.", x + w / 2.0, y + 210, fam, "Regular", 9.0, .{
             0.60, 0.66, 0.75, 0.55,
         }, 380, 0);
     } else {
@@ -3357,7 +3366,7 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         const label_col: [4]f64 = if (primary) .{
             0.055, 0.075, 0.105, if (available) 1.0 else 0.5,
         } else .{ 0.82, 0.87, 0.94, if (available) 0.9 else 0.4 };
-        _ = drawTextCentered(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, if (i == 1) MONO else fam, "Semi-Bold", if (i == 1) 6.4 else 15.0, label_col, 0, 0);
+        _ = drawTextCenteredX(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, if (i == 1) MONO else fam, "Semi-Bold", if (i == 1) 6.4 else 15.0, label_col, 0, 0);
         addOverlayHit(bx - x, button_y - y, button_w, button_h, .{ .kind = hits[i] });
     }
 
@@ -3402,10 +3411,10 @@ fn drawExtensionsPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_stroke(cr);
 
     if (g.extension_count == 0) {
-        _ = drawTextCentered(cr, "No extensions configured", x + w / 2.0, y + 100, fam, "Semi-Bold", 12.0, .{
+        _ = drawTextCenteredX(cr, "No extensions configured", x + w / 2.0, y + 100, fam, "Semi-Bold", 12.0, .{
             0.86, 0.90, 0.96, 0.82,
         }, w - 48, 0);
-        _ = drawTextCentered(cr, "Add extension = id=...; command=...; state below.", x + w / 2.0, y + 124, fam, "Regular", 8.2, .{
+        _ = drawTextCenteredX(cr, "Add extension = id=...; command=...; state below.", x + w / 2.0, y + 124, fam, "Regular", 8.2, .{
             0.60, 0.66, 0.76, 0.55,
         }, w - 48, 0);
     } else {
@@ -3522,10 +3531,10 @@ fn drawTrayPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_stroke(cr);
 
     if (g.tray_count == 0) {
-        _ = drawTextCentered(cr, "No StatusNotifier items", x + w / 2.0, y + 104, fam, "Semi-Bold", 12.0, .{
+        _ = drawTextCenteredX(cr, "No StatusNotifier items", x + w / 2.0, y + 104, fam, "Semi-Bold", 12.0, .{
             0.86, 0.90, 0.96, 0.82,
         }, w - 48, 0);
-        _ = drawTextCentered(cr, "Tray applications register with org.kde.StatusNotifierWatcher.", x + w / 2.0, y + 128, fam, "Regular", 8.2, .{
+        _ = drawTextCenteredX(cr, "Tray applications register with org.kde.StatusNotifierWatcher.", x + w / 2.0, y + 128, fam, "Regular", 8.2, .{
             0.60, 0.66, 0.76, 0.55,
         }, w - 48, 0);
     } else {
@@ -3631,7 +3640,7 @@ fn drawMediaPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_pattern_destroy(art_pat);
     var glyph_buf: [8]u8 = undefined;
     const glyph = upperFirst(&glyph_buf, firstGlyph(if (title.len > 0) title else "M"));
-    _ = drawTextCentered(cr, glyph, art_x + 21, art_y + 30, fam, "Semi-Bold", 20.0, .{
+    _ = drawTextCenteredX(cr, glyph, art_x + 30, art_y + 30, fam, "Semi-Bold", 20.0, .{
         1, 1, 1, 0.95,
     }, 0, 0);
 
@@ -4228,7 +4237,7 @@ fn drawControlButton(cr: *c.cairo_t, label: []const u8, x: f64, y: f64, w: f64, 
     strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 6.5, .{
         accent[0], accent[1], accent[2], if (active) 0.38 else 0.10,
     }, 1);
-    _ = drawTextCentered(cr, label, x + w / 2.0, y + h / 2.0, MONO, "Medium", 6.2, .{
+    _ = drawTextCenteredX(cr, label, x + w / 2.0, y + h / 2.0, MONO, "Medium", 6.2, .{
         0.78, 0.84, 0.92, if (active) 0.95 else 0.62,
     }, w - 4, 0.5);
 }
@@ -4251,7 +4260,7 @@ fn drawMediaArt(cr: *c.cairo_t, x: f64, y: f64, size: f64) void {
     }
     fillRound(cr, x, y, size, size, 10, .{ accent[0] * 0.55, accent[1] * 0.55, accent[2] * 0.6, 0.75 });
     const glyph = if (g.media_title_len > 0) g.media_title[0..1] else "M";
-    _ = drawTextCentered(cr, glyph, x + size / 2.0, y + size / 2.0, m.popoverFont(), "Semi-Bold", 20.0, .{
+    _ = drawTextCenteredX(cr, glyph, x + size / 2.0, y + size / 2.0, m.popoverFont(), "Semi-Bold", 20.0, .{
         1, 1, 1, 0.72,
     }, 0, 0);
 }
@@ -4601,7 +4610,7 @@ fn drawControlCalendar(cr: *c.cairo_t, l: m.ControlLayout) void {
     const weekdays = [_][]const u8{ "S", "M", "T", "W", "T", "F", "S" };
     var wi: usize = 0;
     while (wi < 7) : (wi += 1) {
-        _ = drawTextCentered(cr, weekdays[wi], grid_x + cell_w * (@as(f64, @floatFromInt(wi)) + 0.5), top + 74, MONO, "Medium", 7.0, .{
+        _ = drawTextCenteredX(cr, weekdays[wi], grid_x + cell_w * (@as(f64, @floatFromInt(wi)) + 0.5), top + 74, MONO, "Medium", 7.0, .{
             0.64, 0.70, 0.80, 0.42,
         }, 0, 0);
     }
@@ -4621,7 +4630,7 @@ fn drawControlCalendar(cr: *c.cairo_t, l: m.ControlLayout) void {
         if (is_today) fillCircle(cr, cx, cy, 13.0, .{ accent[0], accent[1], accent[2], 0.95 });
         var day_buf: [4]u8 = undefined;
         const day_text = std.fmt.bufPrint(&day_buf, "{d}", .{day}) catch "";
-        _ = drawTextCentered(cr, day_text, cx, cy + 0.3, MONO, "Medium", 9.2, if (is_today) .{
+        _ = drawTextCenteredX(cr, day_text, cx, cy + 0.3, MONO, "Medium", 9.2, if (is_today) .{
             0.055, 0.075, 0.105, 1.0,
         } else .{ 0.79, 0.84, 0.91, 0.9 }, 0, 0);
     }
@@ -4740,7 +4749,7 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
                 0.64, 0.70, 0.80, 0.55,
             }, mw - 36, 0);
             if (g.bt_agent_passkey_len > 0) {
-                _ = drawTextCentered(cr, g.bt_agent_passkey[0..g.bt_agent_passkey_len], mx + mw / 2.0, my + 102, MONO, "Semi-Bold", 22.0, .{
+                _ = drawTextCenteredX(cr, g.bt_agent_passkey[0..g.bt_agent_passkey_len], mx + mw / 2.0, my + 102, MONO, "Semi-Bold", 22.0, .{
                     accent[0], accent[1], accent[2], 0.95,
                 }, 0, 0);
             }
@@ -4748,7 +4757,7 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
             _ = drawText(cr, "Enter this code on the device:", mx + 18, my + 68, fam, "Regular", 7.6, .{
                 0.64, 0.70, 0.80, 0.55,
             }, mw - 36, 0);
-            _ = drawTextCentered(cr, g.bt_agent_passkey[0..g.bt_agent_passkey_len], mx + mw / 2.0, my + 102, MONO, "Semi-Bold", 22.0, .{
+            _ = drawTextCenteredX(cr, g.bt_agent_passkey[0..g.bt_agent_passkey_len], mx + mw / 2.0, my + 102, MONO, "Semi-Bold", 22.0, .{
                 accent[0], accent[1], accent[2], 0.95,
             }, 0, 0);
         } else {
