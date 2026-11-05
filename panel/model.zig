@@ -1141,7 +1141,7 @@ pub fn controlCenterLayout(w: f64, h: f64) ControlLayout {
         if (y + height > h - 8.0) height = @max(240.0, h - 16.0 - y);
     } else {
         width = @min(520.0, @max(320.0, w - (edge + thickness + gap) - 20.0));
-        height = @min(760.0, @max(300.0, h - 24.0));
+        height = @min(900.0, @max(300.0, h - 24.0));
         x = if (g.bar_position == .left)
             edge + thickness + gap
         else

@@ -4061,7 +4061,9 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         left_y += 62.0;
     }
 
-    // Right column: sliders, media, notifications.
+    // Right column: sliders, media, notifications. On narrow/vertical bars
+    // the right column becomes a continuation of the single column.
+    if (!two) right_y = left_y;
     if (m.controlFeatureEnabled(.volume) or m.controlFeatureEnabled(.brightness)) {
         const sh = 136.0;
         controlCard(cr, right_x, right_y, col_w, sh);
