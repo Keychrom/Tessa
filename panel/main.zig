@@ -1861,6 +1861,15 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             if (n > 0) controlInputAppendUtf8(buf[0..@intCast(n)]);
             return;
         }
+        if (g.bt_agent != .none) {
+            if (sym == c.XKB_KEY_Escape) {
+                controlCancelModal();
+                refreshOverlay();
+            } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+                controlConfirmModal();
+            }
+            return;
+        }
         if (g.overlay_mode == .control and g.control_view == .wifi) {
             if (sym == c.XKB_KEY_Up) {
                 g.wifi_selected = g.wifi_selected -| 1;
