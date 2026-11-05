@@ -79,7 +79,7 @@ tessa-ctl panel centered
 wait_log "tessa-panel: launcher style: centered"
 if [ -n "${TESSA_CAPTURE_DIR:-}" ] && command -v grim >/dev/null 2>&1; then
     mkdir -p "$TESSA_CAPTURE_DIR"
-    sleep 0.4
+    sleep 1.2
     grim "$TESSA_CAPTURE_DIR/launcher-centered.png"
 fi
 
