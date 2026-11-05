@@ -41,6 +41,7 @@ static char last_source[MAX_SOURCE + 1];
 
 typedef struct {
     guint32 code;
+    gint32 percent;
 } AudioCommand;
 
 static void put_u32(unsigned char *p, uint32_t v) {
@@ -292,7 +293,21 @@ static char *action_command(guint32 code) {
 
 static gboolean command_cb(gpointer data) {
     AudioCommand *command = data;
-    char *cmd = action_command(command->code);
+    char *cmd = NULL;
+    if (command->code == 4) {
+        int percent = command->percent;
+        if (percent < 0) percent = 0;
+        if (percent > 150) percent = 150;
+        if (backend == BACKEND_WPCTL) {
+            cmd = g_strdup_printf("wpctl set-volume @DEFAULT_AUDIO_SINK@ %d%%", percent);
+        } else if (backend == BACKEND_PACTL) {
+            cmd = g_strdup_printf("pactl set-sink-volume @DEFAULT_SINK@ %d%%", percent);
+        } else if (backend == BACKEND_AMIXER) {
+            cmd = g_strdup_printf("amixer -q sset Master %d%%", percent);
+        }
+    } else {
+        cmd = action_command(command->code);
+    }
     if (cmd) {
         GError *error = NULL;
         gchar *argv[] = { "/bin/sh", "-c", cmd, NULL };
@@ -371,5 +386,13 @@ void tessa_audio_command(unsigned int code) {
     if (sock_write < 0) return;
     AudioCommand *command = g_new0(AudioCommand, 1);
     command->code = code;
+    g_main_context_invoke(NULL, command_cb, command);
+}
+
+void tessa_audio_set_percent(int percent) {
+    if (sock_write < 0) return;
+    AudioCommand *command = g_new0(AudioCommand, 1);
+    command->code = 4;
+    command->percent = percent;
     g_main_context_invoke(NULL, command_cb, command);
 }

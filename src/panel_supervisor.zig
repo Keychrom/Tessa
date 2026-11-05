@@ -137,6 +137,7 @@ pub fn start(out: *Output) void {
         _ = c.setenv("TESSA_PANEL_OUTPUT_SERIAL", &serial_buf, 1);
         _ = c.setenv("TESSA_PANEL_NOTIFY_OWNER", if (panel.notify_owner and
             (server.config.panel_modules & types.PANEL_MODULE_NOTIFICATIONS) != 0) "1" else "0", 1);
+        _ = c.setenv("TESSA_PANEL_SYSTEM_OWNER", if (panel.notify_owner) "1" else "0", 1);
         _ = c.execlp(bin, bin, @as(?[*:0]const u8, null));
         c._exit(127);
     }

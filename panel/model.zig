@@ -384,6 +384,7 @@ pub const HitKind = enum {
     wifi,
     bluetooth,
     control_action,
+    control_view,
     control_slider,
     control_ap,
     control_bt_device,
@@ -1108,6 +1109,58 @@ pub fn barOutputRect(w: f64, h: f64) struct { x: f64, y: f64, w: f64, h: f64 } {
     };
 }
 
+pub const ControlLayout = struct {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    columns: usize,
+};
+
+/// The unified control center is a single card anchored to the bar edge. It
+/// uses two columns on wide horizontal bars and one column on vertical bars or
+/// narrow outputs.
+pub fn controlCenterLayout(w: f64, h: f64) ControlLayout {
+    const side: f64 = @floatFromInt(g.bar_side_margin);
+    const edge: f64 = @floatFromInt(g.bar_top_margin);
+    const thickness: f64 = @floatFromInt(g.bar_height);
+    const gap = 8.0;
+    var width: f64 = 0;
+    var height: f64 = 0;
+    var x: f64 = 0;
+    var y: f64 = 0;
+
+    if (barHorizontal()) {
+        width = @min(820.0, @max(320.0, w - 24.0));
+        height = @min(660.0, @max(300.0, h - (edge + thickness + gap) - 20.0));
+        x = (w - width) / 2.0;
+        y = if (g.bar_position == .top)
+            edge + thickness + gap
+        else
+            h - edge - thickness - gap - height;
+        if (y < 8.0) y = 8.0;
+        if (y + height > h - 8.0) height = @max(240.0, h - 16.0 - y);
+    } else {
+        width = @min(520.0, @max(320.0, w - (edge + thickness + gap) - 20.0));
+        height = @min(760.0, @max(300.0, h - 24.0));
+        x = if (g.bar_position == .left)
+            edge + thickness + gap
+        else
+            w - edge - thickness - gap - width;
+        if (x < 8.0) x = 8.0;
+        y = (h - height) / 2.0;
+    }
+    if (x + width > w - 8.0) width = @max(240.0, w - 8.0 - x);
+    if (y + height > h - 8.0) height = @max(200.0, h - 8.0 - y);
+    return .{
+        .x = x,
+        .y = y,
+        .w = width,
+        .h = height,
+        .columns = if (width >= 680.0 and barHorizontal()) 2 else 1,
+    };
+}
+
 pub fn barFont() []const u8 {
     if (g.bar_font_len > 0) return g.bar_font[0..g.bar_font_len];
     return g.font[0..g.font_len];
@@ -1566,7 +1619,7 @@ fn barModuleCost(module: BarModule) f64 {
     return switch (module) {
         .clock => 138.0,
         .battery => 34.0,
-        .network => 34.0,
+        .network => if (g.bt_present and controlFeatureEnabled(.bluetooth)) 52.0 else 34.0,
         .volume => 34.0,
         .stats => 172.0,
         .media => 196.0,

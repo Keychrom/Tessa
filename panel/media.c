@@ -29,9 +29,13 @@ static guint32 last_status;
 static char last_title[MAX_TITLE + 1];
 static char last_artist[MAX_ARTIST + 1];
 static char last_player[MAX_PLAYER + 1];
+static char track_id[256];
+static gint64 last_length;
+static gint64 last_position;
 
 typedef struct {
     guint32 code;
+    gint64 position;
 } MediaCommand;
 
 static void put_u32(unsigned char *p, uint32_t v) {
@@ -84,10 +88,13 @@ static void send_error(const char *message) {
 static void clear_player(void) {
     has_player = FALSE;
     player_name[0] = '\0';
+    track_id[0] = '\0';
+    last_length = 0;
+    last_position = 0;
 }
 
 static void send_state(guint32 status, const char *title, const char *artist,
-        const char *player) {
+        const char *player, gint64 length, gint64 position) {
     status = status > 3 ? 3 : status;
     char tbuf[MAX_TITLE + 1] = "";
     char abuf[MAX_ARTIST + 1] = "";
@@ -98,24 +105,31 @@ static void send_state(guint32 status, const char *title, const char *artist,
         copy_trunc(pbuf, sizeof(pbuf), player ? player : "");
     }
     if (status == last_status && strcmp(tbuf, last_title) == 0 &&
-            strcmp(abuf, last_artist) == 0 && strcmp(pbuf, last_player) == 0) {
+            strcmp(abuf, last_artist) == 0 && strcmp(pbuf, last_player) == 0 &&
+            length == last_length && position == last_position) {
         return;
     }
     last_status = status;
     copy_trunc(last_title, sizeof(last_title), tbuf);
     copy_trunc(last_artist, sizeof(last_artist), abuf);
     copy_trunc(last_player, sizeof(last_player), pbuf);
+    last_length = length;
+    last_position = position;
 
     size_t title_len = strlen(tbuf);
     size_t artist_len = strlen(abuf);
     size_t player_len = strlen(pbuf);
-    unsigned char hdr[16];
+    unsigned char hdr[32];
     memset(hdr, 0, sizeof(hdr));
     hdr[0] = 1;
     hdr[1] = (unsigned char)status;
     put_u32(hdr + 4, (uint32_t)title_len);
     put_u32(hdr + 8, (uint32_t)artist_len);
     put_u32(hdr + 12, (uint32_t)player_len);
+    for (int i = 0; i < 8; i++) {
+        hdr[16 + i] = (unsigned char)((length >> (i * 8)) & 0xff);
+        hdr[24 + i] = (unsigned char)((position >> (i * 8)) & 0xff);
+    }
     write_all(hdr, sizeof(hdr));
     if (title_len > 0) write_all(tbuf, title_len);
     if (artist_len > 0) write_all(abuf, artist_len);
@@ -139,7 +153,7 @@ static void poll_media(void) {
         &error);
     if (!reply) {
         if (error) g_error_free(error);
-        send_state(0, "", "", "");
+        send_state(0, "", "", "", 0, 0);
         clear_player();
         return;
     }
@@ -158,7 +172,7 @@ static void poll_media(void) {
     if (!chosen) {
         g_free(names);
         g_variant_unref(reply);
-        send_state(0, "", "", "");
+        send_state(0, "", "", "", 0, 0);
         clear_player();
         return;
     }
@@ -181,7 +195,7 @@ static void poll_media(void) {
         &error);
     if (!reply) {
         if (error) g_error_free(error);
-        send_state(0, "", "", "");
+        send_state(0, "", "", "", 0, 0);
         clear_player();
         return;
     }
@@ -218,8 +232,24 @@ static void poll_media(void) {
         }
     }
 
+    gint64 length = 0;
+    gint64 position = 0;
+    if (metadata) {
+        g_variant_lookup(metadata, "mpris:length", "x", &length);
+        GVariant *tid_v = g_variant_lookup_value(metadata, "mpris:trackid", G_VARIANT_TYPE_OBJECT_PATH);
+        if (tid_v) {
+            copy_trunc(track_id, sizeof(track_id), g_variant_get_string(tid_v, NULL));
+            g_variant_unref(tid_v);
+        } else {
+            track_id[0] = '\0';
+        }
+    }
+    g_variant_lookup(dict, "Position", "x", &position);
+    if (position < 0) position = 0;
+    if (length < 0) length = 0;
+
     const gchar *display_player = player_name + strlen(MPRIS_PREFIX);
-    send_state(status, title, artist, display_player);
+    send_state(status, title, artist, display_player, length, position);
     if (first_artist) g_variant_unref(first_artist);
     if (metadata) g_variant_unref(metadata);
     g_variant_unref(dict);
@@ -235,22 +265,38 @@ static gboolean poll_cb(gpointer data) {
 static gboolean command_cb(gpointer data) {
     MediaCommand *command = data;
     if (bus && has_player) {
-        const char *method = "PlayPause";
-        if (command->code == 2) method = "Next";
-        else if (command->code == 3) method = "Previous";
-        g_dbus_connection_call(
-            bus,
-            player_name,
-            MPRIS_PATH,
-            PLAYER_IFACE,
-            method,
-            NULL,
-            NULL,
-            G_DBUS_CALL_FLAGS_NONE,
-            1000,
-            NULL,
-            NULL,
-            NULL);
+        if (command->code == 4 && track_id[0]) {
+            g_dbus_connection_call(
+                bus,
+                player_name,
+                MPRIS_PATH,
+                PLAYER_IFACE,
+                "SetPosition",
+                g_variant_new("(ox)", track_id, command->position),
+                NULL,
+                G_DBUS_CALL_FLAGS_NONE,
+                1500,
+                NULL,
+                NULL,
+                NULL);
+        } else if (command->code != 4) {
+            const char *method = "PlayPause";
+            if (command->code == 2) method = "Next";
+            else if (command->code == 3) method = "Previous";
+            g_dbus_connection_call(
+                bus,
+                player_name,
+                MPRIS_PATH,
+                PLAYER_IFACE,
+                method,
+                NULL,
+                NULL,
+                G_DBUS_CALL_FLAGS_NONE,
+                1000,
+                NULL,
+                NULL,
+                NULL);
+        }
     }
     g_free(command);
     return G_SOURCE_REMOVE;
@@ -313,8 +359,16 @@ void tessa_media_stop(void) {
 }
 
 void tessa_media_command(unsigned int code) {
-    if (!bus) return;
+    if (sock_write < 0) return;
     MediaCommand *command = g_new0(MediaCommand, 1);
     command->code = code;
+    g_main_context_invoke(NULL, command_cb, command);
+}
+
+void tessa_media_seek(long long position_us) {
+    if (sock_write < 0) return;
+    MediaCommand *command = g_new0(MediaCommand, 1);
+    command->code = 4;
+    command->position = position_us;
     g_main_context_invoke(NULL, command_cb, command);
 }

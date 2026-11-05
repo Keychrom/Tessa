@@ -14,12 +14,30 @@ extern fn tessa_notifications_action(id: c_uint, key: [*:0]const u8) void;
 extern fn tessa_media_start() c_int;
 extern fn tessa_media_stop() void;
 extern fn tessa_media_command(code: c_uint) void;
+extern fn tessa_media_seek(position_us: i64) void;
 extern fn tessa_tray_start() c_int;
 extern fn tessa_tray_stop() void;
 extern fn tessa_tray_activate(index: c_uint, code: c_uint) void;
 extern fn tessa_audio_start(status_cmd: [*:0]const u8, up_cmd: [*:0]const u8, down_cmd: [*:0]const u8, mute_cmd: [*:0]const u8) c_int;
 extern fn tessa_audio_stop() void;
 extern fn tessa_audio_command(code: c_uint) void;
+extern fn tessa_audio_set_percent(percent: c_int) void;
+extern fn tessa_system_start() c_int;
+extern fn tessa_system_stop() void;
+extern fn tessa_system_set_features(mask: c_uint) void;
+extern fn tessa_system_wifi_toggle() void;
+extern fn tessa_system_wifi_scan() void;
+extern fn tessa_system_wifi_connect(ap_path: [*:0]const u8, ssid: [*:0]const u8, psk: [*:0]const u8, hidden: c_int) void;
+extern fn tessa_system_wifi_disconnect() void;
+extern fn tessa_system_wifi_forget(conn_path: [*:0]const u8) void;
+extern fn tessa_system_bt_toggle() void;
+extern fn tessa_system_bt_discovery(on: c_int) void;
+extern fn tessa_system_bt_pair(path: [*:0]const u8) void;
+extern fn tessa_system_bt_connect(path: [*:0]const u8, connect: c_int) void;
+extern fn tessa_system_bt_forget(path: [*:0]const u8) void;
+extern fn tessa_system_bt_agent_reply(code: c_int, text: [*:0]const u8) void;
+extern fn tessa_system_set_brightness(percent: c_int) void;
+extern fn tessa_system_set_profile(name: [*:0]const u8) void;
 
 var registry_listener: c.wl_registry_listener = undefined;
 var seat_listener: c.wl_seat_listener = undefined;
@@ -317,9 +335,17 @@ fn syncTextInput(cause: u32) void {
         @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_HINT_COMPLETION),
         @intCast(c.ZWP_TEXT_INPUT_V3_CONTENT_PURPOSE_NORMAL),
     );
-    c.zwp_text_input_v3_set_surrounding_text(ti, @ptrCast(&g.query), @intCast(g.query_len), @intCast(g.query_len));
+    if (g.control_input_active) {
+        const hidden_ssid = g.wifi_modal == .wifi_hidden and g.control_field == 0;
+        const text_ptr: [*]const u8 = if (hidden_ssid) @ptrCast(&g.control_ssid) else @ptrCast(&g.control_input);
+        const text_len: usize = if (hidden_ssid) g.control_ssid_len else g.control_input_len;
+        c.zwp_text_input_v3_set_surrounding_text(ti, text_ptr, @intCast(text_len), @intCast(text_len));
+        c.zwp_text_input_v3_set_cursor_rectangle(ti, g.control_input_rect[0], g.control_input_rect[1], g.control_input_rect[2], g.control_input_rect[3]);
+    } else {
+        c.zwp_text_input_v3_set_surrounding_text(ti, @ptrCast(&g.query), @intCast(g.query_len), @intCast(g.query_len));
+        c.zwp_text_input_v3_set_cursor_rectangle(ti, g.search_rect[0], g.search_rect[1], g.search_rect[2], g.search_rect[3]);
+    }
     c.zwp_text_input_v3_set_text_change_cause(ti, cause);
-    c.zwp_text_input_v3_set_cursor_rectangle(ti, g.search_rect[0], g.search_rect[1], g.search_rect[2], g.search_rect[3]);
     c.zwp_text_input_v3_commit(ti);
 }
 
@@ -358,7 +384,13 @@ fn onTiCommit(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, text: [*c]const u8) 
     _ = data;
     _ = ti;
     logDebug("commit string", .{});
-    if (text != null) appendQueryUtf8(std.mem.span(text));
+    if (text != null) {
+        if (g.control_input_active) {
+            controlInputAppendUtf8(std.mem.span(text));
+        } else {
+            appendQueryUtf8(std.mem.span(text));
+        }
+    }
     g.preedit_len = 0;
     g.preedit[0] = 0;
     refreshOverlay();
@@ -369,6 +401,14 @@ fn onTiDelete(data: ?*anyopaque, ti: ?*c.zwp_text_input_v3, before: u32, after: 
     _ = data;
     _ = ti;
     _ = after;
+    if (g.control_input_active) {
+        const n = @max(@as(usize, 1), @min(if (g.wifi_modal == .wifi_hidden and g.control_field == 0) g.control_ssid_len else g.control_input_len, @as(usize, before)));
+        var i: usize = 0;
+        while (i < n) : (i += 1) controlInputBackspace();
+        g.preedit_len = 0;
+        g.preedit[0] = 0;
+        return;
+    }
     const n = @min(g.query_len, @as(usize, before));
     g.query_len -= n;
     g.query[g.query_len] = 0;
@@ -717,20 +757,48 @@ fn runModuleAction(index: usize) void {
 }
 
 fn openPanel(name: []const u8) void {
-    if (std.mem.eql(u8, name, "calendar")) {
-        openCalendar();
+    if (std.mem.eql(u8, name, "control") or std.mem.eql(u8, name, "controls")) {
+        openControlCenter(.home);
+    } else if (std.mem.eql(u8, name, "wifi")) {
+        openWifi();
+    } else if (std.mem.eql(u8, name, "bluetooth")) {
+        openBluetooth();
+    } else if (std.mem.eql(u8, name, "notifications")) {
+        if (g.panel_style == .unified) openControlCenter(.notifications) else logDebug("notifications: unified panel is disabled", .{});
+    } else if (std.mem.eql(u8, name, "calendar")) {
+        if (g.panel_style == .unified and m.controlFeatureEnabled(.calendar)) {
+            openControlCenter(.calendar);
+        } else {
+            openCalendar();
+        }
     } else if (std.mem.eql(u8, name, "power")) {
-        openPower();
+        if (g.panel_style == .unified and m.controlFeatureEnabled(.power)) {
+            openControlCenter(.power);
+        } else {
+            openPower();
+        }
     } else if (std.mem.eql(u8, name, "clipboard")) {
         openClipboard();
     } else if (std.mem.eql(u8, name, "screenshot")) {
         openScreenshot();
     } else if (std.mem.eql(u8, name, "media")) {
-        openMedia();
+        if (g.panel_style == .unified and m.controlFeatureEnabled(.media)) {
+            openControlCenter(.home);
+        } else {
+            openMedia();
+        }
     } else if (std.mem.eql(u8, name, "tray")) {
-        openTray();
+        if (g.panel_style == .unified and m.controlFeatureEnabled(.tray)) {
+            openControlCenter(.tray);
+        } else {
+            openTray();
+        }
     } else if (std.mem.eql(u8, name, "audio")) {
-        openAudio();
+        if (g.panel_style == .unified and m.controlFeatureEnabled(.volume)) {
+            openControlCenter(.home);
+        } else {
+            openAudio();
+        }
     } else if (std.mem.eql(u8, name, "extensions")) {
         openExtensions();
     } else if (std.mem.eql(u8, name, "launcher")) {
@@ -857,6 +925,317 @@ fn movePowerSelection(delta: isize) void {
     refreshOverlay();
 }
 
+fn zText(comptime N: usize, buf: *[N]u8, text: []const u8) [*:0]const u8 {
+    const n = @min(text.len, N - 1);
+    @memcpy(buf[0..n], text[0..n]);
+    buf[n] = 0;
+    return @ptrCast(buf);
+}
+
+fn controlInputAppendUtf8(text: []const u8) void {
+    if (text.len == 0) return;
+    const hidden = g.wifi_modal == .wifi_hidden;
+    const numeric = g.bt_agent == .passkey or g.bt_agent == .pin;
+    var filtered: [MAX_CONTROL_INPUT]u8 = undefined;
+    var n: usize = 0;
+    for (text) |ch| {
+        if (numeric and (ch < '0' or ch > '9')) continue;
+        if (n >= filtered.len) break;
+        filtered[n] = ch;
+        n += 1;
+    }
+    if (n == 0) return;
+    if (hidden and g.control_field == 0) {
+        const room = g.control_ssid.len - 1 - g.control_ssid_len;
+        const take = @min(room, n);
+        @memcpy(g.control_ssid[g.control_ssid_len..][0..take], filtered[0..take]);
+        g.control_ssid_len += take;
+        g.control_ssid[g.control_ssid_len] = 0;
+    } else {
+        const room = g.control_input.len - 1 - g.control_input_len;
+        const take = @min(room, n);
+        @memcpy(g.control_input[g.control_input_len..][0..take], filtered[0..take]);
+        g.control_input_len += take;
+        g.control_input[g.control_input_len] = 0;
+    }
+    refreshOverlay();
+}
+
+fn controlInputBackspace() void {
+    if (g.wifi_modal == .wifi_hidden and g.control_field == 0) {
+        if (g.control_ssid_len == 0) return;
+        g.control_ssid_len -= 1;
+        while (g.control_ssid_len > 0 and (g.control_ssid[g.control_ssid_len] & 0xc0) == 0x80) {
+            g.control_ssid_len -= 1;
+        }
+        g.control_ssid[g.control_ssid_len] = 0;
+    } else {
+        if (g.control_input_len == 0) return;
+        g.control_input_len -= 1;
+        while (g.control_input_len > 0 and (g.control_input[g.control_input_len] & 0xc0) == 0x80) {
+            g.control_input_len -= 1;
+        }
+        g.control_input[g.control_input_len] = 0;
+    }
+    refreshOverlay();
+}
+
+fn controlSetView(view: m.ControlView) void {
+    const leaving_bt = g.control_view == .bluetooth;
+    g.control_view = view;
+    g.control_scroll = 0;
+    g.wifi_selected = 0;
+    g.bt_selected = 0;
+    if (leaving_bt and view != .bluetooth) tessa_system_bt_discovery(0);
+    if (view == .wifi) tessa_system_wifi_scan();
+    if (view == .bluetooth) tessa_system_bt_discovery(1);
+    refreshOverlay();
+    logDebug("control: view={s}", .{@tagName(view)});
+}
+
+fn controlBack() void {
+    if (g.overlay_mode != .control) {
+        closeOverlay();
+        return;
+    }
+    if (g.control_view == .home) {
+        closeOverlay();
+    } else {
+        if (g.control_view == .bluetooth) tessa_system_bt_discovery(0);
+        g.control_view = .home;
+        g.control_scroll = 0;
+        controlCancelModal();
+        refreshOverlay();
+        logDebug("control: view=home", .{});
+    }
+}
+
+fn controlCancelModal() void {
+    if (g.bt_agent != .none) tessa_system_bt_agent_reply(1, "");
+    g.bt_agent = .none;
+    g.bt_modal = .none;
+    g.wifi_modal = .none;
+    g.control_input_active = false;
+    g.control_input_secure = false;
+    @memset(g.control_input[0..], 0);
+    g.control_input_len = 0;
+    disableTextInput();
+}
+
+fn controlConfirmModal() void {
+    if (g.bt_agent != .none) {
+        var buf: [MAX_CONTROL_INPUT + 1]u8 = @splat(0);
+        const text: [*:0]const u8 = if (g.bt_agent == .pin or g.bt_agent == .passkey)
+            zText(buf.len, &buf, g.control_input[0..g.control_input_len])
+        else
+            "";
+        tessa_system_bt_agent_reply(0, text);
+        @memset(g.control_input[0..], 0);
+        g.control_input_len = 0;
+        g.bt_agent = .none;
+        g.bt_modal = .none;
+        g.control_input_active = false;
+        disableTextInput();
+        refreshOverlay();
+        return;
+    }
+    if (g.wifi_modal == .wifi_password or g.wifi_modal == .wifi_hidden) {
+        var path_buf: [m.MAX_WIFI_PATH + 1]u8 = @splat(0);
+        var ssid_buf: [m.MAX_WIFI_SSID + 1]u8 = @splat(0);
+        var psk_buf: [MAX_CONTROL_INPUT + 1]u8 = @splat(0);
+        var ssid: []const u8 = g.control_ssid[0..g.control_ssid_len];
+        var path: []const u8 = "";
+        var hidden: c_int = 0;
+        if (g.wifi_modal == .wifi_hidden) {
+            hidden = 1;
+        } else if (g.wifi_modal_ap < g.wifi_ap_count) {
+            const ap = &g.wifi_aps[g.wifi_modal_ap];
+            ssid = ap.ssid[0..ap.ssid_len];
+            path = ap.path[0..ap.path_len];
+        }
+        const psk = g.control_input[0..g.control_input_len];
+        tessa_system_wifi_connect(
+            zText(path_buf.len, &path_buf, path),
+            zText(ssid_buf.len, &ssid_buf, ssid),
+            zText(psk_buf.len, &psk_buf, psk),
+            hidden,
+        );
+        logDebug("wifi: connect requested ssid={s} hidden={d}", .{ ssid, hidden });
+        @memset(g.control_input[0..], 0);
+        g.control_input_len = 0;
+        g.control_ssid_len = 0;
+        g.wifi_modal = .none;
+        g.control_input_active = false;
+        disableTextInput();
+        refreshOverlay();
+    }
+}
+
+fn wifiConnectIndex(index: usize) void {
+    if (index >= g.wifi_ap_count) return;
+    const ap = &g.wifi_aps[index];
+    const active = (ap.flags & m.WIFI_AP_ACTIVE) != 0;
+    if (active) return;
+    g.wifi_selected = index;
+    if ((ap.flags & m.WIFI_AP_ENTERPRISE) != 0) {
+        g.wifi_error_len = 0;
+        m.copyTrunc(&g.wifi_error, &g.wifi_error_len, "Enterprise Wi-Fi is not supported yet");
+        refreshOverlay();
+        return;
+    }
+    const saved = (ap.flags & m.WIFI_AP_SAVED) != 0;
+    if ((ap.flags & m.WIFI_AP_SECURED) != 0 and !saved) {
+        g.wifi_modal = .wifi_password;
+        g.wifi_modal_ap = index;
+        g.wifi_modal_hidden = false;
+        g.control_input_len = 0;
+        @memset(g.control_input[0..], 0);
+        g.control_field = 0;
+        g.control_input_secure = true;
+        g.control_input_active = true;
+        enableTextInput();
+        refreshOverlay();
+        return;
+    }
+    var path_buf: [m.MAX_WIFI_PATH + 1]u8 = @splat(0);
+    var ssid_buf: [m.MAX_WIFI_SSID + 1]u8 = @splat(0);
+    tessa_system_wifi_connect(
+        zText(path_buf.len, &path_buf, ap.path[0..ap.path_len]),
+        zText(ssid_buf.len, &ssid_buf, ap.ssid[0..ap.ssid_len]),
+        "",
+        0,
+    );
+    logDebug("wifi: connect requested ssid={s}", .{ap.ssid[0..ap.ssid_len]});
+    refreshOverlay();
+}
+
+fn wifiHiddenModal() void {
+    g.wifi_modal = .wifi_hidden;
+    g.control_ssid_len = 0;
+    g.control_input_len = 0;
+    @memset(g.control_ssid[0..], 0);
+    @memset(g.control_input[0..], 0);
+    g.control_field = 0;
+    g.control_input_secure = true;
+    g.control_input_active = true;
+    enableTextInput();
+    refreshOverlay();
+}
+
+fn btPrimaryAction(index: usize) void {
+    if (index >= g.bt_count) return;
+    const d = &g.bt_devices[index];
+    var buf: [m.MAX_BT_PATH + 1]u8 = @splat(0);
+    const path = zText(buf.len, &buf, d.path[0..d.path_len]);
+    const connected = (d.flags & m.BT_DEVICE_CONNECTED) != 0;
+    const paired = (d.flags & m.BT_DEVICE_PAIRED) != 0;
+    if (connected) {
+        tessa_system_bt_connect(path, 0);
+    } else if (paired) {
+        tessa_system_bt_connect(path, 1);
+    } else {
+        tessa_system_bt_pair(path);
+    }
+    refreshOverlay();
+}
+
+fn btForgetIndex(index: usize) void {
+    if (index >= g.bt_count) return;
+    const d = &g.bt_devices[index];
+    var buf: [m.MAX_BT_PATH + 1]u8 = @splat(0);
+    tessa_system_bt_forget(zText(buf.len, &buf, d.path[0..d.path_len]));
+    refreshOverlay();
+}
+
+fn runControlAction(action: m.ControlAction, value: usize) void {
+    switch (action) {
+        .back => controlBack(),
+        .wifi_toggle => {
+            tessa_system_wifi_toggle();
+            refreshOverlay();
+        },
+        .wifi_scan => {
+            tessa_system_wifi_scan();
+            refreshOverlay();
+        },
+        .wifi_disconnect => {
+            tessa_system_wifi_disconnect();
+            refreshOverlay();
+        },
+        .wifi_forget => {
+            var buf: [m.MAX_WIFI_PATH + 1]u8 = @splat(0);
+            var path: []const u8 = "";
+            var i: usize = 0;
+            while (i < g.wifi_ap_count) : (i += 1) {
+                const ap = &g.wifi_aps[i];
+                if ((ap.flags & m.WIFI_AP_ACTIVE) != 0 and ap.conn_path_len > 0) {
+                    path = ap.conn_path[0..ap.conn_path_len];
+                    break;
+                }
+            }
+            if (path.len > 0) tessa_system_wifi_forget(zText(buf.len, &buf, path));
+        },
+        .wifi_hidden => wifiHiddenModal(),
+        .bt_toggle => {
+            tessa_system_bt_toggle();
+            refreshOverlay();
+        },
+        .bt_scan => {
+            tessa_system_bt_discovery(if (g.bt_discovering) 0 else 1);
+            refreshOverlay();
+        },
+        .bt_pair, .bt_connect, .bt_disconnect => btPrimaryAction(g.bt_selected),
+        .bt_forget => btForgetIndex(value / 1000),
+        .dnd => {
+            g.dnd = !g.dnd;
+            updateToastsSurface();
+            refreshOverlay();
+            logDebug("control: focus={s}", .{if (g.dnd) "on" else "off"});
+        },
+        .clear_notifications => {
+            clearNotifications();
+            refreshOverlay();
+        },
+        .view_notifications => controlSetView(.notifications),
+        .view_calendar => controlSetView(.calendar),
+        .view_tray => controlSetView(.tray),
+        .view_power => controlSetView(.power),
+        .power_lock => runPowerAction(0),
+        .power_suspend => runPowerAction(1),
+        .power_reboot => runPowerAction(2),
+        .power_off => runPowerAction(3),
+        .power_quit => runPowerAction(4),
+        .quick_screenshot => {
+            closeOverlay();
+            openScreenshot();
+        },
+        .quick_clipboard => {
+            closeOverlay();
+            openClipboard();
+        },
+        .quick_settings => {
+            var cmd: [512]u8 = undefined;
+            const text = std.fmt.bufPrint(&cmd, "{s} -e tessa-ctl config-edit", .{g.terminal[0..g.terminal_len]}) catch "tessa-ctl config-edit";
+            sendCmd("CMD spawn {s}\n", .{text});
+            closeOverlay();
+        },
+        .quick_lock => runPowerAction(0),
+        .quick_custom_base => {
+            const idx = value - @intFromEnum(m.ControlAction.quick_custom_base);
+            if (idx < g.control_action_count) {
+                sendCmd("CMD spawn {s}\n", .{g.control_actions[idx].command[0..g.control_actions[idx].command_len]});
+                closeOverlay();
+            }
+        },
+        .modal_confirm => controlConfirmModal(),
+        .modal_cancel => {
+            controlCancelModal();
+            refreshOverlay();
+        },
+        .field_ssid, .field_password, .profile_base => {},
+    }
+}
+
 fn activateOverlayHit(h: m.Hit) void {
     switch (h.kind) {
         .app => launchApp(h.value),
@@ -883,6 +1262,28 @@ fn activateOverlayHit(h: m.Hit) void {
         .audio_down => audioCommand(2),
         .audio_mute => audioCommand(3),
         .audio_up => audioCommand(1),
+        .control_view => controlSetView(@enumFromInt(h.value)),
+        .control_action => runControlAction(@enumFromInt(h.value), h.value),
+        .control_slider => controlSliderPress(@enumFromInt(h.value)),
+        .control_ap => wifiConnectIndex(h.value),
+        .control_bt_device => btPrimaryAction(h.value),
+        .control_notification => {
+            if (h.value < g.notification_count) notificationDefaultOrDismiss(h.value);
+        },
+        .control_power => runPowerAction(h.value),
+        .control_profile => {
+            if (h.value < g.ppd_profile_count) {
+                var buf: [40]u8 = @splat(0);
+                tessa_system_set_profile(zText(buf.len, &buf, g.ppd_profiles[h.value][0..g.ppd_profile_lens[h.value]]));
+            }
+        },
+        .control_input => {
+            g.control_field = h.value;
+            g.control_input_active = true;
+            g.control_input_secure = true;
+            enableTextInput();
+            refreshOverlay();
+        },
         else => {},
     }
 }
@@ -890,6 +1291,54 @@ fn activateOverlayHit(h: m.Hit) void {
 fn mediaCommand(code: u32) void {
     tessa_media_command(code);
     logDebug("media: command {d}", .{code});
+}
+
+fn controlSliderPress(target: m.DragTarget) void {
+    g.control_drag = target;
+    g.control_drag_ms = 0;
+    controlSliderUpdate(target, false);
+}
+
+fn controlSliderUpdate(target: m.DragTarget, force: bool) void {
+    const rect = switch (target) {
+        .volume => g.control_volume_slider,
+        .brightness => g.control_brightness_slider,
+        .seek => g.control_seek_slider,
+        .none => return,
+    };
+    if (rect.w <= 1.0) return;
+    const pct = std.math.clamp((g.pointer_x - rect.x) / rect.w, 0.0, 1.0);
+    const now = m.nowMs();
+    const send = force or now - g.control_drag_ms >= 35;
+    if (send) g.control_drag_ms = now;
+    switch (target) {
+        .volume => {
+            g.volume_percent = @intFromFloat(@round(pct * 100.0));
+            g.volume_muted = false;
+            if (send) tessa_audio_set_percent(g.volume_percent);
+            refreshOverlay();
+        },
+        .brightness => {
+            g.brightness_percent = @intFromFloat(@round(pct * 100.0));
+            if (send) tessa_system_set_brightness(g.brightness_percent);
+            refreshOverlay();
+        },
+        .seek => {
+            if (g.media_length_us > 0) {
+                g.media_position_us = @intFromFloat(pct * @as(f64, @floatFromInt(g.media_length_us)));
+                if (send) tessa_media_seek(g.media_position_us);
+                refreshOverlay();
+            }
+        },
+        .none => {},
+    }
+}
+
+fn controlDragEnd() void {
+    const target = g.control_drag;
+    if (target == .none) return;
+    controlSliderUpdate(target, true);
+    g.control_drag = .none;
 }
 
 fn clipboardPromote(index: usize) void {
@@ -1036,6 +1485,8 @@ fn reloadPanelConfig() void {
     const old_position = g.bar_position;
     const old_renderer = g.panel_renderer;
     const old_overlay_renderer = g.overlay_renderer;
+    const old_style = g.panel_style;
+    const old_system_mask = systemFeatureMask();
     var old_volume_status: [512]u8 = undefined;
     var old_volume_up: [512]u8 = undefined;
     var old_volume_down: [512]u8 = undefined;
@@ -1077,6 +1528,25 @@ fn reloadPanelConfig() void {
         !std.mem.eql(u8, old_volume_mute[0..old_mute_len], g.volume_mute[0..g.volume_mute_len]);
     refreshApps();
     if (volume_changed) restartAudioService();
+    const new_system_mask = systemFeatureMask();
+    if (g.system_fd < 0 and new_system_mask != 0) {
+        startSystemService();
+    } else if (g.system_fd >= 0 and new_system_mask == 0) {
+        tessa_system_stop();
+        g.system_fd = -1;
+    } else if (g.system_fd >= 0 and new_system_mask != old_system_mask) {
+        tessa_system_set_features(@intCast(new_system_mask));
+    }
+    if (old_style != g.panel_style) {
+        g.bar.dirty = true;
+        if (g.overlay) |ov| {
+            if (ov.kind == .overlay and (g.overlay_mode == .control or
+                g.overlay_mode == .wifi or g.overlay_mode == .bluetooth))
+            {
+                destroyOverlay();
+            }
+        }
+    }
     if (g.bar_height != old_height or g.bar_top_margin != old_top or
         g.bar_side_margin != old_side or g.bar_position != old_position)
     {
@@ -1354,6 +1824,49 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             audioCommand(2);
         } else if (sym == c.XKB_KEY_m) {
             audioCommand(3);
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .control or g.overlay_mode == .wifi or g.overlay_mode == .bluetooth) {
+        if (g.control_input_active) {
+            if (sym == c.XKB_KEY_Escape) {
+                controlCancelModal();
+                refreshOverlay();
+                return;
+            }
+            if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter) {
+                controlConfirmModal();
+                return;
+            }
+            if (sym == c.XKB_KEY_BackSpace) {
+                controlInputBackspace();
+                return;
+            }
+            if (sym == c.XKB_KEY_Tab and g.wifi_modal == .wifi_hidden) {
+                g.control_field = if (g.control_field == 0) 1 else 0;
+                refreshOverlay();
+                return;
+            }
+            const st = c.XKB_STATE_MODS_EFFECTIVE;
+            if (c.xkb_state_mod_name_is_active(xstate, "Control", st) != 0 or
+                c.xkb_state_mod_name_is_active(xstate, "Mod1", st) != 0 or
+                c.xkb_state_mod_name_is_active(xstate, "Mod4", st) != 0)
+            {
+                return;
+            }
+            var buf: [32]u8 = undefined;
+            const n = c.xkb_state_key_get_utf8(xstate, keycode, &buf, buf.len);
+            if (n > 0) controlInputAppendUtf8(buf[0..@intCast(n)]);
+            return;
+        }
+        if (sym == c.XKB_KEY_Escape) {
+            controlBack();
+            return;
+        }
+        if (g.overlay_mode == .control and sym == c.XKB_KEY_Left) {
+            if (g.control_view != .home) controlBack();
+            return;
         }
         return;
     }
@@ -2237,18 +2750,32 @@ fn startNotificationService() void {
     logDebug("notifications: starting service", .{});
 }
 
-fn mediaUpdate(status: u8, title: []const u8, artist: []const u8, player: []const u8) void {
+fn mediaUpdate(status: u8, title: []const u8, artist: []const u8, player: []const u8, length_us: i64, position_us: i64) void {
     g.media_status = status;
     m.copyTrunc(&g.media_title, &g.media_title_len, title);
     m.copyTrunc(&g.media_artist, &g.media_artist_len, artist);
     m.copyTrunc(&g.media_player, &g.media_player_len, player);
+    g.media_length_us = @max(0, length_us);
+    g.media_position_us = @max(0, position_us);
     g.bar.dirty = true;
-    if (g.overlay_mode == .media) refreshOverlay();
+    if (g.overlay_mode == .media or g.overlay_mode == .control) refreshOverlay();
     if (status == 0) {
         logDebug("media: no player", .{});
     } else {
         logDebug("media: state={d} title={s}", .{ status, g.media_title[0..g.media_title_len] });
     }
+}
+
+fn readI64(bytes: []const u8, offset: usize) i64 {
+    const v: u64 = @as(u64, bytes[offset]) |
+        (@as(u64, bytes[offset + 1]) << 8) |
+        (@as(u64, bytes[offset + 2]) << 16) |
+        (@as(u64, bytes[offset + 3]) << 24) |
+        (@as(u64, bytes[offset + 4]) << 32) |
+        (@as(u64, bytes[offset + 5]) << 40) |
+        (@as(u64, bytes[offset + 6]) << 48) |
+        (@as(u64, bytes[offset + 7]) << 56);
+    return @bitCast(v);
 }
 
 fn mediaShift(count: usize) void {
@@ -2265,25 +2792,29 @@ fn processMediaMessages() void {
     while (g.media_len > 0) {
         const kind = g.media_buf[0];
         if (kind == 1) {
-            if (g.media_len < 16) return;
+            if (g.media_len < 32) return;
             const status = g.media_buf[1];
             const title_len: usize = @intCast(readU32(&g.media_buf, 4));
             const artist_len: usize = @intCast(readU32(&g.media_buf, 8));
             const player_len: usize = @intCast(readU32(&g.media_buf, 12));
-            const total = 16 + title_len + artist_len + player_len;
+            const length_us = readI64(&g.media_buf, 16);
+            const position_us = readI64(&g.media_buf, 24);
+            const total = 32 + title_len + artist_len + player_len;
             if (total > g.media_buf.len) {
                 g.media_len = 0;
                 return;
             }
             if (g.media_len < total) return;
-            const title = g.media_buf[16 .. 16 + title_len];
-            const artist = g.media_buf[16 + title_len .. 16 + title_len + artist_len];
-            const player = g.media_buf[16 + title_len + artist_len .. total];
+            const title = g.media_buf[32 .. 32 + title_len];
+            const artist = g.media_buf[32 + title_len .. 32 + title_len + artist_len];
+            const player = g.media_buf[32 + title_len + artist_len .. total];
             mediaUpdate(
                 @min(status, 3),
                 title,
                 artist,
                 player,
+                length_us,
+                position_us,
             );
             mediaShift(total);
         } else if (kind == 2) {
@@ -2712,6 +3243,286 @@ fn readAudio() void {
     processAudioMessages();
 }
 
+fn systemFeatureMask() u32 {
+    var mask: u32 = 0;
+    if (m.controlFeatureEnabled(.wifi)) mask |= 1 << 0;
+    if (m.controlFeatureEnabled(.bluetooth)) mask |= 1 << 1;
+    if (m.controlFeatureEnabled(.brightness)) mask |= 1 << 6;
+    if (m.controlFeatureEnabled(.power_profile)) mask |= 1 << 7;
+    return mask;
+}
+
+fn startSystemService() void {
+    const mask = systemFeatureMask();
+    if (mask == 0) return;
+    g.system_fd = tessa_system_start();
+    if (g.system_fd < 0) {
+        logMsg("system: cannot start the control service", .{});
+        return;
+    }
+    const flags = c.fcntl(g.system_fd, c.F_GETFL, @as(c_int, 0));
+    _ = c.fcntl(g.system_fd, c.F_SETFL, @as(c_int, flags | c.O_NONBLOCK));
+    tessa_system_set_features(@intCast(mask));
+    logDebug("system: starting service features=0x{x}", .{mask});
+}
+
+fn tlvU32(data: []const u8, off: usize) u32 {
+    return readU32(data, off);
+}
+
+fn tlvStr(data: []const u8, dest: []u8, dest_len: *usize) void {
+    m.copyTrunc(dest, dest_len, data);
+}
+
+fn parseSystemState(payload: []const u8) void {
+    var i: usize = 0;
+    while (i + 3 <= payload.len) {
+        const tag = payload[i];
+        const len: usize = @intCast(@as(u16, payload[i + 1]) | (@as(u16, payload[i + 2]) << 8));
+        i += 3;
+        if (i + len > payload.len) break;
+        const data = payload[i .. i + len];
+        switch (tag) {
+            0x10 => if (len >= 4) {
+                const flags = tlvU32(data, 0);
+                g.wifi_present = (flags & 1) != 0;
+                g.wifi_enabled = (flags & 2) != 0;
+                g.wifi_hw_enabled = (flags & 4) != 0;
+                g.wifi_scanning = (flags & 8) != 0;
+                if (!g.wifi_present) {
+                    g.wifi_ssid_len = 0;
+                    g.wifi_ssid[0] = 0;
+                }
+            },
+            0x11 => tlvStr(data, &g.wifi_ssid, &g.wifi_ssid_len),
+            0x12 => if (len >= 1) g.wifi_signal = data[0],
+            0x13 => if (len >= 1) g.wifi_state = data[0],
+            0x14 => tlvStr(data, &g.wifi_error, &g.wifi_error_len),
+            0x15 => {
+                g.wifi_ap_count = 0;
+                g.wifi_selected = 0;
+                g.wifi_scroll = 0;
+            },
+            0x16 => {
+                if (g.wifi_ap_count >= m.MAX_WIFI_APS) {
+                    i += len;
+                    continue;
+                }
+                var j: usize = 0;
+                if (j >= len) {
+                    i += len;
+                    continue;
+                }
+                const slen: usize = data[j];
+                j += 1;
+                if (j + slen + 1 + 4 + 2 > len) {
+                    i += len;
+                    continue;
+                }
+                var ap = &g.wifi_aps[g.wifi_ap_count];
+                ap.* = .{};
+                const n = @min(slen, ap.ssid.len - 1);
+                @memcpy(ap.ssid[0..n], data[j .. j + n]);
+                ap.ssid_len = n;
+                j += slen;
+                ap.signal = data[j];
+                j += 1;
+                ap.flags = tlvU32(data, j);
+                j += 4;
+                const plen: usize = @intCast(@as(u16, data[j]) | (@as(u16, data[j + 1]) << 8));
+                j += 2;
+                if (j + plen + 2 > len) {
+                    i += len;
+                    continue;
+                }
+                const pn = @min(plen, ap.path.len - 1);
+                @memcpy(ap.path[0..pn], data[j .. j + pn]);
+                ap.path_len = pn;
+                j += plen;
+                const clen: usize = @intCast(@as(u16, data[j]) | (@as(u16, data[j + 1]) << 8));
+                j += 2;
+                if (j + clen <= len) {
+                    const cn = @min(clen, ap.conn_path.len - 1);
+                    @memcpy(ap.conn_path[0..cn], data[j .. j + cn]);
+                    ap.conn_path_len = cn;
+                }
+                if (ap.ssid_len > 0) g.wifi_ap_count += 1;
+            },
+            0x20 => if (len >= 4) {
+                const flags = tlvU32(data, 0);
+                g.bt_present = (flags & 1) != 0;
+                g.bt_powered = (flags & 2) != 0;
+                g.bt_discovering = (flags & 4) != 0;
+            },
+            0x21 => tlvStr(data, &g.bt_name, &g.bt_name_len),
+            0x22 => tlvStr(data, &g.bt_error, &g.bt_error_len),
+            0x23 => {
+                g.bt_count = 0;
+                g.bt_selected = 0;
+                g.bt_scroll = 0;
+            },
+            0x24 => {
+                if (g.bt_count >= m.MAX_BT_DEVICES) {
+                    i += len;
+                    continue;
+                }
+                var j: usize = 0;
+                if (j + 2 > len) {
+                    i += len;
+                    continue;
+                }
+                const plen: usize = @intCast(@as(u16, data[j]) | (@as(u16, data[j + 1]) << 8));
+                j += 2;
+                if (j + plen + 2 > len) {
+                    i += len;
+                    continue;
+                }
+                var dev = &g.bt_devices[g.bt_count];
+                dev.* = .{};
+                const pn = @min(plen, dev.path.len - 1);
+                @memcpy(dev.path[0..pn], data[j .. j + pn]);
+                dev.path_len = pn;
+                j += plen;
+                const nlen: usize = @intCast(@as(u16, data[j]) | (@as(u16, data[j + 1]) << 8));
+                j += 2;
+                if (j + nlen + 1 + 1 + 2 + 1 > len) {
+                    i += len;
+                    continue;
+                }
+                const nn = @min(nlen, dev.name.len - 1);
+                @memcpy(dev.name[0..nn], data[j .. j + nn]);
+                dev.name_len = nn;
+                j += nlen;
+                dev.icon = data[j];
+                j += 1;
+                dev.flags = data[j];
+                j += 1;
+                const rssi_u: u16 = @intCast(@as(u16, data[j]) | (@as(u16, data[j + 1]) << 8));
+                dev.rssi = @bitCast(rssi_u);
+                j += 2;
+                dev.battery = @bitCast(data[j]);
+                if (dev.name_len == 0) dev.name_len = 0;
+                g.bt_count += 1;
+            },
+            0x30 => if (len >= 4) {
+                const flags = tlvU32(data, 0);
+                const present = (flags & 1) != 0;
+                if (!present) g.brightness_percent = -1;
+                g.ppd_available = (flags & 2) != 0;
+            },
+            0x31 => if (len >= 1) g.brightness_percent = data[0],
+            0x32 => if (len >= 4) g.brightness_max = tlvU32(data, 0),
+            0x33 => tlvStr(data, &g.brightness_name, &g.brightness_name_len),
+            0x34 => tlvStr(data, &g.ppd_profile, &g.ppd_profile_len),
+            0x35 => if (len >= 1) g.ppd_profile_count = 0,
+            0x36 => {
+                if (g.ppd_profile_count < g.ppd_profiles.len) {
+                    const idx = g.ppd_profile_count;
+                    m.copyTrunc(&g.ppd_profiles[idx], &g.ppd_profile_lens[idx], data);
+                    g.ppd_profile_count += 1;
+                }
+            },
+            else => {},
+        }
+        i += len;
+    }
+    g.bar.dirty = true;
+    if (g.overlay_mode == .control or g.overlay_mode == .wifi or g.overlay_mode == .bluetooth) {
+        refreshOverlay();
+    }
+}
+
+fn parseAgentPrompt(payload: []const u8) void {
+    var kind: u8 = 0;
+    var passkey: []const u8 = "";
+    var name: []const u8 = "";
+    var i: usize = 0;
+    while (i + 3 <= payload.len) {
+        const tag = payload[i];
+        const len: usize = @intCast(@as(u16, payload[i + 1]) | (@as(u16, payload[i + 2]) << 8));
+        i += 3;
+        if (i + len > payload.len) break;
+        const data = payload[i .. i + len];
+        switch (tag) {
+            1 => if (len >= 1) kind = data[0],
+            2 => passkey = data,
+            3 => name = data,
+            else => {},
+        }
+        i += len;
+    }
+    if (kind == 0 or kind > 5) return;
+    g.bt_agent = @enumFromInt(kind);
+    g.bt_modal = switch (g.bt_agent) {
+        .confirm => .bt_confirm,
+        .pin => .bt_pin,
+        .passkey => .bt_passkey,
+        else => .none,
+    };
+    m.copyTrunc(&g.bt_agent_name, &g.bt_agent_name_len, name);
+    m.copyTrunc(&g.bt_agent_passkey, &g.bt_agent_passkey_len, passkey);
+    g.control_input_len = 0;
+    g.control_input[0] = 0;
+    g.control_input_active = g.bt_agent == .pin or g.bt_agent == .passkey;
+    if (g.control_input_active) enableTextInput();
+    refreshOverlay();
+    logDebug("bluetooth: agent prompt kind={d}", .{kind});
+}
+
+fn processSystemMessages() void {
+    while (g.system_len > 0) {
+        if (g.system_len < 5) return;
+        const kind = g.system_buf[0];
+        const len: usize = @intCast(readU32(&g.system_buf, 1));
+        const total = 5 + len;
+        if (total > g.system_buf.len) {
+            g.system_len = 0;
+            return;
+        }
+        if (g.system_len < total) return;
+        const payload = g.system_buf[5..total];
+        switch (kind) {
+            1 => parseSystemState(payload),
+            2 => {
+                g.system_ready = true;
+                logMsg("system: service ready", .{});
+            },
+            3 => logMsg("system: {s}", .{payload}),
+            4 => parseAgentPrompt(payload),
+            5 => {
+                g.bt_agent = .none;
+                g.bt_modal = .none;
+                g.control_input_active = false;
+                disableTextInput();
+                refreshOverlay();
+            },
+            else => {},
+        }
+        if (len >= g.system_len) {
+            g.system_len = 0;
+        } else {
+            const remain = g.system_len - total;
+            std.mem.copyForwards(u8, g.system_buf[0..remain], g.system_buf[total..g.system_len]);
+            g.system_len = remain;
+        }
+    }
+}
+
+fn readSystemService() void {
+    if (g.system_fd < 0) return;
+    if (g.system_len >= g.system_buf.len) g.system_len = 0;
+    const n = c.read(g.system_fd, g.system_buf[g.system_len..].ptr, g.system_buf.len - g.system_len);
+    if (n < 0) return;
+    if (n == 0) {
+        logMsg("system: service disconnected", .{});
+        _ = c.close(g.system_fd);
+        g.system_fd = -1;
+        return;
+    }
+    g.system_len += @intCast(n);
+    processSystemMessages();
+}
+
 fn startAudioService() void {
     const status = g.volume_status[0..g.volume_status_len :0];
     const up = g.volume_up[0..g.volume_up_len :0];
@@ -2742,6 +3553,85 @@ fn openAudio() void {
     if (!ensureOverlay()) return;
     beginOverlay(.audio);
     logDebug("audio: controls open", .{});
+}
+
+fn resetControlState() void {
+    g.control_scroll = 0;
+    g.control_drag = .none;
+    g.control_input_len = 0;
+    g.control_input[0] = 0;
+    g.control_input_active = false;
+    g.control_input_secure = false;
+    g.control_field = 0;
+    g.control_ssid_len = 0;
+    g.control_ssid[0] = 0;
+    g.wifi_modal = .none;
+    g.wifi_modal_ap = 0;
+    g.bt_modal = .none;
+    g.bt_detail_path_len = 0;
+    g.bt_detail_path[0] = 0;
+}
+
+fn openControlCenter(view: m.ControlView) void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS) or g.panel_style != .unified) return;
+    if (g.overlay != null and g.overlay_mode == .control and
+        g.control_view == view and g.menu_target == 1)
+    {
+        if (view == .home) {
+            closeOverlay();
+        } else {
+            g.control_view = .home;
+            g.control_scroll = 0;
+            logDebug("control: view=home", .{});
+            refreshOverlay();
+        }
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    resetControlState();
+    g.control_view = view;
+    if (!ensureOverlay()) return;
+    beginOverlay(.control);
+    disableTextInput();
+    logMsg("control: open view={s}", .{@tagName(view)});
+}
+
+fn openWifi() void {
+    if (!m.controlFeatureEnabled(.wifi)) return;
+    if (g.panel_style == .unified) {
+        openControlCenter(.wifi);
+        return;
+    }
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (g.overlay != null and g.overlay_mode == .wifi and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    resetControlState();
+    if (!ensureOverlay()) return;
+    beginOverlay(.wifi);
+    disableTextInput();
+    logMsg("wifi: popover open", .{});
+}
+
+fn openBluetooth() void {
+    if (!m.controlFeatureEnabled(.bluetooth)) return;
+    if (g.panel_style == .unified) {
+        openControlCenter(.bluetooth);
+        return;
+    }
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (g.overlay != null and g.overlay_mode == .bluetooth and g.menu_target == 1) {
+        closeOverlay();
+        return;
+    }
+    if (g.overlay != null) destroyOverlay();
+    resetControlState();
+    if (!ensureOverlay()) return;
+    beginOverlay(.bluetooth);
+    disableTextInput();
+    logMsg("bluetooth: popover open", .{});
 }
 
 fn ensureDataControlDevice() void {
@@ -3211,6 +4101,10 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
         refreshOverlay();
         return;
     }
+    if (g.overlay_mode == .control and g.control_drag != .none) {
+        controlSliderUpdate(g.control_drag, false);
+        return;
+    }
     updateHover();
 }
 
@@ -3238,6 +4132,10 @@ fn handleInputButton(button: u32, state: u32) void {
         }
         return;
     }
+    if (state == 0 and g.overlay_mode == .control and g.control_drag != .none) {
+        controlDragEnd();
+        return;
+    }
     if (g.toasts == pointer_surface) {
         if (state == 1) {
             if (button == 0x111) {
@@ -3262,26 +4160,61 @@ fn handleInputButton(button: u32, state: u32) void {
         switch (h.kind) {
             .menu => {
                 if (button == 0x111) {
-                    openPower();
+                    if (g.panel_style == .unified and m.controlFeatureEnabled(.power)) {
+                        openControlCenter(.power);
+                    } else {
+                        openPower();
+                    }
                 } else if (button == 0x110) {
                     openLauncher("");
                 }
             },
             .clock => {
-                if (button == 0x110) openCalendar();
+                if (button == 0x110) {
+                    if (g.panel_style == .unified and m.controlFeatureEnabled(.calendar)) {
+                        openControlCenter(.calendar);
+                    } else {
+                        openCalendar();
+                    }
+                }
             },
             .media => {
-                if (button == 0x110) openMedia();
+                if (button == 0x110) {
+                    if (g.panel_style == .unified and m.controlFeatureEnabled(.media)) {
+                        openControlCenter(.home);
+                    } else {
+                        openMedia();
+                    }
+                }
             },
             .tray => {
                 if (button == 0x110) {
                     trayActivate(h.value, 1);
                 } else if (button == 0x111) {
-                    openTray();
+                    if (g.panel_style == .unified and m.controlFeatureEnabled(.tray)) {
+                        openControlCenter(.tray);
+                    } else {
+                        openTray();
+                    }
                 }
             },
             .volume => {
-                if (button == 0x110) openAudio();
+                if (button == 0x110) {
+                    if (g.panel_style == .unified and m.controlFeatureEnabled(.volume)) {
+                        openControlCenter(.home);
+                    } else {
+                        openAudio();
+                    }
+                }
+            },
+            .controls => {
+                if (button == 0x110) openControlCenter(.home);
+            },
+            .wifi => {
+                if (button == 0x110) openWifi();
+            },
+            .bluetooth => {
+                if (button == 0x110) openBluetooth();
             },
             .workspace => {
                 if (button == 0x110) sendWorkspace(h.value);
@@ -3413,6 +4346,50 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
         moveTraySelection(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .audio) {
         audioCommand(if (v > 0) 2 else 1);
+    } else if (g.overlay_mode == .control) {
+        const h = hitOverlay(g.pointer_x, g.pointer_y);
+        if (h.kind == .control_slider) {
+            const target: m.DragTarget = @enumFromInt(h.value);
+            switch (target) {
+                .volume => {
+                    g.volume_percent = std.math.clamp(g.volume_percent + (if (v > 0) -3 else 3), 0, 100);
+                    g.volume_muted = false;
+                    tessa_audio_set_percent(g.volume_percent);
+                },
+                .brightness => {
+                    g.brightness_percent = std.math.clamp(g.brightness_percent + (if (v > 0) -3 else 3), 0, 100);
+                    tessa_system_set_brightness(g.brightness_percent);
+                },
+                .seek => {
+                    if (g.media_length_us > 0) {
+                        const step: i64 = 5_000_000;
+                        g.media_position_us = std.math.clamp(g.media_position_us + (if (v > 0) -step else step), 0, g.media_length_us);
+                        tessa_media_seek(g.media_position_us);
+                    }
+                },
+                .none => {},
+            }
+            refreshOverlay();
+            return;
+        }
+        if (g.control_view == .wifi) {
+            if (v > 0) {
+                if (g.wifi_selected + 1 < g.wifi_ap_count) g.wifi_selected += 1;
+            } else {
+                g.wifi_selected = g.wifi_selected -| 1;
+            }
+            g.wifi_scroll = g.wifi_selected -| 3;
+        } else if (g.control_view == .bluetooth) {
+            if (v > 0) {
+                if (g.bt_selected + 1 < g.bt_count) g.bt_selected += 1;
+            } else {
+                g.bt_selected = g.bt_selected -| 1;
+            }
+            g.bt_scroll = g.bt_selected -| 3;
+        } else {
+            g.control_scroll = @max(0.0, g.control_scroll - v * 24.0);
+        }
+        refreshOverlay();
     } else if (g.overlay != null and g.launcher_open) {
         if (g.result_count > 0) {
             if (v > 0) {
@@ -3876,30 +4853,28 @@ fn eventLoop() void {
 
         const now = m.nowMs();
         const timeout = pollTimeout(now);
-        var fds = [_]c.pollfd{
-            .{ .fd = fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.ipc_fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.clipboard_fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.notification_fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.media_fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.tray_fd, .events = c.POLLIN, .revents = 0 },
-            .{ .fd = g.audio_fd, .events = c.POLLIN, .revents = 0 },
+        var fds: [10]c.pollfd = undefined;
+        var tags: [10]u8 = undefined;
+        var nfds: usize = 0;
+        fds[nfds] = .{ .fd = fd, .events = c.POLLIN, .revents = 0 };
+        tags[nfds] = 0;
+        nfds += 1;
+        const helpers = [_]struct { fd: c_int, tag: u8 }{
+            .{ .fd = g.ipc_fd, .tag = 1 },
+            .{ .fd = g.clipboard_fd, .tag = 2 },
+            .{ .fd = g.notification_fd, .tag = 3 },
+            .{ .fd = g.media_fd, .tag = 4 },
+            .{ .fd = g.tray_fd, .tag = 5 },
+            .{ .fd = g.audio_fd, .tag = 6 },
+            .{ .fd = g.system_fd, .tag = 7 },
         };
-        const nfds: c.nfds_t = if (g.audio_fd >= 0)
-            7
-        else if (g.tray_fd >= 0)
-            6
-        else if (g.media_fd >= 0)
-            5
-        else if (g.notification_fd >= 0)
-            4
-        else if (g.clipboard_fd >= 0)
-            3
-        else if (g.ipc_fd >= 0)
-            2
-        else
-            1;
-        const pr = c.poll(&fds, nfds, timeout);
+        for (helpers) |helper| {
+            if (helper.fd < 0) continue;
+            fds[nfds] = .{ .fd = helper.fd, .events = c.POLLIN, .revents = 0 };
+            tags[nfds] = helper.tag;
+            nfds += 1;
+        }
+        const pr = c.poll(&fds, @intCast(nfds), timeout);
         if (pr < 0) {
             _ = c.wl_display_cancel_read(display);
             continue;
@@ -3918,34 +4893,26 @@ fn eventLoop() void {
             _ = c.wl_display_cancel_read(display);
         }
 
-        if (g.ipc_fd >= 0 and pr > 0 and (fds[1].revents & (c.POLLIN | c.POLLHUP)) != 0) {
-            readIpc();
+        if (pr > 0) {
+            var hi: usize = 1;
+            while (hi < nfds) : (hi += 1) {
+                if ((fds[hi].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) == 0) continue;
+                switch (tags[hi]) {
+                    1 => {
+                        readIpc();
+                        if (!g.running) break;
+                    },
+                    2 => readClipboardPipe(),
+                    3 => readNotifications(),
+                    4 => readMedia(),
+                    5 => readTray(),
+                    6 => readAudio(),
+                    7 => readSystemService(),
+                    else => {},
+                }
+                if (!g.running) break;
+            }
             if (!g.running) break;
-        }
-        if (g.clipboard_fd >= 0 and pr > 0 and
-            (fds[2].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
-        {
-            readClipboardPipe();
-        }
-        if (g.notification_fd >= 0 and pr > 0 and
-            (fds[3].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
-        {
-            readNotifications();
-        }
-        if (g.media_fd >= 0 and pr > 0 and
-            (fds[4].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
-        {
-            readMedia();
-        }
-        if (g.tray_fd >= 0 and pr > 0 and
-            (fds[5].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
-        {
-            readTray();
-        }
-        if (g.audio_fd >= 0 and pr > 0 and
-            (fds[6].revents & (c.POLLIN | c.POLLHUP | c.POLLERR)) != 0)
-        {
-            readAudio();
         }
 
         const now2 = m.nowMs();
@@ -3975,6 +4942,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     g.media_fd = -1;
     g.tray_fd = -1;
     g.audio_fd = -1;
+    g.system_fd = -1;
 
     var check_only = false;
     var list_modules = false;
@@ -4066,6 +5034,10 @@ pub fn main(init: std.process.Init.Minimal) !void {
         const value = std.mem.span(owner);
         g.notification_owner = !(value.len > 0 and value[0] == '0');
     }
+    if (c.getenv("TESSA_PANEL_SYSTEM_OWNER")) |owner| {
+        const value = std.mem.span(owner);
+        g.system_owner = !(value.len > 0 and value[0] == '0');
+    }
     initListeners();
     m.loadConfig();
     refreshApps();
@@ -4111,6 +5083,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     if (m.moduleEnabled(m.MODULE_MEDIA)) startMediaService();
     if (m.moduleEnabled(m.MODULE_TRAY)) startTrayService();
     if (m.moduleEnabled(m.MODULE_AUDIO)) startAudioService();
+    startSystemService();
 
     const now = m.nowMs();
     g.next_clock_ms = now + 1000;
@@ -4130,6 +5103,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
     freeTraySurfaces();
     tessa_audio_stop();
     g.audio_fd = -1;
+    tessa_system_stop();
+    g.system_fd = -1;
     freeScreenshot();
     resetClipboardRead();
     destroyToasts();

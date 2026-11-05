@@ -8,4 +8,7 @@ void tessa_audio_stop(void);
 /* 1 = volume up, 2 = volume down, 3 = toggle mute */
 void tessa_audio_command(unsigned int code);
 
+/* Absolute output volume, 0..150. */
+void tessa_audio_set_percent(int percent);
+
 #endif

@@ -7,4 +7,7 @@ void tessa_media_stop(void);
 /* 1 = play/pause, 2 = next, 3 = previous */
 void tessa_media_command(unsigned int code);
 
+/* Absolute seek in microseconds, using the current MPRIS track id. */
+void tessa_media_seek(long long position_us);
+
 #endif
