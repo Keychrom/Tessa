@@ -16,7 +16,7 @@ The socket is created with mode `0600` under `$XDG_RUNTIME_DIR` (normally
 `tessa.sock`). The same user can run any command through the API, exactly as if
 they had run it in a terminal.
 
-![External status entries and a custom launcher entry](images/extensions.png)
+![A custom launcher entry defined in the config](images/extensions.png)
 
 ## tessa-ctl
 

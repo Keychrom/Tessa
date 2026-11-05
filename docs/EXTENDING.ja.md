@@ -16,7 +16,7 @@ Tessa はプラグイン VM や JavaScript 設定ランタイムを意図的に�
 作成されます。同じユーザーは、ターミナルで実行するのと同じ権限で API から
 コマンドを実行できます。
 
-![外部ステータスとカスタムランチャー項目](images/extensions.png)
+![設定で定義したカスタムランチャー項目](images/extensions.png)
 
 ## tessa-ctl
 

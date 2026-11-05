@@ -16,10 +16,13 @@ required, but layer-shell-compatible external bars and launchers can replace it.
 
 ![Tessa mosaic layout](docs/images/mosaic.png)
 
+![Tessa unified control center](docs/images/control-center.png)
+
 ![Tessa launcher](docs/images/launcher.png)
 
-The screenshots above are from a headless development session, using foot as the
-terminal.
+The screenshots above are from a headless development session using kitty and
+the Vermilion Ink palette. The control center uses demo NetworkManager and
+BlueZ services, so no real Wi-Fi SSID or Bluetooth device is shown.
 
 For a single end-to-end reference covering build, installation, every config
 key, rules, effects, IPC, events, and hooks, see the
