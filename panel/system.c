@@ -606,7 +606,7 @@ static void wifi_connect_cb(gpointer data) {
         const char *specific = req->ap_path[0] ? req->ap_path : "/";
         reply = g_dbus_connection_call_sync(
             bus, NM_NAME, NM_PATH, NM_IFACE, "AddAndActivateConnection",
-            g_variant_new("(@a{sa{sv}},o,o)", settings, wifi_dev, specific),
+            g_variant_new("(@a{sa{sv}}oo)", settings, wifi_dev, specific),
             G_VARIANT_TYPE("(oo)"), G_DBUS_CALL_FLAGS_NONE, 8000, NULL, &err);
     }
     if (reply) g_variant_unref(reply);
