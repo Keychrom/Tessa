@@ -123,7 +123,9 @@ ordering, and visible state.
 - [x] `animation_view_curve`, last-applied effect caching, and
       `effect_applies`/`effect_skips`/`blur_nodes` counters.
 - [ ] Long-lived background shader frame stream with uniforms.
-- [ ] Per-window GPU shaders through a custom renderer design.
+- [x] Opt-in per-window GPU shaders (`shader=` window rules): private
+      surfaceless EGL/GLES2 pass, DMA-BUF and shared-memory input, and
+      `mono`/`crt`/`vignette`/`pixelate`/`wave` effects.
 - [ ] Schema-driven per-extension settings forms and persistent runtime toggles.
 - [ ] Sandboxing, signatures, and a marketplace/update mechanism.
 

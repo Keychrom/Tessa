@@ -14,10 +14,16 @@ pub fn build(b: *std.Build) void {
         "gpu",
         "build the opt-in EGL/GLES2 panel background renderer (default: true; set false for no EGL/GLES dependency)",
     ) orelse true;
+    const shaders = b.option(
+        bool,
+        "shaders",
+        "build opt-in per-window GLES2 shader effects (default: true; set false for no EGL/GLES dependency in the compositor)",
+    ) orelse true;
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "scenefx", scenefx);
     build_options.addOption(bool, "gpu", gpu);
+    build_options.addOption(bool, "shaders", shaders);
 
     const translate_c = b.dependency("translate_c", .{});
 
@@ -71,6 +77,14 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/regex_shim.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
+    if (shaders) {
+        server_mod.addCSourceFile(.{
+            .file = b.path("src/window_shader.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        server_mod.linkSystemLibrary("egl", .{});
+        server_mod.linkSystemLibrary("glesv2", .{});
+    }
 
     const server = b.addExecutable(.{
         .name = "tessa",

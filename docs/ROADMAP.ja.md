@@ -122,7 +122,9 @@ Niri や MangoWC とのレイアウト差を埋めつつ、既定の使い勝手
 - [x] `animation_view_curve`、effect の last-applied キャッシュ、
       `effect_applies`/`effect_skips`/`blur_nodes` カウンタ。
 - [ ] uniform 付きの常駐背景シェーダーフレームストリーム。
-- [ ] custom renderer 設計によるウィンドウ単位 GPU シェーダー。
+- [x] オプトインのウィンドウ単位 GPU シェーダー（`shader=` ウィンドウ
+      ルール）: 専用 surfaceless EGL/GLES2 パス、DMA-BUF と共有メモリ入力、
+      `mono`/`crt`/`vignette`/`pixelate`/`wave`。
 - [ ] スキーマ駆動の拡張設定フォームと実行時設定の永続化。
 - [ ] サンドボックス、署名、marketplace/更新機構。
 

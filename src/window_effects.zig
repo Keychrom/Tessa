@@ -4,6 +4,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const scene_util = @import("scene_util.zig");
 const rules = @import("rules.zig");
+const window_shader = @import("window_shader.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -86,6 +87,7 @@ pub fn applyClient(client: *Client, border_enabled: bool) void {
             c.wlr_scene_buffer_set_opacity(buffer, types.effectiveClientOpacity(client));
         }
         applyTint(client, border_enabled);
+        window_shader.refresh(client, types.effectiveClientOpacity(client), 0);
     }
 }
 
@@ -152,6 +154,7 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
         client.applied_buffer == content)
     {
         client.server.perf.effect_skips += 1;
+        window_shader.refresh(client, client.applied_opacity, client.applied_content_radius);
         return;
     }
 
@@ -195,6 +198,7 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
 
     client.applied_opacity = opacity;
     client.applied_radius = radius;
+    client.applied_content_radius = content_radius;
     client.applied_border_width = bw;
     client.applied_tint = tint;
     client.applied_blur = blur_on;
@@ -203,6 +207,7 @@ fn applyClientImpl(client: *Client, border_enabled: bool) void {
     client.applied_buffer = content;
     client.applied_valid = true;
     client.server.perf.effect_applies += 1;
+    window_shader.refresh(client, opacity, content_radius);
 }
 
 const LayerState = struct {

@@ -326,7 +326,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
-`tests/rule-visuals.sh`、
+`tests/rule-visuals.sh`、`tests/window-shader.sh`、
 `tests/input.sh`、`tests/ime-keyboard.sh`、`tests/ext-workspace.sh`、
 `tests/external-shell.sh`、`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/cursor-theme.sh`、

@@ -281,6 +281,59 @@ Cairo 専用です。レイヤー分割の後続実装で GPU 化できます。
 アニメーションは背景のみのテストで 1 コアの約 2.5%、パネル全体で約 3.7%
 でした。静的な GPU 描画と Cairo 経路は起動後ほぼ 0% です。
 
+## ウィンドウ単位 GPU シェーダー（オプトイン）
+
+ウィンドウルールで、一致する toplevel にオフスクリーン GPU エフェクトを
+適用できます:
+
+```ini
+window-rule = app-id=mpv; shader=crt; shader-strength=0.8
+window-rule = app-id=foot; shader=mono
+window-rule = app-id=org.example.notes; shader=pixelate; shader-param=12
+```
+
+組み込みエフェクトは `mono`、`crt`、`vignette`、`pixelate`、`wave` です。
+`shader-strength` は 0〜1 で強さを指定し、`shader-param` は pixelate の
+ブロックサイズです。`shader=none` でルールを解除します。ルールはオプトイン
+で、設定リロード時とタイトル／app-id 変更時に再評価されます。
+
+処理の流れ:
+
+1. 初回使用時に専用の surfaceless EGL/GLES2 コンテキストを作ります。
+   scenefx のレンダラーや GL 状態は変更せず、各処理の前後で以前の EGL
+   コンテキストを復元します。
+2. コンテンツの commit 時にクライアントバッファをロックします。DMA-BUF は
+   `EGL_EXT_image_dma_buf_import` でインポートし、共有メモリは形式変換して
+   アップロードします。
+3. フラグメントシェーダーで RGBA8 の FBO に描画し、上端から下向きの RGBA
+   バッファとして読み戻します。
+4. 結果を読み取り専用の wlroots バッファにし、同じシーンツリー内の実コンテンツ
+   の下にシーンバッファを追加します。source box、表示サイズ、transform、
+   filter、角丸をコピーし、実コンテンツは不透明度 0 で描画します。
+5. エフェクトノードがコンテンツの下にあるため、シーンのヒットテストは実サーフェス
+   に解決されます。シーンエントリが増えるので、エフェクト中は direct scanout
+   の対象外になります。
+
+制限:
+
+- エフェクトはコンテンツの commit 時に再描画され、毎フレームのタイマーでは
+  動きません。アニメーションする uniform はまだありません。
+- 閉じるアニメーションはフィルタなしのスナップショットを使い、再マップ時に
+  エフェクトが戻ります。
+- エフェクトは toplevel バッファに適用されます。subsurface と popup は
+  それぞれの内容のままです。
+- DMA-BUF は EGL が対応する形式が必要です。複数プレーン／YUV や GPU を
+  またぐバッファは失敗することがあり、その場合は通常表示のまま
+  `window shader: effect unavailable` をログに出します。
+- コンテンツ更新ごとに読み戻しとテクスチャアップロードが入ります。多数の
+  ウィンドウではなく、数個のウィンドウ向けです。
+
+`TESSA_SHADER_DISABLE=1` で通常経路に固定でき、`-Dshaders=false` ビルドでは
+コンポジタから EGL/GLES 依存を外せます。`tests/window-shader.sh` が
+ヘッドレス pixman セッションの Mesa llvmpipe で一連の処理を検証します:
+foot に `mono` を適用して内容がグレースケールになること、設定ウォッチャーで
+ルールを外して色が戻ることを確認します。
+
 ## HDR / color management の調査
 
 今回の変更で HDR は**実装していません**。`wp-color-management-v1` global は

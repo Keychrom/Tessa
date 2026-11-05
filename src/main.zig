@@ -20,6 +20,7 @@ const xim = @import("xim.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
+const window_shader = @import("window_shader.zig");
 const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
@@ -383,6 +384,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     };
 
     render.init(server);
+    window_shader.init(server);
     scrolling.init(server);
     input.init(server);
     output.init(server);
@@ -437,5 +439,6 @@ pub fn main(init: std.process.Init.Minimal) !void {
     events.emit(server, .{ .name = event_names.shutdown });
     ipc.deinit(server);
     c.wl_display_destroy_clients(server.display);
+    window_shader.shutdown();
     shutdown.cleanupGlobals(server);
 }

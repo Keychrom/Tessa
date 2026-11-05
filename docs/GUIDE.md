@@ -963,6 +963,9 @@ Actions:
 | `tearing=true/false` | Allow async tearing for this client when `tearing` is `fullscreen` or `force` (or opt in while the global mode is `off`) |
 | `border-width=0..16` | Per-window border thickness; `0` hides it |
 | `tint=#RRGGBBAA` | Translucent colour overlay above the content; `none` clears it |
+| `shader=NAME` | Offscreen GPU effect: `mono`, `crt`, `vignette`, `pixelate`, or `wave`; `none` clears it |
+| `shader-strength=0.0..1.0` | Effect intensity (default `1.0`) |
+| `shader-param=N` | Effect parameter; currently the pixelate block size in pixels (default `8`) |
 | `animation=true/false` | Enable or disable motion for this window |
 | `animation-ms=N` | Base animation duration override (0–1000) |
 | `animation-open-ms`, `animation-workspace-ms`, `animation-close-ms` | Per-kind duration override |
@@ -982,6 +985,15 @@ transition. Per-rule colors, border width, opacity, rounding, and shadow state
 are carried into the close snapshot effect. `corner-radius` and `blur` require a
 scenefx build (the default; disabled with `-Dscenefx=false`); opacity, shadows,
 and border width work in every build.
+
+Window shaders run in a private surfaceless EGL/GLES2 context and replace the
+window content with an offscreen effect texture. The compositor-drawn border,
+shadow, and animations stay on the normal path. Shader rules are opt-in and
+apply on the next content commit. `TESSA_SHADER_DISABLE=1` and a
+`-Dshaders=false` build disable them without changing the config. Close
+animations use the unfiltered snapshot, and effects need an importable DMA-BUF
+or shared-memory buffer; unsupported formats fall back to normal content for
+that window. See [Rendering](rendering.md) for the pipeline and limits.
 
 ### 8.5 `layer-rule`
 

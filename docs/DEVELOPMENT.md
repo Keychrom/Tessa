@@ -429,6 +429,19 @@ the dimmed content, and the opaque content after the retitle.
 sh tests/rule-visuals.sh
 ```
 
+### Window shader test
+
+`tests/window-shader.sh` starts a headless pixman compositor, applies
+`shader=mono` to foot, and checks that the window content becomes grayscale
+through `grim` and ImageMagick. It then removes the rule through the config
+watcher and verifies that colour returns. The test exercises the surfaceless
+EGL/GLES2 context, the shared-memory upload path, the scene overlay node, and
+the config reload path on Mesa llvmpipe.
+
+```sh
+sh tests/window-shader.sh
+```
+
 ### Fractional-scale test
 
 `tests/fractional-scale.sh` compiles a small xdg-shell client that binds

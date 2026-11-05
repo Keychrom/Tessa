@@ -66,6 +66,11 @@ layout = master
 # window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=true
 # A translucent colour overlay above the content; #RRGGBB or #RRGGBBAA.
 # window-rule = app-id=mpv; tint=#ff884422
+# Offscreen GPU effects: mono, crt, vignette, pixelate, wave. Strength is
+# 0.0-1.0; shader-param sets the pixelate block size. none clears the effect.
+# window-rule = app-id=foot; shader=mono
+# window-rule = title=*Video*; shader=crt; shader-strength=0.8
+# window-rule = app-id=org.example.notes; shader=pixelate; shader-param=12
 # Per-window motion: animation=false disables all motion for matching windows.
 # animation-ms sets the base duration; open/workspace/close durations and curves
 # can be overridden independently.

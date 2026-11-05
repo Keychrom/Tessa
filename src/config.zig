@@ -1162,6 +1162,22 @@ fn parseRuleBool(value: []const u8) ?bool {
     return null;
 }
 
+fn parseWindowShader(value: []const u8) ?types.WindowShader {
+    if (std.ascii.eqlIgnoreCase(value, "none") or
+        std.ascii.eqlIgnoreCase(value, "off")) return .none;
+    if (std.ascii.eqlIgnoreCase(value, "mono") or
+        std.ascii.eqlIgnoreCase(value, "grayscale") or
+        std.ascii.eqlIgnoreCase(value, "greyscale")) return .mono;
+    if (std.ascii.eqlIgnoreCase(value, "crt") or
+        std.ascii.eqlIgnoreCase(value, "scanlines")) return .crt;
+    if (std.ascii.eqlIgnoreCase(value, "vignette")) return .vignette;
+    if (std.ascii.eqlIgnoreCase(value, "pixelate") or
+        std.ascii.eqlIgnoreCase(value, "pixelated")) return .pixelate;
+    if (std.ascii.eqlIgnoreCase(value, "wave") or
+        std.ascii.eqlIgnoreCase(value, "wobble")) return .wave;
+    return null;
+}
+
 fn parseRuleMs(value: []const u8) ?i32 {
     const n = std.fmt.parseInt(i32, value, 10) catch return null;
     if (n < 0 or n > 1000) return null;
@@ -1452,6 +1468,41 @@ pub fn addRule(cfg: *Config, value: []const u8) bool {
                 }
                 rule.has_tint = true;
             }
+        } else if (std.ascii.eqlIgnoreCase(key, "shader") or
+            std.ascii.eqlIgnoreCase(key, "window-shader") or
+            std.ascii.eqlIgnoreCase(key, "window_shader"))
+        {
+            rule.shader = parseWindowShader(val) orelse {
+                core.logInfo("config: unknown window shader '{s}'", .{val});
+                return false;
+            };
+            rule.has_shader = true;
+        } else if (std.ascii.eqlIgnoreCase(key, "shader-strength") or
+            std.ascii.eqlIgnoreCase(key, "shader_strength"))
+        {
+            const strength = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid shader strength '{s}'", .{val});
+                return false;
+            };
+            if (std.math.isNan(strength) or strength < 0.0 or strength > 1.0) {
+                core.logInfo("config: shader strength out of range (0-1): '{s}'", .{val});
+                return false;
+            }
+            rule.has_shader_strength = true;
+            rule.shader_strength = strength;
+        } else if (std.ascii.eqlIgnoreCase(key, "shader-param") or
+            std.ascii.eqlIgnoreCase(key, "shader_param"))
+        {
+            const param = std.fmt.parseFloat(f32, val) catch {
+                core.logInfo("config: invalid shader param '{s}'", .{val});
+                return false;
+            };
+            if (std.math.isNan(param) or param < 0.0 or param > 256.0) {
+                core.logInfo("config: shader param out of range (0-256): '{s}'", .{val});
+                return false;
+            }
+            rule.has_shader_param = true;
+            rule.shader_param = param;
         } else if (std.ascii.eqlIgnoreCase(key, "animation") or
             std.ascii.eqlIgnoreCase(key, "animations"))
         {

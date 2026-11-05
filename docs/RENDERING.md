@@ -282,6 +282,60 @@ On the reference i5-6300U / Intel HD 520 at 1920x1080, 30 fps animation used
 about 2.5% of one core in the background-only test and 3.7% with the full panel.
 Static GPU rendering and the Cairo path stayed near 0% after startup.
 
+## Per-window GPU shaders (opt-in)
+
+Window rules can apply an offscreen GPU effect to a matching toplevel:
+
+```ini
+window-rule = app-id=mpv; shader=crt; shader-strength=0.8
+window-rule = app-id=foot; shader=mono
+window-rule = app-id=org.example.notes; shader=pixelate; shader-param=12
+```
+
+Built-in effects are `mono`, `crt`, `vignette`, `pixelate`, and `wave`.
+`shader-strength` scales the effect from 0 to 1, and `shader-param` is the
+pixelate block size. `shader=none` clears a rule. Rules are opt-in and are
+re-evaluated on config reload and on title/app-id changes.
+
+Pipeline:
+
+1. Tessa creates a private surfaceless EGL/GLES2 context on first use. It never
+   changes the scenefx renderer or its GL state; the previous EGL context is
+   restored around each shader operation.
+2. On a content commit, the client buffer is locked. DMA-BUFs are imported with
+   `EGL_EXT_image_dma_buf_import`; shared-memory buffers are uploaded after a
+   format conversion.
+3. A fragment shader renders the effect into an RGBA8 FBO, and the result is
+   read back as a top-down RGBA buffer.
+4. The result becomes a read-only wlroots buffer. Tessa adds a scene buffer
+   below the real content in the same scene tree, copies the content's source
+   box, destination size, transform, filter mode, and corner radius, and draws
+   the real content with opacity 0.
+5. Because the effect node sits below the content node, scene hit-testing still
+   resolves to the real client surface. The extra scene entry also keeps the
+   window out of direct scanout while the effect is active.
+
+Limitations:
+
+- Effects are re-rendered on content commits, not on a per-frame timer. There
+  are no animated shader uniforms yet.
+- The close animation uses the unfiltered snapshot; the effect reappears when
+  the window maps again.
+- The effect applies to the toplevel buffer. Subsurfaces and popups keep their
+  own content.
+- DMA-BUF import requires a format supported by the EGL stack. Multi-plane/YUV
+  and cross-GPU buffers can fail; the window then keeps its normal content and
+  the log reports `window shader: effect unavailable`.
+- The offscreen pass adds a readback and a texture upload per content update.
+  It is intended for a few marked windows, not every window.
+
+`TESSA_SHADER_DISABLE=1` forces the normal path, and a `-Dshaders=false` build
+removes the EGL/GLES dependency from the compositor. The automated
+`tests/window-shader.sh` runs the whole pipeline on Mesa llvmpipe in a headless
+pixman session: it applies `mono` to foot, checks that the window content
+becomes grayscale, removes the rule through the config watcher, and checks that
+the colour returns.
+
 ## HDR and color management: investigation
 
 HDR is **not implemented** in this change. No `wp-color-management-v1` global is

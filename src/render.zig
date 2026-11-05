@@ -2,6 +2,7 @@ const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
 const window_effects = @import("window_effects.zig");
+const window_shader = @import("window_shader.zig");
 
 const Server = types.Server;
 const Output = types.Output;
@@ -85,6 +86,8 @@ fn hasContentBuffer(client: *Client) bool {
 
 fn canScanout(client: *Client, out: *Output) bool {
     if (!client.mapped or client.fullscreen == false) return false;
+    // The effect buffer is an extra scene entry and must be composited.
+    if (window_shader.isActive(client)) return false;
     if (!types.clientVisible(client, out)) return false;
     if (client.animating or client.anim_off_x != 0 or client.anim_off_y != 0) return false;
     if (types.effectiveClientOpacity(client) < 0.999) return false;

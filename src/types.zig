@@ -364,6 +364,10 @@ pub const ConfigIssue = struct {
 
 pub const RuleBool = enum { unset, on, off };
 
+/// Offscreen GLES2 effects applied to a window's content buffer. The shader
+/// runs in its own EGL context, so it stays independent of scenefx.
+pub const WindowShader = enum { none, mono, crt, vignette, pixelate, wave };
+
 /// Tearing requests are never enabled implicitly: the client must ask for
 /// async presentation through wp-tearing-control-v1 as well.
 pub const TearingMode = enum { off, fullscreen, force };
@@ -475,6 +479,12 @@ pub const WindowRule = struct {
     border_width: i32 = 0,
     has_tint: bool = false,
     tint_rgba: [4]f32 = .{ 0, 0, 0, 0 },
+    has_shader: bool = false,
+    shader: WindowShader = .none,
+    has_shader_strength: bool = false,
+    shader_strength: f32 = 1.0,
+    has_shader_param: bool = false,
+    shader_param: f32 = 8.0,
     scratchpad: RuleBool = .unset,
     special_workspace: [MAX_WORKSPACE_NAME]u8 = @splat(0),
     special_workspace_len: usize = 0,
@@ -972,6 +982,19 @@ pub const Client = struct {
     shadow: RuleBool,
     border_width: i32,
     tint_rgba: [4]f32,
+    shader: WindowShader,
+    shader_strength: f32,
+    shader_param: f32,
+    // Offscreen shader state. The effect buffer sits below the content buffer
+    // in the same scene tree; the content is drawn with opacity 0 while the
+    // effect is active, so input hit-testing still lands on the real surface.
+    shader_node: ?*c.wlr_scene_buffer,
+    shader_seq: u64,
+    shader_rendered_seq: u64,
+    shader_rendered_kind: WindowShader,
+    shader_rendered_strength: f32,
+    shader_rendered_param: f32,
+    shader_failed: bool,
     hook_active: bool,
     hook_opacity: f32,
     hook_corner_radius: i32,
@@ -985,6 +1008,7 @@ pub const Client = struct {
     // updates during repeated arrange/reload passes.
     applied_opacity: f32,
     applied_radius: i32,
+    applied_content_radius: i32,
     applied_border_width: i32,
     applied_tint: [4]f32,
     applied_blur: bool,

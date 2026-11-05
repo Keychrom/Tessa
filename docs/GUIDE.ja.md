@@ -975,6 +975,9 @@ window-rule = title=Picture-in-Picture; opacity=0.85; corner-radius=14; blur=tru
 | `tearing=true/false` | `tearing` が `fullscreen`/`force` のとき、このクライアントの async tearing を許可（グローバルが `off` でも明示的に有効化可能） |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
 | `tint=#RRGGBBAA` | コンテンツ上の半透明カラー。`none` で解除 |
+| `shader=NAME` | オフスクリーン GPU エフェクト: `mono`、`crt`、`vignette`、`pixelate`、`wave`。`none` で解除 |
+| `shader-strength=0.0..1.0` | エフェクトの強さ（既定 `1.0`） |
+| `shader-param=N` | エフェクト用パラメータ。現在は pixelate のブロックサイズ（既定 `8`） |
 | `animation=true/false` | そのウィンドウのモーションを有効／無効化 |
 | `animation-ms=N` | 基本アニメーション時間の上書き（0〜1000） |
 | `animation-open-ms`、`animation-workspace-ms`、`animation-close-ms` | 種類別の時間上書き |
@@ -994,6 +997,16 @@ app-id が変わった時点でも即座に再評価されます。モーショ�
 引き継がれます。`corner-radius` と `blur` は scenefx ビルド（既定。
 `-Dscenefx=false` で無効）が必要です。不透明度、影、ボーダー幅は全ビルドで
 動作します。
+
+ウィンドウシェーダーは専用の surfaceless EGL/GLES2 コンテキストで実行し、
+ウィンドウ内容をオフスクリーンのエフェクトテクスチャに置き換えます。
+コンポジタが描くボーダー、影、アニメーションは通常経路のままです。
+ルールはオプトインで、次回のコンテンツ commit から適用されます。
+`TESSA_SHADER_DISABLE=1` または `-Dshaders=false` ビルドで設定を変えずに
+無効化できます。閉じるアニメーションはフィルタなしのスナップショットを
+使い、DMA-BUF または共有メモリをインポートできる必要があります。
+未対応フォーマットではそのウィンドウだけ通常表示にフォールバックします。
+詳細と制限は [描画・ゲーム機能](rendering.md) を参照してください。
 
 ### 8.5 `layer-rule`
 

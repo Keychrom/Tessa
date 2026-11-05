@@ -608,7 +608,8 @@ cooperative token scopes, but no sandbox, signature, marketplace, or persistent
 per-extension settings form; `extension-enable` is runtime-only. Fire-and-forget
 commands have no acknowledgement. Status entries are text-only. Layout-helper
 responses are complete snapshots; partial streaming rectangle updates are not
-supported. There is no per-window GPU shader hook in the stock wlroots scene
-API; the effect helper adjusts declared visual and animation properties only.
-The next shader step is a long-lived background-frame process, and per-window
-shaders require a custom renderer design.
+supported. There is no per-window custom-shader hook in the stock wlroots scene
+API. Built-in offscreen effects (`shader=` window rules) are selected by the
+compositor, and the effect helper adjusts declared visual and animation
+properties only. The next shader step is a long-lived background-frame process
+with animated uniforms.

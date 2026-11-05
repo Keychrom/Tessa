@@ -6,6 +6,7 @@ const layout = @import("layout.zig");
 const effects = @import("effects.zig");
 const scene_util = @import("scene_util.zig");
 const rules = @import("rules.zig");
+const window_shader = @import("window_shader.zig");
 const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
@@ -277,6 +278,7 @@ fn onUnmap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     scrolling.onClientUnmapped(client);
     client.mapped = false;
     render.clientUnmapped(client);
+    window_shader.release(client);
     c.wlr_scene_node_set_enabled(&client.frame.node, false);
     effects.clientUnmapped(client);
 
@@ -316,6 +318,12 @@ fn onCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
         }
     }
     render.trackClientBuffer(client);
+    client.shader_seq +%= 1;
+    window_shader.refresh(
+        client,
+        types.effectiveClientOpacity(client),
+        client.applied_content_radius,
+    );
 }
 
 fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -388,6 +396,7 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     }
 
     if (client.urgent) ext_workspace.syncOutput(client.output);
+    window_shader.release(client);
     c.free(client);
     layout.arrangeAll(server);
     core.markDirty(server);
@@ -479,6 +488,17 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     client.tearing = .unset;
     client.border_width = -1;
     client.tint_rgba = .{ 0, 0, 0, 0 };
+    client.shader = .none;
+    client.shader_strength = 1.0;
+    client.shader_param = 8.0;
+    client.shader_node = null;
+    client.shader_seq = 0;
+    client.shader_rendered_seq = 0;
+    client.shader_rendered_kind = .none;
+    client.shader_rendered_strength = 0;
+    client.shader_rendered_param = 0;
+    client.shader_failed = false;
+    client.applied_content_radius = 0;
     client.hook_active = false;
     client.hook_opacity = 1.0;
     client.hook_corner_radius = -1;

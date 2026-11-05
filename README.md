@@ -311,7 +311,7 @@ restarts were exercised by
 `tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
-`tests/input.sh`, `tests/ime-keyboard.sh`,
+`tests/window-shader.sh`, `tests/input.sh`, `tests/ime-keyboard.sh`,
 `tests/ext-workspace.sh`, `tests/external-shell.sh`,
 `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/cursor-theme.sh`,

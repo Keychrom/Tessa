@@ -301,6 +301,19 @@ ImageMagick がある環境では、閉じるスナップショット中央の�
 sh tests/animations.sh
 ```
 
+### ウィンドウシェーダーのテスト
+
+`tests/window-shader.sh` はヘッドレス pixman コンポジタを起動し、foot に
+`shader=mono` を適用して、`grim` と ImageMagick でウィンドウ内容が
+グレースケールになることを確認します。続いて設定ウォッチャー経由でルールを
+外し、色が戻ることも検証します。surfaceless EGL/GLES2 コンテキスト、共有
+メモリアップロード経路、シーンのオーバーレイノード、設定リロード経路を
+Mesa llvmpipe 上で通します。
+
+```sh
+sh tests/window-shader.sh
+```
+
 ### フラクショナルスケールのテスト
 
 `tests/fractional-scale.sh` は `wp_fractional_scale_manager_v1` をバインドする

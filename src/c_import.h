@@ -14,6 +14,7 @@
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_buffer.h>
+#include <wlr/interfaces/wlr_buffer.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_data_device.h>
@@ -70,6 +71,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <fcntl.h>
 #include "regex_shim.h"
+#include "window_shader.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
