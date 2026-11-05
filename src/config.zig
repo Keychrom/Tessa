@@ -3254,6 +3254,12 @@ fn loadPath(
                 addIssue(server, path, line_no, "hook needs an event and a command", .{});
             }
         } else if (std.mem.eql(u8, key, "launcher_entry") or
+            std.mem.eql(u8, key, "panel_style") or
+            std.mem.eql(u8, key, "panel-style") or
+            std.mem.eql(u8, key, "control_features") or
+            std.mem.eql(u8, key, "control-features") or
+            std.mem.eql(u8, key, "control_action") or
+            std.mem.eql(u8, key, "control-action") or
             std.mem.eql(u8, key, "panel_bg") or
             std.mem.eql(u8, key, "panel_fg") or
             std.mem.eql(u8, key, "bar_layout") or

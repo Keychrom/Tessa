@@ -12,7 +12,8 @@ pub const MAX_CUSTOM_APPS = 16;
 pub const POWER_ACTION_COUNT = 5;
 pub const MAX_CLIPBOARD_ENTRIES = 8;
 pub const MAX_CLIPBOARD_BYTES = 16384;
-pub const MAX_NOTIFICATIONS = 4;
+pub const MAX_NOTIFICATIONS = 50;
+pub const MAX_TOASTS = 4;
 pub const MAX_NOTIFICATION_ACTIONS = 4;
 pub const MAX_NOTIFICATION_ICON = 64;
 pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION_ICON * 4;
@@ -20,9 +21,20 @@ pub const MAX_TRAY_ITEMS = 8;
 pub const MAX_TRAY_ICON = 32;
 pub const MAX_TRAY_ICON_BYTES = MAX_TRAY_ICON * MAX_TRAY_ICON * 4;
 pub const MAX_EXTENSIONS = 16;
+pub const MAX_WIFI_APS = 32;
+pub const MAX_BT_DEVICES = 24;
+pub const MAX_CONTROL_ACTIONS = 4;
+pub const MAX_CONTROL_INPUT = 128;
+pub const MAX_WIFI_SSID = 64;
+pub const MAX_WIFI_PATH = 256;
+pub const MAX_BT_PATH = 256;
+pub const MAX_BT_NAME = 96;
+pub const MAX_CONTROL_ERROR = 160;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module, control, wifi, bluetooth };
 pub const LauncherStyle = enum { centered, start };
+pub const PanelStyle = enum { classic, unified };
+pub const ControlView = enum { home, wifi, bluetooth, notifications, calendar, tray, power };
 pub const BarPosition = enum { top, bottom, left, right };
 pub const PanelRenderer = enum { cairo, gpu };
 pub const OverlayRenderer = enum { cairo, gpu };
@@ -96,6 +108,137 @@ pub const DEFAULT_BAR_MODULE_COUNT = blk: {
     break :blk count;
 };
 
+pub const ControlFeature = enum {
+    wifi,
+    bluetooth,
+    focus,
+    notifications,
+    media,
+    volume,
+    brightness,
+    power_profile,
+    battery,
+    quick_actions,
+    tray,
+    calendar,
+    power,
+};
+pub const CONTROL_FEATURE_COUNT = @typeInfo(ControlFeature).@"enum".field_names.len;
+
+pub const ControlFeatureSpec = struct {
+    feature: ControlFeature,
+    name: []const u8,
+    description: []const u8,
+    default: bool = true,
+};
+
+pub const control_feature_specs = [_]ControlFeatureSpec{
+    .{ .feature = .wifi, .name = "wifi", .description = "NetworkManager Wi-Fi status and networks" },
+    .{ .feature = .bluetooth, .name = "bluetooth", .description = "BlueZ adapters, devices, and pairing" },
+    .{ .feature = .focus, .name = "focus", .description = "Do-not-disturb / Focus toggle" },
+    .{ .feature = .notifications, .name = "notifications", .description = "Notification history and actions" },
+    .{ .feature = .media, .name = "media", .description = "MPRIS media card, artwork, and seek" },
+    .{ .feature = .volume, .name = "volume", .description = "Output volume slider and mute" },
+    .{ .feature = .brightness, .name = "brightness", .description = "Backlight brightness slider" },
+    .{ .feature = .power_profile, .name = "power_profile", .description = "Power-profiles-daemon profile" },
+    .{ .feature = .battery, .name = "battery", .description = "Battery status and power actions" },
+    .{ .feature = .quick_actions, .name = "quick_actions", .description = "Screenshot, clipboard, settings, and custom actions" },
+    .{ .feature = .tray, .name = "tray", .description = "StatusNotifier tray view" },
+    .{ .feature = .calendar, .name = "calendar", .description = "Calendar view for the clock" },
+    .{ .feature = .power, .name = "power", .description = "Lock, suspend, reboot, and power off" },
+};
+
+pub fn controlFeatureBit(feature: ControlFeature) u32 {
+    return @as(u32, 1) << @intFromEnum(feature);
+}
+
+pub const CONTROL_FEATURE_ALL: u32 = (@as(u32, 1) << CONTROL_FEATURE_COUNT) - 1;
+
+pub fn controlFeatureEnabled(feature: ControlFeature) bool {
+    return (g.control_features & controlFeatureBit(feature)) != 0;
+}
+
+pub const ControlActionEntry = struct {
+    label: [64]u8 = @splat(0),
+    label_len: usize = 0,
+    command: [256]u8 = @splat(0),
+    command_len: usize = 0,
+};
+
+pub const WifiAp = struct {
+    ssid: [MAX_WIFI_SSID]u8 = @splat(0),
+    ssid_len: usize = 0,
+    signal: u8 = 0,
+    flags: u32 = 0,
+    path: [MAX_WIFI_PATH]u8 = @splat(0),
+    path_len: usize = 0,
+    conn_path: [MAX_WIFI_PATH]u8 = @splat(0),
+    conn_path_len: usize = 0,
+};
+
+pub const WIFI_AP_SECURED: u32 = 1 << 0;
+pub const WIFI_AP_SAVED: u32 = 1 << 1;
+pub const WIFI_AP_ACTIVE: u32 = 1 << 2;
+pub const WIFI_AP_SAE: u32 = 1 << 3;
+pub const WIFI_AP_ENTERPRISE: u32 = 1 << 4;
+
+pub const BtDevice = struct {
+    path: [MAX_BT_PATH]u8 = @splat(0),
+    path_len: usize = 0,
+    name: [MAX_BT_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    icon: u8 = 0,
+    flags: u8 = 0,
+    rssi: i16 = 0,
+    battery: i8 = -1,
+};
+
+pub const BT_DEVICE_PAIRED: u8 = 1 << 0;
+pub const BT_DEVICE_CONNECTED: u8 = 1 << 1;
+pub const BT_DEVICE_TRUSTED: u8 = 1 << 2;
+
+pub const BtAgentKind = enum { none, confirm, pin, passkey, display_passkey, authorize };
+
+pub const ControlModal = enum { none, wifi_password, wifi_hidden, wifi_forget, bt_confirm, bt_pin, bt_passkey };
+
+pub const DragTarget = enum { none, volume, brightness, seek };
+
+pub const ControlAction = enum(usize) {
+    back,
+    wifi_toggle,
+    wifi_scan,
+    wifi_disconnect,
+    wifi_forget,
+    wifi_hidden,
+    bt_toggle,
+    bt_scan,
+    bt_pair,
+    bt_connect,
+    bt_disconnect,
+    bt_forget,
+    dnd,
+    clear_notifications,
+    view_notifications,
+    view_calendar,
+    view_tray,
+    view_power,
+    power_lock,
+    power_suspend,
+    power_reboot,
+    power_off,
+    power_quit,
+    quick_screenshot,
+    quick_clipboard,
+    quick_settings,
+    quick_lock,
+    quick_custom_base,
+    modal_confirm,
+    modal_cancel,
+    field_ssid,
+    field_password,
+    profile_base,
+};
+
 pub const MODULE_BACKGROUND: u16 = 1 << 0;
 pub const MODULE_BAR: u16 = 1 << 1;
 pub const MODULE_LAUNCHER: u16 = 1 << 2;
@@ -157,6 +300,38 @@ fn parsePanelModules(value: []const u8) bool {
     return true;
 }
 
+fn parseControlFeatures(value: []const u8) u32 {
+    var result: u32 = 0;
+    var it = std.mem.tokenizeAny(u8, value, ", \t|");
+    while (it.next()) |name| {
+        if (std.ascii.eqlIgnoreCase(name, "all")) {
+            result |= CONTROL_FEATURE_ALL;
+            continue;
+        }
+        if (std.ascii.eqlIgnoreCase(name, "none")) continue;
+        for (control_feature_specs) |spec| {
+            if (std.ascii.eqlIgnoreCase(name, spec.name)) {
+                result |= controlFeatureBit(spec.feature);
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+fn addControlAction(value: []const u8) void {
+    if (g.control_action_count >= g.control_actions.len) return;
+    const bar = std.mem.indexOfScalar(u8, value, '|') orelse return;
+    const label = std.mem.trim(u8, value[0..bar], " \t");
+    const command = std.mem.trim(u8, value[bar + 1 ..], " \t");
+    if (label.len == 0 or command.len == 0) return;
+    const entry = &g.control_actions[g.control_action_count];
+    entry.* = .{};
+    copyTrunc(&entry.label, &entry.label_len, label);
+    copyTrunc(&entry.command, &entry.command_len, command);
+    g.control_action_count += 1;
+}
+
 pub const month_names = [_][]const u8{
     "January", "February", "March",     "April",   "May",      "June",
     "July",    "August",   "September", "October", "November", "December",
@@ -205,6 +380,17 @@ pub const HitKind = enum {
     bar_overflow,
     launcher_lock,
     launcher_power,
+    controls,
+    wifi,
+    bluetooth,
+    control_action,
+    control_slider,
+    control_ap,
+    control_bt_device,
+    control_notification,
+    control_power,
+    control_profile,
+    control_input,
 };
 
 pub const Hit = struct {
@@ -356,7 +542,9 @@ pub const NotificationEntry = struct {
     summary_len: usize = 0,
     body: [512]u8 = @splat(0),
     body_len: usize = 0,
+    created_ms: i64 = 0,
     expire_ms: i64 = 0,
+    toast_visible: bool = false,
     actions: [MAX_NOTIFICATION_ACTIONS]NotificationAction = undefined,
     action_count: usize = 0,
     icon_w: u32 = 0,
@@ -468,9 +656,10 @@ pub const Panel = struct {
     notification_len: usize = 0,
     notification_service_ready: bool = false,
     notification_owner: bool = true,
-    toast_hits: [MAX_NOTIFICATIONS]HitRect = undefined,
+    dnd: bool = false,
+    toast_hits: [MAX_TOASTS]HitRect = undefined,
     toast_hit_count: usize = 0,
-    toast_action_hits: [MAX_NOTIFICATIONS * 3]ToastActionHit = undefined,
+    toast_action_hits: [MAX_TOASTS * 3]ToastActionHit = undefined,
     toast_action_hit_count: usize = 0,
 
     custom_apps: [MAX_CUSTOM_APPS]CustomApp = undefined,
@@ -503,6 +692,13 @@ pub const Panel = struct {
     media_artist_len: usize = 0,
     media_player: [64]u8 = @splat(0),
     media_player_len: usize = 0,
+    media_art_url: [512]u8 = @splat(0),
+    media_art_url_len: usize = 0,
+    media_art_surface: ?*c.cairo_surface_t = null,
+    media_length_us: i64 = 0,
+    media_position_us: i64 = 0,
+    media_track_id: [256]u8 = @splat(0),
+    media_track_id_len: usize = 0,
     media_fd: c_int = -1,
     media_buf: [16384]u8 = undefined,
     media_len: usize = 0,
@@ -537,6 +733,77 @@ pub const Panel = struct {
     volume_mute: [512]u8 = @splat(0),
     volume_mute_len: usize = 0,
 
+    system_fd: c_int = -1,
+    system_buf: [65536]u8 = undefined,
+    system_len: usize = 0,
+    system_ready: bool = false,
+    system_owner: bool = false,
+    wifi_present: bool = false,
+    wifi_enabled: bool = false,
+    wifi_hw_enabled: bool = false,
+    wifi_scanning: bool = false,
+    wifi_state: u8 = 0,
+    wifi_ssid: [MAX_WIFI_SSID]u8 = @splat(0),
+    wifi_ssid_len: usize = 0,
+    wifi_signal: u8 = 0,
+    wifi_aps: [MAX_WIFI_APS]WifiAp = undefined,
+    wifi_ap_count: usize = 0,
+    wifi_selected: usize = 0,
+    wifi_scroll: usize = 0,
+    wifi_error: [MAX_CONTROL_ERROR]u8 = @splat(0),
+    wifi_error_len: usize = 0,
+    wifi_modal: ControlModal = .none,
+    wifi_modal_ap: usize = 0,
+    wifi_modal_hidden: bool = false,
+    control_input: [MAX_CONTROL_INPUT]u8 = @splat(0),
+    control_input_len: usize = 0,
+    control_input_secure: bool = false,
+    control_field: usize = 0,
+    control_ssid: [MAX_WIFI_SSID]u8 = @splat(0),
+    control_ssid_len: usize = 0,
+    bt_present: bool = false,
+    bt_powered: bool = false,
+    bt_discovering: bool = false,
+    bt_name: [MAX_BT_NAME]u8 = @splat(0),
+    bt_name_len: usize = 0,
+    bt_devices: [MAX_BT_DEVICES]BtDevice = undefined,
+    bt_count: usize = 0,
+    bt_selected: usize = 0,
+    bt_scroll: usize = 0,
+    bt_error: [MAX_CONTROL_ERROR]u8 = @splat(0),
+    bt_error_len: usize = 0,
+    bt_detail_path: [MAX_BT_PATH]u8 = @splat(0),
+    bt_detail_path_len: usize = 0,
+    bt_agent: BtAgentKind = .none,
+    bt_agent_name: [MAX_BT_NAME]u8 = @splat(0),
+    bt_agent_name_len: usize = 0,
+    bt_agent_passkey: [16]u8 = @splat(0),
+    bt_agent_passkey_len: usize = 0,
+    bt_modal: ControlModal = .none,
+    brightness_percent: i32 = -1,
+    brightness_max: u32 = 0,
+    brightness_name: [64]u8 = @splat(0),
+    brightness_name_len: usize = 0,
+    ppd_available: bool = false,
+    ppd_profile: [32]u8 = @splat(0),
+    ppd_profile_len: usize = 0,
+    ppd_profiles: [4][32]u8 = undefined,
+    ppd_profile_lens: [4]usize = @splat(0),
+    ppd_profile_count: usize = 0,
+
+    control_view: ControlView = .home,
+    control_scroll: f64 = 0,
+    control_content_height: f64 = 0,
+    control_visible_height: f64 = 0,
+    control_panel_rect: HitRect = .{},
+    control_drag: DragTarget = .none,
+    control_drag_ms: i64 = 0,
+    control_volume_slider: HitRect = .{},
+    control_brightness_slider: HitRect = .{},
+    control_seek_slider: HitRect = .{},
+    control_input_active: bool = false,
+    control_input_rect: [4]i32 = .{ 0, 0, 1, 20 },
+
     pointer_surface: ?*Surface = null,
     pointer_x: f64 = 0,
     pointer_y: f64 = 0,
@@ -545,7 +812,7 @@ pub const Panel = struct {
     bar_hit_count: usize = 0,
     hover: Hit = .{},
 
-    overlay_hits: [16]HitRect = undefined,
+    overlay_hits: [96]HitRect = undefined,
     overlay_hit_count: usize = 0,
     overlay_panel: HitRect = .{},
     overlay_row_hover: usize = 999,
@@ -692,6 +959,10 @@ pub const Panel = struct {
     bar_layout_len: usize = 0,
     bar_layout_set: bool = false,
     modules: u16 = MODULE_ALL,
+    panel_style: PanelStyle = .classic,
+    control_features: u32 = CONTROL_FEATURE_ALL,
+    control_actions: [MAX_CONTROL_ACTIONS]ControlActionEntry = undefined,
+    control_action_count: usize = 0,
     bar_modules: [BAR_MODULE_COUNT]BarModule = .{
         .logo,
         .workspaces,
@@ -1567,6 +1838,18 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             } else if (std.mem.eql(u8, val, "centered") or std.mem.eql(u8, val, "wofi")) {
                 g.launcher_style = .centered;
             }
+        } else if (std.mem.eql(u8, key, "panel_style") or std.mem.eql(u8, key, "panel-style")) {
+            if (std.mem.eql(u8, val, "unified") or std.mem.eql(u8, val, "control") or std.mem.eql(u8, val, "control-center")) {
+                g.panel_style = .unified;
+            } else if (std.mem.eql(u8, val, "classic") or std.mem.eql(u8, val, "traditional")) {
+                g.panel_style = .classic;
+            } else {
+                std.debug.print("tessa-panel: invalid panel_style '{s}' (classic|unified)\n", .{val});
+            }
+        } else if (std.mem.eql(u8, key, "control_features") or std.mem.eql(u8, key, "control-features")) {
+            g.control_features = parseControlFeatures(val);
+        } else if (std.mem.eql(u8, key, "control_action") or std.mem.eql(u8, key, "control-action")) {
+            addControlAction(val);
         } else if (std.mem.eql(u8, key, "panel_renderer") or std.mem.eql(u8, key, "panel-renderer")) {
             if (std.mem.eql(u8, val, "gpu") or std.mem.eql(u8, val, "egl")) {
                 g.panel_renderer = .gpu;
@@ -1928,6 +2211,10 @@ pub fn loadConfig() void {
     g.bar_layout_len = 0;
     g.bar_layout_set = false;
     g.modules = MODULE_ALL;
+    g.panel_style = .classic;
+    g.control_features = CONTROL_FEATURE_ALL;
+    g.control_action_count = 0;
+    g.dnd = false;
     g.bar_modules = .{
         .logo,
         .workspaces,
@@ -2065,6 +2352,15 @@ pub fn printConfigSummary() void {
         g.bar_top_margin,
         g.bar_side_margin,
     });
+    std.debug.print("panel style={s} control-features=", .{@tagName(g.panel_style)});
+    var first_feature = true;
+    for (control_feature_specs) |spec| {
+        if (!controlFeatureEnabled(spec.feature)) continue;
+        if (!first_feature) std.debug.print(",", .{});
+        first_feature = false;
+        std.debug.print("{s}", .{spec.name});
+    }
+    std.debug.print("\n", .{});
     std.debug.print("panel panel-modules=", .{});
     const module_items = [_]struct { bit: u16, name: []const u8 }{
         .{ .bit = MODULE_BACKGROUND, .name = "background" },
@@ -2153,6 +2449,22 @@ pub fn printModules(json: bool) void {
             ) catch "";
             stdoutWrite(text);
         }
+        stdoutWrite("],\"control_features\":[");
+        for (control_feature_specs, 0..) |spec, i| {
+            if (i > 0) stdoutWrite(",");
+            var buf: [320]u8 = undefined;
+            const text = std.fmt.bufPrint(
+                &buf,
+                "{{\"id\":\"{s}\",\"default\":{s},\"enabled\":{s},\"description\":\"{s}\"}}",
+                .{
+                    spec.name,
+                    if (spec.default) "true" else "false",
+                    if (controlFeatureEnabled(spec.feature)) "true" else "false",
+                    spec.description,
+                },
+            ) catch "";
+            stdoutWrite(text);
+        }
         stdoutWrite("],\"surfaces\":[");
         for (surfaces, 0..) |surface, i| {
             if (i > 0) stdoutWrite(",");
@@ -2180,6 +2492,15 @@ pub fn printModules(json: bool) void {
                 spec.description,
             },
         ) catch "";
+        stdoutWrite(text);
+    }
+    for (control_feature_specs) |spec| {
+        var buf: [320]u8 = undefined;
+        const text = std.fmt.bufPrint(&buf, "CONTROL\t{s}\t{s}\t{s}\n", .{
+            spec.name,
+            if (controlFeatureEnabled(spec.feature)) "enabled" else "disabled",
+            spec.description,
+        }) catch "";
         stdoutWrite(text);
     }
     for (surfaces) |surface| {

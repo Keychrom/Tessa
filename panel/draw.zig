@@ -2765,9 +2765,12 @@ pub fn drawToasts(s: *m.Surface) void {
     if (g.compositor) |compositor| region = c.wl_compositor_create_region(compositor);
 
     var y: f64 = 0;
+    var shown_cards: usize = 0;
     var i: usize = 0;
-    while (i < g.notification_count) : (i += 1) {
+    while (i < g.notification_count and shown_cards < m.MAX_TOASTS) : (i += 1) {
         const n = &g.notifications[i];
+        if (!n.toast_visible) continue;
+        shown_cards += 1;
         const th = m.toastHeight(n);
         const height: f64 = @floatFromInt(th);
         if (y >= H) break;

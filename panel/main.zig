@@ -1784,13 +1784,15 @@ const TOAST_WIDTH: i32 = 380;
 const TOAST_GAP: i32 = 8;
 
 fn toastSurfaceHeight() i32 {
-    if (g.notification_count == 0) return 0;
     var height: i32 = 0;
+    var count: i32 = 0;
     var i: usize = 0;
-    while (i < g.notification_count) : (i += 1) {
+    while (i < g.notification_count and count < m.MAX_TOASTS) : (i += 1) {
+        if (!g.notifications[i].toast_visible) continue;
         height += m.toastHeight(&g.notifications[i]);
+        count += 1;
     }
-    const count: i32 = @intCast(g.notification_count);
+    if (count == 0) return 0;
     return height + (count - 1) * TOAST_GAP;
 }
 
@@ -1837,7 +1839,7 @@ fn updateToastsSurface() void {
         destroyToasts();
         return;
     }
-    if (g.notification_count == 0) {
+    if (notificationVisibleCount() == 0) {
         destroyToasts();
         return;
     }
@@ -2029,7 +2031,9 @@ fn notificationAdd(
         5000
     else
         @min(@as(i64, timeout), 60000);
-    entry.expire_ms = if (effective == 0) 0 else m.nowMs() + @max(@as(i64, 1000), effective);
+    entry.created_ms = m.nowMs();
+    entry.toast_visible = !g.dnd;
+    entry.expire_ms = if (effective == 0) 0 else entry.created_ms + @max(@as(i64, 1000), effective);
 
     if (notificationFind(id)) |existing| {
         freeNotificationIcon(&g.notifications[existing]);
@@ -2059,14 +2063,28 @@ fn notificationAdd(
     });
 }
 
-fn expireNotifications(now: i64) void {
+fn notificationVisibleCount() usize {
+    var count: usize = 0;
     var i: usize = 0;
-    while (i < g.notification_count) {
-        if (g.notifications[i].expire_ms > 0 and now >= g.notifications[i].expire_ms) {
-            notificationRemoveAt(i, true, 1);
-        } else {
-            i += 1;
+    while (i < g.notification_count and count < m.MAX_TOASTS) : (i += 1) {
+        if (g.notifications[i].toast_visible) count += 1;
+    }
+    return count;
+}
+
+fn expireNotifications(now: i64) void {
+    var changed = false;
+    var i: usize = 0;
+    while (i < g.notification_count) : (i += 1) {
+        const n = &g.notifications[i];
+        if (n.toast_visible and n.expire_ms > 0 and now >= n.expire_ms) {
+            n.toast_visible = false;
+            changed = true;
         }
+    }
+    if (changed) {
+        updateToastsSurface();
+        if (g.overlay_mode == .control) refreshOverlay();
     }
 }
 
