@@ -3952,9 +3952,12 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     drawControlHeader(cr, left_x, l.y + 14, content_w, "CONTROL", false);
 
     // Connectivity card.
+    const show_conn = m.controlFeatureEnabled(.wifi) or m.controlFeatureEnabled(.bluetooth);
     const conn_h = 116.0;
+    if (show_conn) {
     controlCard(cr, left_x, left_y, col_w, conn_h);
     controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
+    }
     var row_y = left_y + 30.0;
     if (m.controlFeatureEnabled(.wifi)) {
         const active = g.wifi_ssid_len > 0 and g.wifi_enabled;
@@ -3991,7 +3994,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         registerControlNav(left_x + 8, row_y, col_w - 16, 32, .bluetooth);
         row_y += 42.0;
     }
-    left_y += conn_h + 12.0;
+    if (show_conn) left_y += conn_h + 12.0;
 
     const show_focus = m.controlFeatureEnabled(.focus);
     const show_ppd = m.controlFeatureEnabled(.power_profile) and g.ppd_available;

@@ -4163,6 +4163,7 @@ fn handleInputButton(button: u32, state: u32) void {
 
     if (s == &g.bar) {
         const h = hitBar(g.pointer_x, g.pointer_y);
+        logDebug("bar hit kind={s} value={d} at {d:.0},{d:.0}", .{ @tagName(h.kind), h.value, g.pointer_x, g.pointer_y });
         switch (h.kind) {
             .menu => {
                 if (button == 0x111) {
