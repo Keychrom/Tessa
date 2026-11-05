@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const m = @import("model.zig");
+const gpu = @import("gpu.zig");
 const apps = @import("apps.zig");
 
 const g = &m.g;
@@ -267,6 +268,15 @@ pub fn setSurfaceScale(s: *m.Surface, scale: i32) void {
     if (s.scale == scl) return;
     s.scale = scl;
     if (s.wl) |wl| c.wl_surface_set_buffer_scale(wl, scl);
+    if (s.kind == .background and m.g.panel_renderer == .gpu and s.configured) {
+        const physical: u32 = @intCast(scl);
+        if (gpu.configure(s, s.width * physical, s.height * physical)) {
+            destroyBuffers(s);
+            m.g.bg_base_dirty = true;
+            s.dirty = true;
+            return;
+        }
+    }
     destroyBuffers(s);
     s.dirty = true;
 }
@@ -280,6 +290,15 @@ pub fn configureSurface(s: *m.Surface, width: u32, height: u32) void {
     s.width = width;
     s.height = height;
     s.configured = true;
+    if (s.kind == .background and m.g.panel_renderer == .gpu) {
+        const physical: u32 = @intCast(@max(1, s.scale));
+        if (gpu.configure(s, width * physical, height * physical)) {
+            destroyBuffers(s);
+            m.g.bg_base_dirty = true;
+            s.dirty = true;
+            return;
+        }
+    }
     destroyBuffers(s);
     _ = ensureBuffers(s);
     s.dirty = true;
@@ -290,6 +309,15 @@ fn acquire(s: *m.Surface) ?*m.Buffer {
         if (b.wl != null and !b.busy) return b;
     }
     return null;
+}
+
+fn setCairoQuality(cr: *c.cairo_t) void {
+    const opts = c.cairo_font_options_create();
+    c.cairo_font_options_set_antialias(opts, c.CAIRO_ANTIALIAS_GRAY);
+    c.cairo_font_options_set_hint_style(opts, c.CAIRO_HINT_STYLE_SLIGHT);
+    c.cairo_set_font_options(cr, opts);
+    c.cairo_font_options_destroy(opts);
+    c.cairo_set_antialias(cr, c.CAIRO_ANTIALIAS_BEST);
 }
 
 fn begin(s: *m.Surface) ?Draw {
@@ -312,13 +340,7 @@ fn begin(s: *m.Surface) ?Draw {
         return null;
     };
     c.cairo_scale(cr, scale, scale);
-
-    const opts = c.cairo_font_options_create();
-    c.cairo_font_options_set_antialias(opts, c.CAIRO_ANTIALIAS_GRAY);
-    c.cairo_font_options_set_hint_style(opts, c.CAIRO_HINT_STYLE_SLIGHT);
-    c.cairo_set_font_options(cr, opts);
-    c.cairo_font_options_destroy(opts);
-    c.cairo_set_antialias(cr, c.CAIRO_ANTIALIAS_BEST);
+    setCairoQuality(cr);
 
     c.cairo_set_operator(cr, c.CAIRO_OPERATOR_SOURCE);
     c.cairo_set_source_rgba(cr, 0, 0, 0, 0);
@@ -548,7 +570,62 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
     _ = drawText(cr, "SUMI SHELL / 01", w - 136, h - 24, MONO, "Medium", 6.5, .{ 1, 1, 1, 0.10 }, 0, 1.2);
 }
 
+fn renderBackgroundBase(s: *m.Surface) ?*c.cairo_surface_t {
+    const scale: u32 = @intCast(@max(1, s.scale));
+    const buf_w = s.width * scale;
+    const buf_h = s.height * scale;
+    if (buf_w == 0 or buf_h == 0) return null;
+
+    const img = c.cairo_image_surface_create(
+        c.CAIRO_FORMAT_ARGB32,
+        @intCast(buf_w),
+        @intCast(buf_h),
+    );
+    if (img == null or c.cairo_surface_status(img) != c.CAIRO_STATUS_SUCCESS) {
+        if (img) |surface| c.cairo_surface_destroy(surface);
+        return null;
+    }
+    const cr = c.cairo_create(img) orelse {
+        c.cairo_surface_destroy(img);
+        return null;
+    };
+    const scl: f64 = @floatFromInt(scale);
+    c.cairo_scale(cr, scl, scl);
+    setCairoQuality(cr);
+    drawBackgroundArt(cr, @floatFromInt(s.width), @floatFromInt(s.height));
+    c.cairo_destroy(cr);
+    c.cairo_surface_flush(img);
+    return img;
+}
+
+fn drawBackgroundGpu(s: *m.Surface) bool {
+    if (!gpu.ready()) return false;
+    if (s.gpu == null) {
+        const physical: u32 = @intCast(@max(1, s.scale));
+        if (!gpu.configure(s, s.width * physical, s.height * physical)) return false;
+        destroyBuffers(s);
+    }
+    if (m.g.bg_base_dirty) {
+        const base = renderBackgroundBase(s) orelse return false;
+        defer c.cairo_surface_destroy(base);
+        if (!gpu.setBase(s, base)) return false;
+        m.g.bg_base_dirty = false;
+    }
+    const animate = m.g.wallpaper_animation and m.g.animations_enabled and !m.g.reduce_motion;
+    const time: f64 = if (animate)
+        @as(f64, @floatFromInt(m.nowMs())) / 1000.0
+    else
+        0.0;
+    if (!gpu.draw(s, time, animate)) return false;
+    s.dirty = false;
+    return true;
+}
+
 pub fn drawBackground(s: *m.Surface) void {
+    if (m.g.panel_renderer == .gpu) {
+        if (drawBackgroundGpu(s)) return;
+        gpu.destroySurface(s);
+    }
     const d = begin(s) orelse return;
     const w: f64 = @floatFromInt(s.width);
     const h: f64 = @floatFromInt(s.height);

@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const m = @import("model.zig");
 const draw = @import("draw.zig");
+const gpu = @import("gpu.zig");
 const apps = @import("apps.zig");
 
 const g = &m.g;
@@ -71,6 +72,7 @@ fn destroyOverlay() void {
     g.overlay_mode = .none;
     g.launcher_open = false;
     g.menu_anim = 0;
+    g.next_wallpaper_ms = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
     destroyTextInput();
     draw.destroyBuffers(s);
@@ -110,6 +112,7 @@ fn createLayerSurface(
     const compositor = g.compositor orelse return false;
     const shell = g.layer_shell orelse return false;
 
+    if (s.gpu != null) gpu.destroySurface(s);
     s.kind = kind;
     s.width = 0;
     s.height = 0;
@@ -447,6 +450,7 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.menu_from = g.menu_anim;
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
+    g.next_wallpaper_ms = 0;
     if (mode == .launcher) g.selected_anim = @floatFromInt(g.selected);
     g.next_blink_ms = m.nowMs() + 500;
     if (mode == .launcher) {
@@ -978,6 +982,7 @@ fn reloadPanelConfig() void {
     const old_height = g.bar_height;
     const old_top = g.bar_top_margin;
     const old_side = g.bar_side_margin;
+    const old_renderer = g.panel_renderer;
     var old_volume_status: [512]u8 = undefined;
     var old_volume_up: [512]u8 = undefined;
     var old_volume_down: [512]u8 = undefined;
@@ -992,6 +997,15 @@ fn reloadPanelConfig() void {
     @memcpy(old_volume_mute[0..old_mute_len], g.volume_mute[0..old_mute_len]);
 
     m.loadConfig();
+    if (old_renderer != g.panel_renderer) {
+        gpu.destroySurface(&g.bg);
+        gpu.reset();
+        g.bg_base_dirty = true;
+        g.bg.dirty = true;
+    } else if (g.panel_renderer == .gpu) {
+        g.bg_base_dirty = true;
+        g.bg.dirty = true;
+    }
     const volume_changed =
         old_status_len != g.volume_status_len or
         !std.mem.eql(u8, old_volume_status[0..old_status_len], g.volume_status[0..g.volume_status_len]) or
@@ -3690,6 +3704,13 @@ fn updateSystemAndLog() bool {
     return changed;
 }
 
+fn gpuAnimationActive() bool {
+    if (g.panel_renderer != .gpu or !gpu.ready()) return false;
+    if (!g.wallpaper_animation or !g.animations_enabled or g.reduce_motion) return false;
+    if (g.overlay != null) return false;
+    return g.bg.configured and g.bg.width > 0 and g.bg.height > 0;
+}
+
 fn updateTimers(now: i64) void {
     expireNotifications(now);
     if (now >= g.next_clock_ms) {
@@ -3710,10 +3731,21 @@ fn updateTimers(now: i64) void {
         if (g.overlay) |s| s.dirty = true;
         g.next_blink_ms = now + 500;
     }
+    if (gpuAnimationActive()) {
+        if (g.next_wallpaper_ms == 0) g.next_wallpaper_ms = now;
+        if (now >= g.next_wallpaper_ms) {
+            g.bg.dirty = true;
+            const fps: i64 = @intCast(std.math.clamp(g.wallpaper_fps, 1, 120));
+            g.next_wallpaper_ms = now + @divTrunc(@as(i64, 1000), fps);
+        }
+    } else {
+        g.next_wallpaper_ms = 0;
+    }
 }
 
 fn pollTimeout(now: i64) c_int {
     if (g.bg.dirty or g.bar.dirty) return 0;
+    if (gpuAnimationActive() and g.next_wallpaper_ms == 0) return 0;
     if (g.toasts) |s| {
         if (s.dirty) return 0;
     }
@@ -3726,6 +3758,9 @@ fn pollTimeout(now: i64) c_int {
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;
     if (g.next_system_ms < next) next = g.next_system_ms;
     if (g.launcher_open and g.next_blink_ms < next) next = g.next_blink_ms;
+    if (gpuAnimationActive() and g.next_wallpaper_ms > 0 and g.next_wallpaper_ms < next) {
+        next = g.next_wallpaper_ms;
+    }
     var i: usize = 0;
     while (i < g.notification_count) : (i += 1) {
         const expire = g.notifications[i].expire_ms;
@@ -4029,6 +4064,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
         c.free(s);
         g.overlay = null;
     }
+    gpu.destroySurface(&g.bg);
     draw.destroyBuffers(&g.bar);
     draw.destroyBuffers(&g.bg);
     if (g.bar.layer) |ls| c.zwlr_layer_surface_v1_destroy(ls);
@@ -4039,5 +4075,6 @@ pub fn main(init: std.process.Init.Minimal) !void {
     if (g.xkb_state) |s| c.xkb_state_unref(s);
     if (g.xkb_keymap) |k| c.xkb_keymap_unref(k);
     if (g.xkb_ctx) |ctx| c.xkb_context_unref(ctx);
+    gpu.shutdown();
     c.wl_display_disconnect(g.display.?);
 }

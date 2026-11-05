@@ -63,6 +63,9 @@ default desktop safe.
       test-commit, and a normal-flip fallback.
 - [x] Gated `linux-drm-syncobj-v1` explicit sync when renderer/backend timelines
       and a backend DRM fd are available.
+- [x] Opt-in EGL/GLES2 panel background renderer: Cairo-authored wallpaper
+      texture, shader water/ink animation, `panel_renderer`,
+      `wallpaper_animation`, and automatic Cairo fallback.
 - [x] Investigate HDR/color management: wlroots 0.20 exposes color-management
       v1 and output color transforms, but Tessa's GLES2/scenefx path and the
       absence of tone mapping require a Vulkan-renderer design first.

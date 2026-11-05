@@ -23,6 +23,7 @@ pub const MAX_EXTENSIONS = 16;
 
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
 pub const LauncherStyle = enum { centered, start };
+pub const PanelRenderer = enum { cairo, gpu };
 pub const WallpaperFit = enum { cover, contain, stretch };
 pub const BarModule = enum {
     logo,
@@ -327,6 +328,7 @@ pub const Surface = struct {
     configured: bool = false,
     dirty: bool = false,
     buffers: [3]Buffer = undefined,
+    gpu: ?*c.TessaGpuSurface = null,
     listener: c.zwlr_layer_surface_v1_listener = undefined,
 };
 
@@ -631,6 +633,7 @@ pub const Panel = struct {
     next_cpu_ms: i64 = 0,
     next_blink_ms: i64 = 0,
     next_system_ms: i64 = 0,
+    next_wallpaper_ms: i64 = 0,
 
     accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
@@ -646,6 +649,11 @@ pub const Panel = struct {
     wallpaper_shader_len: usize = 0,
     wallpaper_fit: WallpaperFit = .cover,
     wallpaper_surface: ?*c.cairo_surface_t = null,
+    panel_renderer: PanelRenderer = .cairo,
+    wallpaper_animation: bool = false,
+    wallpaper_fps: i32 = 30,
+    reduce_motion: bool = false,
+    bg_base_dirty: bool = true,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
     bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
@@ -1428,6 +1436,20 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             } else if (std.mem.eql(u8, val, "centered") or std.mem.eql(u8, val, "wofi")) {
                 g.launcher_style = .centered;
             }
+        } else if (std.mem.eql(u8, key, "panel_renderer") or std.mem.eql(u8, key, "panel-renderer")) {
+            if (std.mem.eql(u8, val, "gpu") or std.mem.eql(u8, val, "egl")) {
+                g.panel_renderer = .gpu;
+            } else if (std.mem.eql(u8, val, "cairo") or std.mem.eql(u8, val, "software")) {
+                g.panel_renderer = .cairo;
+            }
+        } else if (std.mem.eql(u8, key, "reduce_motion") or std.mem.eql(u8, key, "reduce-motion")) {
+            g.reduce_motion = parsePanelBool(val) orelse g.reduce_motion;
+        } else if (std.mem.eql(u8, key, "wallpaper_animation") or std.mem.eql(u8, key, "wallpaper-animation")) {
+            g.wallpaper_animation = parsePanelBool(val) orelse g.wallpaper_animation;
+        } else if (std.mem.eql(u8, key, "wallpaper_fps") or std.mem.eql(u8, key, "wallpaper-fps")) {
+            if (std.fmt.parseInt(i32, val, 10)) |v| {
+                g.wallpaper_fps = std.math.clamp(v, 1, 120);
+            } else |_| {}
         } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
             hexColor(val, &g.bar_bg);
             g.bar_bg_set = true;
@@ -1723,6 +1745,12 @@ pub fn loadConfig() void {
     g.terminal_explicit = false;
     g.launcher_style = .centered;
     g.launcher_open_style = .centered;
+    g.panel_renderer = .cairo;
+    g.wallpaper_animation = false;
+    g.wallpaper_fps = 30;
+    g.reduce_motion = false;
+    g.bg_base_dirty = true;
+    g.next_wallpaper_ms = 0;
     g.selected_anim = 0;
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.bar_font_len = 0;
@@ -1831,6 +1859,8 @@ pub fn loadConfig() void {
     applyThemeRoles();
     applyOutputTheme();
     loadWallpaperImage();
+    g.bg_base_dirty = true;
+    g.next_wallpaper_ms = 0;
     g.bar_height = std.math.clamp(g.bar_height, 32, 96);
     g.bar_top_margin = std.math.clamp(g.bar_top_margin, 0, 64);
     g.bar_side_margin = std.math.clamp(g.bar_side_margin, 0, 128);
@@ -1888,6 +1918,11 @@ pub fn printConfigSummary() void {
         g.wallpaper_shader[0..g.wallpaper_shader_len],
         g.wallpaper_image[0..g.wallpaper_image_len],
         @tagName(g.wallpaper_fit),
+    });
+    std.debug.print("panel renderer={s} wallpaper-animation={} fps={d}\n", .{
+        @tagName(g.panel_renderer),
+        g.wallpaper_animation,
+        g.wallpaper_fps,
     });
 }
 

@@ -225,6 +225,40 @@ Run it with `WLR_RENDERER=pixman tessa` when needed. `direct_scanout = true`
 remains the best path for fullscreen video and games; `tessa-ctl rendering` and
 the `scanout_frames` counter show whether it is active.
 
+## GPU panel background (opt-in)
+
+`tessa-panel` normally renders with Cairo into `wl_shm` buffers. Setting
+`panel_renderer = gpu` keeps Cairo as the source of truth but changes how the
+background layer is presented:
+
+1. On configure, scale change, or config reload, the panel renders the existing
+   wallpaper (gradient, ink, sun, image or shader frame, and signature) into a
+   Cairo image at the physical output resolution.
+2. The image is uploaded as an RGBA texture.
+3. A `wl_egl_window` plus an EGL/GLES2 context presents a fullscreen triangle.
+   The fragment shader samples the texture and adds restrained water ripples,
+   ink drift, and a slow sun pulse.
+4. `wallpaper_animation = true` schedules redraws at `wallpaper_fps` (default
+   30). Animation pauses while an overlay is open and when `animations = false`
+   or `reduce_motion = true`.
+
+The launcher, bar, popovers, and toasts stay on the Cairo path. This is the
+first stage of the GPU panel renderer, not a full UI rewrite.
+
+Requirements and fallback:
+
+- The client-side EGL/GLES stack must be able to create a window surface and
+  present it to the compositor. Mesa's llvmpipe can do this even in a headless
+  pixman session, as exercised by the test suite.
+- If EGL initialization, shader compilation, texture upload, or presentation
+  fails, the panel logs `tessa-panel: gpu: ...; using Cairo` and continues with
+  `wl_shm`.
+- `TESSA_GPU_DISABLE=1` forces the Cairo path.
+- A build with `-Dgpu=false` removes the EGL/GLES dependency; the panel always
+  uses Cairo.
+- The GPU path uses full-buffer updates and a timer, not partial damage or frame
+  callbacks. It is opt-in because continuous animation costs power.
+
 ## HDR and color management: investigation
 
 HDR is **not implemented** in this change. No `wp-color-management-v1` global is

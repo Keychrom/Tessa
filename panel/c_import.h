@@ -13,6 +13,7 @@
 
 #include <cairo/cairo.h>
 #include "text.h"
+#include "gpu.h"
 
 #include <xkbcommon/xkbcommon.h>
 

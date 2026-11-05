@@ -301,6 +301,13 @@ panel_fg = #eef2f8
 # Dim the ink/sun/water artwork behind translucent windows. 1.0 keeps the
 # original intensity; 0.0 disables the artwork.
 # wallpaper_art_opacity = 0.55
+# Opt-in GPU background renderer: Cairo draws the wallpaper once, then
+# EGL/GLES2 presents it and a shader adds subtle water/ink motion. Falls back
+# to Cairo when EGL/GLES is unavailable or presentation fails. Set
+# wallpaper_animation = true to animate it; wallpaper_fps defaults to 30.
+# panel_renderer = gpu
+# wallpaper_animation = false
+# wallpaper_fps = 30
 # wallpaper_image = ~/Pictures/wallpaper.png
 # wallpaper_shader = ~/.config/tessa/wallpaper.ppm.sh
 # wallpaper_fit = cover

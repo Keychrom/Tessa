@@ -9,9 +9,15 @@ pub fn build(b: *std.Build) void {
         "scenefx",
         "build with scenefx 0.5 rounded corners and backdrop blur (default: true; set false for the plain wlroots scene)",
     ) orelse true;
+    const gpu = b.option(
+        bool,
+        "gpu",
+        "build the opt-in EGL/GLES2 panel background renderer (default: true; set false for no EGL/GLES dependency)",
+    ) orelse true;
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "scenefx", scenefx);
+    build_options.addOption(bool, "gpu", gpu);
 
     const translate_c = b.dependency("translate_c", .{});
 
@@ -104,11 +110,17 @@ pub fn build(b: *std.Build) void {
     panel_mod.addImport("c_translated", panel_c.mod);
     panel_mod.addIncludePath(b.path("protocol"));
     panel_mod.addIncludePath(b.path("panel"));
+    panel_mod.addOptions("build_options", build_options);
     panel_mod.linkSystemLibrary("wayland-client", .{});
     panel_mod.linkSystemLibrary("cairo", .{});
     panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
     panel_mod.linkSystemLibrary("gio-2.0", .{});
     panel_mod.linkSystemLibrary("xkbcommon", .{});
+    if (gpu) {
+        panel_mod.linkSystemLibrary("egl", .{});
+        panel_mod.linkSystemLibrary("glesv2", .{});
+        panel_mod.linkSystemLibrary("wayland-egl", .{});
+    }
     panel_mod.addCSourceFile(.{
         .file = b.path("protocol/layer-shell-protocol.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
@@ -131,6 +143,10 @@ pub fn build(b: *std.Build) void {
     });
     panel_mod.addCSourceFile(.{
         .file = b.path("panel/text.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
+        .file = b.path(if (gpu) "panel/gpu.c" else "panel/gpu_stub.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
     panel_mod.addCSourceFile(.{

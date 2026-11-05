@@ -64,6 +64,9 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
       向け test-commit、通常 flip へのフォールバック付き。
 - [x] renderer/backend の timeline と backend の DRM fd がある場合の
       `linux-drm-syncobj-v1` explicit sync。
+- [x] オプトインの EGL/GLES2 パネル背景レンダラー: Cairo で描いた壁紙
+      テクスチャ、水面／インクのシェーダーアニメーション、
+      `panel_renderer`、`wallpaper_animation`、Cairo への自動フォールバック。
 - [x] HDR/color management の調査: wlroots 0.20 は color-management v1 と
       出力色変換を提供するが、Tessa の GLES2/scenefx 経路と tone mapping の
       不在のため、Vulkan renderer の設計が先。

@@ -591,6 +591,9 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar-bg`、`launcher-bg`、`popover-bg`、`toast-bg` | `panel_bg` | サーフェス別背景色 |
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
 | `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
+| `panel_renderer` | `cairo` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。利用できなければ Cairo へ自動フォールバック） |
+| `wallpaper_animation` | `false` | GPU 壁紙の水面／インク／太陽をアニメーションさせる |
+| `wallpaper_fps` | `30` | GPU 壁紙のフレームレート（1〜120） |
 | `power_lock` | `loginctl lock-session` | 電源メニューの Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
 | `power_reboot` | `systemctl reboot` | Reboot |
@@ -603,6 +606,15 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 
 `bar_height` などを変更すると、設定リロード時にバーの layer surface が
 作り直され、予約領域も更新されます。
+
+`panel_renderer = gpu` は壁紙の見た目を Cairo のまま保ちます。パネルが一度だけ
+Cairo で描いてテクスチャとしてアップロードし、EGL/GLES2 のシェーダーが任意の
+水面／インクの動きを加えます。コンポジタへ提示できるクライアント側 EGL/GLES
+スタックが必要です。Mesa の llvmpipe ならヘッドレス pixman セッションでも動作
+します。EGL/GLES がない、ドライバーが壊れている、バッファをインポートできない
+コンポジタでは理由をログに出して Cairo へ自動フォールバックします。
+`TESSA_GPU_DISABLE=1` で強制的に Cairo にできます。`-Dgpu=false` でビルドすると
+EGL/GLES 依存自体を外せます。
 
 ### 6.4 入力・ジェスチャ
 

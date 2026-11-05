@@ -225,6 +225,40 @@ GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを
 ゲームでは `direct_scanout = true` が最良の経路です。`tessa-ctl rendering` と
 `scanout_frames` カウンタで有効か確認できます。
 
+## GPU パネル背景（opt-in）
+
+`tessa-panel` は通常 Cairo で `wl_shm` バッファへ描画します。
+`panel_renderer = gpu` にしても壁紙の見た目は Cairo が正のままです。変わるのは
+背景レイヤーの提示方法だけです:
+
+1. configure、スケール変更、設定リロード時に、既存の壁紙（グラデーション、
+   インク、太陽、画像またはシェーダーフレーム、署名）を物理解像度の Cairo
+   イメージへ描画します。
+2. そのイメージを RGBA テクスチャとしてアップロードします。
+3. `wl_egl_window` と EGL/GLES2 コンテキストでフルスクリーン三角形を描画し、
+   フラグメントシェーダーが水面のさざ波、インクの揺らぎ、太陽の淡い脈動を
+   加えます。
+4. `wallpaper_animation = true` で `wallpaper_fps`（既定30）の間隔で再描画
+   します。オーバーレイ表示中、`animations = false`、`reduce_motion = true`
+   のときは停止します。
+
+ランチャー、バー、ポップオーバー、トーストは Cairo のままです。これは GPU
+パネルレンダラーの第一段であり、UI全体の書き換えではありません。
+
+要件とフォールバック:
+
+- クライアント側の EGL/GLES がウィンドウサーフェスを作成し、コンポジタへ
+  提示できる必要があります。Mesa の llvmpipe ならヘッドレス pixman セッション
+  でも動作し、テストでも確認しています。
+- EGL 初期化、シェーダーコンパイル、テクスチャ転送、提示のいずれかが失敗
+  すると、`tessa-panel: gpu: ...; using Cairo` をログに出して `wl_shm` の
+  Cairo 描画を続けます。
+- `TESSA_GPU_DISABLE=1` で強制的に Cairo にできます。
+- `-Dgpu=false` でビルドすると EGL/GLES 依存を外せます。パネルは常に Cairo
+  を使います。
+- GPU パスは部分ダメージや frame callback ではなく、全バッファ更新とタイマー
+  を使います。継続アニメーションは電力を消費するため opt-in です。
+
 ## HDR / color management の調査
 
 今回の変更で HDR は**実装していません**。`wp-color-management-v1` global は

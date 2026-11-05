@@ -579,6 +579,9 @@ stagger, and slides its selection marker between results.
 | `bar-bg`, `launcher-bg`, `popover-bg`, `toast-bg` | `panel_bg` | Per-surface background colors |
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
 | `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
+| `panel_renderer` | `cairo` | Background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
+| `wallpaper_animation` | `false` | Animate the GPU wallpaper (water/ink/sun motion) |
+| `wallpaper_fps` | `30` | GPU wallpaper frame rate (1–120) |
 | `power_lock` | `loginctl lock-session` | Power-menu Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
 | `power_reboot` | `systemctl reboot` | Reboot |
@@ -591,6 +594,15 @@ stagger, and slides its selection marker between results.
 
 Changing bar geometry recreates the bar layer surface and updates its exclusive
 zone.
+
+`panel_renderer = gpu` keeps Cairo as the source of truth for the wallpaper:
+the panel renders it once, uploads it as a texture, and an EGL/GLES2 shader
+adds the optional water/ink motion. It needs a usable client-side EGL/GLES
+stack that can present to the compositor; Mesa's llvmpipe can work even in a
+headless pixman session. Systems without EGL/GLES, with a broken driver, or
+with a compositor that cannot import the resulting buffers log the reason and
+fall back to Cairo automatically. Set `TESSA_GPU_DISABLE=1` to force Cairo.
+Builds made with `-Dgpu=false` omit the EGL/GLES dependency entirely.
 
 ### 6.4 Input and gestures
 
