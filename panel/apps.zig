@@ -98,6 +98,19 @@ fn hasId(list: *AppList, id: []const u8) bool {
     return false;
 }
 
+/// Desktop entries carry Name[ja]/Comment[ja] even when the session is not
+/// Japanese. Follow the locale instead of always preferring the Japanese text.
+fn preferJapanese() bool {
+    const keys = [_][*:0]const u8{ "LC_ALL", "LC_MESSAGES", "LANG" };
+    for (keys) |key| {
+        const raw = c.getenv(key) orelse continue;
+        const locale = std.mem.span(raw);
+        if (locale.len < 2) continue;
+        return std.mem.eql(u8, locale[0..2], "ja");
+    }
+    return false;
+}
+
 fn scanFile(list: *AppList, dir_path: []const u8, filename: []const u8) void {
     var id_buf: [128]u8 = undefined;
     const id_len = filename.len - ".desktop".len;
@@ -165,11 +178,12 @@ fn scanFile(list: *AppList, dir_path: []const u8, filename: []const u8) void {
     }
 
     if (!type_ok or hidden or app.exec_len == 0) return;
-    if (name_ja_len > 0) {
+    const ja = preferJapanese();
+    if (ja and name_ja_len > 0) {
         @memcpy(app.name[0 .. name_ja_len + 1], name_ja[0 .. name_ja_len + 1]);
         app.name_len = name_ja_len;
     }
-    if (comment_ja_len > 0) {
+    if (ja and comment_ja_len > 0) {
         @memcpy(app.comment[0 .. comment_ja_len + 1], comment_ja[0 .. comment_ja_len + 1]);
         app.comment_len = comment_ja_len;
     }

@@ -527,6 +527,7 @@ edits are rejected and keep the previous configuration.
 | `bg_top` | unset | Top wallpaper gradient color; derived from `bg` if omitted |
 | `bg_bottom` | unset | Bottom wallpaper gradient color |
 | `wallpaper_art` | `true` | Draw ink/sun/water decorative art |
+| `wallpaper_art_opacity` | `0.55` | Art opacity from `0.0` (off) to `1.0`; keeps the artwork behind translucent surfaces |
 | `wallpaper_image` | empty | PNG wallpaper path (absolute or `~/...`); replaces gradient/art |
 | `wallpaper_shader` | empty | Command that prints a binary PPM (P6) frame; takes precedence over the image |
 | `wallpaper_fit` | `cover` | Image fit: `cover`, `contain`, or `stretch` |
@@ -558,7 +559,8 @@ edits are rejected and keep the previous configuration.
 | `blur_passes` | `3` | Blur quality passes (1–5) |
 
 `animations = false`, `reduce_motion = true`, or `animation_ms = 0` disables
-motion.
+motion. The panel launcher fades and scales in, reveals result rows in a short
+stagger, and slides its selection marker between results.
 
 ### 6.3 Panel and shell
 
@@ -576,6 +578,7 @@ motion.
 | `bar-fg`, `launcher-fg`, `popover-fg`, `toast-fg` | `panel_fg` | Per-surface foreground colors |
 | `bar-bg`, `launcher-bg`, `popover-bg`, `toast-bg` | `panel_bg` | Per-surface background colors |
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
+| `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
 | `power_lock` | `loginctl lock-session` | Power-menu Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
 | `power_reboot` | `systemctl reboot` | Reboot |

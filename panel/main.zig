@@ -685,9 +685,9 @@ fn openPanel(name: []const u8) void {
         openAudio();
     } else if (std.mem.eql(u8, name, "extensions")) {
         openExtensions();
-    } else if (std.mem.eql(u8, name, "launcher") or std.mem.eql(u8, name, "centered") or
-        std.mem.eql(u8, name, "wofi"))
-    {
+    } else if (std.mem.eql(u8, name, "launcher")) {
+        openLauncher("");
+    } else if (std.mem.eql(u8, name, "centered") or std.mem.eql(u8, name, "wofi")) {
         openCenteredLauncher("");
     } else if (std.mem.eql(u8, name, "start") or std.mem.eql(u8, name, "start-menu")) {
         openStartMenu("");

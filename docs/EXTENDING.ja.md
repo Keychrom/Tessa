@@ -43,6 +43,8 @@ tessa-ctl panel screenshot             # 範囲/全画面スクリーンショ�
 tessa-ctl panel media                  # MPRIS メディア操作
 tessa-ctl panel tray                   # StatusNotifier トレイ
 tessa-ctl panel audio                  # 音量操作
+tessa-ctl panel centered               # Wofi 風ランチャー
+tessa-ctl panel start                  # Windows 風スタートメニュー
 tessa-ctl shell                        # パネルと外部シェルのロール所有状態
 tessa-ctl notify-action 12 reply       # 通知アクションを実行
 tessa-ctl panel power HEADLESS-2        # 出力を指定

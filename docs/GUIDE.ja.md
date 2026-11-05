@@ -539,6 +539,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bg_top` | 未指定 | 壁紙グラデーション上端。未指定は `bg` から導出 |
 | `bg_bottom` | 未指定 | 壁紙グラデーション下端 |
 | `wallpaper_art` | `true` | インク／太陽／水面などの装飾を描く |
+| `wallpaper_art_opacity` | `0.55` | 装飾の不透明度（`0.0` で無効、`1.0` で最大）。半透明サーフェスの背後でも主張を抑える |
 | `wallpaper_image` | 空 | PNG 壁紙のパス（絶対パスまたは `~/...`）。グラデーション／装飾を置換 |
 | `wallpaper_shader` | 空 | バイナリ PPM（P6）フレームを出力するコマンド。画像より優先 |
 | `wallpaper_fit` | `cover` | 画像の合わせ方: `cover`、`contain`、`stretch` |
@@ -570,7 +571,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `blur_passes` | `3` | ブラーのパス数（1〜5） |
 
 `animations = false`、`reduce_motion = true`、`animation_ms = 0` のいずれかで
-動きを無効化できます。
+動きを無効化できます。パネルのランチャーはフェードと拡大で開き、結果行を
+短い間隔でずらして表示し、選択マーカーを滑らかに移動させます。
 
 ### 6.3 パネル・シェル
 
@@ -588,6 +590,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar-fg`、`launcher-fg`、`popover-fg`、`toast-fg` | `panel_fg` | サーフェス別前景色 |
 | `bar-bg`、`launcher-bg`、`popover-bg`、`toast-bg` | `panel_bg` | サーフェス別背景色 |
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
+| `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
 | `power_lock` | `loginctl lock-session` | 電源メニューの Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
 | `power_reboot` | `systemctl reboot` | Reboot |

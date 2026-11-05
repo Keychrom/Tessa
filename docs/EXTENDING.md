@@ -43,6 +43,8 @@ tessa-ctl panel screenshot             # region/full screenshot UI
 tessa-ctl panel media                  # MPRIS controls
 tessa-ctl panel tray                   # StatusNotifier tray
 tessa-ctl panel audio                  # volume controls
+tessa-ctl panel centered               # Wofi-style launcher
+tessa-ctl panel start                  # Windows-style start menu
 tessa-ctl shell                        # panel and external shell role ownership
 tessa-ctl notify-action 12 reply       # invoke a notification action
 tessa-ctl panel power HEADLESS-2        # target a specific output
