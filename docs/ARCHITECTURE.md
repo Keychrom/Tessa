@@ -799,12 +799,14 @@ output.
   input region. Draws the wallpaper once per configure: a vertical gradient
   derived from `bg` or explicit `bg_top`/`bg_bottom`, plus optional accent art
   (`wallpaper_art`).
-- **bar**: layer top, top/left/right anchors, configurable height
-  (`bar_height`, default 44), top/side margins, exclusive zone equal to the
-  height. A geometry change recreates this surface. Hit rectangles for the menu,
-  clock, workspace pills, window chips, and extension status pills are
-  recomputed on each draw. The panel reloads its own config and rescans apps
-  when it receives `config-reload`.
+- **bar**: layer top, bottom, left, or right selected by `bar_position`,
+  anchored to the chosen edge plus the two adjacent edges, with configurable
+  thickness (`bar_height`), edge margin, and side margin. The exclusive zone
+  equals the thickness, so tiled clients avoid the bar on any edge.
+  A geometry or position change recreates this surface. Hit rectangles for the
+  menu, clock, workspace pills, window chips, Controls button, and extension
+  status pills are recomputed on each draw. The panel reloads its own config
+  and rescans apps when it receives `config-reload`.
 - All panel surfaces use the target `wl_output` scale. Buffers are allocated at
   `logical_size * scale`, drawing applies a Cairo scale, and hit/IME rectangles
   stay in logical coordinates. The 760x620 launcher design is uniformly fitted
@@ -812,18 +814,22 @@ output.
   cursor rectangle.
 - **overlay**: created on demand, layer overlay, anchors all edges, exclusive
   zone -1, keyboard EXCLUSIVE. It is a full-screen transparent/ARGB surface.
-  Its mode selects the centered launcher or one of the anchored popovers
-  (calendar below the clock, power menu below the Tessa mark, centered
-  clipboard history, the screenshot selection surface, media/tray/audio
-  controls, or the extensions list). The dim backdrop and panel are drawn into the same
-  surface, so clicks outside the active panel close it. Popover hit rectangles
-  are in popover-local coordinates plus the panel origin, and keyboard input
-  switches to `Up`/`Down`/`Enter` navigation for the power menu and clipboard. Opening a popover emits a `panel` event, which the panel
-  process consumes like the `launcher` event.
+  Its mode selects the centered launcher, one of the anchored popovers
+  (calendar, power menu, centered clipboard history, media/tray/audio controls,
+  or the extensions list), the classic Wi-Fi/Bluetooth popovers, or the unified
+  control center with its `home`, `wifi`, `bluetooth`, `notifications`,
+  `calendar`, `tray`, and `power` views. The dim backdrop and panel are drawn
+  into the same surface, so clicks outside the active panel close it. Popover
+  hit rectangles are in popover-local coordinates plus the panel origin, and
+  keyboard input switches to `Up`/`Down`/`Enter` navigation for list-based
+  views. Opening a popover or control center emits a `panel` event, which the
+  panel process consumes like the `launcher` event.
 
 The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
 destroying the layer surface lets the compositor restore toplevel focus. The
-launcher also enables text-input-v3 while every other overlay mode disables it.
+launcher enables text-input-v3 for its search field; the control center enables
+it only while a Wi-Fi password, hidden SSID, Bluetooth PIN, or passkey modal is
+open, and disables it for the other views.
 
 ### Text input in the panel
 
@@ -890,9 +896,13 @@ ARGB32. `Notify` parses the `actions` array and the `image-data`/`image_path`/
 `icon-name` hints; `image-data` is capped at 64×64 and copied row by row with
 alpha premultiplication.
 
-The Zig side keeps four active notifications, applies replacement by id, expires
-timed notifications, and draws a top-right layer surface named
-`tessa-notifications`. Toast heights grow when action buttons are present.
+The Zig side keeps up to 50 notification records and shows at most four active
+toasts, applies replacement by id, and expires timed notifications. Expiry hides
+the toast but retains the history entry; an explicit `CloseNotification` removes
+it. Focus/DND suppresses new toasts while still recording history. The unified
+control center lists the history with actions and clear, and its Controls button
+carries a count badge. Toasts are drawn on a top-right layer surface named
+`tessa-notifications`; their heights grow when action buttons are present.
 Clicking the card activates the `default` action if one exists, action buttons
 emit `ActionInvoked`, and the close button dismisses. Body text is rendered with
 Pango markup when it parses; otherwise it falls back to plain text. Theme icons
@@ -913,11 +923,15 @@ allows.
 
 `panel/media.c` runs a second GIO thread. It polls the session bus for
 `org.mpris.MediaPlayer2.*`, calls `Properties.GetAll` on the first player's
-`org.mpris.MediaPlayer2.Player`, and sends playback status, title, artist, and
-player name to the panel over a framed socket. Play/pause, next, and previous
+`org.mpris.MediaPlayer2.Player`, and sends playback status, title, artist,
+player name, track length, and position to the panel over a framed socket. It
+also decodes local `file://` `mpris:artUrl` artwork with gdk-pixbuf, scales it
+to 128×128 RGBA, and sends it as a separate frame; remote artwork URLs are left
+to the monogram fallback. Play/pause, next, previous, and `SetPosition` seek
 commands are marshalled back with `g_main_context_invoke` and issued as MPRIS
 method calls. `Super+M` or the bar chip opens a centered control popover; the
-panel does not fetch album art or expose the MPRIS player's own menus.
+unified control center shows the same media card with artwork, progress, and
+click-to-seek. The panel does not expose the MPRIS player's own menus.
 
 ### StatusNotifier tray
 
@@ -943,6 +957,44 @@ polls the mixer once per second, parses the percentage and mute state, and sends
 a compact state record to the panel. Up/down/mute commands are marshalled to the
 GIO thread and executed asynchronously, then re-polled. The panel draws the bar
 indicator and the `Super+Shift+A` popover.
+
+### System control plane
+
+`panel/system.c` owns Wi-Fi, Bluetooth, brightness, and power-profile state in
+one dedicated GLib thread with a private `GMainContext`, a `GMainLoop`, and one
+socketpair to the panel's poll loop. It talks to the system bus through GDBus
+only; Tessa does not link libnm, libsystemd, or libbluetooth. Frames are
+`[type: u8][length: u32][payload]`, where type 1 is a TLV state snapshot, type 2
+is ready, type 3 is an error, type 4 is a Bluetooth agent prompt, and type 5 is
+agent cancellation. State sections are independent, so a missing service only
+marks that section unavailable.
+
+NetworkManager access uses `GetDevices`, the Wi-Fi device's `AccessPoints` and
+`ActiveAccessPoint`, `Settings.ListConnections`, and
+`ActivateConnection`/`AddAndActivateConnection`/`DeactivateConnection`/
+`Connection.Delete`. Access points are deduplicated by SSID, sorted by signal,
+and matched against saved connection UUIDs. Security is selected from the AP's
+RSN/WPA flags: WPA-PSK for WPA2, SAE for WPA3, no security block for open
+networks, and `802-11-wireless.hidden` for hidden SSIDs. Passwords are held in
+temporary buffers, used to build the `802-11-wireless-security` setting, and
+zeroed after the call; they never enter state frames or logs.
+
+BlueZ uses `ObjectManager.GetManagedObjects` plus `Adapter1`, `Device1`, and
+`Battery1` properties for power, discovery, pairing, connection, removal, and
+device battery. The first panel (`TESSA_PANEL_SYSTEM_OWNER=1`) registers an
+`org.bluez.Agent1` implementation and makes it the default agent. BlueZ
+`RequestConfirmation`, `RequestPasskey`, `RequestPinCode`, `DisplayPasskey`, and
+authorization callbacks are forwarded to the panel as prompt frames; the panel
+draws a modal and sends the response or cancellation back through the system
+thread. Other outputs can browse devices but not pair.
+
+Brightness reads `/sys/class/backlight`, finds the logind session with
+`GetSessionByPID`, and calls `SetBrightness`. Power profiles read
+`ActiveProfile`/`Profiles` from power-profiles-daemon and set the profile with a
+`Properties.Set` call. Wi-Fi and Bluetooth are polled every two seconds,
+backlight every two seconds, and PPD every five seconds; actions are
+asynchronous. Access-denied and service-not-present replies become visible
+error/unavailable state rather than fatal panel errors.
 
 ### Portals and screen sharing
 
@@ -981,11 +1033,13 @@ tiles rather than loading icon themes.
 ### Event loop
 
 Single-threaded, `poll()` on the Wayland display fd, IPC fd, clipboard pipe, and
-the notification/media/tray/audio service socketpairs. Timers (1 s clock, 2 s
-CPU/RAM, 500 ms caret, 16 ms animation) are implemented with poll timeouts;
+the notification/media/tray/audio/system service socketpairs. Timers (1 s clock,
+2 s CPU/RAM, 500 ms caret, 16 ms animation) are implemented with poll timeouts;
 `wl_display_prepare_read`/`read_events` are used to avoid blocking inside
 libwayland. D-Bus and command execution happen on worker threads so the
-compositor-facing panel loop never blocks.
+compositor-facing panel loop never blocks. The system helper is one fd in the
+same poll array; its state snapshots update Wi-Fi/Bluetooth/power fields and
+trigger a redraw only while the control center or a relevant popover is open.
 
 ## Build and generated protocols
 

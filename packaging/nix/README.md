@@ -97,9 +97,16 @@ Then pick **Tessa** at the login screen. The module sets
 | `programs.tessa.xwayland` | `true` | Add `xwayland-satellite` for X11 applications |
 | `programs.tessa.portals` | `true` | Enable `xdg-desktop-portal-wlr` for screenshots/screencasts |
 | `programs.tessa.defaultSession` | `true` | Set the display manager's default session to Tessa |
+| `programs.tessa.networkmanager` | `false` | Enable NetworkManager for control-center Wi-Fi |
+| `programs.tessa.bluetooth` | `false` | Enable BlueZ for control-center Bluetooth |
+| `programs.tessa.powerProfiles` | `false` | Enable power-profiles-daemon for power profiles |
 
 The module also enables polkit, D-Bus, and `hardware.graphics`, which the
-compositor needs for seat management and GPU rendering.
+compositor needs for seat management and GPU rendering. NetworkManager,
+Bluetooth, and power-profiles-daemon are opt-in because not every Tessa machine
+uses them; enabling an option turns on the corresponding NixOS service. The
+control center shows an unavailable section when a service is absent, so they
+can also be enabled later without changing the Tessa package.
 
 ## Minimal test VM
 

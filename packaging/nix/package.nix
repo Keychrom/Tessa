@@ -15,6 +15,7 @@
   cairo,
   pango,
   glib,
+  gdk-pixbuf,
   libglvnd,
   mesa,
   libdrm,

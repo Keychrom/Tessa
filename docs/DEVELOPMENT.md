@@ -625,6 +625,19 @@ configured `power_suspend` command runs instead of reboot/poweroff.
 sh tests/panel-popovers.sh
 ```
 
+### Control center test
+
+`tests/control-center.sh` checks `panel_style = unified` and `classic` through
+`tessa-panel --check`, confirms that `control_features = all`, a single feature,
+and `none` produce the expected masks, then opens the home, Wi-Fi, Bluetooth,
+and notifications views with `tessa-ctl panel ...`. It drives `wtype` to verify
+Escape returns to home and then closes the overlay, waiting for each new overlay
+layer-map before sending keys.
+
+```sh
+sh tests/control-center.sh
+```
+
 ### Clipboard history test
 
 `tests/clipboard.sh` copies two strings with `wl-copy`, opens the history with
@@ -680,6 +693,49 @@ The panel's notification service needs a session D-Bus. If no bus is available,
 the rest of the panel still runs and the service logs the failure. Auto-starting
 Tessa from a display manager normally provides a session bus.
 
+### Wi-Fi test
+
+`tests/wifi.sh` starts a private system bus with `tests/fake-networkmanager.py`,
+sets `DBUS_SYSTEM_BUS_ADDRESS`, and runs a unified panel with
+`control_features = wifi`. The fake exposes a secured `TestNet` and an open
+`OpenNet`; the test selects OpenNet with the keyboard and verifies the
+`AddAndActivateConnection` call, then selects TestNet, types a dummy password
+into the panel modal, and verifies the PSK reaches the fake. It also asserts
+that the password never appears in the panel log. The fake only owns
+`org.freedesktop.NetworkManager` on the private bus, so the real network is
+never touched.
+
+```sh
+sh tests/wifi.sh
+```
+
+### Bluetooth test
+
+`tests/bluetooth.sh` uses the same private-system-bus pattern with
+`tests/fake-bluez.py`. The fake provides one adapter and one device with
+`Battery1`; the test checks the powered/adapter state, opens the Bluetooth
+view, verifies Agent1 registration at `/org/tessa/Agent`, starts pairing with
+Return, confirms the fake's `RequestConfirmation` through the panel modal, and
+checks that Pair and Connect were called.
+
+```sh
+sh tests/bluetooth.sh
+```
+
+### Brightness and power-profile test
+
+`tests/brightness.sh` starts `tests/fake-system.py`, which implements the
+logind `GetSessionByPID`/`SetBrightness` methods and the power-profiles-daemon
+properties on a private system bus. It compiles the virtual-pointer helper,
+clicks the brightness slider at 70%, verifies
+`SetBrightness backlight ...`, then clicks the performance profile and verifies
+the PPD `Properties.Set`. The test needs `wayland-scanner`, `cc`, and
+`dbus-daemon`; it skips if they are missing.
+
+```sh
+sh tests/brightness.sh
+```
+
 ### System status test
 
 `tests/system-status.sh` supplies a fake `/sys/class/power_supply`, `/sys/class/net`,
@@ -702,6 +758,17 @@ available.
 
 ```sh
 sh tests/media.sh
+```
+
+`tests/media-art.sh` creates a temporary PNG, points the fake MPRIS player's
+`mpris:artUrl` at it, opens the unified control center, and waits for
+`media: artwork 128x128`. It covers gdk-pixbuf decoding and the 128×128 RGBA
+frame path; the panel's media buffer is sized for this frame including its
+header. PyGObject and `gdk-pixbuf` introspection are required, and the test
+skips when they are unavailable.
+
+```sh
+sh tests/media-art.sh
 ```
 
 ### Tray test

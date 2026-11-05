@@ -49,6 +49,34 @@ the default.
 - [ ] Optional Quickshell feature protocols: `keyboard-shortcuts-inhibit-v1`
       and `wlr-gamma-control-v1`.
 
+## Control center and system integration
+
+Add a first-party control center without turning Tessa into a full desktop
+settings application. The classic popovers remain the default.
+
+- [x] `panel_style = classic|unified`; unified adds a Controls button and one
+      panel with home, Wi-Fi, Bluetooth, notifications, calendar, tray, and
+      power views. Classic keeps the existing popovers and adds separate
+      Wi-Fi/Bluetooth ones.
+- [x] `control_features` bitmask and `--list-modules` metadata so each feature
+      can be disabled independently; up to four `control_action` quick actions.
+- [x] NetworkManager Wi-Fi: scan, signal, WPA2/WPA3-PSK and open networks,
+      hidden SSIDs, saved connections, connect/disconnect/forget, radio power.
+- [x] BlueZ Bluetooth: adapter power, discovery, device list, pair/connect/
+      disconnect/forget, battery, and an Agent1 confirmation/passkey modal.
+- [x] logind brightness and power-profiles-daemon controls driven by sliders.
+- [x] Notification history (50 entries), Focus/DND toast suppression, clear,
+      actions, and a Controls badge.
+- [x] MPRIS progress/seek, local `file://` artwork via gdk-pixbuf, and an
+      absolute volume slider.
+- [x] Bar on top, bottom, left, or right with vertical-aware bar and control
+      center layouts.
+- [ ] 802.1X/EAP enterprise Wi-Fi, VPNs, and captive-portal detection.
+- [ ] A polkit authentication agent and pairing from secondary outputs.
+- [ ] Bounded remote artwork fetching and opt-in persistent notification
+      history.
+- [ ] Drag-and-drop control-center card layout and per-card ordering.
+
 ## Rendering and game features
 
 Close the compositor gap for games and fullscreen video while keeping the

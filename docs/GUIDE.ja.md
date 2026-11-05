@@ -41,7 +41,7 @@ Arch Linux では 2.2 節の PKGBUILD を使います。実行時
 - wlroots **0.20** 開発ファイル
 - Wayland、wayland-protocols 1.47 以降、xkbcommon、pixman、libdrm、libinput、
   seat/udev、EGL/GLES
-- Cairo、Pango、GLib/GIO（パネルと通知用）
+- Cairo、Pango、GLib/GIO、gdk-pixbuf（パネル、通知、MPRIS アートワーク用）
 - フォント: Inter、JetBrains Mono、Noto Sans CJK JP など
 - ターミナル: 既定は `kitty`。`terminal = foot` などで変更可能
 
@@ -644,6 +644,11 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `volume_up` | 空 | 音量上げコマンド |
 | `volume_down` | 空 | 音量下げコマンド |
 | `volume_mute` | 空 | ミュート切り替えコマンド |
+
+`control_features` には `wifi`、`bluetooth`、`focus`、`notifications`、
+`media`、`volume`、`brightness`、`power_profile`、`battery`、`quick_actions`、
+`tray`、`calendar`、`power` をカンマ、空白、または `|` 区切りで指定します。
+`control_action` は最大 4 件まで繰り返せます。
 
 `bar_height` や `bar_position` を変更すると、設定リロード時にバーの layer
 surface が作り直され、予約領域も更新されます。`left`/`right` では縦長の
@@ -1808,7 +1813,14 @@ Controls ボタンが追加され、バーの各ポップオーバー入口が1�
 `control_features = wifi, bluetooth, volume, notifications`）。classic では
 同じキーが Wi-Fi/Bluetooth ポップオーバーと Bluetooth インジケータを制御します。
 unified では時計がカレンダー、トレイがトレイビュー、電源メニューが電源ビューを
-開きます。
+開きます。IPC からは次のように開けます:
+
+```sh
+tessa-ctl panel control
+tessa-ctl panel wifi
+tessa-ctl panel bluetooth
+tessa-ctl panel notifications
+```
 
 Wi-Fi はシステムの NetworkManager D-Bus API を使います。WPA2/WPA3-PSK、
 オープン、隠しSSID に対応し、802.1X/EAP・VPN・キャプティブポータルは対象外です。

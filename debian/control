@@ -39,5 +39,6 @@ Description: quiet tiled Wayland compositor and desktop shell
  its own taskbar, launcher, wallpaper, per-output workspaces, compositor-level
  IME relay, XWayland integration, session locking, idle/output-power support,
  declarative window and workspace rules, a process-based extension API,
- clipboard history, a screenshot UI, StatusNotifier tray, volume controls, and
- a desktop notification service.
+ clipboard history, a screenshot UI, StatusNotifier tray, volume controls, a
+ desktop notification service with history, and an optional NetworkManager/
+ BlueZ control center.

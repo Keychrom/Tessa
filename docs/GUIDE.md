@@ -40,7 +40,8 @@ development requirements below apply only to source and package builds.
 - wlroots **0.20** development files
 - Wayland, wayland-protocols >= 1.47, xkbcommon, pixman, libdrm, libinput,
   seat/udev, EGL/GLES
-- Cairo, Pango, GLib/GIO for the panel and notifications
+- Cairo, Pango, GLib/GIO, and gdk-pixbuf for the panel, notifications, and
+  MPRIS artwork
 - Fonts: Inter, JetBrains Mono, Noto Sans CJK JP (or equivalent)
 - A terminal; the default command is `kitty` (`terminal = foot` is fine)
 
@@ -631,6 +632,11 @@ stagger, and slides its selection marker between results.
 | `volume_up` | empty | Volume-up command |
 | `volume_down` | empty | Volume-down command |
 | `volume_mute` | empty | Mute-toggle command |
+
+`control_features` accepts `wifi`, `bluetooth`, `focus`, `notifications`,
+`media`, `volume`, `brightness`, `power_profile`, `battery`, `quick_actions`,
+`tray`, `calendar`, and `power`, separated by commas, spaces, or `|`.
+`control_action` is repeatable up to four times.
 
 Changing bar geometry or `bar_position` recreates the bar layer surface and
 updates its exclusive zone. On `left`/`right` the bar becomes a vertical strip:
@@ -1788,7 +1794,14 @@ center:
 `control_features = wifi, bluetooth, volume, notifications`). In classic mode
 the same key gates the Wi-Fi/Bluetooth popovers and the Bluetooth indicator.
 The clock still opens the calendar, the tray opens the tray view, and the
-power menu opens the power view in unified mode.
+power menu opens the power view in unified mode. From IPC:
+
+```sh
+tessa-ctl panel control
+tessa-ctl panel wifi
+tessa-ctl panel bluetooth
+tessa-ctl panel notifications
+```
 
 Wi-Fi uses the system NetworkManager D-Bus API. Basic WPA2/WPA3-PSK, open, and
 hidden networks are supported; 802.1X/EAP, VPNs, and captive portals are not.

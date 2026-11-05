@@ -50,6 +50,32 @@ Tessa は意図的に小さく保っています。ロードマップは「日�
 - [ ] Quickshell の任意機能向け: `keyboard-shortcuts-inhibit-v1` と
       `wlr-gamma-control-v1`。
 
+## コントロールセンターとシステム連携
+
+Tessa を本格的なデスクトップ設定アプリにはせず、第一級のコントロールセンターを
+追加します。従来の popover が既定のままです。
+
+- [x] `panel_style = classic|unified`。unified は Controls ボタンと、ホーム、
+      Wi-Fi、Bluetooth、通知、カレンダー、トレイ、電源の各ビューを持つ統合
+      パネルを追加。classic は従来の popover を維持し、Wi-Fi/Bluetooth の
+      個別 popover を追加。
+- [x] `control_features` ビットマスクと `--list-modules` メタデータで機能を
+      個別に無効化可能。最大 4 件の `control_action` クイックアクション。
+- [x] NetworkManager Wi-Fi: スキャン、電波強度、WPA2/WPA3-PSK とオープン、
+      隠し SSID、保存済み接続、接続/切断/忘れる、ラジオ電源。
+- [x] BlueZ Bluetooth: アダプタ電源、探索、デバイス一覧、ペアリング/接続/
+      切断/忘れる、バッテリー、Agent1 の確認/パスキーモーダル。
+- [x] logind の輝度と power-profiles-daemon をスライダーで操作。
+- [x] 通知履歴（50 件）、Focus/DND によるトースト抑制、クリア、アクション、
+      Controls バッジ。
+- [x] MPRIS の進行/シーク、gdk-pixbuf によるローカル `file://` アートワーク、
+      絶対値の音量スライダー。
+- [x] バーを上/下/左/右に配置し、バーとコントロールセンターを縦向きにも対応。
+- [ ] 802.1X/EAP エンタープライズ Wi-Fi、VPN、キャプティブポータル検出。
+- [ ] polkit 認証エージェントと、セカンダリ出力からのペアリング。
+- [ ] 上限付きのリモートアートワーク取得と、任意で有効にする通知履歴の永続化。
+- [ ] コントロールセンターのカードをドラッグ&ドロップで並べ替え。
+
 ## 描画・ゲーム機能
 
 ゲームや全画面動画のためにコンポジタの差を縮めつつ、既定のデスクトップを

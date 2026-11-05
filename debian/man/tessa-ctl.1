@@ -71,7 +71,13 @@ Start a command.
 Open the launcher.
 .TP
 .B panel POPOVER [OUTPUT]
-Open a panel popover.
+Open a panel popover or control-center view.
+.I POPOVER
+may be clock, power, clipboard, screenshot, media, tray, audio, extensions,
+control/controls, wifi, bluetooth, or notifications. In unified mode, control
+opens the home view and wifi/bluetooth/notifications open the corresponding
+control-center view; in classic mode, wifi and bluetooth open their separate
+popovers.
 .TP
 .B mode [NAME]
 Switch or reset the input mode.

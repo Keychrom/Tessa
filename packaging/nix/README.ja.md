@@ -97,8 +97,15 @@ sudo nixos-rebuild switch --flake .#tessa-vm
 | `programs.tessa.xwayland` | `true` | X11 用に `xwayland-satellite` を追加 |
 | `programs.tessa.portals` | `true` | スクリーンショット/画面共有用の wlr ポータル |
 | `programs.tessa.defaultSession` | `true` | ディスプレイマネージャの既定セッションにする |
+| `programs.tessa.networkmanager` | `false` | コントロールセンターの Wi-Fi 用に NetworkManager を有効化 |
+| `programs.tessa.bluetooth` | `false` | コントロールセンターの Bluetooth 用に BlueZ を有効化 |
+| `programs.tessa.powerProfiles` | `false` | 電源プロファイル用に power-profiles-daemon を有効化 |
 
 モジュールは polkit、D-Bus、`hardware.graphics` も有効にします。
+NetworkManager、Bluetooth、power-profiles-daemon はすべての Tessa 環境で
+使うとは限らないため opt-in です。有効にすると対応する NixOS サービスも
+有効になります。サービスが無い場合、コントロールセンターは該当セクションを
+利用不可として表示するので、Tessa パッケージを変えずに後から有効化できます。
 
 ## 最小のテスト VM
 

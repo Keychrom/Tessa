@@ -293,11 +293,27 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
     マークアップ、置換/閉じる/期限切れ、フォーカス出力へのルーティングに
     対応したトースト通知
   - バッテリーとデフォルトルートのネットワーク表示
-  - MPRIS メディアチップと操作（`Super+M`）
+  - `panel_style` で選べる classic / unified コントロールセンター。unified では
+    専用の Controls ボタンと、ホーム・Wi-Fi・Bluetooth・通知・カレンダー・
+    トレイ・電源の各ビューを一体化。classic では従来の個別ポップオーバーに
+    Wi-Fi / Bluetooth を追加
+  - NetworkManager による Wi-Fi: スキャン、電波強度、WPA2/WPA3-PSK と
+    オープンネットワーク、隠し SSID、保存済み接続、接続/切断/忘れる、
+    ラジオのオン/オフ
+  - BlueZ による Bluetooth: アダプタ電源、探索、ペアリング確認、接続/切断/
+    忘れる、デバイスのバッテリー残量
+  - 通知履歴（50 件）、Focus/DND によるトースト抑制、クリア、通知アクション
+  - 輝度（logind）と電源プロファイル（power-profiles-daemon）の操作。
+    `control_features` でコントロールセンターの機能を個別にオン/オフ可能
+  - バーを上下左右の任意の端に配置（`bar_position = top|bottom|left|right`）。
+    縦バーではバーとコントロールセンターも縦レイアウト
+  - MPRIS メディアチップと操作（`Super+M`）、ローカルアルバムアート、
+    再生位置表示、クリックでシーク
   - StatusNotifier トレイの watcher/host、アイコン描画、アクティベート
     （`Super+Shift+T`）
   - `wpctl` / `pactl` / `amixer` を使った音量表示とポップオーバー
-    （`Super+Shift+A`）、コマンド上書き設定つき
+    （`Super+Shift+A`）、コマンド上書き設定と、コントロールセンターの
+    絶対値スライダー
   - `xdg-desktop-portal` 連携: `xdg-desktop-portal-wlr` と PipeWire による
     画面共有のための screencopy、dmabuf、出力キャプチャソース、
     image-copy capture、foreign-toplevel リスト
@@ -321,9 +337,11 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
 `tests/panel-theme.sh`、`tests/bar-position.sh`、
-`tests/panel-popovers.sh`、`tests/clipboard.sh`、`tests/screenshot.sh`、
+`tests/panel-popovers.sh`、`tests/control-center.sh`、`tests/wifi.sh`、
+`tests/bluetooth.sh`、`tests/brightness.sh`、`tests/clipboard.sh`、
+`tests/screenshot.sh`、
 `tests/notifications.sh`、`tests/notification-routing.sh`、
-`tests/system-status.sh`、`tests/media.sh`、`tests/tray.sh`、
+`tests/system-status.sh`、`tests/media.sh`、`tests/media-art.sh`、`tests/tray.sh`、
 `tests/audio.sh`、`tests/foreign-toplevels.sh`、`tests/animations.sh`、
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、`tests/window-shader.sh`、
@@ -351,7 +369,12 @@ plain／scenefx の両構成で成功しています。ポータルの ScreenCas
 `tests/layout-scrolling.sh`、`tests/layout-modes.sh`、
 `tests/layout-reorder.sh`、`tests/layout-config.sh`、
 `tests/extensions.sh`、`tests/extension-api.sh`、`tests/panel-modules.sh`、
-`tests/effect-v2.sh`、`tests/effect-cache.sh` も成功しています。新しいツールチェーンでの
+`tests/effect-v2.sh`、`tests/effect-cache.sh`、`tests/control-center.sh`、
+`tests/wifi.sh`、`tests/bluetooth.sh`、`tests/brightness.sh`、
+`tests/media-art.sh` も成功しています。Wi-Fi、Bluetooth、輝度、電源プロファイルの
+テストはプライベートな system bus 上に偽の NetworkManager、BlueZ、logind、
+power-profiles-daemon を起動するため、実セッションのネットワークやデバイスには
+触れません。新しいツールチェーンでの
 実 DRM/libinput セッション検証は未実施です。`tests/effects.sh` は
 scenefx ビルド（既定）で角丸を検査し、`-Dscenefx=false` ビルドでは
 スキップします。Kitty と実 XWayland の統合テストは
@@ -411,7 +434,8 @@ Ubuntu / Debian インストーラーまたは Arch の `tessa-git` パッケー
   （`pkg-config --modversion scenefx-0.5`）
 - Wayland、xkbcommon、pixman、libdrm、libinput、seat/udev、EGL/GLES、
   wayland-protocols 1.47 以降（生成 enum ヘッダー用）
-- パネルと通知用の Cairo / Pango / GLib (GIO) 開発ファイル
+- パネル、通知、MPRIS アートワーク用の Cairo / Pango / GLib (GIO) /
+  gdk-pixbuf 開発ファイル
 - フォント: Inter、JetBrains Mono、Noto Sans CJK JP などの CJK フォント
 - 任意: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
   （X11 アプリ用。`xwayland = true` で自動起動）
@@ -1221,11 +1245,14 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   内のクライアントへ公開されるため、信頼されたアプリはキーボードフォーカス
   なしでセレクションを読めます。セッション内アプリを信頼できる前提で使って
   ください。
-- **通知は意図的に最小限。** パネルが `org.freedesktop.Notifications` を所有し、
-  アクション、`default` クリック、静的アイコン（`image-data` /
-  `image-path` / `icon-name`）、Pango マークアップ、置換、閉じる、
-  期限切れに対応します。トーストはフォーカス中の出力へルーティングされます。
-  Pango が扱えない HTML、通知音、通知ごとの出力固定は未対応です。
+- **通知履歴はメモリ上に保持されます。** パネルが
+  `org.freedesktop.Notifications` を所有し、アクション、`default` クリック、
+  静的アイコン（`image-data` / `image-path` / `icon-name`）、Pango
+  マークアップ、置換、閉じる、期限切れに対応します。統合コントロール
+  センター向けに最大 50 件をメモリへ保持し、期限切れはトーストだけを隠して
+  履歴を残します。Focus/DND はトーストだけを抑止し、履歴は消しません。
+  トーストはフォーカス中の出力へルーティングされます。Pango が扱えない
+  HTML、通知音、通知ごとの出力固定、履歴の永続化は未対応です。
 - **ウィンドウ効果はまだシンプルです。** 開く/ワークスペース切り替えは
   設定可能な名前付き cubic-bezier／スプリングカーブ、ウィンドウ別上書き、
   オフセットでウィンドウフレームを
@@ -1244,8 +1271,20 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   なら閉じる際のフェードだけを残せます。
 - **システム表示は基本機能のみ。** バッテリーは
   `/sys/class/power_supply`、ネットワークはデフォルトルートと `operstate` を
-  使います。MPRIS は最初に見つかったプレイヤーを操作し、アルバムアートは
-  表示しません。
+  使います。MPRIS は最初に見つかったプレイヤーを操作し、ローカルの
+  `file://` アルバムアートと再生位置/シークを表示します。リモートの
+  アートワーク URL は取得しません。
+- **コントロールセンターはデスクトップサービスに依存します。** Wi-Fi は
+  NetworkManager の system bus を使い、WPA2/WPA3-PSK、オープン、
+  隠し SSID、保存済み接続に対応します。802.1X/EAP、VPN、キャプティブ
+  ポータルは対象外です。Bluetooth は BlueZ を使い、ペアリングエージェントは
+  プライマリパネルだけが登録するため、セカンダリ出力からはペアリングできません。
+  輝度は `/sys/class/backlight` と logind、電源プロファイルは
+  power-profiles-daemon が必要です。サービスが無い場合はクラッシュせず
+  「利用不可」を表示します。Tessa は polkit エージェントを同梱しないため、
+  wheel 以外のユーザーやリモートセッションではシステム側の認証が必要になり
+  失敗する場合があります。標準の NetworkManager/BlueZ ルールがあるローカルの
+  wheel セッションでは動作します。
 - **トレイにはメニューがありません。** StatusNotifier の登録、pixmap/
   IconName の描画、アクティベート、ステータス、削除に対応していますが、
   DBusMenu のコンテキストメニューとセカンダリアクティベートは未対応です。

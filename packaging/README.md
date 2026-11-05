@@ -22,7 +22,7 @@ build dependencies:
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libegl mesa cairo pango glib2
+  libegl mesa cairo pango glib2 gdk-pixbuf2
 ```
 
 Then build the `tessa-git` package:
@@ -62,6 +62,12 @@ chooser_type=none
 output_name=HDMI-A-1
 ```
 
+The control center's system features are optional runtime services, listed as
+`optdepends`: `networkmanager` for Wi-Fi, `bluez` for Bluetooth,
+`power-profiles-daemon` for power profiles, `upower` for battery data, and
+`polkit` for authorization. Missing services only mark that control-center
+section unavailable; the compositor and the rest of the panel still start.
+
 ## Debian / Ubuntu
 
 For a normal install, use the [Ubuntu / Debian installer](https://keychrom.github.io/docs/install-script/).
@@ -93,7 +99,9 @@ older Zig; the script verifies the supplied Zig is 0.17.x instead.
 
 The package installs the same binaries, session entry, example config, and
 portal selector. The wlroots 0.20 development files and the linked
-`wlroots-0.20` pkg-config name pin the compositor ABI.
+`wlroots-0.20` pkg-config name pin the compositor ABI. NetworkManager, BlueZ,
+power-profiles-daemon, UPower, and polkit are listed in `Suggests`; install them
+to enable the corresponding control-center sections.
 
 Zig 0.17 is required. If the distribution packages an older Zig, install the
 upstream 0.17 toolchain and pass it with `ZIG=...` before building. Run

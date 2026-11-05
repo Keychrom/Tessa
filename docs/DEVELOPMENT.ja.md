@@ -41,8 +41,8 @@ scenefx なしの plain wlroots シーンにする場合は、明示的に無効
 
 必要なものはメイン README にまとめています。要点は Zig 0.17、wlroots 0.20、
 Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、Cairo、Pango、
-フォントです。X11 をテストする場合は `xwayland-satellite` も `PATH` に
-入れてください。
+GLib/GIO、gdk-pixbuf、フォントです。X11 をテストする場合は
+`xwayland-satellite` も `PATH` に入れてください。
 
 ライブラリの確認:
 
@@ -504,6 +504,19 @@ sh tests/popups.sh
 sh tests/panel-popovers.sh
 ```
 
+### コントロールセンターのテスト
+
+`tests/control-center.sh` は `panel_style = unified` と `classic` を
+`tessa-panel --check` で確認し、`control_features = all`、単一機能、`none` が
+期待どおりのマスクになることを検証します。その後 `tessa-ctl panel ...` で
+ホーム、Wi-Fi、Bluetooth、通知ビューを開き、`wtype` で Escape がホームへ戻り、
+さらに Escape でオーバーレイが閉じることを確認します。キーを送る前に、新しい
+overlay の layer-map がログに出るまで待ちます。
+
+```sh
+sh tests/control-center.sh
+```
+
 ### クリップボード履歴のテスト
 
 `tests/clipboard.sh` は 2 つの文字列を `wl-copy` でコピーし、`wtype` で
@@ -561,6 +574,49 @@ sh tests/notification-routing.sh
 パネルの他の機能は動作し、サービスが失敗をログに残します。ディスプレイ
 マネージャーから Tessa を起動する通常の環境ではセッション bus が提供されます。
 
+### Wi-Fi のテスト
+
+`tests/wifi.sh` はプライベートな system bus 上で
+`tests/fake-networkmanager.py` を起動し、`DBUS_SYSTEM_BUS_ADDRESS` を設定して
+`control_features = wifi` の unified パネルを動かします。偽 NM は保護された
+`TestNet` とオープンな `OpenNet` を公開し、テストはキーボードで OpenNet を選んで
+`AddAndActivateConnection` を確認します。次に TestNet を選び、ダミーパスワードを
+パネルのモーダルへ入力して、PSK が偽 NM に届くことを確認します。同時に、
+パスワードがパネルのログへ出ていないことも検証します。偽サービスはプライベート
+bus 上の `org.freedesktop.NetworkManager` だけを所有するため、実ネットワークには
+触れません。
+
+```sh
+sh tests/wifi.sh
+```
+
+### Bluetooth のテスト
+
+`tests/bluetooth.sh` もプライベートな system bus と
+`tests/fake-bluez.py` を使います。偽 BlueZ はアダプタ 1 つと `Battery1` 付きの
+デバイス 1 つを提供し、テストは電源/アダプタ状態、Bluetooth ビュー、
+`/org/tessa/Agent` への Agent1 登録、Return によるペアリング開始、偽 BlueZ の
+`RequestConfirmation` をパネルのモーダルで確認、Pair と Connect の呼び出しを
+検証します。
+
+```sh
+sh tests/bluetooth.sh
+```
+
+### 輝度と電源プロファイルのテスト
+
+`tests/brightness.sh` は `tests/fake-system.py` を起動します。偽サービスは
+logind の `GetSessionByPID`/`SetBrightness` と power-profiles-daemon の
+プロパティをプライベートな system bus 上で実装します。テストは
+virtual-pointer ヘルパーをコンパイルし、輝度スライダーの 70% 位置をクリックして
+`SetBrightness backlight ...` を確認し、performance プロファイルをクリックして
+PPD の `Properties.Set` を確認します。`wayland-scanner`、`cc`、
+`dbus-daemon` が必要で、無い場合はスキップします。
+
+```sh
+sh tests/brightness.sh
+```
+
 ### システム表示のテスト
 
 `tests/system-status.sh` は `TESSA_POWER_SUPPLY_PATH`、`TESSA_NET_PATH`、
@@ -582,6 +638,17 @@ sh tests/system-status.sh
 
 ```sh
 sh tests/media.sh
+```
+
+`tests/media-art.sh` は一時 PNG を作り、偽 MPRIS プレイヤーの
+`mpris:artUrl` をそこへ向け、unified コントロールセンターを開いて
+`media: artwork 128x128` を待ちます。gdk-pixbuf のデコードと、ヘッダーを含む
+128×128 RGBA フレーム経路を検証します。パネルのメディアバッファはこの
+フレームサイズに合わせて確保しています。PyGObject と gdk-pixbuf の
+イントロスペクションが必要で、無い場合はスキップします。
+
+```sh
+sh tests/media-art.sh
 ```
 
 ### トレイのテスト

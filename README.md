@@ -279,11 +279,28 @@ Highlights include:
     activation, image/data icons, Pango markup, replacement, close, expiry, and
     routing to the focused output
   - battery and default-route network indicators
-  - MPRIS media chip and controls (`Super+M`)
+  - classic or unified control center (`panel_style`): unified mode adds a
+    dedicated Controls button and one panel with home, Wi-Fi, Bluetooth,
+    notifications, calendar, tray, and power views; classic mode keeps the
+    separate popovers and adds Wi-Fi/Bluetooth ones
+  - NetworkManager Wi-Fi: scan, signal strength, WPA2/WPA3-PSK and open
+    networks, hidden SSIDs, saved connections, connect/disconnect/forget, and
+    radio power
+  - BlueZ Bluetooth: adapter power, discovery, pairing agent prompts, connect/
+    disconnect/forget, and device battery level
+  - notification history (50 entries), Focus/DND toast suppression, clear, and
+    notification actions
+  - brightness (logind) and power-profile (power-profiles-daemon) controls;
+    `control_features` gates each control-center feature independently
+  - bar placement on any edge (`bar_position = top|bottom|left|right`), with
+    vertical layouts for the bar and control center
+  - MPRIS media chip and controls (`Super+M`), local album artwork, progress,
+    and click-to-seek
   - StatusNotifier tray watcher/host with icon rendering and activation
     (`Super+Shift+T`)
   - volume indicator and popover through `wpctl`, `pactl`, or `amixer`
-    (`Super+Shift+A`), with configurable command overrides
+    (`Super+Shift+A`), with configurable command overrides and an absolute
+    control-center slider
   - compositor-side xdg-desktop-portal support: screencopy, dmabuf, output
     capture sources, image-copy capture, and foreign-toplevel lists for
     `xdg-desktop-portal-wlr` + PipeWire screen sharing
@@ -306,9 +323,12 @@ restarts were exercised by
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
 `tests/panel-theme.sh`, `tests/bar-position.sh`,
-`tests/panel-popovers.sh`, `tests/clipboard.sh`, `tests/screenshot.sh`,
+`tests/panel-popovers.sh`, `tests/control-center.sh`, `tests/wifi.sh`,
+`tests/bluetooth.sh`, `tests/brightness.sh`, `tests/clipboard.sh`,
+`tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
-`tests/system-status.sh`, `tests/media.sh`, `tests/tray.sh`, `tests/audio.sh`,
+`tests/system-status.sh`, `tests/media.sh`, `tests/media-art.sh`, `tests/tray.sh`,
+`tests/audio.sh`,
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
 `tests/window-shader.sh`, `tests/input.sh`, `tests/ime-keyboard.sh`,
@@ -335,8 +355,12 @@ both plain and scenefx builds, including end-to-end portal ScreenCast, tray,
 notifications, pointer interaction, and scenefx corner rendering. The 0.2.5
 tree additionally passes `tests/layout-scrolling.sh`, `tests/layout-modes.sh`,
 `tests/layout-reorder.sh`, `tests/layout-config.sh`, `tests/extensions.sh`,
-`tests/extension-api.sh`, `tests/panel-modules.sh`, `tests/effect-v2.sh`, and
-`tests/effect-cache.sh`.
+`tests/extension-api.sh`, `tests/panel-modules.sh`, `tests/effect-v2.sh`,
+`tests/effect-cache.sh`, `tests/control-center.sh`, `tests/wifi.sh`,
+`tests/bluetooth.sh`, `tests/brightness.sh`, and `tests/media-art.sh`.
+The Wi-Fi, Bluetooth, brightness, and power-profile tests use a private system
+bus with fake NetworkManager, BlueZ, logind, and power-profiles-daemon
+services; they do not touch the real session's network or devices.
 A real DRM/libinput session on the new toolchain is still pending.
 
 The portal test performs an end-to-end ScreenCast when the portal and PipeWire
@@ -397,7 +421,8 @@ Requirements:
   (`pkg-config --modversion scenefx-0.5`)
 - Wayland, xkbcommon, pixman, libdrm, libinput, seat/udev, EGL/GLES,
   and wayland-protocols >= 1.47 (for the generated enum headers)
-- Cairo, Pango, and GLib/GIO development files for the panel and notifications
+- Cairo, Pango, GLib/GIO, and gdk-pixbuf development files for the panel,
+  notifications, and MPRIS artwork
 - fonts: Inter, JetBrains Mono, and a CJK font such as Noto Sans CJK JP
 - optional: [`xwayland-satellite`](https://github.com/Supreeeme/xwayland-satellite)
   for X11 applications (auto-started when `xwayland = true`)
@@ -1185,12 +1210,15 @@ These are real and important:
   to 16 KiB and never writes them to disk. `wlr-data-control-v1` is exposed to
   session clients, so any trusted application can read the selection without
   keyboard focus; treat session applications as trusted.
-- **Notifications are intentionally basic.** The panel owns
+- **Notifications keep history in memory.** The panel owns
   `org.freedesktop.Notifications` and supports actions, a `default` click
   action, static icons (`image-data`/`image-path`/`icon-name`), Pango markup,
-  replacement, close, and expiry. Cross-output routing sends toasts to the
-  focused output. Rich HTML markup beyond Pango's subset, notification sounds,
-  and per-notification output pinning are not implemented.
+  replacement, close, and expiry. Up to 50 entries are retained in memory for
+  the unified control center; expiry hides the toast but keeps the entry, and
+  Focus/DND suppresses toasts without discarding history. Cross-output routing
+  sends toasts to the focused output. Rich HTML markup beyond Pango's subset,
+  notification sounds, per-notification output pinning, and persistent history
+  are not implemented.
 - **Window effects depend on the build.** Open and workspace transitions slide
   the window frame with configurable named cubic-bezier or spring curves,
   per-window overrides, and offsets.
@@ -1206,7 +1234,18 @@ These are real and important:
   to disable movement; `reduce_motion_animations = fade` keeps a close fade.
 - **System indicators are intentionally basic.** Battery uses
   `/sys/class/power_supply` and network uses the default route plus `operstate`.
-  MPRIS controls the first discovered player and does not display album art.
+  MPRIS controls the first discovered player, shows local `file://` artwork,
+  exposes position/seek, and does not fetch remote artwork URLs.
+- **The control center depends on desktop services.** Wi-Fi uses the
+  NetworkManager system bus and supports WPA2/WPA3-PSK, open networks, hidden
+  SSIDs, and saved connections; 802.1X/EAP, VPNs, and captive portals are out of
+  scope. Bluetooth uses BlueZ; the pairing agent is registered only by the
+  primary panel, so pairing from a secondary output is unavailable. Brightness
+  needs a `/sys/class/backlight` device plus logind, and power profiles need
+  power-profiles-daemon. Missing services show an unavailable state instead of
+  crashing. Tessa does not ship a polkit agent, so non-wheel users or remote
+  sessions may be asked for credentials by the system and fail; local wheel
+  sessions with the standard NetworkManager/BlueZ rules work.
 - **The tray has no menus.** StatusNotifier registration, pixmap/icon-name
   rendering, activation, status, and removal are implemented. DBusMenu context
   menus and secondary activation hover are not yet wired up.

@@ -17,7 +17,7 @@ Arch の公式リポジトリは Zig 0.17 を `zig`、wlroots 0.20 を `wlroots0
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libegl mesa cairo pango glib2
+  libegl mesa cairo pango glib2 gdk-pixbuf2
 ```
 
 次に `tessa-git` パッケージをビルドします:
@@ -47,6 +47,12 @@ chooser_type=none
 output_name=HDMI-A-1
 ```
 
+コントロールセンターのシステム機能は任意のランタイムサービスで、`optdepends`
+に記載しています。Wi-Fi は `networkmanager`、Bluetooth は `bluez`、電源
+プロファイルは `power-profiles-daemon`、バッテリーは `upower`、認証は
+`polkit` が必要です。サービスが無い場合は該当セクションが利用不可になるだけで、
+コンポジタとパネルの他の機能は起動します。
+
 ## Debian / Ubuntu
 
 通常のインストールには
@@ -67,7 +73,7 @@ Debian ビルドは `-Dscenefx=false` を渡します。Ubuntu 26.04 には scen
 
 このスクリプトは `dpkg-buildpackage -b -us -uc -d` を実行し、`.deb`、`.buildinfo`、`.changes` を `dist/` に集めてパッケージのメタデータを表示します。`-d` は宣言されたビルド依存関係のチェックを省略します。Ubuntu 26.04 は古い Zig を同梱しているためです。代わりに、スクリプトが指定された Zig のバージョンが 0.17.x であることを検証します。
 
-パッケージは同じバイナリ、セッションエントリ、設定例、ポータルセレクタをインストールします。wlroots 0.20 の開発ファイルと、リンク時に使う `wlroots-0.20` の pkg-config 名がコンポジタの ABI を固定します。
+パッケージは同じバイナリ、セッションエントリ、設定例、ポータルセレクタをインストールします。wlroots 0.20 の開発ファイルと、リンク時に使う `wlroots-0.20` の pkg-config 名がコンポジタの ABI を固定します。NetworkManager、BlueZ、power-profiles-daemon、UPower、polkit は `Suggests` に記載しており、インストールすると対応するコントロールセンター機能が有効になります。
 
 Zig 0.17 が必要です。ディストリビューションが古い Zig を同梱している場合は、上流の 0.17 ツールチェーンをインストールし、ビルド前に `ZIG=...` で指定してください。最初のパッケージ監査には `lintian dist/*.deb` を実行します。
 
