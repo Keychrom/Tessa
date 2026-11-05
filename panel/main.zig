@@ -1144,6 +1144,7 @@ fn onKeyboardModifiers(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32
 
 fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time: u32, key: u32, state: u32) callconv(.c) void {
     _ = data;
+    noteInput();
     _ = keyboard;
     _ = serial;
     _ = time;
@@ -3085,6 +3086,7 @@ fn updateHover() void {
 
 fn onPointerEnter(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, surface: ?*c.wl_surface, sx: c.wl_fixed_t, sy: c.wl_fixed_t) callconv(.c) void {
     _ = data;
+    noteInput();
     _ = pointer;
     _ = serial;
     const s = surfaceFor(surface) orelse return;
@@ -3112,6 +3114,7 @@ fn onPointerLeave(data: ?*anyopaque, pointer: ?*c.wl_pointer, serial: u32, surfa
 
 fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.wl_fixed_t, sy: c.wl_fixed_t) callconv(.c) void {
     _ = data;
+    noteInput();
     _ = pointer;
     _ = time;
     if (g.pointer_surface == null) return;
@@ -3129,6 +3132,7 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
 }
 
 fn handleInputButton(button: u32, state: u32) void {
+    noteInput();
     const pointer_surface = g.pointer_surface orelse return;
     if (g.overlay_mode == .screenshot and g.overlay == pointer_surface) {
         if (button == 0x110) {
@@ -3273,6 +3277,7 @@ fn onTouchUp(data: ?*anyopaque, touch: ?*c.wl_touch, serial: u32, time: u32, id:
 
 fn onTouchMotion(data: ?*anyopaque, touch: ?*c.wl_touch, time: u32, id: i32, x: c.wl_fixed_t, y: c.wl_fixed_t) callconv(.c) void {
     _ = data;
+    noteInput();
     _ = touch;
     _ = time;
     if (id != g.touch_id) return;
@@ -3300,6 +3305,7 @@ fn onTouchCancel(data: ?*anyopaque, touch: ?*c.wl_touch) callconv(.c) void {
 
 fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u32, value: c.wl_fixed_t) callconv(.c) void {
     _ = data;
+    noteInput();
     _ = pointer;
     _ = time;
     _ = axis;
@@ -3704,11 +3710,9 @@ fn updateSystemAndLog() bool {
     return changed;
 }
 
-fn gpuAnimationActive() bool {
-    if (g.panel_renderer != .gpu or !gpu.ready()) return false;
-    if (!g.wallpaper_animation or !g.animations_enabled or g.reduce_motion) return false;
-    if (g.overlay != null) return false;
-    return g.bg.configured and g.bg.width > 0 and g.bg.height > 0;
+fn noteInput() void {
+    g.last_input_ms = m.nowMs();
+    g.next_wallpaper_ms = 0;
 }
 
 fn updateTimers(now: i64) void {
@@ -3731,7 +3735,7 @@ fn updateTimers(now: i64) void {
         if (g.overlay) |s| s.dirty = true;
         g.next_blink_ms = now + 500;
     }
-    if (gpuAnimationActive()) {
+    if (gpu.animationActive(now)) {
         if (g.next_wallpaper_ms == 0) g.next_wallpaper_ms = now;
         if (now >= g.next_wallpaper_ms) {
             g.bg.dirty = true;
@@ -3744,8 +3748,11 @@ fn updateTimers(now: i64) void {
 }
 
 fn pollTimeout(now: i64) c_int {
-    if ((g.bg.configured and g.bg.dirty) or (g.bar.configured and g.bar.dirty)) return 0;
-    if (gpuAnimationActive() and g.next_wallpaper_ms == 0) return 0;
+    const frame_blocked = g.panel_renderer == .gpu and g.gpu_frame_pending;
+    if (frame_blocked and now - g.gpu_frame_ms >= 250) return 0;
+    if (((g.bg.configured and g.bg.dirty) or (g.bar.configured and g.bar.dirty)) and
+        !frame_blocked) return 0;
+    if (gpu.animationActive(now) and g.next_wallpaper_ms == 0 and !frame_blocked) return 0;
     if (g.toasts) |s| {
         if (s.dirty) return 0;
     }
@@ -3758,7 +3765,9 @@ fn pollTimeout(now: i64) c_int {
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;
     if (g.next_system_ms < next) next = g.next_system_ms;
     if (g.launcher_open and g.next_blink_ms < next) next = g.next_blink_ms;
-    if (gpuAnimationActive() and g.next_wallpaper_ms > 0 and g.next_wallpaper_ms < next) {
+    if (gpu.animationActive(now) and !frame_blocked and
+        g.next_wallpaper_ms > 0 and g.next_wallpaper_ms < next)
+    {
         next = g.next_wallpaper_ms;
     }
     var i: usize = 0;
@@ -3766,6 +3775,7 @@ fn pollTimeout(now: i64) c_int {
         const expire = g.notifications[i].expire_ms;
         if (expire > 0 and expire < next) next = expire;
     }
+    if (frame_blocked and next <= now) next = now + 16;
     const diff = next - now;
     if (diff <= 0) return 0;
     if (diff > 1000) return 1000;
@@ -4029,6 +4039,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     g.next_cpu_ms = now + 2000;
     g.next_system_ms = now + 5000;
     g.next_blink_ms = now + 500;
+    g.last_input_ms = now;
 
     eventLoop();
 

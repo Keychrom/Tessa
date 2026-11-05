@@ -592,7 +592,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `launcher_entry` | — | ランチャー項目 `名前 \| コマンド`。複数行可 |
 | `launcher_style` | `centered` | ランチャーの配置: `centered`（Wofi 風の中央表示）または `start`（バー直下の Windows 風メニュー） |
 | `panel_renderer` | `cairo` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。利用できなければ Cairo へ自動フォールバック） |
-| `wallpaper_animation` | `false` | GPU 壁紙の水面／インク／太陽をアニメーションさせる |
+| `wallpaper_animation` | `off` | GPU 壁紙の動き: `off`、`on`、または `auto`（バッテリー駆動と `wallpaper_idle_pause` 経過後に停止） |
+| `wallpaper_idle_pause` | `120` | 無入力で `auto` が停止するまでの秒数。`0` で無効 |
 | `wallpaper_fps` | `30` | GPU 壁紙のフレームレート（1〜120） |
 | `power_lock` | `loginctl lock-session` | 電源メニューの Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
@@ -609,7 +610,10 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 
 `panel_renderer = gpu` は壁紙の見た目を Cairo のまま保ちます。パネルが一度だけ
 Cairo で描いてテクスチャとしてアップロードし、EGL/GLES2 のシェーダーが任意の
-水面／インクの動きを加えます。コンポジタへ提示できるクライアント側 EGL/GLES
+水面／インクの動きを加えます。`wallpaper_animation = auto` はバッテリー駆動時、
+`wallpaper_idle_pause` 秒間入力がないとき、フルスクリーンウィンドウ表示中に
+停止します。`on` はバッテリーとアイドル判定を無視しますが、フルスクリーンと
+オーバーレイ表示中は停止します。コンポジタへ提示できるクライアント側 EGL/GLES
 スタックが必要です。Mesa の llvmpipe ならヘッドレス pixman セッションでも動作
 します。EGL/GLES がない、ドライバーが壊れている、バッファをインポートできない
 コンポジタでは理由をログに出して Cairo へ自動フォールバックします。

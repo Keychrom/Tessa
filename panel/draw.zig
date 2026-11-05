@@ -614,18 +614,27 @@ fn drawBackgroundGpu(s: *m.Surface) bool {
         if (!gpu.setBase(s, base)) return false;
         m.g.bg_base_dirty = false;
     }
-    const animate = m.g.wallpaper_animation and m.g.animations_enabled and !m.g.reduce_motion;
+    const animate = gpu.animationActive(m.nowMs());
     const time: f64 = if (animate)
         @as(f64, @floatFromInt(m.nowMs())) / 1000.0
     else
         0.0;
-    if (!gpu.draw(s, time, animate)) return false;
+    const framed = if (animate) gpu.requestFrame(s) else false;
+    if (!gpu.draw(s, time, animate)) {
+        gpu.cancelFrame();
+        return false;
+    }
+    m.g.gpu_frame_pending = framed;
     s.dirty = false;
     return true;
 }
 
 pub fn drawBackground(s: *m.Surface) void {
     if (m.g.panel_renderer == .gpu) {
+        if (m.g.gpu_frame_pending) {
+            if (m.nowMs() - m.g.gpu_frame_ms < 250) return;
+            gpu.cancelFrame();
+        }
         if (drawBackgroundGpu(s)) return;
         gpu.destroySurface(s);
     }

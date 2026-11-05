@@ -238,9 +238,10 @@ GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを
 3. `wl_egl_window` と EGL/GLES2 コンテキストでフルスクリーン三角形を描画し、
    フラグメントシェーダーが水面のさざ波、インクの揺らぎ、太陽の淡い脈動を
    加えます。
-4. `wallpaper_animation = true` で `wallpaper_fps`（既定30）の間隔で再描画
-   します。オーバーレイ表示中、`animations = false`、`reduce_motion = true`
-   のときは停止します。
+4. `wallpaper_animation = on` で `wallpaper_fps`（既定30）の間隔で再描画
+   します。`auto` はさらにバッテリー駆動時と、`wallpaper_idle_pause` 秒間
+   入力がないときに停止します。どちらもオーバーレイ／フルスクリーン表示中、
+   `animations = false`、`reduce_motion = true` のときは停止します。
 
 ランチャー、バー、ポップオーバー、トーストは Cairo のままです。これは GPU
 パネルレンダラーの第一段であり、UI全体の書き換えではありません。

@@ -303,11 +303,12 @@ panel_fg = #eef2f8
 # wallpaper_art_opacity = 0.55
 # Opt-in GPU background renderer: Cairo draws the wallpaper once, then
 # EGL/GLES2 presents it and a shader adds subtle water/ink motion. Falls back
-# to Cairo when EGL/GLES is unavailable or presentation fails. Set
-# wallpaper_animation = true to animate it; wallpaper_fps defaults to 30.
+# to Cairo when EGL/GLES is unavailable or presentation fails.
 # panel_renderer = gpu
-# wallpaper_animation = false
+# off, on, or auto (auto pauses on battery and after wallpaper_idle_pause).
+# wallpaper_animation = auto
 # wallpaper_fps = 30
+# wallpaper_idle_pause = 120
 # wallpaper_image = ~/Pictures/wallpaper.png
 # wallpaper_shader = ~/.config/tessa/wallpaper.ppm.sh
 # wallpaper_fit = cover

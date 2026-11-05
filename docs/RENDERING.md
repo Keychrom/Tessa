@@ -238,9 +238,11 @@ background layer is presented:
 3. A `wl_egl_window` plus an EGL/GLES2 context presents a fullscreen triangle.
    The fragment shader samples the texture and adds restrained water ripples,
    ink drift, and a slow sun pulse.
-4. `wallpaper_animation = true` schedules redraws at `wallpaper_fps` (default
-   30). Animation pauses while an overlay is open and when `animations = false`
-   or `reduce_motion = true`.
+4. `wallpaper_animation = on` schedules redraws at `wallpaper_fps` (default
+   30). `auto` additionally pauses on battery power and after
+   `wallpaper_idle_pause` seconds without input. Both modes pause while an
+   overlay or a fullscreen window is visible, and when `animations = false` or
+   `reduce_motion = true`.
 
 The launcher, bar, popovers, and toasts stay on the Cairo path. This is the
 first stage of the GPU panel renderer, not a full UI rewrite.

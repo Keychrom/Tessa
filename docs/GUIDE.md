@@ -580,7 +580,8 @@ stagger, and slides its selection marker between results.
 | `launcher_entry` | — | Extra launcher item `Name \| command`; repeatable |
 | `launcher_style` | `centered` | Launcher layout: `centered` (Wofi-style) or `start` (Windows-style menu below the bar) |
 | `panel_renderer` | `cairo` | Background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
-| `wallpaper_animation` | `false` | Animate the GPU wallpaper (water/ink/sun motion) |
+| `wallpaper_animation` | `off` | GPU wallpaper motion: `off`, `on`, or `auto` (pause on battery and after `wallpaper_idle_pause`) |
+| `wallpaper_idle_pause` | `120` | Seconds without input before `auto` pauses; `0` disables the idle pause |
 | `wallpaper_fps` | `30` | GPU wallpaper frame rate (1–120) |
 | `power_lock` | `loginctl lock-session` | Power-menu Lock |
 | `power_suspend` | `systemctl suspend` | Suspend |
@@ -597,7 +598,10 @@ zone.
 
 `panel_renderer = gpu` keeps Cairo as the source of truth for the wallpaper:
 the panel renders it once, uploads it as a texture, and an EGL/GLES2 shader
-adds the optional water/ink motion. It needs a usable client-side EGL/GLES
+adds the optional water/ink motion. `wallpaper_animation = auto` pauses on
+battery power, after `wallpaper_idle_pause` seconds without input, and whenever
+a fullscreen window is visible; `on` ignores the battery and idle checks but
+still pauses for fullscreen and overlays. It needs a usable client-side EGL/GLES
 stack that can present to the compositor; Mesa's llvmpipe can work even in a
 headless pixman session. Systems without EGL/GLES, with a broken driver, or
 with a compositor that cannot import the resulting buffers log the reason and

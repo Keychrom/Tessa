@@ -3246,6 +3246,8 @@ fn loadPath(
             std.mem.eql(u8, key, "wallpaper-animation") or
             std.mem.eql(u8, key, "wallpaper_fps") or
             std.mem.eql(u8, key, "wallpaper-fps") or
+            std.mem.eql(u8, key, "wallpaper_idle_pause") or
+            std.mem.eql(u8, key, "wallpaper-idle-pause") or
             std.mem.eql(u8, key, "wallpaper_image") or
             std.mem.eql(u8, key, "wallpaper-image") or
             std.mem.eql(u8, key, "wallpaper_shader") or

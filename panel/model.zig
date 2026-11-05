@@ -24,6 +24,7 @@ pub const MAX_EXTENSIONS = 16;
 pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module };
 pub const LauncherStyle = enum { centered, start };
 pub const PanelRenderer = enum { cairo, gpu };
+pub const WallpaperAnimation = enum { off, on, auto };
 pub const WallpaperFit = enum { cover, contain, stretch };
 pub const BarModule = enum {
     logo,
@@ -634,6 +635,10 @@ pub const Panel = struct {
     next_blink_ms: i64 = 0,
     next_system_ms: i64 = 0,
     next_wallpaper_ms: i64 = 0,
+    last_input_ms: i64 = 0,
+    gpu_frame_pending: bool = false,
+    gpu_frame_ms: i64 = 0,
+    gpu_frame_callback: ?*c.wl_callback = null,
 
     accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
@@ -650,8 +655,9 @@ pub const Panel = struct {
     wallpaper_fit: WallpaperFit = .cover,
     wallpaper_surface: ?*c.cairo_surface_t = null,
     panel_renderer: PanelRenderer = .cairo,
-    wallpaper_animation: bool = false,
+    wallpaper_animation: WallpaperAnimation = .off,
     wallpaper_fps: i32 = 30,
+    wallpaper_idle_pause: i32 = 120,
     reduce_motion: bool = false,
     bg_base_dirty: bool = true,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
@@ -1445,10 +1451,18 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
         } else if (std.mem.eql(u8, key, "reduce_motion") or std.mem.eql(u8, key, "reduce-motion")) {
             g.reduce_motion = parsePanelBool(val) orelse g.reduce_motion;
         } else if (std.mem.eql(u8, key, "wallpaper_animation") or std.mem.eql(u8, key, "wallpaper-animation")) {
-            g.wallpaper_animation = parsePanelBool(val) orelse g.wallpaper_animation;
+            if (std.mem.eql(u8, val, "auto")) {
+                g.wallpaper_animation = .auto;
+            } else if (parsePanelBool(val)) |on| {
+                g.wallpaper_animation = if (on) .on else .off;
+            }
         } else if (std.mem.eql(u8, key, "wallpaper_fps") or std.mem.eql(u8, key, "wallpaper-fps")) {
             if (std.fmt.parseInt(i32, val, 10)) |v| {
                 g.wallpaper_fps = std.math.clamp(v, 1, 120);
+            } else |_| {}
+        } else if (std.mem.eql(u8, key, "wallpaper_idle_pause") or std.mem.eql(u8, key, "wallpaper-idle-pause")) {
+            if (std.fmt.parseInt(i32, val, 10)) |v| {
+                g.wallpaper_idle_pause = std.math.clamp(v, 0, 3600);
             } else |_| {}
         } else if (std.mem.eql(u8, key, "bar_bg") or std.mem.eql(u8, key, "bar-bg")) {
             hexColor(val, &g.bar_bg);
@@ -1746,8 +1760,9 @@ pub fn loadConfig() void {
     g.launcher_style = .centered;
     g.launcher_open_style = .centered;
     g.panel_renderer = .cairo;
-    g.wallpaper_animation = false;
+    g.wallpaper_animation = .off;
     g.wallpaper_fps = 30;
+    g.wallpaper_idle_pause = 120;
     g.reduce_motion = false;
     g.bg_base_dirty = true;
     g.next_wallpaper_ms = 0;
@@ -1919,10 +1934,11 @@ pub fn printConfigSummary() void {
         g.wallpaper_image[0..g.wallpaper_image_len],
         @tagName(g.wallpaper_fit),
     });
-    std.debug.print("panel renderer={s} wallpaper-animation={} fps={d}\n", .{
+    std.debug.print("panel renderer={s} wallpaper-animation={s} fps={d} idle-pause={d}\n", .{
         @tagName(g.panel_renderer),
-        g.wallpaper_animation,
+        @tagName(g.wallpaper_animation),
         g.wallpaper_fps,
+        g.wallpaper_idle_pause,
     });
 }
 
