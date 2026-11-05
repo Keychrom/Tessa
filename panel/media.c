@@ -3,6 +3,7 @@
 #include "media.h"
 
 #include <gio/gio.h>
+#include <gdk-pixbuf/gdk-pixbuf.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -30,6 +31,7 @@ static char last_title[MAX_TITLE + 1];
 static char last_artist[MAX_ARTIST + 1];
 static char last_player[MAX_PLAYER + 1];
 static char track_id[256];
+static char last_art_url[512];
 static gint64 last_length;
 static gint64 last_position;
 
@@ -91,6 +93,11 @@ static void clear_player(void) {
     track_id[0] = '\0';
     last_length = 0;
     last_position = 0;
+    if (sock_write >= 0) {
+        unsigned char hdr[9] = { 6, 0, 0, 0, 0, 0, 0, 0, 0 };
+        write_all(hdr, sizeof(hdr));
+        last_art_url[0] = '\0';
+    }
 }
 
 static void send_state(guint32 status, const char *title, const char *artist,
@@ -134,6 +141,63 @@ static void send_state(guint32 status, const char *title, const char *artist,
     if (title_len > 0) write_all(tbuf, title_len);
     if (artist_len > 0) write_all(abuf, artist_len);
     if (player_len > 0) write_all(pbuf, player_len);
+}
+
+static void send_media_art(GdkPixbuf *pix) {
+    if (!pix || sock_write < 0) return;
+    GdkPixbuf *scaled = gdk_pixbuf_scale_simple(pix, 128, 128, GDK_INTERP_BILINEAR);
+    if (!scaled) return;
+    int sw = gdk_pixbuf_get_width(scaled);
+    int sh = gdk_pixbuf_get_height(scaled);
+    int channels = gdk_pixbuf_get_n_channels(scaled);
+    int stride = gdk_pixbuf_get_rowstride(scaled);
+    const guchar *pixels = gdk_pixbuf_read_pixels(scaled);
+    unsigned char hdr[9];
+    hdr[0] = 6;
+    hdr[1] = (unsigned char)(sw & 0xff);
+    hdr[2] = (unsigned char)((sw >> 8) & 0xff);
+    hdr[3] = (unsigned char)(sh & 0xff);
+    hdr[4] = (unsigned char)((sh >> 8) & 0xff);
+    put_u32(hdr + 5, (uint32_t)(sw * sh * 4));
+    write_all(hdr, sizeof(hdr));
+    for (int y = 0; y < sh; y++) {
+        const guchar *row = pixels + y * stride;
+        for (int x = 0; x < sw; x++) {
+            const guchar *p = row + x * channels;
+            unsigned char rgba[4] = { p[0], p[1], p[2], channels == 4 ? p[3] : 255 };
+            write_all(rgba, 4);
+        }
+    }
+    g_object_unref(scaled);
+}
+
+static void update_media_art(const char *url) {
+    if (!url) url = "";
+    if (strcmp(url, last_art_url) == 0) return;
+    copy_trunc(last_art_url, sizeof(last_art_url), url);
+    if (url[0] == '\0') {
+        unsigned char hdr[9] = { 6, 0, 0, 0, 0, 0, 0, 0, 0 };
+        write_all(hdr, sizeof(hdr));
+        return;
+    }
+    if (g_str_has_prefix(url, "file://")) {
+        GError *error = NULL;
+        gchar *path = g_filename_from_uri(url, NULL, &error);
+        if (path) {
+            GdkPixbuf *pix = gdk_pixbuf_new_from_file(path, &error);
+            if (pix) {
+                send_media_art(pix);
+                g_object_unref(pix);
+            }
+            g_free(path);
+        }
+        if (error) g_error_free(error);
+    } else {
+        // Remote artwork is left to the monogram fallback until a bounded
+        // HTTP fetcher is available.
+        unsigned char hdr[9] = { 6, 0, 0, 0, 0, 0, 0, 0, 0 };
+        write_all(hdr, sizeof(hdr));
+    }
 }
 
 static void poll_media(void) {
@@ -234,8 +298,18 @@ static void poll_media(void) {
 
     gint64 length = 0;
     gint64 position = 0;
+    if (!metadata) update_media_art("");
     if (metadata) {
         g_variant_lookup(metadata, "mpris:length", "x", &length);
+        GVariant *art_v = g_variant_lookup_value(metadata, "mpris:artUrl", G_VARIANT_TYPE_STRING);
+        if (art_v) {
+            char art_buf[512];
+            copy_trunc(art_buf, sizeof(art_buf), g_variant_get_string(art_v, NULL));
+            update_media_art(art_buf);
+            g_variant_unref(art_v);
+        } else {
+            update_media_art("");
+        }
         GVariant *tid_v = g_variant_lookup_value(metadata, "mpris:trackid", G_VARIANT_TYPE_OBJECT_PATH);
         if (tid_v) {
             copy_trunc(track_id, sizeof(track_id), g_variant_get_string(tid_v, NULL));

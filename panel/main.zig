@@ -2819,6 +2819,43 @@ fn processMediaMessages() void {
                 position_us,
             );
             mediaShift(total);
+        } else if (kind == 6) {
+            if (g.media_len < 9) return;
+            const w: usize = @intCast(@as(u16, g.media_buf[1]) | (@as(u16, g.media_buf[2]) << 8));
+            const h: usize = @intCast(@as(u16, g.media_buf[3]) | (@as(u16, g.media_buf[4]) << 8));
+            const len: usize = @intCast(readU32(&g.media_buf, 5));
+            const total = 9 + len;
+            if (g.media_len < total) return;
+            if (g.media_art_surface) |surface| {
+                c.cairo_surface_destroy(surface);
+                g.media_art_surface = null;
+            }
+            if (w > 0 and h > 0 and len == w * h * 4) {
+                const surface = c.cairo_image_surface_create(c.CAIRO_FORMAT_ARGB32, @intCast(w), @intCast(h));
+                if (surface != null and c.cairo_surface_status(surface) == c.CAIRO_STATUS_SUCCESS) {
+                    const data: [*]u8 = @ptrCast(c.cairo_image_surface_get_data(surface));
+                    const stride: usize = @intCast(c.cairo_image_surface_get_stride(surface));
+                    const src = g.media_buf[9..total];
+                    var y: usize = 0;
+                    while (y < h) : (y += 1) {
+                        var x: usize = 0;
+                        while (x < w) : (x += 1) {
+                            const si = (y * w + x) * 4;
+                            const di = y * stride + x * 4;
+                            data[di + 0] = src[si + 2];
+                            data[di + 1] = src[si + 1];
+                            data[di + 2] = src[si + 0];
+                            data[di + 3] = src[si + 3];
+                        }
+                    }
+                    c.cairo_surface_mark_dirty(surface);
+                    g.media_art_surface = surface;
+                } else if (surface != null) {
+                    c.cairo_surface_destroy(surface);
+                }
+            }
+            if (g.overlay_mode == .control or g.overlay_mode == .media) refreshOverlay();
+            mediaShift(total);
         } else if (kind == 2) {
             logMsg("media: service ready", .{});
             mediaShift(1);

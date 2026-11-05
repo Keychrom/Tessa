@@ -106,6 +106,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "cairo" },
         .{ .name = "pangocairo-1.0" },
         .{ .name = "gio-2.0" },
+        .{ .name = "gdk-pixbuf-2.0" },
         .{ .name = "xkbcommon" },
     };
     const panel_c = Translator.init(translate_c, .{
@@ -132,6 +133,7 @@ pub fn build(b: *std.Build) void {
     panel_mod.linkSystemLibrary("cairo", .{});
     panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
     panel_mod.linkSystemLibrary("gio-2.0", .{});
+    panel_mod.linkSystemLibrary("gdk-pixbuf-2.0", .{});
     panel_mod.linkSystemLibrary("xkbcommon", .{});
     if (gpu) {
         panel_mod.linkSystemLibrary("egl", .{});
