@@ -4,6 +4,15 @@ Tessa requires Zig 0.17 and links the wlroots 0.20 ABI. The default build also
 uses scenefx 0.5. Distribution packages must pin these; the source build refers
 to `wlroots-0.20` explicitly in `build.zig`.
 
+## NixOS
+
+The repository is a flake with a package and a NixOS module. `nix build` uses
+nixpkgs' Zig 0.17, wlroots 0.20, and scenefx 0.5. A `tessa-plain` variant without
+scenefx is provided for software rendering (pixman) on VMs.
+
+See [nix/README.md](nix/README.md) for the module options and a complete VM
+example.
+
 ## Arch Linux
 
 Arch's official repositories provide Zig 0.17 as `zig`, wlroots 0.20 as

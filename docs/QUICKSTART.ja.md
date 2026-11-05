@@ -83,9 +83,30 @@ cd Tessa
 
 既定ではターミナル、フォント、fcitx5 + Mozc、ポータル、PipeWire も導入します。これらを入れない場合は `--minimal`、scenefx のエフェクトなしでビルドする場合は `--plain` を使います。インストーラーは試験的なため、実行前に[テスト状況](https://keychrom.github.io/ja/docs/install-script/)を確認してください。
 
+### NixOS
+
+リポジトリは NixOS モジュールを含む flake です:
+
+```nix
+inputs.tessa.url = "github:Keychrom/Tessa";
+
+modules = [
+  tessa.nixosModules.default
+  {
+    programs.tessa.enable = true;
+    services.displayManager.sddm.enable = true;
+  }
+];
+```
+
+完全な VM の例、pixman 専用 VM 向けの `tessa-plain`、モジュールの
+オプションは
+[NixOS パッケージングガイド](https://github.com/Keychrom/Tessa/blob/main/packaging/nix/README.ja.md)
+を参照してください。
+
 ### その他のディストリビューション
 
-[ソースからビルド](GUIDE.ja.md#23-ソースからビルド開発向け)を参照してください。既定ビルドには Zig 0.17、wlroots 0.20、scenefx 0.5 が必要です。plain wlroots シーンにする場合は `-Dscenefx=false` を付けます。
+[ソースからビルド](GUIDE.ja.md#24-ソースからビルド開発向け)を参照してください。既定ビルドには Zig 0.17、wlroots 0.20、scenefx 0.5 が必要です。plain wlroots シーンにする場合は `-Dscenefx=false` を付けます。
 
 ## 2. Tessa を起動する
 

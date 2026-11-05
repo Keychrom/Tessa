@@ -95,9 +95,30 @@ without scenefx effects. The installer is experimental; read its
 [testing status](https://keychrom.github.io/docs/install-script/) before
 running it.
 
+### NixOS
+
+The repository is a flake with a NixOS module:
+
+```nix
+inputs.tessa.url = "github:Keychrom/Tessa";
+
+modules = [
+  tessa.nixosModules.default
+  {
+    programs.tessa.enable = true;
+    services.displayManager.sddm.enable = true;
+  }
+];
+```
+
+See the
+[NixOS packaging guide](https://github.com/Keychrom/Tessa/blob/main/packaging/nix/README.md)
+for a complete VM example, the `tessa-plain` package for pixman-only VMs, and
+module options.
+
 ### Other distributions
 
-See [Build from source](GUIDE.md#23-build-from-source-development). The default
+See [Build from source](GUIDE.md#24-build-from-source-development). The default
 build needs Zig 0.17, wlroots 0.20, and scenefx 0.5; use `-Dscenefx=false` for
 the plain wlroots scene.
 

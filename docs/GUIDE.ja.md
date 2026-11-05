@@ -134,7 +134,41 @@ command -v tessa tessa-panel tessa-ctl
 揃えてください。インストーラーは既存の手動インストールが使う
 `/usr/local/bin` のラッパーとセッションエントリを置き換えます。
 
-### 2.2 Arch Linux
+### 2.2 NixOS
+
+リポジトリはパッケージと NixOS モジュールを含む flake です。モジュールは
+コンポジタ、セッションエントリ、ポータル、任意の XWayland サテライトを
+導入します:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.tessa.url = "github:Keychrom/Tessa";
+
+  outputs = { self, nixpkgs, tessa, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        tessa.nixosModules.default
+        {
+          programs.tessa.enable = true;
+          services.displayManager.sddm.enable = true;
+          programs.tessa.extraPackages = with pkgs; [ foot grim ];
+        }
+      ];
+    };
+  };
+}
+```
+
+`nix build github:Keychrom/Tessa` で既定の scenefx パッケージをビルドできます。
+3D アクセラレーションのない VM では
+`tessa.packages.x86_64-linux.tessa-plain` を使い、
+`environment.sessionVariables.WLR_RENDERER = "pixman";` を設定してください。
+モジュールのオプション、自動ログイン、VM の完全な設定例はリポジトリの
+`packaging/nix/README.ja.md` にあります。
+
+### 2.3 Arch Linux
 
 Arch の公式リポジトリは `zig` 0.17、`wlroots0.20`（0.20 系）、`scenefx`
 0.5 を提供しており、このツリーと一致します。ビルド依存を導入してください:
@@ -200,7 +234,7 @@ headless スイート全 78 テストスクリプトが plain／scenefx の両�
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
 
-### 2.3 ソースからビルド（開発向け）
+### 2.4 ソースからビルド（開発向け）
 
 リポジトリのルートで実行します。
 

@@ -134,7 +134,40 @@ If Tessa was previously installed manually under `/usr/local`, keep only one
 installation. The installer replaces the `/usr/local/bin` wrappers and session
 entry used by an older manual install.
 
-### 2.2 Arch Linux
+### 2.2 NixOS
+
+The repository is a flake with a package and a NixOS module. The module installs
+the compositor, its session entry, the portal, and the optional XWayland
+satellite:
+
+```nix
+{
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.tessa.url = "github:Keychrom/Tessa";
+
+  outputs = { self, nixpkgs, tessa, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        tessa.nixosModules.default
+        {
+          programs.tessa.enable = true;
+          services.displayManager.sddm.enable = true;
+          programs.tessa.extraPackages = with pkgs; [ foot grim ];
+        }
+      ];
+    };
+  };
+}
+```
+
+`nix build github:Keychrom/Tessa` builds the default scenefx package. On a VM
+without 3D acceleration use `tessa.packages.x86_64-linux.tessa-plain` and set
+`environment.sessionVariables.WLR_RENDERER = "pixman";`. See
+`packaging/nix/README.md` in the repository for module options, autologin, and
+a complete VM configuration.
+
+### 2.3 Arch Linux
 
 Arch's official repositories provide `zig` 0.17, `wlroots0.20`, and `scenefx`
 0.5, which match this tree. Install the build dependencies:
@@ -197,7 +230,7 @@ plain and scenefx builds. If `makepkg` reports an ABI or dependency problem,
 confirm `zig version` is 0.17.x and
 `pkg-config --modversion wlroots-0.20` is 0.20.x.
 
-### 2.3 Build from source (development)
+### 2.4 Build from source (development)
 
 From the repository root:
 

@@ -33,12 +33,14 @@ pub fn build(b: *std.Build) void {
         .{ .name = "scenefx-0.5" },
         .{ .name = "wlroots-0.20" },
         .{ .name = "libinput" },
+        .{ .name = "libdrm" },
         .{ .name = "wayland-server" },
         .{ .name = "xkbcommon" },
         .{ .name = "pixman-1" },
     } else &.{
         .{ .name = "wlroots-0.20" },
         .{ .name = "libinput" },
+        .{ .name = "libdrm" },
         .{ .name = "wayland-server" },
         .{ .name = "xkbcommon" },
         .{ .name = "pixman-1" },
@@ -69,6 +71,7 @@ pub fn build(b: *std.Build) void {
     if (scenefx) server_mod.linkSystemLibrary("scenefx-0.5", .{});
     server_mod.linkSystemLibrary("wlroots-0.20", .{});
     server_mod.linkSystemLibrary("libinput", .{});
+    server_mod.linkSystemLibrary("drm", .{});
     server_mod.linkSystemLibrary("wayland-server", .{});
     server_mod.linkSystemLibrary("xkbcommon", .{});
     server_mod.linkSystemLibrary("pixman-1", .{});
