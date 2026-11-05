@@ -259,6 +259,11 @@ Requirements and fallback:
 - The GPU path uses full-buffer updates and a timer, not partial damage or frame
   callbacks. It is opt-in because continuous animation costs power.
 
+The automated test covers Mesa llvmpipe in a headless session. On real hardware,
+enable `panel_renderer = gpu` and `wallpaper_animation = true`, then capture two
+frames with `grim` to confirm motion. Real-GPU validation remains part of the
+driver checklist below.
+
 ## HDR and color management: investigation
 
 HDR is **not implemented** in this change. No `wp-color-management-v1` global is

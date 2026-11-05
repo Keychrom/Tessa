@@ -259,6 +259,11 @@ GPU／ドライバーが GLES2 を提供できない場合は plain ビルドを
 - GPU パスは部分ダメージや frame callback ではなく、全バッファ更新とタイマー
   を使います。継続アニメーションは電力を消費するため opt-in です。
 
+自動テストはヘッドレス環境の Mesa llvmpipe を対象にしています。実機では
+`panel_renderer = gpu` と `wallpaper_animation = true` を有効にし、`grim` で
+2 時点のフレームを撮って動きを確認してください。実 GPU での検証は下記の
+ドライバーチェックリストに残っています。
+
 ## HDR / color management の調査
 
 今回の変更で HDR は**実装していません**。`wp-color-management-v1` global は
