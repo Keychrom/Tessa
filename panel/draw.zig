@@ -4281,6 +4281,8 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
 }
 
 fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    std.debug.print("tessa-panel: control draw t={d:.3} anim={d:.3}
+", .{ t, g.menu_anim });
     const l = m.controlCenterLayout(W, H);
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1.0;
