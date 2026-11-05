@@ -1085,6 +1085,7 @@ fn wifiConnectIndex(index: usize) void {
     }
     const saved = (ap.flags & m.WIFI_AP_SAVED) != 0;
     if ((ap.flags & m.WIFI_AP_SECURED) != 0 and !saved) {
+        logDebug("wifi: password prompt ssid={s}", .{ap.ssid[0..ap.ssid_len]});
         g.wifi_modal = .wifi_password;
         g.wifi_modal_ap = index;
         g.wifi_modal_hidden = false;
