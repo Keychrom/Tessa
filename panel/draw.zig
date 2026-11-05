@@ -454,7 +454,7 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
             c.cairo_save(cr);
             c.cairo_translate(cr, w * b[0], h * b[1]);
             c.cairo_scale(cr, 1.5, 0.8);
-            radialFill(cr, 0, 0, 0, h * b[2], .{ 0.10, 0.25, 0.28, b[3] }, .{ 0.10, 0.25, 0.28, 0.0 });
+            radialFill(cr, 0, 0, 0, h * b[2], .{ 0.10, 0.25, 0.28, b[3] * art }, .{ 0.10, 0.25, 0.28, 0.0 });
             c.cairo_restore(cr);
         }
 
@@ -489,9 +489,9 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
             c.cairo_line_to(cr, bx + size, by + size * 0.55);
             c.cairo_line_to(cr, bx + size * 0.2, by + size);
             c.cairo_close_path(cr);
-            setColor(cr, .{ 1.0, 1.0, 1.0, if (tri % 2 == 0) 0.010 else 0.004 });
+            setColor(cr, .{ 1.0, 1.0, 1.0, (if (tri % 2 == 0) 0.010 else 0.004) * art });
             c.cairo_fill(cr);
-            setColor(cr, .{ 1.0, 1.0, 1.0, 0.012 });
+            setColor(cr, .{ 1.0, 1.0, 1.0, 0.012 * art });
             c.cairo_set_line_width(cr, 0.8);
             c.cairo_stroke(cr);
         }
@@ -504,7 +504,7 @@ fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
             c.cairo_new_path(cr);
             c.cairo_move_to(cr, 0, y);
             c.cairo_curve_to(cr, w * 0.32, y - 10.0, w * 0.62, y + 8.0, w, y - 4.0);
-            setColor(cr, .{ 1.0, 1.0, 1.0, 0.010 + 0.004 * @as(f64, @floatFromInt(k)) });
+            setColor(cr, .{ 1.0, 1.0, 1.0, (0.010 + 0.004 * @as(f64, @floatFromInt(k))) * art });
             c.cairo_set_line_width(cr, 0.8);
             c.cairo_stroke(cr);
         }
@@ -1438,15 +1438,18 @@ fn drawLauncherRows(
         }
 
         const icon_size: f64 = if (compact) 28.0 else 32.0;
-        const icon_x = row_x + (if (compact) 10.0 else 14.0);
+        const icon_inset: f64 = if (compact) 10.0 else 14.0;
+        const text_gap: f64 = if (compact) 10.0 else 14.0;
+        const glyph_inset: f64 = if (compact) 6.5 else 7.0;
+        const icon_x = row_x + icon_inset;
         const icon_y = y + (row_h - icon_size) / 2.0;
         const col = appColor(app);
         fillRound(cr, icon_x, icon_y, icon_size, icon_size, if (compact) 8.0 else 9.0, .{ col[0], col[1], col[2], 0.9 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
-        _ = drawTextCentered(cr, glyph, icon_x + (if (compact) 6.5 else 7.0), y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
+        _ = drawTextCentered(cr, glyph, icon_x + glyph_inset, y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
 
-        const text_x = icon_x + icon_size + (if (compact) 10.0 else 14.0);
+        const text_x = icon_x + icon_size + text_gap;
         if (compact) {
             _ = drawText(cr, app.name[0..app.name_len], text_x, y + 9, fam, "Semi-Bold", 10.8, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - (text_x - row_x) - 34, 0);
         } else {
@@ -1456,7 +1459,8 @@ fn drawLauncherRows(
 
         if (app.terminal) {
             const tag_w: f64 = if (compact) 30.0 else 34.0;
-            const tag_x = row_x + row_w - tag_w - (if (compact) 8.0 else 10.0);
+            const tag_inset: f64 = if (compact) 8.0 else 10.0;
+            const tag_x = row_x + row_w - tag_w - tag_inset;
             fillRound(cr, tag_x, y + (row_h - 16) / 2.0, tag_w, 16, 5, .{ 1, 1, 1, 0.05 });
             _ = drawTextCentered(cr, "TERM", tag_x + 3, y + row_h / 2.0, MONO, "Medium", 6.4, .{ 0.65, 0.71, 0.81, 0.6 }, 0, 0.7);
         }
