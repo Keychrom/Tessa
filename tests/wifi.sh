@@ -127,14 +127,13 @@ tessa-ctl panel wifi >/dev/null
 wait_log "tessa-panel: control: open view=wifi"
 wait_log "layer map: tessa-overlay layer=3 keyboard=1"
 
-# AP order is active TestNet then OpenNet. Connect to the open network.
-wtype -k Down
+# AP order is active OpenNet then TestNet. Connect to the open network.
 wtype -k Return
 wait_fake "AddAndActivateConnection ssid=OpenNet psk="
 echo "wifi open network: ok"
 
 # Select the secured AP and enter a password through the panel modal.
-wtype -k Up
+wtype -k Down
 wtype -k Return
 wait_log "tessa-panel: wifi: password prompt ssid=TestNet"
 wtype "secret123"
