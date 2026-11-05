@@ -3996,7 +3996,9 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     const show_focus = m.controlFeatureEnabled(.focus);
     const show_ppd = m.controlFeatureEnabled(.power_profile) and g.ppd_available;
     if (show_focus or show_ppd) {
-        const focus_h: f64 = (if (show_focus) 50.0 else 0.0) + (if (show_ppd) 44.0 else 0.0);
+        var focus_h: f64 = 0.0;
+        if (show_focus) focus_h += 50.0;
+        if (show_ppd) focus_h += 44.0;
         controlCard(cr, left_x, left_y, col_w, focus_h);
         if (show_focus) {
             drawMoonGlyph(cr, left_x + 28, left_y + 25, 16.0, .{
