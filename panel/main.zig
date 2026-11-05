@@ -4249,11 +4249,16 @@ fn handleInputButton(button: u32, state: u32) void {
             closeOverlay();
             return;
         }
+        const hit = hitOverlay(g.pointer_x, g.pointer_y);
+        logDebug("overlay click {d:.0},{d:.0} panel={d:.0},{d:.0} {d:.0}x{d:.0} hits={d} kind={s}", .{
+            g.pointer_x, g.pointer_y, g.overlay_panel.x, g.overlay_panel.y,
+            g.overlay_panel.w, g.overlay_panel.h, g.overlay_hit_count, @tagName(hit.kind),
+        });
         if (!hitIn(&g.overlay_panel, g.pointer_x, g.pointer_y)) {
             closeOverlay();
             return;
         }
-        activateOverlayHit(hitOverlay(g.pointer_x, g.pointer_y));
+        activateOverlayHit(hit);
     }
 }
 
