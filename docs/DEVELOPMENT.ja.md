@@ -517,6 +517,21 @@ overlay の layer-map がログに出るまで待ちます。
 sh tests/control-center.sh
 ```
 
+### ウィンドウスイッチャーのテスト
+
+`tests/window-switcher.sh` は `foot` を 3 つ起動し、`wtype` で Alt を 2 秒
+押したまま `Alt+Tab` を送ります。MRU の並び（`windows=3 selected=1`）、
+snapshot モードの screencopy 完了（`previews=true`）、`Tab` + `Return` で
+次のウィンドウへフォーカスが移ること、Escape がフォーカスを変えずに
+キャンセルすることを確認します。続いて `icons` モードで確定を繰り返し、
+`window_switcher = off` ではオーバーレイが開かないことを検証します。
+2 つ目の仮想キーボードの空 modifier でスイッチャーが閉じてしまう回帰も
+このテストでカバーします。
+
+```sh
+sh tests/window-switcher.sh
+```
+
 ### クリップボード履歴のテスト
 
 `tests/clipboard.sh` は 2 つの文字列を `wl-copy` でコピーし、`wtype` で

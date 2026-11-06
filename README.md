@@ -20,9 +20,12 @@ required, but layer-shell-compatible external bars and launchers can replace it.
 
 ![Tessa launcher](docs/images/launcher.png)
 
-The screenshots above are from a headless development session using kitty and
-the Vermilion Ink palette. The control center uses demo NetworkManager and
-BlueZ services, so no real Wi-Fi SSID or Bluetooth device is shown.
+![Tessa window switcher](docs/images/window-switcher.png)
+
+The screenshots above are from a headless development session using kitty,
+foot, and the Vermilion Ink palette. The control center uses demo
+NetworkManager and BlueZ services, so no real Wi-Fi SSID or Bluetooth device
+is shown.
 
 For a single end-to-end reference covering build, installation, every config
 key, rules, effects, IPC, events, and hooks, see the
@@ -295,6 +298,9 @@ Highlights include:
     notification actions
   - brightness (logind) and power-profile (power-profiles-daemon) controls;
     `control_features` gates each control-center feature independently
+  - MRU window switcher (`Alt+Tab`, `Alt+Shift+Tab`) with per-window snapshot
+    previews cropped from one screencopy, icon-only mode, and `Esc`/click/
+    release-to-commit; `window_switcher = snapshot|icons|off`
   - bar placement on any edge (`bar_position = top|bottom|left|right`), with
     vertical layouts for the bar and control center
   - MPRIS media chip and controls (`Super+M`), local album artwork, progress,
@@ -326,7 +332,8 @@ restarts were exercised by
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
 `tests/panel-theme.sh`, `tests/bar-position.sh`,
-`tests/panel-popovers.sh`, `tests/control-center.sh`, `tests/wifi.sh`,
+`tests/panel-popovers.sh`, `tests/control-center.sh`,
+`tests/window-switcher.sh`, `tests/wifi.sh`,
 `tests/bluetooth.sh`, `tests/brightness.sh`, `tests/clipboard.sh`,
 `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
@@ -359,8 +366,9 @@ notifications, pointer interaction, and scenefx corner rendering. The 0.2.5
 tree additionally passes `tests/layout-scrolling.sh`, `tests/layout-modes.sh`,
 `tests/layout-reorder.sh`, `tests/layout-config.sh`, `tests/extensions.sh`,
 `tests/extension-api.sh`, `tests/panel-modules.sh`, `tests/effect-v2.sh`,
-`tests/effect-cache.sh`, `tests/control-center.sh`, `tests/wifi.sh`,
-`tests/bluetooth.sh`, `tests/brightness.sh`, and `tests/media-art.sh`.
+`tests/effect-cache.sh`, `tests/control-center.sh`,
+`tests/window-switcher.sh`, `tests/wifi.sh`, `tests/bluetooth.sh`,
+`tests/brightness.sh`, and `tests/media-art.sh`.
 The Wi-Fi, Bluetooth, brightness, and power-profile tests use a private system
 bus with fake NetworkManager, BlueZ, logind, and power-profiles-daemon
 services; they do not touch the real session's network or devices.
@@ -866,6 +874,7 @@ event schema, hook environment, and status API.
 | `Super+Shift+G` | group/ungroup tiled windows on the workspace |
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
 | `Super+Tab` / `Super+Shift+Tab` | cycle windows; cycle tabs while a group is focused |
+| `Alt+Tab` / `Alt+Shift+Tab` | MRU window switcher; hold Alt and release to commit |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
 | `Super+Alt+H/L` | shrink/grow a floating window horizontally |
 | `Super+Alt+J/K` | grow/shrink a floating window vertically |
@@ -1022,7 +1031,7 @@ Available actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-special`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
-`tray`, `audio`, `reload`, `ratio`, `toggle-layout`,
+`tray`, `audio`, `window-switcher`, `reload`, `ratio`, `toggle-layout`,
 `set-layout`, `resize-width`, `resize-height`, `enter-mode`. Scrolling adds
 `focus-column-left/right/first/last`, `move-column-left/right/first/last`,
 `move-window-up/down`, `consume-window`, `expel-window`,

@@ -278,6 +278,9 @@ pub fn focusClient(server: *Server, target: ?*Client) void {
         server.focused = cl;
         server.focused_output = cl.output;
         server.active_ws = cl.output.active_ws;
+        server.focus_seq_counter +%= 1;
+        if (server.focus_seq_counter == 0) server.focus_seq_counter = 1;
+        cl.focus_seq = server.focus_seq_counter;
         cl.output.last_focused[cl.ws] = cl;
         _ = c.wlr_xdg_toplevel_set_activated(cl.xdg, true);
         if (cl.foreign_toplevel) |handle| {

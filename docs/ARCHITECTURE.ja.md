@@ -230,6 +230,15 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 サーフェス、キーボードのワークスペース操作には、コンポジタが保持する
 フォーカス中の出力が使われます。
 
+ウィンドウスイッチャーも同じ overlay を使います。パネルはフォーカス中の
+ワークスペースの可視ウィンドウを `focus_seq`（`WIN` 状態行）で MRU 順に
+並べ、`snapshot` では透明オーバーレイを map した後に `zwlr_screencopy` で
+出力を 1 回取得し、ウィンドウの論理矩形から各カードを切り出します。
+フローティング/画面外/取得失敗時はアプリのモノグラムにフォールバックし、
+`icons` はキャプチャせず、`off` は無効化します。選択はパネル内で完結し、
+`Enter`、クリック、またはコンポジタの `switcher-commit` イベントで IPC の
+`focus` を送ります。
+
 キーボードフォーカスは `EXCLUSIVE` layer の map 時に取得します
 （`keyboard_interactive == EXCLUSIVE` かつ layer >= top）。`ON_DEMAND` の
 layer（Quickshell の `focusable` パネルなど）は map 時ではなくクリック時に
@@ -334,6 +343,12 @@ GTK や XWayland のクライアントが Tessa のボーダーの上にクラ�
 layer がキーボードフォーカスを持つ間は WM ショートカットをバイパスし、
 すべてのキーを layer へ転送します。これによりランチャーで文字入力が
 できます。
+
+ウィンドウスイッチャーの Alt 解放だけはコンポジタが判定します。開いた
+キーボードを `switcher_kb` として記憶し、そのキーボードの Alt が外れた
+ときにパネルへ `switcher-commit` を送るため、キーボード enter 時の
+modifier、別キーボードの空 modifier、仮想キーボードの生成に誤反応しません。
+Alt を使わないバインドでは `Enter` またはクリックで確定します。
 
 ## タッチ、タブレット、ジェスチャ、pointer constraints
 

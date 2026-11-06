@@ -419,6 +419,8 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+escape", "spawn", "swaylock");
     _ = addBinding(cfg, "super+tab", "focus-next", "");
     _ = addBinding(cfg, "super+shift+tab", "focus-prev", "");
+    _ = addBinding(cfg, "alt+tab", "window-switcher", "");
+    _ = addBinding(cfg, "alt+shift+tab", "window-switcher", "prev");
     _ = addBinding(cfg, "super+h", "focus", "left");
     _ = addBinding(cfg, "super+j", "focus", "down");
     _ = addBinding(cfg, "super+k", "focus", "up");
@@ -2747,6 +2749,8 @@ fn parseAction(name: []const u8) Action {
         std.ascii.eqlIgnoreCase(name, "maximize-column")) return .column_width_maximize;
     if (std.ascii.eqlIgnoreCase(name, "center-column")) return .center_column;
     if (std.ascii.eqlIgnoreCase(name, "enter-mode") or std.ascii.eqlIgnoreCase(name, "mode")) return .enter_mode;
+    if (std.ascii.eqlIgnoreCase(name, "window-switcher") or
+        std.ascii.eqlIgnoreCase(name, "switcher")) return .window_switcher;
     return .none;
 }
 
@@ -3256,6 +3260,8 @@ fn loadPath(
         } else if (std.mem.eql(u8, key, "launcher_entry") or
             std.mem.eql(u8, key, "panel_style") or
             std.mem.eql(u8, key, "panel-style") or
+            std.mem.eql(u8, key, "window_switcher") or
+            std.mem.eql(u8, key, "window-switcher") or
             std.mem.eql(u8, key, "control_features") or
             std.mem.eql(u8, key, "control-features") or
             std.mem.eql(u8, key, "control_action") or

@@ -85,7 +85,8 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
 
 fn destroyOverlay() void {
     const s = g.overlay orelse return;
-    if (g.overlay_mode == .screenshot) freeScreenshot();
+    if (g.overlay_mode == .screenshot or g.overlay_mode == .switcher) freeScreenshot();
+    g.screenshot_for_switcher = false;
     g.overlay = null;
     g.overlay_mode = .none;
     g.launcher_open = false;
@@ -756,8 +757,116 @@ fn runModuleAction(index: usize) void {
     closeOverlay();
 }
 
+fn currentAltDown() bool {
+    const state = g.xkb_state orelse return false;
+    return c.xkb_state_mod_name_is_active(state, "Mod1", c.XKB_STATE_MODS_EFFECTIVE) != 0;
+}
+
+fn buildSwitcherEntries() void {
+    g.switcher_count = 0;
+    var wi: usize = 0;
+    while (wi < g.window_count and g.switcher_count < m.MAX_SWITCHER) : (wi += 1) {
+        const w = &g.windows[wi];
+        if (!w.visible or w.scratchpad or w.ws != g.active_ws) continue;
+        if (w.id == 0 or w.w <= 0 or w.h <= 0) continue;
+        const entry = &g.switcher_entries[g.switcher_count];
+        entry.* = std.mem.zeroes(m.SwitcherEntry);
+        entry.id = w.id;
+        entry.ws = w.ws;
+        entry.x = w.x;
+        entry.y = w.y;
+        entry.w = w.w;
+        entry.h = w.h;
+        entry.focus_seq = w.focus_seq;
+        entry.preview = g.window_switcher == .snapshot and w.on_screen and !w.floating;
+        m.copyTrunc(&entry.app_id, &entry.app_len, w.app_id[0..w.app_len]);
+        m.copyTrunc(&entry.title, &entry.title_len, w.title[0..w.title_len]);
+        g.switcher_count += 1;
+
+        // Insert by MRU (focus_seq descending); stable for never-focused windows.
+        var i = g.switcher_count - 1;
+        while (i > 0) : (i -= 1) {
+            const prev = &g.switcher_entries[i - 1];
+            const cur = &g.switcher_entries[i];
+            if (prev.focus_seq >= cur.focus_seq) break;
+            const tmp = prev.*;
+            prev.* = cur.*;
+            cur.* = tmp;
+        }
+    }
+}
+
+fn openSwitcher(reverse: bool, alt_held: bool) void {
+    if (g.window_switcher == .off) return;
+    if (g.overlay != null) closeOverlay();
+    buildSwitcherEntries();
+    if (g.switcher_count < 2) {
+        logDebug("switcher: need at least two visible windows", .{});
+        return;
+    }
+    g.switcher_selected = if (reverse) g.switcher_count - 1 else 1 % g.switcher_count;
+    g.switcher_done = false;
+    if (!ensureOverlay()) return;
+    beginOverlay(.switcher);
+    disableTextInput();
+    g.switcher_alt_down = alt_held or currentAltDown();
+    logMsg("switcher: open windows={d} selected={d} previews={}", .{
+        g.switcher_count,
+        g.switcher_selected,
+        g.window_switcher == .snapshot,
+    });
+    if (g.window_switcher == .snapshot and g.screenshot_manager != null and g.target_output != null) {
+        if (g.screenshot_pending or g.screenshot_ready) freeScreenshot();
+        g.screenshot_for_switcher = true;
+        if (!startScreenshotCapture()) g.screenshot_for_switcher = false;
+    }
+    refreshOverlay();
+}
+
+fn closeSwitcher() void {
+    g.switcher_done = true;
+    g.screenshot_for_switcher = false;
+    closeOverlay();
+}
+
+fn moveSwitcherSelection(delta: isize) void {
+    if (g.switcher_count == 0) return;
+    const count: isize = @intCast(g.switcher_count);
+    var next = @as(isize, @intCast(g.switcher_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.switcher_selected = @intCast(next);
+    g.overlay_content_dirty = true;
+    refreshOverlay();
+}
+
+fn commitSwitcher() void {
+    if (g.overlay_mode != .switcher or g.switcher_done) return;
+    if (g.switcher_selected < g.switcher_count) {
+        const entry = &g.switcher_entries[g.switcher_selected];
+        sendCmd("CMD focus {d}\n", .{entry.id});
+        logMsg("switcher: focus id={d}", .{entry.id});
+    }
+    closeSwitcher();
+}
+
 fn openPanel(name: []const u8) void {
-    if (std.mem.eql(u8, name, "control") or std.mem.eql(u8, name, "controls")) {
+    var command = name;
+    var alt_held = false;
+    if (std.mem.indexOfScalar(u8, name, ':')) |colon| {
+        command = name[0..colon];
+        var flags = std.mem.tokenizeScalar(u8, name[colon + 1 ..], ',');
+        while (flags.next()) |flag| {
+            if (std.mem.eql(u8, flag, "alt")) alt_held = true;
+        }
+    }
+    if (std.mem.eql(u8, command, "switcher")) {
+        openSwitcher(false, alt_held);
+    } else if (std.mem.eql(u8, command, "switcher-prev")) {
+        openSwitcher(true, alt_held);
+    } else if (std.mem.eql(u8, command, "switcher-commit")) {
+        commitSwitcher();
+    } else if (std.mem.eql(u8, command, "control") or std.mem.eql(u8, command, "controls")) {
         openControlCenter(.home);
     } else if (std.mem.eql(u8, name, "wifi")) {
         openWifi();
@@ -831,6 +940,7 @@ fn tickAnimation(now: i64) void {
     var p = @as(f64, @floatFromInt(now - g.menu_anim_start)) / @as(f64, @floatFromInt(dur));
     p = std.math.clamp(p, 0, 1);
     const eased = 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
+    const before = g.menu_anim;
     g.menu_anim = g.menu_from + (g.menu_target - g.menu_from) * eased;
     var animating = p < 1.0;
     if (g.launcher_open) {
@@ -847,7 +957,7 @@ fn tickAnimation(now: i64) void {
             }
         }
     }
-    if (animating) s.dirty = true;
+    if (animating or g.menu_anim != before) s.dirty = true;
     if (p >= 1.0) {
         g.menu_anim = g.menu_target;
         if (g.menu_target == 0 and g.launcher_open == false) {
@@ -1285,6 +1395,12 @@ fn activateOverlayHit(h: m.Hit) void {
             enableTextInput();
             refreshOverlay();
         },
+        .switcher_card => {
+            if (h.value < g.switcher_count) {
+                g.switcher_selected = h.value;
+                commitSwitcher();
+            }
+        },
         else => {},
     }
 }
@@ -1669,6 +1785,9 @@ fn onKeyboardModifiers(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32
     if (g.xkb_state) |state| {
         _ = c.xkb_state_update_mask(state, depressed, latched, locked, 0, 0, 0);
     }
+    // Alt release-to-commit is driven by the compositor ("switcher-commit"),
+    // which knows which keyboard opened it. Keyboard-enter modifiers and a
+    // newly plugged keyboard both look like a release from here.
 }
 
 fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time: u32, key: u32, state: u32) callconv(.c) void {
@@ -1683,6 +1802,29 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
     const keycode: c.xkb_keycode_t = key + 8;
     const sym = c.xkb_state_key_get_one_sym(xstate, keycode);
     logDebug("panel keysym {d}", .{sym});
+
+    if (g.overlay_mode == .switcher) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeSwitcher();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter or sym == c.XKB_KEY_space) {
+            commitSwitcher();
+        } else if (sym == c.XKB_KEY_Tab or sym == c.XKB_KEY_ISO_Left_Tab) {
+            const shift = c.xkb_state_mod_name_is_active(xstate, "Shift", c.XKB_STATE_MODS_EFFECTIVE) != 0;
+            const back = sym == c.XKB_KEY_ISO_Left_Tab or shift;
+            moveSwitcherSelection(if (back) -1 else 1);
+        } else if (sym == c.XKB_KEY_Left or sym == c.XKB_KEY_Up) {
+            moveSwitcherSelection(-1);
+        } else if (sym == c.XKB_KEY_Right or sym == c.XKB_KEY_Down) {
+            moveSwitcherSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.switcher_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.switcher_count > 0) g.switcher_selected = g.switcher_count - 1;
+            refreshOverlay();
+        }
+        return;
+    }
 
     if (g.overlay_mode == .power) {
         if (sym == c.XKB_KEY_Escape) {
@@ -2285,6 +2427,35 @@ fn onScreenshotFlags(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, fla
     _ = flags;
 }
 
+/// Cairo has no BGR24 format, and wlroots commonly hands back XBGR/ABGR
+/// screencopy buffers. Swap red/blue once per capture so both the screenshot
+/// overlay and the switcher previews use the native RGB24/ARGB32 paths.
+fn normalizeScreenshotChannels() void {
+    const format = g.screenshot_format;
+    const swap = format == c.WL_SHM_FORMAT_XBGR8888 or format == c.WL_SHM_FORMAT_ABGR8888;
+    if (!swap) return;
+    const data = g.screenshot_data orelse return;
+    const pixels: [*]u8 = @ptrCast(data);
+    const stride: usize = @intCast(g.screenshot_stride);
+    const width: usize = @intCast(g.screenshot_width);
+    const height: usize = @intCast(g.screenshot_height);
+    var y: usize = 0;
+    while (y < height) : (y += 1) {
+        const row = pixels + y * stride;
+        var x: usize = 0;
+        while (x < width) : (x += 1) {
+            const i = x * 4;
+            const tmp = row[i];
+            row[i] = row[i + 2];
+            row[i + 2] = tmp;
+        }
+    }
+    g.screenshot_format = if (format == c.WL_SHM_FORMAT_XBGR8888)
+        c.WL_SHM_FORMAT_XRGB8888
+    else
+        c.WL_SHM_FORMAT_ARGB8888;
+}
+
 fn onScreenshotReady(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, tv_sec_hi: u32, tv_sec_lo: u32, tv_nsec: u32) callconv(.c) void {
     _ = data;
     _ = tv_sec_hi;
@@ -2297,7 +2468,15 @@ fn onScreenshotReady(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1, tv_
         onScreenshotFailed(null, null);
         return;
     }
+    normalizeScreenshotChannels();
     g.screenshot_ready = true;
+    if (g.screenshot_for_switcher and g.overlay_mode == .switcher) {
+        g.screenshot_for_switcher = false;
+        logDebug("switcher: preview ready {d}x{d}", .{ g.screenshot_width, g.screenshot_height });
+        refreshOverlay();
+        return;
+    }
+    g.screenshot_for_switcher = false;
     beginScreenshotOverlay();
 }
 
@@ -2306,27 +2485,24 @@ fn onScreenshotFailed(data: ?*anyopaque, frame: ?*c.zwlr_screencopy_frame_v1) ca
     if (frame) |value| c.zwlr_screencopy_frame_v1_destroy(value);
     if (g.screenshot_frame == frame) g.screenshot_frame = null;
     logMsg("screenshot: screen capture failed", .{});
+    const for_switcher = g.screenshot_for_switcher;
     freeScreenshot();
+    g.screenshot_for_switcher = false;
+    if (for_switcher and g.overlay_mode == .switcher) refreshOverlay();
 }
 
-fn openScreenshot() void {
-    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
-    if (g.overlay != null) {
-        logMsg("screenshot: close the current overlay first", .{});
-        return;
-    }
-    if (g.screenshot_pending or g.screenshot_ready) freeScreenshot();
+fn startScreenshotCapture() bool {
     const manager = g.screenshot_manager orelse {
         logMsg("screenshot: screencopy is unavailable", .{});
-        return;
+        return false;
     };
     const output = g.target_output orelse {
         logMsg("screenshot: no target output", .{});
-        return;
+        return false;
     };
     const frame = c.zwlr_screencopy_manager_v1_capture_output(manager, 0, output) orelse {
         logMsg("screenshot: cannot create a screencopy frame", .{});
-        return;
+        return false;
     };
     g.screenshot_frame = frame;
     g.screenshot_pending = true;
@@ -2337,6 +2513,17 @@ fn openScreenshot() void {
     g.screenshot_frame_listener.failed = onScreenshotFailed;
     _ = c.zwlr_screencopy_frame_v1_add_listener(frame, &g.screenshot_frame_listener, null);
     logDebug("screenshot: capturing output", .{});
+    return true;
+}
+
+fn openScreenshot() void {
+    if (!m.moduleEnabled(m.MODULE_POPOVERS)) return;
+    if (g.overlay != null) {
+        logMsg("screenshot: close the current overlay first", .{});
+        return;
+    }
+    if (g.screenshot_pending or g.screenshot_ready) freeScreenshot();
+    _ = startScreenshotCapture();
 }
 
 const TOAST_WIDTH: i32 = 380;
@@ -4449,6 +4636,8 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
         moveClipboardSelection(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .tray) {
         moveTraySelection(if (v > 0) 1 else -1);
+    } else if (g.overlay_mode == .switcher) {
+        moveSwitcherSelection(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .audio) {
         audioCommand(if (v > 0) 2 else 1);
     } else if (g.overlay_mode == .control) {
@@ -4642,7 +4831,7 @@ fn handleStateLine(line: []const u8) void {
     }
 
     if (std.mem.startsWith(u8, line, "WIN\t")) {
-        var fields: [20][]const u8 = undefined;
+        var fields: [24][]const u8 = undefined;
         var count: usize = 0;
         var start: usize = 0;
         var i: usize = 0;
@@ -4669,6 +4858,14 @@ fn handleStateLine(line: []const u8) void {
         m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
         if (count >= 14) w.scratchpad = std.mem.eql(u8, fields[13], "1");
         if (count >= 15) w.visible = std.mem.eql(u8, fields[14], "1");
+        if (count >= 13) {
+            w.x = std.fmt.parseInt(i32, fields[9], 10) catch 0;
+            w.y = std.fmt.parseInt(i32, fields[10], 10) catch 0;
+            w.w = std.fmt.parseInt(i32, fields[11], 10) catch 0;
+            w.h = std.fmt.parseInt(i32, fields[12], 10) catch 0;
+        }
+        if (count >= 18) w.on_screen = std.mem.eql(u8, fields[17], "1");
+        if (count >= 21) w.focus_seq = std.fmt.parseInt(u64, fields[20], 10) catch 0;
         if (count >= 17) {
             w.group_id = std.fmt.parseInt(u32, fields[15], 10) catch 0;
             w.group_active = std.mem.eql(u8, fields[16], "1");
@@ -4921,7 +5118,7 @@ fn pollTimeout(now: i64) c_int {
     }
     if (g.overlay) |s| {
         if (s.dirty) return 0;
-        if (now - g.menu_anim_start < 260) return 16;
+        if (g.menu_anim != g.menu_target) return 16;
         if (g.launcher_open and @abs(@as(f64, @floatFromInt(g.selected)) - g.selected_anim) > 0.004) return 16;
     }
     var next = g.next_clock_ms;

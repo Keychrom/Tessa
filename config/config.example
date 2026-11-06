@@ -274,6 +274,9 @@ panel_style = classic
 # Names: wifi, bluetooth, focus, notifications, media, volume, brightness,
 # power_profile, battery, quick_actions, tray, calendar, power.
 control_features = all
+# Alt+Tab window switcher: snapshot (default) captures the output and crops
+# per-window thumbnails, icons shows app monograms only, off disables it.
+window_switcher = snapshot
 # Add a quick action (repeatable, up to four): Label | command.
 # control_action = Screen record | wf-recorder -f ~/Videos/record.mp4
 panel_bg = #0e1320
@@ -460,6 +463,9 @@ font = Inter
 # bind = SUPER+Return terminal
 # bind = SUPER+d launcher
 # bind = SUPER+v clipboard
+# These two are also the built-in defaults; `prev` starts from the other end.
+# bind = ALT+Tab window-switcher
+# bind = ALT+SHIFT+Tab window-switcher prev
 # bind = SUPER+SHIFT+s screenshot
 # bind = SUPER+m media
 # bind = SUPER+SHIFT+t tray

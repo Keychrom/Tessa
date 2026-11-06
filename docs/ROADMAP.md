@@ -77,6 +77,21 @@ settings application. The classic popovers remain the default.
       history.
 - [ ] Drag-and-drop control-center card layout and per-card ordering.
 
+## Window switching
+
+A task switcher that matches Tessa's visual language without requiring a new
+capture protocol.
+
+- [x] Phase 1 `Alt+Tab`/`Alt+Shift+Tab`: MRU order on the focused output and
+      current workspace, one output snapshot cropped by window rectangles,
+      monogram fallback for floating/off-screen windows, `Tab`/arrows/wheel
+      cycling, `Enter`/click/Alt-release commit, `Esc` cancel, and
+      `window_switcher = snapshot|icons|off`.
+- [ ] Phase 2 live thumbnails via `ext-image-copy-capture` (or per-window
+      screencopy) when the protocol is available.
+- [ ] Cross-workspace and all-output entries, pinned/filtered views, and a
+      searchable switcher.
+
 ## Rendering and game features
 
 Close the compositor gap for games and fullscreen video while keeping the

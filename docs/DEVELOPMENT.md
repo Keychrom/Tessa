@@ -638,6 +638,21 @@ layer-map before sending keys.
 sh tests/control-center.sh
 ```
 
+### Window switcher test
+
+`tests/window-switcher.sh` starts three `foot` windows and drives `Alt+Tab`
+with `wtype` while holding Alt for 2 s. It checks the MRU deck
+(`windows=3 selected=1`), that snapshot mode completes a screencopy and reports
+`previews=true`, that `Tab` + `Return` focuses the next window, and that Escape
+cancels without focusing. It then repeats the commit in `icons` mode and
+confirms `window_switcher = off` leaves the overlay closed. The test also
+covers the regression where a second virtual keyboard's empty modifier state
+closed the switcher.
+
+```sh
+sh tests/window-switcher.sh
+```
+
 ### Clipboard history test
 
 `tests/clipboard.sh` copies two strings with `wl-copy`, opens the history with

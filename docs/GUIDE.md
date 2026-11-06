@@ -606,6 +606,7 @@ stagger, and slides its selection marker between results.
 | `bar_position` | `top` | Bar edge: `top`, `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
+| `window_switcher` | `snapshot` | Alt+Tab switcher: `snapshot` thumbnails, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
 | `bar_side_margin` | `16` | Inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
@@ -637,6 +638,11 @@ stagger, and slides its selection marker between results.
 `media`, `volume`, `brightness`, `power_profile`, `battery`, `quick_actions`,
 `tray`, `calendar`, and `power`, separated by commas, spaces, or `|`.
 `control_action` is repeatable up to four times.
+
+`window_switcher = snapshot` (default) captures the focused output when the
+switcher opens and crops per-window previews from that frame. `icons` skips the
+capture and shows app monograms; `off` disables the switcher. See
+[Window switcher](#window-switcher).
 
 Changing bar geometry or `bar_position` recreates the bar layer surface and
 updates its exclusive zone. On `left`/`right` the bar becomes a vertical strip:
@@ -743,6 +749,7 @@ See the event table in section 13.
 | `Super+Shift+G` | Group/ungroup tiled windows on the workspace |
 | `Super+Escape` | Spawn `swaylock` |
 | `Super+Tab` / `Super+Shift+Tab` | Cycle windows; cycles tabs when a group is focused |
+| `Alt+Tab` / `Alt+Shift+Tab` | MRU window switcher; hold Alt, release to commit |
 | `Super+Ctrl+H/L` | Shrink/grow master ratio |
 | `Super+Alt+H/L` | Shrink/grow floating width |
 | `Super+Alt+J/K` | Grow/shrink floating height |
@@ -766,7 +773,7 @@ Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-special`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
-`tray`, `audio`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
+`tray`, `audio`, `window-switcher`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
 `resize-width`, `resize-height`, `focus-column-*`, `move-column-*`,
 `move-window-up/down`, `consume-window`, `expel-window`,
 `column-width-cycle`, `column-width-cycle-back`, `column-width-set`,
@@ -1815,6 +1822,30 @@ without a backlight hide the slider. Power profiles require
 power-profiles-daemon. NetworkManager, BlueZ, power-profiles-daemon, and logind
 are optional runtime services. If a service is missing, the control center
 shows an unavailable state instead of failing the panel.
+
+### Window switcher
+
+`Alt+Tab` opens the window switcher on the focused output's current workspace.
+Entries are ordered most-recently-used first. `Tab` / `Shift+Tab`, the arrow
+keys, and the wheel move the selection; `Enter`, a click, or releasing Alt
+commits; `Esc` cancels. `Alt+Shift+Tab` starts from the other end. The defaults
+can be overridden with the `window-switcher` action:
+
+```
+bind = ALT+Tab window-switcher
+bind = ALT+Shift+Tab window-switcher prev
+```
+
+`window_switcher` selects the presentation:
+
+- `snapshot` (default): captures the output once, then crops the frame by each
+  window rectangle. Floating and off-screen windows use an app monogram.
+- `icons`: app monograms only, without a screen capture.
+- `off`: the binding does nothing.
+
+Phase 1 is limited to the focused output and current workspace. Snapshots are
+static and show the screen as it was when the switcher opened; they need
+`zwlr_screencopy`. `tessa-ctl panel switcher` opens the switcher from IPC.
 
 ### Notifications
 

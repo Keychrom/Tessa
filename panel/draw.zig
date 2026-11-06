@@ -3987,8 +3987,8 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     const show_conn = m.controlFeatureEnabled(.wifi) or m.controlFeatureEnabled(.bluetooth);
     const conn_h = 116.0;
     if (show_conn) {
-    controlCard(cr, left_x, left_y, col_w, conn_h);
-    controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
+        controlCard(cr, left_x, left_y, col_w, conn_h);
+        controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
     }
     var row_y = left_y + 30.0;
     if (m.controlFeatureEnabled(.wifi)) {
@@ -4341,9 +4341,233 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
     _ = fg;
 }
 
+fn drawWindowSwitcher(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1.0;
+    g.overlay_hit_x = 0;
+    g.overlay_hit_y = 0;
+
+    var preview: ?*c.cairo_surface_t = null;
+    if (g.screenshot_ready and g.screenshot_data != null and g.screenshot_width > 0 and g.screenshot_height > 0) {
+        const format: c.cairo_format_t = if (g.screenshot_format == c.WL_SHM_FORMAT_XRGB8888)
+            c.CAIRO_FORMAT_RGB24
+        else
+            c.CAIRO_FORMAT_ARGB32;
+        const surface = c.cairo_image_surface_create_for_data(
+            @ptrCast(g.screenshot_data.?),
+            format,
+            @intCast(g.screenshot_width),
+            @intCast(g.screenshot_height),
+            @intCast(g.screenshot_stride),
+        );
+        if (c.cairo_surface_status(surface) == c.CAIRO_STATUS_SUCCESS) {
+            c.cairo_surface_mark_dirty(surface);
+            preview = surface;
+        } else {
+            c.cairo_surface_destroy(surface);
+        }
+    }
+    defer if (preview) |surface| c.cairo_surface_destroy(surface);
+
+    const scale_x = if (g.screenshot_width > 0)
+        @as(f64, @floatFromInt(g.screenshot_width)) / W
+    else
+        1.0;
+    const scale_y = if (g.screenshot_height > 0)
+        @as(f64, @floatFromInt(g.screenshot_height)) / H
+    else
+        1.0;
+
+    const cx = W / 2.0;
+    const cy = H / 2.0 + 8.0;
+    const panel_w = @min(1120.0, W - 80.0);
+    g.overlay_panel = .{
+        .x = cx - panel_w / 2.0,
+        .y = cy - 190.0,
+        .w = panel_w,
+        .h = 380.0,
+    };
+
+    const hint = if (g.switcher_alt_down)
+        "RELEASE ALT TO SWITCH    ESC CANCEL"
+    else
+        "ENTER OR CLICK TO SWITCH    ESC CANCEL";
+    _ = drawTextCenteredX(cr, hint, cx, cy - 176.0, MONO, "Medium", 7.4, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.48,
+    }, 0, 1.8);
+
+    const offsets = [_]i32{ -1, 1, -2, 2 };
+    var seen: [m.MAX_SWITCHER]bool = @splat(false);
+    const selected = g.switcher_selected;
+    var oi: usize = 0;
+    while (oi < offsets.len) : (oi += 1) {
+        const delta = offsets[oi];
+        const count: i32 = @intCast(g.switcher_count);
+        var idx = @as(i32, @intCast(selected)) + delta;
+        while (idx < 0) idx += count;
+        while (idx >= count) idx -= count;
+        const ui: usize = @intCast(idx);
+        if (seen[ui] or ui == selected) continue;
+        seen[ui] = true;
+        drawSwitcherCard(cr, &g.switcher_entries[ui], cx, cy, .{
+            .index = ui,
+            .offset = @floatFromInt(delta),
+            .selected = false,
+            .t = t,
+            .preview = preview,
+            .scale_x = scale_x,
+            .scale_y = scale_y,
+        });
+    }
+    if (g.switcher_count > 0) {
+        drawSwitcherCard(cr, &g.switcher_entries[selected], cx, cy, .{
+            .index = selected,
+            .offset = 0,
+            .selected = true,
+            .t = t,
+            .preview = preview,
+            .scale_x = scale_x,
+            .scale_y = scale_y,
+        });
+    }
+    if (g.switcher_count > 0) {
+        // The selected card is painted last; make its hit win over the tilted
+        // neighbours where the cards overlap.
+        addOverlayHit(cx - 136.0, cy - 163.0 + (1.0 - t) * 12.0, 272.0, 326.0, .{
+            .kind = .switcher_card,
+            .value = selected,
+        });
+    }
+}
+
+const SwitcherCardArgs = struct {
+    index: usize,
+    offset: f64,
+    selected: bool,
+    t: f64,
+    preview: ?*c.cairo_surface_t,
+    scale_x: f64,
+    scale_y: f64,
+};
+
+fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: f64, args: SwitcherCardArgs) void {
+    const accent = g.accent;
+    const fg = g.popover_fg;
+    const fam = m.popoverFont();
+    const dist = @abs(args.offset);
+    const card_w = if (args.selected) 272.0 else 238.0 - dist * 8.0;
+    const card_h = if (args.selected) 326.0 else 284.0 - dist * 8.0;
+    const dx = args.offset * 224.0;
+    const dy = dist * 19.0;
+    const angle = args.offset * 0.12;
+    const x = cx + dx - card_w / 2.0;
+    const y = cy + dy - card_h / 2.0 + (1.0 - args.t) * 12.0;
+    const base_alpha: f64 = if (args.selected) 1.0 else 0.72;
+    const alpha = base_alpha * args.t;
+    const body = g.popover_bg;
+
+    c.cairo_save(cr);
+    c.cairo_translate(cr, cx + dx, cy + dy + (1.0 - args.t) * 12.0);
+    c.cairo_rotate(cr, angle);
+    c.cairo_translate(cr, -card_w / 2.0, -card_h / 2.0);
+
+    fillRound(cr, 6, 14, card_w, card_h, 18, .{ 0, 0, 0, 0.34 * alpha });
+    fillRound(cr, 0, 0, card_w, card_h, 18, .{ body[0], body[1], body[2], 0.97 * alpha });
+    strokeRound(cr, 0.5, 0.5, card_w - 1, card_h - 1, 17.5, if (args.selected)
+        .{ accent[0], accent[1], accent[2], 0.78 * alpha }
+    else
+        .{ 1, 1, 1, 0.10 * alpha }, if (args.selected) 2.0 else 1.0);
+
+    const pad = 14.0;
+    const preview_x = pad;
+    const preview_y = 38.0;
+    const preview_w = card_w - pad * 2.0;
+    const preview_h = card_h - 112.0;
+
+    c.cairo_save(cr);
+    roundRect(cr, preview_x, preview_y, preview_w, preview_h, 10);
+    c.cairo_clip(cr);
+    fillRound(cr, preview_x, preview_y, preview_w, preview_h, 10, .{
+        1, 1, 1, 0.035 * alpha,
+    });
+    var drew_preview = false;
+    if (args.preview) |surface| {
+        if (entry.preview) {
+            const src_x = @as(f64, @floatFromInt(entry.x)) * args.scale_x;
+            const src_y = @as(f64, @floatFromInt(entry.y)) * args.scale_y;
+            const src_w = @max(1.0, @as(f64, @floatFromInt(entry.w)) * args.scale_x);
+            const src_h = @max(1.0, @as(f64, @floatFromInt(entry.h)) * args.scale_y);
+            // Cover the preview and anchor the crop at the window's top-left,
+            // so terminal output at the top stays visible and no letterbox
+            // margins expose the rest of the screenshot.
+            const fit = @max(preview_w / src_w, preview_h / src_h);
+            const dw = src_w * fit;
+            const dh = src_h * fit;
+            c.cairo_save(cr);
+            c.cairo_rectangle(cr, preview_x, preview_y, @min(dw, preview_w), @min(dh, preview_h));
+            c.cairo_clip(cr);
+            c.cairo_translate(cr, preview_x, preview_y);
+            c.cairo_scale(cr, fit, fit);
+            c.cairo_set_source_surface(cr, surface, -src_x, -src_y);
+            c.cairo_paint_with_alpha(cr, alpha);
+            c.cairo_restore(cr);
+            drew_preview = true;
+        }
+    }
+    if (!drew_preview) {
+        const app = entry.app_id[0..entry.app_len];
+        var hsh: u32 = 2166136261;
+        for (app) |ch| hsh = (hsh ^ ch) *% 16777619;
+        const col = palette[hsh % palette.len];
+        const size = @min(preview_w, preview_h) * 0.34;
+        const ox = preview_x + (preview_w - size) / 2.0;
+        const oy = preview_y + (preview_h - size) / 2.0;
+        fillRound(cr, ox, oy, size, size, 14, .{ col[0], col[1], col[2], 0.80 * alpha });
+        var gbuf: [8]u8 = undefined;
+        const glyph = upperFirst(&gbuf, firstGlyph(if (app.len > 0) app else "T"));
+        _ = drawTextCenteredX(cr, glyph, ox + size / 2.0, oy + size / 2.0, fam, "Semi-Bold", size * 0.38, .{
+            1, 1, 1, 0.92 * alpha,
+        }, 0, 0);
+    }
+    c.cairo_restore(cr);
+
+    if (!args.selected) {
+        fillRound(cr, 0, 0, card_w, card_h, 18, .{ 0.02, 0.03, 0.05, 0.18 * alpha });
+    }
+
+    const app = entry.app_id[0..entry.app_len];
+    var label_buf: [64]u8 = @splat(0);
+    const app_label = upperAscii(&label_buf, app);
+    _ = drawText(cr, app_label, pad, 14, MONO, "Medium", 7.0, .{
+        fg[0], fg[1], fg[2], 0.55 * alpha,
+    }, card_w - pad * 2.0 - 46.0, 0.8);
+    var ws_buf: [16]u8 = undefined;
+    const ws_text = std.fmt.bufPrint(&ws_buf, "WS {d}", .{entry.ws}) catch "WS";
+    _ = drawText(cr, ws_text, card_w - pad - 34.0, 14, MONO, "Medium", 6.2, .{
+        accent[0], accent[1], accent[2], 0.72 * alpha,
+    }, 34, 0.5);
+
+    const title = if (entry.title_len > 0) entry.title[0..entry.title_len] else if (app.len > 0) app else "Untitled";
+    _ = drawText(cr, title, pad, card_h - 58.0, fam, "Semi-Bold", if (args.selected) 12.2 else 10.8, .{
+        fg[0], fg[1], fg[2], 0.95 * alpha,
+    }, card_w - pad * 2.0, 0);
+    _ = drawText(cr, if (app.len > 0) app else "window", pad, card_h - 35.0, fam, "Regular", 8.2, .{
+        fg[0], fg[1], fg[2], 0.48 * alpha,
+    }, card_w - pad * 2.0, 0);
+
+    c.cairo_restore(cr);
+    addOverlayHit(x, y, card_w, card_h, .{ .kind = .switcher_card, .value = args.index });
+}
+
+fn upperAscii(dest: *[64]u8, src: []const u8) []const u8 {
+    const n = @min(src.len, dest.len);
+    for (src[0..n], 0..) |ch, i| {
+        dest[i] = if (ch >= 'a' and ch <= 'z') ch - 32 else ch;
+    }
+    return dest[0..n];
+}
+
 fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
-
-
     const l = m.controlCenterLayout(W, H);
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1.0;
@@ -4871,6 +5095,7 @@ fn drawBluetoothPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
 }
 
 fn drawOverlayCore(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    if (g.overlay_mode == .switcher and g.screenshot_for_switcher and !g.screenshot_ready) return;
     if (g.overlay_mode == .launcher) {
         const start_style = g.launcher_open_style == .start;
         const l = if (start_style) m.startMenuLayout(W, H) else m.launcherLayout(W, H);
@@ -4933,8 +5158,9 @@ fn drawOverlayCore(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         drawWifiPopover(cr, W, H, t);
     } else if (g.overlay_mode == .bluetooth) {
         drawBluetoothPopover(cr, W, H, t);
+    } else if (g.overlay_mode == .switcher) {
+        drawWindowSwitcher(cr, W, H, t);
     }
-
 }
 
 fn renderOverlayBase(s: *m.Surface) ?*c.cairo_surface_t {
@@ -5025,8 +5251,12 @@ fn drawOverlayGpu(s: *m.Surface) bool {
     const t = std.math.clamp(m.g.menu_anim, 0.0, 1.0);
     const dim: f64 = if (m.g.overlay_mode == .audio)
         0.0
+    else if (m.g.overlay_mode == .switcher and m.g.screenshot_for_switcher and !m.g.screenshot_ready)
+        0.0
     else if (m.g.overlay_mode == .launcher)
         0.52
+    else if (m.g.overlay_mode == .switcher)
+        0.46
     else
         0.30;
     if (!gpu.drawOverlay(s, @floatCast(t), @floatCast(dim * t), overlayMatrix(s, t))) {
@@ -5047,13 +5277,20 @@ pub fn drawOverlay(s: *m.Surface) void {
     const H: f64 = @floatFromInt(s.height);
     const t = std.math.clamp(g.menu_anim, 0.0, 1.0);
 
+    if (g.overlay_mode == .switcher and g.screenshot_for_switcher and !g.screenshot_ready) {
+        c.cairo_set_operator(cr, c.CAIRO_OPERATOR_CLEAR);
+        c.cairo_paint(cr);
+        end(s, d);
+        return;
+    }
+
     if (g.overlay_mode == .screenshot) {
         drawScreenshotOverlay(cr, W, H, t);
         end(s, d);
         return;
     }
 
-    const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else 0.30;
+    const dim: f64 = if (g.overlay_mode == .launcher) 0.52 else if (g.overlay_mode == .switcher) 0.46 else 0.30;
 
     if (g.overlay_mode != .audio) {
         fillRound(cr, 0, 0, W, H, 0, .{ 0.012, 0.018, 0.030, dim * t });

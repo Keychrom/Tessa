@@ -16,6 +16,7 @@ pub const MAX_NOTIFICATIONS = 50;
 pub const MAX_TOASTS = 4;
 pub const MAX_MEDIA_ART = 128;
 pub const MAX_MEDIA_ART_BYTES = MAX_MEDIA_ART * MAX_MEDIA_ART * 4;
+pub const MAX_SWITCHER = 8;
 pub const MAX_NOTIFICATION_ACTIONS = 4;
 pub const MAX_NOTIFICATION_ICON = 64;
 pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION_ICON * 4;
@@ -33,9 +34,10 @@ pub const MAX_BT_PATH = 256;
 pub const MAX_BT_NAME = 96;
 pub const MAX_CONTROL_ERROR = 160;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module, control, wifi, bluetooth };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module, control, wifi, bluetooth, switcher };
 pub const LauncherStyle = enum { centered, start };
 pub const PanelStyle = enum { classic, unified };
+pub const WindowSwitcher = enum { off, icons, snapshot };
 pub const ControlView = enum { home, wifi, bluetooth, notifications, calendar, tray, power };
 pub const BarPosition = enum { top, bottom, left, right };
 pub const PanelRenderer = enum { cairo, gpu };
@@ -394,6 +396,7 @@ pub const HitKind = enum {
     control_power,
     control_profile,
     control_input,
+    switcher_card,
 };
 
 pub const Hit = struct {
@@ -419,10 +422,31 @@ pub const WindowInfo = struct {
     fullscreen: bool = false,
     scratchpad: bool = false,
     visible: bool = true,
+    on_screen: bool = false,
+    focus_seq: u64 = 0,
+    x: i32 = 0,
+    y: i32 = 0,
+    w: i32 = 0,
+    h: i32 = 0,
     group_id: u32 = 0,
     group_active: bool = false,
     column: i32 = -1,
     tile: i32 = -1,
+    app_id: [64]u8 = @splat(0),
+    app_len: usize = 0,
+    title: [160]u8 = @splat(0),
+    title_len: usize = 0,
+};
+
+pub const SwitcherEntry = struct {
+    id: u64 = 0,
+    ws: usize = 1,
+    x: i32 = 0,
+    y: i32 = 0,
+    w: i32 = 0,
+    h: i32 = 0,
+    focus_seq: u64 = 0,
+    preview: bool = false,
     app_id: [64]u8 = @splat(0),
     app_len: usize = 0,
     title: [160]u8 = @splat(0),
@@ -963,6 +987,13 @@ pub const Panel = struct {
     bar_layout_set: bool = false,
     modules: u16 = MODULE_ALL,
     panel_style: PanelStyle = .classic,
+    window_switcher: WindowSwitcher = .snapshot,
+    switcher_entries: [MAX_SWITCHER]SwitcherEntry = undefined,
+    switcher_count: usize = 0,
+    switcher_selected: usize = 0,
+    switcher_alt_down: bool = false,
+    switcher_done: bool = false,
+    screenshot_for_switcher: bool = false,
     control_features: u32 = CONTROL_FEATURE_ALL,
     control_actions: [MAX_CONTROL_ACTIONS]ControlActionEntry = undefined,
     control_action_count: usize = 0,
@@ -1900,6 +1931,16 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             } else {
                 std.debug.print("tessa-panel: invalid panel_style '{s}' (classic|unified)\n", .{val});
             }
+        } else if (std.mem.eql(u8, key, "window_switcher") or std.mem.eql(u8, key, "window-switcher")) {
+            if (std.mem.eql(u8, val, "off") or std.mem.eql(u8, val, "none") or std.mem.eql(u8, val, "false")) {
+                g.window_switcher = .off;
+            } else if (std.mem.eql(u8, val, "icons") or std.mem.eql(u8, val, "icon")) {
+                g.window_switcher = .icons;
+            } else if (std.mem.eql(u8, val, "snapshot") or std.mem.eql(u8, val, "thumbnails") or std.mem.eql(u8, val, "previews")) {
+                g.window_switcher = .snapshot;
+            } else {
+                std.debug.print("tessa-panel: invalid window_switcher '{s}' (off|icons|snapshot)\n", .{val});
+            }
         } else if (std.mem.eql(u8, key, "control_features") or std.mem.eql(u8, key, "control-features")) {
             g.control_features = parseControlFeatures(val);
         } else if (std.mem.eql(u8, key, "control_action") or std.mem.eql(u8, key, "control-action")) {
@@ -2266,6 +2307,7 @@ pub fn loadConfig() void {
     g.bar_layout_set = false;
     g.modules = MODULE_ALL;
     g.panel_style = .classic;
+    g.window_switcher = .snapshot;
     g.control_features = CONTROL_FEATURE_ALL;
     g.control_action_count = 0;
     g.dnd = false;
@@ -2406,7 +2448,7 @@ pub fn printConfigSummary() void {
         g.bar_top_margin,
         g.bar_side_margin,
     });
-    std.debug.print("panel style={s} control-features=", .{@tagName(g.panel_style)});
+    std.debug.print("panel style={s} window-switcher={s} control-features=", .{ @tagName(g.panel_style), @tagName(g.window_switcher) });
     var first_feature = true;
     for (control_feature_specs) |spec| {
         if (!controlFeatureEnabled(spec.feature)) continue;

@@ -410,6 +410,12 @@ keysyms.
 When a layer has keyboard focus, WM shortcuts are bypassed and all keys are
 forwarded to the layer. This is what lets the launcher receive typing.
 
+The window switcher is the exception to panel-local release handling: the
+compositor remembers which `wlr_keyboard` opened it and, when that keyboard's
+Alt modifier clears, emits `panel` `switcher-commit` to the panel. This avoids
+misreading keyboard-enter modifiers or a second keyboard's empty modifier
+state as a release. Non-Alt switcher bindings require `Enter`/click.
+
 ## Output management
 
 `output.zig` creates `wlr-output-manager-v1` and keeps its head list current
@@ -824,6 +830,18 @@ output.
   keyboard input switches to `Up`/`Down`/`Enter` navigation for list-based
   views. Opening a popover or control center emits a `panel` event, which the
   panel process consumes like the `launcher` event.
+
+  The `switcher` overlay is the MRU task switcher. The panel keeps up to eight
+  visible windows of the focused workspace, sorted by the compositor's
+  `focus_seq` (sent in each `WIN` state line). In `snapshot` mode it requests a
+  single `zwlr_screencopy` frame of the target output after mapping a
+  transparent overlay, keeps the SHM buffer, and crops each card from the
+  window's logical rectangle (scaled by screenshot/output size). Floating,
+  off-screen, and failed-capture windows fall back to an app monogram; `icons`
+  skips capture and `off` disables the mode. Selection is local to the panel;
+  `Enter`, click, or the compositor's `switcher-commit` event focuses the
+  chosen window through the normal IPC `focus` command. `Tab`/arrows/Home/End
+  and the wheel cycle locally, and `Esc` cancels.
 
 The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
 destroying the layer surface lets the compositor restore toplevel focus. The

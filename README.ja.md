@@ -21,7 +21,9 @@ Waybar / Rofi / wofi は必須ではありませんが、layer-shell 対応の�
 
 ![Tessa のランチャー](docs/images/launcher.png)
 
-上のスクリーンショットは headless 開発セッションで、kitty と Vermilion Ink
+![Tessa のウィンドウスイッチャー](docs/images/window-switcher.png)
+
+上のスクリーンショットは headless 開発セッションで、kitty、foot、Vermilion Ink
 パレットを使って撮影したものです。コントロールパネルはデモ用の
 NetworkManager / BlueZ サービスを使っているため、実際の Wi-Fi SSID や
 Bluetooth デバイスは表示されません。
@@ -309,6 +311,10 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   - 通知履歴（50 件）、Focus/DND によるトースト抑制、クリア、通知アクション
   - 輝度（logind）と電源プロファイル（power-profiles-daemon）の操作。
     `control_features` でコントロールセンターの機能を個別にオン/オフ可能
+  - MRU 順のウィンドウスイッチャー（`Alt+Tab` / `Alt+Shift+Tab`）。1 回の
+    スクリーンキャプチャからウィンドウごとのプレビューを切り出し、アイコン
+    のみの表示、`Esc`／クリック／Alt 解放での確定に対応。
+    `window_switcher = snapshot|icons|off`
   - バーを上下左右の任意の端に配置（`bar_position = top|bottom|left|right`）。
     縦バーではバーとコントロールセンターも縦レイアウト
   - MPRIS メディアチップと操作（`Super+M`）、ローカルアルバムアート、
@@ -341,7 +347,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/layout-helper-v2.sh`、`tests/config-validation.sh`、
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
 `tests/panel-theme.sh`、`tests/bar-position.sh`、
-`tests/panel-popovers.sh`、`tests/control-center.sh`、`tests/wifi.sh`、
+`tests/panel-popovers.sh`、`tests/control-center.sh`、
+`tests/window-switcher.sh`、`tests/wifi.sh`、
 `tests/bluetooth.sh`、`tests/brightness.sh`、`tests/clipboard.sh`、
 `tests/screenshot.sh`、
 `tests/notifications.sh`、`tests/notification-routing.sh`、
@@ -374,8 +381,9 @@ plain／scenefx の両構成で成功しています。ポータルの ScreenCas
 `tests/layout-reorder.sh`、`tests/layout-config.sh`、
 `tests/extensions.sh`、`tests/extension-api.sh`、`tests/panel-modules.sh`、
 `tests/effect-v2.sh`、`tests/effect-cache.sh`、`tests/control-center.sh`、
-`tests/wifi.sh`、`tests/bluetooth.sh`、`tests/brightness.sh`、
-`tests/media-art.sh` も成功しています。Wi-Fi、Bluetooth、輝度、電源プロファイルの
+`tests/window-switcher.sh`、`tests/wifi.sh`、`tests/bluetooth.sh`、
+`tests/brightness.sh`、`tests/media-art.sh` も成功しています。
+Wi-Fi、Bluetooth、輝度、電源プロファイルの
 テストはプライベートな system bus 上に偽の NetworkManager、BlueZ、logind、
 power-profiles-daemon を起動するため、実セッションのネットワークやデバイスには
 触れません。新しいツールチェーンでの
@@ -891,6 +899,7 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+Shift+G` | ワークスペースのタイルウィンドウをグループ化／解除 |
 | `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウを巡回。グループのフォーカス中はタブを巡回 |
+| `Alt+Tab` / `Alt+Shift+Tab` | MRU 順のウィンドウスイッチャー。Alt を押したまま選択し、解放で確定 |
 | `Super+Ctrl+H/L` | マスター領域の比率を縮小/拡大 |
 | `Super+Alt+H/L` | フローティングウィンドウの幅を縮小/拡大 |
 | `Super+Alt+J/K` | フローティングウィンドウの高さを拡大/縮小 |
@@ -1051,7 +1060,7 @@ bind = SUPER+ctrl+h ratio -0.03
 `move-to-special`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、
 `focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、
-`tray`、`audio`、`reload`、`ratio`、`toggle-layout`、
+`tray`、`audio`、`window-switcher`、`reload`、`ratio`、`toggle-layout`、
 `set-layout`、`resize-width`、`resize-height`、`enter-mode`。Scrolling 用に
 `focus-column-left/right/first/last`、`move-column-left/right/first/last`、
 `move-window-up/down`、`consume-window`、`expel-window`、

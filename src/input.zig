@@ -454,6 +454,17 @@ fn onKeyboardModifiers(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c
     if (ime.forwardModifiersToGrab(kb.server, kb)) return;
     c.wlr_seat_set_keyboard(kb.server.seat, kb.wlr);
     c.wlr_seat_keyboard_notify_modifiers(kb.server.seat, &kb.wlr.modifiers);
+
+    // Alt+Tab holds the switcher open. The compositor owns the real modifier
+    // state, so release detection here avoids stale keyboard-enter modifiers
+    // in the panel closing it immediately.
+    if (kb.server.switcher_alt_active and kb.server.switcher_kb == kb.wlr and
+        (kb.wlr.modifiers.depressed & core.MOD_ALT) == 0)
+    {
+        kb.server.switcher_alt_active = false;
+        kb.server.switcher_kb = null;
+        ipc.emitPanel(kb.server, "switcher-commit", "");
+    }
 }
 
 fn onKeyboardKeymap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -593,6 +604,21 @@ fn executeBinding(server: *Server, b: *Binding) void {
         .screenshot => ipc.emitPanel(server, "screenshot", ""),
         .media => ipc.emitPanel(server, "media", ""),
         .tray => ipc.emitPanel(server, "tray", ""),
+        .window_switcher => {
+            const reverse = std.mem.eql(u8, b.arg[0..b.arg_len], "prev") or
+                std.mem.eql(u8, b.arg[0..b.arg_len], "back");
+            // Tell the panel that Alt was already down when the binding fired.
+            // Its keyboard-enter modifiers can miss that (virtual keyboards set
+            // modifiers without a key event), and release-to-commit needs it.
+            const alt_held = (b.mods & core.MOD_ALT) != 0;
+            server.switcher_alt_active = alt_held;
+            server.switcher_kb = server.binding_kb;
+            const cmd = if (reverse)
+                (if (alt_held) "switcher-prev:alt" else "switcher-prev")
+            else
+                (if (alt_held) "switcher:alt" else "switcher");
+            ipc.emitPanel(server, cmd, "");
+        },
         .audio => ipc.emitPanel(server, "audio", ""),
         .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),
@@ -709,6 +735,7 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const bind_mods = mods & (core.MOD_SHIFT | core.MOD_CTRL | core.MOD_ALT | core.MOD_LOGO);
 
     if (pressed and server.focused_layer == null) {
+        server.binding_kb = kb.wlr;
         var syms: [*c]const c.xkb_keysym_t = null;
         const n = c.xkb_state_key_get_syms(@ptrCast(@alignCast(kb.wlr.xkb_state)), keycode, &syms);
 
@@ -729,7 +756,7 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
             }
         }
 
-        if ((bind_mods & core.MOD_LOGO) != 0) {
+        if (bind_mods != 0) {
             if (tryBindings(server, syms, n, bind_mods, 0)) return;
             if (kb.wlr.keymap != null) {
                 var base: [*c]const c.xkb_keysym_t = null;

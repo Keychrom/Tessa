@@ -309,6 +309,7 @@ pub const Action = enum {
     column_width_maximize,
     center_column,
     enter_mode,
+    window_switcher,
 };
 
 pub const Binding = struct {
@@ -930,6 +931,7 @@ pub const Output = struct {
 pub const Client = struct {
     server: *Server,
     id: u64,
+    focus_seq: u64,
     xdg: *c.wlr_xdg_toplevel,
     output: *Output,
     frame: *c.wlr_scene_tree,
@@ -1401,6 +1403,12 @@ pub const Server = struct {
     focused_output: ?*Output,
     focused_layer: ?*LayerSurface,
     next_client_id: u64,
+    focus_seq_counter: u64,
+    /// Alt was held when the window switcher opened; release sends a commit.
+    switcher_alt_active: bool,
+    /// Keyboard that triggered the switcher and momentary binding source.
+    switcher_kb: ?*c.wlr_keyboard,
+    binding_kb: ?*c.wlr_keyboard,
     next_group_id: u32,
     panel_notify_owner_assigned: bool,
 

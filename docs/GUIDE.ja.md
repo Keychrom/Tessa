@@ -617,6 +617,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_position` | `top` | バーの位置: `top`、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
+| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（サムネイル）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | `16` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
@@ -649,6 +650,12 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 `media`、`volume`、`brightness`、`power_profile`、`battery`、`quick_actions`、
 `tray`、`calendar`、`power` をカンマ、空白、または `|` 区切りで指定します。
 `control_action` は最大 4 件まで繰り返せます。
+
+`window_switcher = snapshot`（既定）はスイッチャーを開いた時点でフォーカス
+出力を 1 回キャプチャし、ウィンドウ矩形で切り出してプレビューにします。
+`icons` はキャプチャせずアプリのモノグラムだけを表示し、`off` は
+スイッチャーを無効にします。詳細は
+[ウィンドウスイッチャー](#ウィンドウスイッチャー) を参照してください。
 
 `bar_height` や `bar_position` を変更すると、設定リロード時にバーの layer
 surface が作り直され、予約領域も更新されます。`left`/`right` では縦長の
@@ -756,6 +763,7 @@ EGL/GLES 依存自体を外せます。
 | `Super+Shift+G` | ワークスペースのタイルウィンドウをグループ化／解除 |
 | `Super+Escape` | `spawn swaylock` |
 | `Super+Tab` / `Super+Shift+Tab` | ウィンドウ巡回。グループのフォーカス中はタブ巡回 |
+| `Alt+Tab` / `Alt+Shift+Tab` | MRU 順のウィンドウスイッチャー。Alt を押したまま選択し、解放で確定 |
 | `Super+Ctrl+H/L` | master 比率を縮小/拡大 |
 | `Super+Alt+H/L` | フローティング幅を縮小/拡大 |
 | `Super+Alt+J/K` | フローティング高さを増減 |
@@ -782,7 +790,7 @@ bind = SUPER+SHIFT+r enter-mode resize
 `move-to-special`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
-`audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
+`audio`、`window-switcher`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
 `resize-width`、`resize-height`、`focus-column-*`、`move-column-*`、
 `move-window-up/down`、`consume-window`、`expel-window`、
 `column-width-cycle`、`column-width-cycle-back`、`column-width-set`、
@@ -1833,6 +1841,31 @@ Bluetooth は BlueZ を直接使い、ペアリングエージェントはプラ
 power-profiles-daemon が必要です。NetworkManager、BlueZ、
 power-profiles-daemon、logind は任意の実行時サービスで、ない場合は
 「利用不可」表示になりパネル自体は継続します。
+
+### ウィンドウスイッチャー
+
+`Alt+Tab` で、フォーカス出力の現在のワークスペースにウィンドウスイッチャーを
+開きます。並び順は最近使った順です。`Tab` / `Shift+Tab`、矢印キー、ホイールで
+選択を移動し、`Enter`、クリック、または Alt の解放で確定します。`Esc` は
+キャンセルです。`Alt+Shift+Tab` は反対側から始まります。既定のキーは
+`window-switcher` アクションで変更できます:
+
+```
+bind = ALT+Tab window-switcher
+bind = ALT+Shift+Tab window-switcher prev
+```
+
+`window_switcher` で表示方法を選びます:
+
+- `snapshot`（既定）: 出力を 1 回キャプチャし、各ウィンドウ矩形で切り出して
+  プレビュー表示します。フローティングや画面外のウィンドウはアプリの
+  モノグラムになります。
+- `icons`: キャプチャせず、アプリのモノグラムだけを表示します。
+- `off`: スイッチャーを無効化します（キーは何もしません）。
+
+Phase 1 ではフォーカス出力の現在のワークスペースだけが対象です。スナップ
+ショットは静的で、開いた時点の画面を切り出すためライブ更新はしません。
+`zwlr_screencopy` が必要です。IPC からは `tessa-ctl panel switcher` で開けます。
 
 ### 12.5 通知
 

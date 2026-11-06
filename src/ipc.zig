@@ -1136,7 +1136,7 @@ fn buildState(server: *Server, buf: []u8) usize {
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -1156,6 +1156,7 @@ fn buildState(server: *Server, buf: []u8) usize {
             @as(u8, if (cl.on_screen) 1 else 0),
             cl.scroll_column,
             @as(u8, @intCast(@min(scrolling.tileIndex(cl), 255))),
+            cl.focus_seq,
         });
         if (off > buf.len - 2048) break;
     }

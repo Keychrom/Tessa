@@ -587,6 +587,7 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
+| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（サムネイル）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
@@ -966,8 +967,9 @@ bind = SUPER+ALT+Right resize-width 30
 利用可能なアクションは `spawn`、`terminal`、`close`、`quit`、`workspace`、
 `move-to-workspace`、`focus`、`move`、`toggle-float`、`toggle-fullscreen`、
 `focus-next`、`focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、
-`tray`、`audio`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
-`resize-width`、`resize-height` です。
+`tray`、`audio`、`window-switcher`、`reload`、`ratio`、`toggle-layout`、
+`set-layout`、`resize-width`、`resize-height` です。`window-switcher` は
+省略可能な `prev` 引数を受け付けます（既定の `ALT+SHIFT+Tab` が使用）。
 
 ## ライブ確認と自動化
 
