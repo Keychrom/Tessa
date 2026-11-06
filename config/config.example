@@ -274,8 +274,9 @@ panel_style = classic
 # Names: wifi, bluetooth, focus, notifications, media, volume, brightness,
 # power_profile, battery, quick_actions, tray, calendar, power.
 control_features = all
-# Alt+Tab window switcher: snapshot (default) captures the output and crops
-# per-window thumbnails, icons shows app monograms only, off disables it.
+# Alt+Tab window switcher: snapshot (default) live-renders per-window GPU
+# previews for all outputs and workspaces, capped at 512 px on the long edge.
+# icons shows app monograms only, off disables the switcher.
 window_switcher = snapshot
 # Add a quick action (repeatable, up to four): Label | command.
 # control_action = Screen record | wf-recorder -f ~/Videos/record.mp4

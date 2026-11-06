@@ -16,7 +16,7 @@ pub const MAX_NOTIFICATIONS = 50;
 pub const MAX_TOASTS = 4;
 pub const MAX_MEDIA_ART = 128;
 pub const MAX_MEDIA_ART_BYTES = MAX_MEDIA_ART * MAX_MEDIA_ART * 4;
-pub const MAX_SWITCHER = 8;
+pub const MAX_SWITCHER = 12;
 pub const MAX_NOTIFICATION_ACTIONS = 4;
 pub const MAX_NOTIFICATION_ICON = 64;
 pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION_ICON * 4;
@@ -424,6 +424,8 @@ pub const WindowInfo = struct {
     visible: bool = true,
     on_screen: bool = false,
     focus_seq: u64 = 0,
+    identifier: [64]u8 = @splat(0),
+    identifier_len: usize = 0,
     x: i32 = 0,
     y: i32 = 0,
     w: i32 = 0,
@@ -438,6 +440,21 @@ pub const WindowInfo = struct {
     title_len: usize = 0,
 };
 
+pub const SWITCHER_BLUR = 32;
+
+pub const SwitcherThumb = struct {
+    data: ?[*]u8 = null,
+    len: usize = 0,
+    width: u32 = 0,
+    height: u32 = 0,
+    stride: u32 = 0,
+    format: u32 = 0,
+    version: u64 = 0,
+    ready: bool = false,
+    blur: [SWITCHER_BLUR * SWITCHER_BLUR * 4]u8 = @splat(0),
+    blur_version: u64 = 0,
+};
+
 pub const SwitcherEntry = struct {
     id: u64 = 0,
     ws: usize = 1,
@@ -447,6 +464,10 @@ pub const SwitcherEntry = struct {
     h: i32 = 0,
     focus_seq: u64 = 0,
     preview: bool = false,
+    identifier: [64]u8 = @splat(0),
+    identifier_len: usize = 0,
+    output_name: [64]u8 = @splat(0),
+    output_len: usize = 0,
     app_id: [64]u8 = @splat(0),
     app_len: usize = 0,
     title: [160]u8 = @splat(0),
@@ -989,6 +1010,7 @@ pub const Panel = struct {
     panel_style: PanelStyle = .classic,
     window_switcher: WindowSwitcher = .snapshot,
     switcher_entries: [MAX_SWITCHER]SwitcherEntry = undefined,
+    switcher_thumbs: [MAX_SWITCHER]SwitcherThumb = @splat(.{}),
     switcher_count: usize = 0,
     switcher_selected: usize = 0,
     switcher_alt_down: bool = false,
@@ -1211,6 +1233,12 @@ pub fn popoverFont() []const u8 {
 pub fn toastFont() []const u8 {
     if (g.toast_font_len > 0) return g.toast_font[0..g.toast_font_len];
     return g.font[0..g.font_len];
+}
+
+pub fn windowOnTarget(w: *const WindowInfo) bool {
+    if (g.target_name_len == 0) return true;
+    return w.output_len == g.target_name_len and
+        std.mem.eql(u8, w.output_name[0..w.output_len], g.target_name[0..g.target_name_len]);
 }
 
 pub fn nowMs() i64 {

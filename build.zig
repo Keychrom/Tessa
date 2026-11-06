@@ -80,6 +80,10 @@ pub fn build(b: *std.Build) void {
         .file = b.path("src/regex_shim.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
+    server_mod.addCSourceFile(.{
+        .file = b.path("src/preview_source.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
     if (shaders) {
         server_mod.addCSourceFile(.{
             .file = b.path("src/window_shader.c"),
@@ -158,6 +162,22 @@ pub fn build(b: *std.Build) void {
     });
     panel_mod.addCSourceFile(.{
         .file = b.path("protocol/wlr-screencopy-unstable-v1-client-protocol.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("protocol/ext-foreign-toplevel-list-v1-protocol.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("protocol/ext-image-capture-source-v1-protocol.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("protocol/ext-image-copy-capture-v1-protocol.c"),
+        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+    });
+    panel_mod.addCSourceFile(.{
+        .file = b.path("panel/preview.c"),
         .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
     });
     panel_mod.addCSourceFile(.{

@@ -65,6 +65,58 @@ pub fn init(server: *Server) void {
         server.ext_foreign_toplevel_list = @ptrCast(@alignCast(ext_foreign_raw));
         core.logInfo("ext-foreign-toplevel-list enabled", .{});
     }
+
+    const preview_mgr = c.wlr_ext_foreign_toplevel_image_capture_source_manager_v1_create(server.display, 1);
+    if (preview_mgr != null) {
+        server.preview_source_manager = @ptrCast(@alignCast(preview_mgr));
+        server.new_preview_source.notify = onNewPreviewSource;
+        c.wl_signal_add(&server.preview_source_manager.?.events.new_request, &server.new_preview_source);
+        server.preview_source_destroy.notify = onPreviewSourceManagerDestroy;
+        c.wl_signal_add(&server.preview_source_manager.?.events.destroy, &server.preview_source_destroy);
+        core.logInfo("foreign-toplevel image capture source enabled", .{});
+    }
+}
+
+fn onPreviewSourceManagerDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    _ = data;
+    const server: *Server = @fieldParentPtr("preview_source_destroy", listener.?);
+    c.wl_list_remove(&server.new_preview_source.link);
+    c.wl_list_remove(&server.preview_source_destroy.link);
+    server.preview_source_manager = null;
+}
+
+fn onPreviewSourceDestroyed(userdata: ?*anyopaque) callconv(.c) void {
+    const client: *Client = @ptrCast(@alignCast(userdata.?));
+    client.preview_source = null;
+}
+
+fn onNewPreviewSource(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("new_preview_source", listener.?);
+    const request: *c.wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request =
+        @ptrCast(@alignCast(data.?));
+
+    var source: ?*c.wlr_ext_image_capture_source_v1 = null;
+    var i: usize = 0;
+    while (i < server.clients.len) : (i += 1) {
+        const cl = server.clients[i] orelse continue;
+        if (cl.ext_foreign_toplevel == null or cl.ext_foreign_toplevel != request.toplevel_handle) continue;
+        if (cl.preview_source == null) {
+            cl.preview_source = c.tessa_preview_source_create(
+                tSurface(cl.xdg),
+                512,
+                c.wl_display_get_event_loop(server.display),
+                server.allocator,
+                server.renderer,
+                onPreviewSourceDestroyed,
+                cl,
+            );
+        }
+        source = cl.preview_source;
+        break;
+    }
+    if (source) |src| {
+        _ = c.wlr_ext_foreign_toplevel_image_capture_source_manager_v1_request_accept(request, src);
+    }
 }
 
 fn onActivationRequest(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
@@ -378,6 +430,11 @@ fn onDestroy(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     if (client.ext_foreign_toplevel) |handle| {
         client.ext_foreign_toplevel = null;
         c.wlr_ext_foreign_toplevel_handle_v1_destroy(handle);
+    }
+
+    if (client.preview_source) |source| {
+        // The source's destroy callback clears the client field.
+        c.tessa_preview_source_destroy(source);
     }
 
     c.wlr_scene_node_destroy(&client.frame.node);

@@ -831,17 +831,33 @@ output.
   views. Opening a popover or control center emits a `panel` event, which the
   panel process consumes like the `launcher` event.
 
-  The `switcher` overlay is the MRU task switcher. The panel keeps up to eight
-  visible windows of the focused workspace, sorted by the compositor's
-  `focus_seq` (sent in each `WIN` state line). In `snapshot` mode it requests a
-  single `zwlr_screencopy` frame of the target output after mapping a
-  transparent overlay, keeps the SHM buffer, and crops each card from the
-  window's logical rectangle (scaled by screenshot/output size). Floating,
-  off-screen, and failed-capture windows fall back to an app monogram; `icons`
-  skips capture and `off` disables the mode. Selection is local to the panel;
-  `Enter`, click, or the compositor's `switcher-commit` event focuses the
-  chosen window through the normal IPC `focus` command. `Tab`/arrows/Home/End
-  and the wheel cycle locally, and `Esc` cancels.
+  The `switcher` overlay is the MRU task switcher. The panel keeps the 12 most
+  recent mapped, non-scratchpad windows across **all outputs and workspaces**,
+  sorted by the compositor's `focus_seq` (sent in each `WIN` state line).
+  Entries include the foreign-toplevel identifier and output name.
+
+  In `snapshot` mode the compositor exposes
+  `ext_foreign_toplevel_image_capture_source_v1` and
+  `ext_image_copy_capture_v1`. On request it builds a private `wlr_scene` for
+  the toplevel with `wlr_scene_subsurface_tree_create`, creates a virtual
+  output, and renders that scene through a custom capture source
+  (`preview_source.c`). The output mode is capped at 512 px on the longest
+  edge and the output scale is chosen from the window's logical size, so 4K and
+  fractional-scale clients are rendered directly at thumbnail resolution
+  instead of being read back at full size. The panel binds
+  `ext_foreign_toplevel_list_v1`, matches `WIN` identifiers to handles, creates
+  one capture session per card, and attaches a 512 px-capped shm buffer. After
+  `ready` it requests the next frame immediately; the compositor only produces
+  one once the scene is damaged, giving damage-driven live updates. The panel
+  keeps a blurred 32x32 thumbnail backdrop per card.
+
+  `icons` skips capture and `off` disables the mode. If the capture globals are
+  unavailable, the panel falls back to one `zwlr_screencopy` frame of the
+  focused output and crops by window rectangles. Selection is local to the
+  panel; `Enter`, click, or the compositor's `switcher-commit` event sends the
+  IPC `activate` command, which switches the target output/workspace (including
+  named special workspaces) before focusing. `Tab`/arrows/Home/End and the
+  wheel cycle locally, and `Esc` cancels.
 
 The overlay fades/scales over 150 ms. It is destroyed only after the fade-out;
 destroying the layer surface lets the compositor restore toplevel focus. The

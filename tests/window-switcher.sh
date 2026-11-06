@@ -1,5 +1,5 @@
 #!/bin/sh
-# Verify the Phase 1 window switcher: Alt+Tab open/commit, Tab cycling,
+# Verify the Phase 2 window switcher: Alt+Tab open/commit, Tab cycling,
 # Escape cancel, and the off/icons/snapshot modes.
 # Requires wtype. Run from the repository root after building:
 #   sh tests/window-switcher.sh
@@ -38,6 +38,7 @@ trap cleanup EXIT INT TERM
 
 start_session() {
     mode=$1
+    outputs=${2:-1}
     runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-switcher.XXXXXX")
     chmod 700 "$runtime"
     cat > "$runtime/config" <<EOF
@@ -54,7 +55,7 @@ EOF
     export WAYLAND_DISPLAY=wayland-0
     export WLR_BACKENDS=headless
     export WLR_RENDERER=pixman
-    export WLR_HEADLESS_OUTPUTS=1
+    export WLR_HEADLESS_OUTPUTS=$outputs
     export PATH="$bin:$PATH"
     export TESSA_DEBUG=1
     export TESSA_PANEL_DEBUG=1
@@ -71,9 +72,9 @@ EOF
         fi
         sleep 0.1
     done
-    while ! grep -q "tessa-panel: bar surface:" "$runtime/tessa.log" 2>/dev/null; do
+    while [ "$(grep -c 'tessa-panel: bar surface:' "$runtime/tessa.log" 2>/dev/null || true)" -lt "$outputs" ]; do
         i=$((i + 1))
-        if [ "$i" -ge 150 ]; then
+        if [ "$i" -ge 200 ]; then
             echo "panel did not start" >&2
             cat "$runtime/tessa.log" >&2
             exit 1
@@ -92,6 +93,14 @@ stop_session() {
 
 focused() {
     "$bin/tessa-ctl" state | sed -n 's/^FOCUSED //p'
+}
+
+active_ws() {
+    "$bin/tessa-ctl" state | sed -n 's/^ACTIVE //p' | head -n 1
+}
+
+output_focused() {
+    "$bin/tessa-ctl" state | awk -v out="$1" '$1 == "OUT" && $2 == out { print $4 }'
 }
 
 spawn_three() {
@@ -119,15 +128,15 @@ mark=$(wc -l <"$runtime/tessa.log")
 wtype -M alt -k Tab -s 2000 -m alt &
 wpid=$!
 sleep 0.7
-grep -q "switcher: open windows=3 selected=1 previews=true" "$runtime/tessa.log" || fail "snapshot switcher did not open with previews"
+grep -q "switcher: open windows=3 selected=1 previews=true live=true" "$runtime/tessa.log" || fail "snapshot switcher did not open with live previews"
 wtype -k Tab
 sleep 0.2
 wtype -k Return
 wait "$wpid" || true
 sleep 0.4
 [ "$(focused)" = 1 ] || fail "Tab+Return should focus window 1, got $(focused)"
-grep -q "switcher: focus id=1" "$runtime/tessa.log" || fail "commit was not logged"
-grep -q "switcher: preview ready" "$runtime/tessa.log" || fail "snapshot capture did not complete"
+grep -q "switcher: activate id=1" "$runtime/tessa.log" || fail "commit was not logged"
+grep -q "switcher: thumbnail id=" "$runtime/tessa.log" || fail "live preview frames did not arrive"
 stop_session
 
 # --- Escape cancels without changing focus --------------------------------
@@ -153,7 +162,7 @@ mark=$(wc -l <"$runtime/tessa.log")
 wtype -M alt -k Tab -s 1600 -m alt &
 wpid=$!
 sleep 0.6
-grep -q "switcher: open windows=3 selected=1 previews=false" "$runtime/tessa.log" || fail "icons switcher did not open"
+grep -q "switcher: open windows=3 selected=1 previews=false live=false" "$runtime/tessa.log" || fail "icons switcher did not open"
 wtype -k Return
 wait "$wpid" || true
 sleep 0.4
@@ -170,6 +179,45 @@ if tail -n +$((mark + 1)) "$runtime/tessa.log" | grep -q "switcher: open"; then
     fail "switcher opened while window_switcher=off"
 fi
 [ "$(focused)" = 3 ] || fail "off mode changed focus to $(focused)"
+stop_session
+
+# --- other workspaces are listed and activation switches back ------------
+start_session snapshot
+"$bin/tessa-ctl" spawn foot -T WORKSPACE-A >/dev/null
+sleep 0.8
+"$bin/tessa-ctl" workspace 2 >/dev/null
+sleep 0.4
+"$bin/tessa-ctl" spawn foot -T WORKSPACE-B >/dev/null
+sleep 0.8
+"$bin/tessa-ctl" spawn foot -T WORKSPACE-C >/dev/null
+sleep 0.8
+"$bin/tessa-ctl" panel switcher
+sleep 1
+wtype -k End
+sleep 0.2
+wtype -k Return
+sleep 0.8
+[ "$(active_ws)" = 1 ] || fail "workspace activation did not switch to workspace 1 (got $(active_ws))"
+[ "$(focused)" = 1 ] || fail "workspace activation focused $(focused), expected 1"
+grep -q "switcher: activate id=1" "$runtime/tessa.log" || fail "cross-workspace activation was not logged"
+stop_session
+
+# --- another output is listed and activation focuses that output ---------
+start_session snapshot 2
+"$bin/tessa-ctl" workspace 1 HEADLESS-1 >/dev/null
+sleep 0.4
+"$bin/tessa-ctl" spawn foot -T OUTPUT-A >/dev/null
+sleep 0.8
+"$bin/tessa-ctl" workspace 1 HEADLESS-2 >/dev/null
+sleep 0.4
+"$bin/tessa-ctl" spawn foot -T OUTPUT-B >/dev/null
+sleep 0.8
+"$bin/tessa-ctl" panel switcher
+sleep 1
+wtype -k Return
+sleep 0.8
+[ "$(focused)" = 1 ] || fail "cross-output activation focused $(focused), expected 1"
+[ "$(output_focused HEADLESS-1)" = 1 ] || fail "HEADLESS-1 did not become the focused output"
 stop_session
 
 echo "window switcher test passed"

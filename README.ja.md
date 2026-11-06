@@ -311,9 +311,10 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
   - 通知履歴（50 件）、Focus/DND によるトースト抑制、クリア、通知アクション
   - 輝度（logind）と電源プロファイル（power-profiles-daemon）の操作。
     `control_features` でコントロールセンターの機能を個別にオン/オフ可能
-  - MRU 順のウィンドウスイッチャー（`Alt+Tab` / `Alt+Shift+Tab`）。1 回の
-    スクリーンキャプチャからウィンドウごとのプレビューを切り出し、アイコン
-    のみの表示、`Esc`／クリック／Alt 解放での確定に対応。
+  - 全出力・全ワークスペース対応の MRU ウィンドウスイッチャー
+    （`Alt+Tab` / `Alt+Shift+Tab`）。ウィンドウごとのライブ GPU プレビュー
+    （長辺 512 px）、カードごとのぼかし背景、選択先の出力／ワークスペースへ
+    の切り替え、アイコンのみの表示、`Esc`／クリック／Alt 解放での確定に対応。
     `window_switcher = snapshot|icons|off`
   - バーを上下左右の任意の端に配置（`bar_position = top|bottom|left|right`）。
     縦バーではバーとコントロールセンターも縦レイアウト

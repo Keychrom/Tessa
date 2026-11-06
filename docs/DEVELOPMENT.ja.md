@@ -521,12 +521,14 @@ sh tests/control-center.sh
 
 `tests/window-switcher.sh` は `foot` を 3 つ起動し、`wtype` で Alt を 2 秒
 押したまま `Alt+Tab` を送ります。MRU の並び（`windows=3 selected=1`）、
-snapshot モードの screencopy 完了（`previews=true`）、`Tab` + `Return` で
-次のウィンドウへフォーカスが移ること、Escape がフォーカスを変えずに
-キャンセルすることを確認します。続いて `icons` モードで確定を繰り返し、
-`window_switcher = off` ではオーバーレイが開かないことを検証します。
-2 つ目の仮想キーボードの空 modifier でスイッチャーが閉じてしまう回帰も
-このテストでカバーします。
+ライブキャプチャ（`live=true` と `switcher: thumbnail` ログ）、
+`Tab` + `Return` でのアクティベート、Escape のキャンセルを確認します。
+続いて `icons` モードで確定を繰り返し、`window_switcher = off` では
+オーバーレイが開かないことを検証します。さらに別ワークスペースの
+ウィンドウが一覧に出て確定でそのワークスペースへ戻ること、2 出力の
+セッションで別出力のウィンドウを確定するとフォーカス出力が移ることを
+確認します。2 つ目の仮想キーボードの空 modifier でスイッチャーが閉じて
+しまう回帰もカバーします。
 
 ```sh
 sh tests/window-switcher.sh

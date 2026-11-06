@@ -1011,7 +1011,7 @@ fn groupSummary() GroupSummary {
     var wi: usize = 0;
     while (wi < g.window_count) : (wi += 1) {
         const w = &g.windows[wi];
-        if (w.ws != g.active_ws or w.group_id == 0) continue;
+        if (!m.windowOnTarget(w) or w.ws != g.active_ws or w.group_id == 0) continue;
         if (w.group_active) summary.active = w.group_id;
         var seen = false;
         var ii: usize = 0;
@@ -1372,7 +1372,7 @@ fn drawBarVertical(s: *m.Surface) void {
         var index: usize = 0;
         while (index < g.window_count) : (index += 1) {
             const w = &g.windows[index];
-            if (!w.visible or w.ws != g.active_ws) continue;
+            if (!m.windowOnTarget(w) or !w.visible or w.ws != g.active_ws) continue;
             if (shown >= 5) break;
             const label = if (w.title_len > 0)
                 w.title[0..w.title_len]
@@ -1625,7 +1625,7 @@ pub fn drawBar(s: *m.Surface) void {
     if (g.show_chips) {
         while (index < g.window_count) : (index += 1) {
             const w = &g.windows[index];
-            if (!w.visible) continue;
+            if (!m.windowOnTarget(w) or !w.visible) continue;
             if (w.ws != g.active_ws) continue;
             const label = if (w.title_len > 0)
                 w.title[0..w.title_len]
@@ -4491,8 +4491,73 @@ fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: 
         1, 1, 1, 0.035 * alpha,
     });
     var drew_preview = false;
-    if (args.preview) |surface| {
-        if (entry.preview) {
+    if (!drew_preview and args.index < g.switcher_thumbs.len) {
+        const thumb = &g.switcher_thumbs[args.index];
+        if (thumb.ready and thumb.data != null and thumb.width > 0 and thumb.height > 0 and thumb.stride >= thumb.width * 4) {
+            const fmt: c.cairo_format_t = if (thumb.format == c.WL_SHM_FORMAT_XRGB8888)
+                c.CAIRO_FORMAT_RGB24
+            else
+                c.CAIRO_FORMAT_ARGB32;
+            const image = c.cairo_image_surface_create_for_data(
+                @ptrCast(thumb.data.?),
+                fmt,
+                @intCast(thumb.width),
+                @intCast(thumb.height),
+                @intCast(thumb.stride),
+            );
+            if (c.cairo_surface_status(image) == c.CAIRO_STATUS_SUCCESS) {
+                c.cairo_surface_mark_dirty(image);
+                const tw: f64 = @floatFromInt(thumb.width);
+                const th: f64 = @floatFromInt(thumb.height);
+
+                if (thumb.blur_version == thumb.version) {
+                    const bs: i32 = m.SWITCHER_BLUR;
+                    const blur = c.cairo_image_surface_create_for_data(
+                        @ptrCast(&thumb.blur),
+                        c.CAIRO_FORMAT_ARGB32,
+                        bs,
+                        bs,
+                        bs * 4,
+                    );
+                    if (c.cairo_surface_status(blur) == c.CAIRO_STATUS_SUCCESS) {
+                        c.cairo_surface_mark_dirty(blur);
+                        const bfit = @max(preview_w / @as(f64, @floatFromInt(bs)), preview_h / @as(f64, @floatFromInt(bs)));
+                        const bw = @as(f64, @floatFromInt(bs)) * bfit;
+                        const bh = bw;
+                        c.cairo_save(cr);
+                        c.cairo_translate(cr, preview_x + (preview_w - bw) / 2.0, preview_y + (preview_h - bh) / 2.0);
+                        c.cairo_scale(cr, bfit, bfit);
+                        c.cairo_set_source_surface(cr, blur, 0, 0);
+                        c.cairo_paint_with_alpha(cr, alpha * 0.9);
+                        c.cairo_restore(cr);
+                        fillRound(cr, preview_x, preview_y, preview_w, preview_h, 10, .{
+                            0.02, 0.03, 0.05, 0.24 * alpha,
+                        });
+                    }
+                    c.cairo_surface_destroy(blur);
+                }
+
+                const fit = @min(preview_w / tw, preview_h / th) * 0.94;
+                const dw = tw * fit;
+                const dh = th * fit;
+                const tdx = preview_x + (preview_w - dw) / 2.0;
+                const tdy = preview_y + (preview_h - dh) / 2.0;
+                c.cairo_save(cr);
+                c.cairo_rectangle(cr, tdx, tdy, dw, dh);
+                c.cairo_clip(cr);
+                c.cairo_translate(cr, tdx, tdy);
+                c.cairo_scale(cr, fit, fit);
+                c.cairo_set_source_surface(cr, image, 0, 0);
+                c.cairo_paint_with_alpha(cr, alpha);
+                c.cairo_restore(cr);
+                drew_preview = true;
+            }
+            c.cairo_surface_destroy(image);
+        }
+    }
+    if (!drew_preview) {
+        if (args.preview) |surface| {
+            if (entry.preview) {
             const src_x = @as(f64, @floatFromInt(entry.x)) * args.scale_x;
             const src_y = @as(f64, @floatFromInt(entry.y)) * args.scale_y;
             const src_w = @max(1.0, @as(f64, @floatFromInt(entry.w)) * args.scale_x);
@@ -4512,6 +4577,7 @@ fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: 
             c.cairo_paint_with_alpha(cr, alpha);
             c.cairo_restore(cr);
             drew_preview = true;
+            }
         }
     }
     if (!drew_preview) {
@@ -4551,12 +4617,67 @@ fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: 
     _ = drawText(cr, title, pad, card_h - 58.0, fam, "Semi-Bold", if (args.selected) 12.2 else 10.8, .{
         fg[0], fg[1], fg[2], 0.95 * alpha,
     }, card_w - pad * 2.0, 0);
-    _ = drawText(cr, if (app.len > 0) app else "window", pad, card_h - 35.0, fam, "Regular", 8.2, .{
+    var sub_buf: [96]u8 = undefined;
+    const output = entry.output_name[0..entry.output_len];
+    const sub = if (app.len > 0 and output.len > 0)
+        std.fmt.bufPrint(&sub_buf, "{s} · {s}", .{ app, output }) catch app
+    else if (app.len > 0)
+        app
+    else if (output.len > 0)
+        output
+    else
+        "window";
+    _ = drawText(cr, sub, pad, card_h - 35.0, fam, "Regular", 8.2, .{
         fg[0], fg[1], fg[2], 0.48 * alpha,
     }, card_w - pad * 2.0, 0);
 
     c.cairo_restore(cr);
     addOverlayHit(x, y, card_w, card_h, .{ .kind = .switcher_card, .value = args.index });
+}
+
+pub fn updateSwitcherBlur(t: *m.SwitcherThumb) void {
+    if (!t.ready or t.data == null or t.blur_version == t.version) return;
+    if (t.width == 0 or t.height == 0 or t.stride < t.width * 4) return;
+    const S: usize = m.SWITCHER_BLUR;
+    const data = t.data.?;
+    const w: usize = t.width;
+    const h: usize = t.height;
+    const stride: usize = t.stride;
+    var by: usize = 0;
+    while (by < S) : (by += 1) {
+        const y0 = (by * h) / S;
+        var y1 = ((by + 1) * h) / S;
+        if (y1 <= y0) y1 = y0 + 1;
+        var bx: usize = 0;
+        while (bx < S) : (bx += 1) {
+            const x0 = (bx * w) / S;
+            var x1 = ((bx + 1) * w) / S;
+            if (x1 <= x0) x1 = x0 + 1;
+            var sb: u64 = 0;
+            var sg: u64 = 0;
+            var sr: u64 = 0;
+            var n: u64 = 0;
+            var y = y0;
+            while (y < y1 and y < h) : (y += 1) {
+                const row = data + y * stride;
+                var x = x0;
+                while (x < x1 and x < w) : (x += 1) {
+                    const off = x * 4;
+                    sb += row[off];
+                    sg += row[off + 1];
+                    sr += row[off + 2];
+                    n += 1;
+                }
+            }
+            if (n == 0) n = 1;
+            const out = (by * S + bx) * 4;
+            t.blur[out] = @intCast(sb / n);
+            t.blur[out + 1] = @intCast(sg / n);
+            t.blur[out + 2] = @intCast(sr / n);
+            t.blur[out + 3] = 255;
+        }
+    }
+    t.blur_version = t.version;
 }
 
 fn upperAscii(dest: *[64]u8, src: []const u8) []const u8 {

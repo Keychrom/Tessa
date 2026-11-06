@@ -87,10 +87,12 @@ capture protocol.
       monogram fallback for floating/off-screen windows, `Tab`/arrows/wheel
       cycling, `Enter`/click/Alt-release commit, `Esc` cancel, and
       `window_switcher = snapshot|icons|off`.
-- [ ] Phase 2 live thumbnails via `ext-image-copy-capture` (or per-window
-      screencopy) when the protocol is available.
-- [ ] Cross-workspace and all-output entries, pinned/filtered views, and a
-      searchable switcher.
+- [x] Phase 2: live per-window GPU previews over `ext-image-copy-capture`,
+      capped at 512 px on the long edge for 4K/fractional scale; all outputs
+      and workspaces with activation across them; per-card blurred preview
+      backdrops; damage-driven updates. Tessa exposes the capture-source
+      globals and keeps a per-window offscreen scene.
+- [ ] Pinned/filtered views and a searchable switcher; scratchpad inclusion.
 
 ## Rendering and game features
 

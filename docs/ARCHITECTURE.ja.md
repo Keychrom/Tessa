@@ -230,14 +230,27 @@ layer サーフェスは `output.zig` が overlay → top → bottom → backgro
 サーフェス、キーボードのワークスペース操作には、コンポジタが保持する
 フォーカス中の出力が使われます。
 
-ウィンドウスイッチャーも同じ overlay を使います。パネルはフォーカス中の
-ワークスペースの可視ウィンドウを `focus_seq`（`WIN` 状態行）で MRU 順に
-並べ、`snapshot` では透明オーバーレイを map した後に `zwlr_screencopy` で
-出力を 1 回取得し、ウィンドウの論理矩形から各カードを切り出します。
-フローティング/画面外/取得失敗時はアプリのモノグラムにフォールバックし、
-`icons` はキャプチャせず、`off` は無効化します。選択はパネル内で完結し、
-`Enter`、クリック、またはコンポジタの `switcher-commit` イベントで IPC の
-`focus` を送ります。
+ウィンドウスイッチャーも同じ overlay を使います。パネルは全出力・全
+ワークスペースのマップ済みウィンドウ（スクラッチパッドを除く）を
+`focus_seq`（`WIN` 状態行）で MRU 順に最大 12 件保持し、識別子と出力名も
+一緒に受け取ります。`snapshot` ではコンポジタが
+`ext_foreign_toplevel_image_capture_source_v1` と
+`ext_image_copy_capture_v1` を公開し、リクエストされた toplevel について
+`wlr_scene_subsurface_tree_create` で専用の `wlr_scene` を作り、仮想出力を
+長辺 512 px・ウィンドウの論理サイズに合わせた出力スケールで描画します
+（`preview_source.c`）。これにより 4K/fractional scale でもフル解像度の
+読み戻しは発生しません。パネルは `ext_foreign_toplevel_list_v1` をバインドし、
+`WIN` の識別子とハンドルを対応付け、カードごとにキャプチャセッションと
+512 px 上限の shm バッファを作ります。`ready` 後に次フレームを要求し、
+コンポジタはシーンにダメージがあるまで描画しないため、ダメージ駆動の
+ライブ更新になります。カードごとに 32x32 のぼかし背景も保持します。
+
+`icons` はキャプチャせず、`off` は無効化します。キャプチャ用グローバルが
+ない場合は、フォーカス出力の `zwlr_screencopy` 1 フレームをウィンドウ矩形で
+切り出す方式にフォールバックします。選択はパネル内で完結し、`Enter`、
+クリック、またはコンポジタの `switcher-commit` イベントで IPC の
+`activate` を送ります。`activate` は対象の出力・ワークスペース（名前付き
+特殊ワークスペースを含む）へ切り替えてからフォーカスします。
 
 キーボードフォーカスは `EXCLUSIVE` layer の map 時に取得します
 （`keyboard_interactive == EXCLUSIVE` かつ layer >= top）。`ON_DEMAND` の

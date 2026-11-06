@@ -583,8 +583,8 @@ fn scopeForCommand(cmd: []const u8) u16 {
     {
         return types.EXT_PERM_LAYOUT;
     }
-    if (std.mem.eql(u8, cmd, "focus") or std.mem.eql(u8, cmd, "close") or
-        std.mem.eql(u8, cmd, "urgent") or std.mem.eql(u8, cmd, "float") or
+    if (std.mem.eql(u8, cmd, "focus") or std.mem.eql(u8, cmd, "activate") or
+        std.mem.eql(u8, cmd, "close") or std.mem.eql(u8, cmd, "urgent") or std.mem.eql(u8, cmd, "float") or
         std.mem.eql(u8, cmd, "swap") or std.mem.eql(u8, cmd, "reorder") or
         std.mem.eql(u8, cmd, "resize") or std.mem.eql(u8, cmd, "toggle-group") or
         std.mem.eql(u8, cmd, "group-next") or std.mem.eql(u8, cmd, "group-prev") or
@@ -745,6 +745,25 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         if (start + 1 < n) {
             const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
             if (findClient(server, id)) |target| {
+                layout.focusClient(server, target);
+                broadcastState(server);
+            }
+        }
+    } else if (std.mem.eql(u8, cmd, "activate")) {
+        // Window switcher commit: switch the target output/workspace first,
+        // then focus. Unlike "focus", this can cross workspaces and outputs.
+        if (start + 1 < n) {
+            const id = std.fmt.parseInt(u64, toks[start + 1], 10) catch return;
+            if (findClient(server, id)) |target| {
+                if (target.special_workspace_len > 0) {
+                    server.focused_output = target.output;
+                    const name = target.special_workspace[0..target.special_workspace_len];
+                    const showing = target.output.special_workspace_len > 0 and
+                        std.mem.eql(u8, target.output.special_workspace[0..target.output.special_workspace_len], name);
+                    if (!showing) layout.toggleSpecial(server, name);
+                } else if (target.ws != target.output.active_ws) {
+                    layout.switchWorkspaceOnOutput(server, target.output, target.ws);
+                }
                 layout.focusClient(server, target);
                 broadcastState(server);
             }
@@ -1133,10 +1152,15 @@ fn buildState(server: *Server, buf: []u8) usize {
 
         var app_buf: [512]u8 = undefined;
         var title_buf: [1024]u8 = undefined;
+        var ident_buf: [128]u8 = undefined;
         const app = escape(&app_buf, cl.app_id[0..cl.app_id_len]);
         const title = escape(&title_buf, cl.title[0..cl.title_len]);
+        const ident = if (cl.ext_foreign_toplevel) |h|
+            if (h.identifier != null) escape(&ident_buf, std.mem.span(h.identifier)) else ""
+        else
+            "";
 
-        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\n", .{
+        append(buf, &off, "WIN\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\t{s}\t{s}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{d}\t{s}\n", .{
             cl.id,
             cl.ws,
             @as(u8, if (server.focused == cl) 1 else 0),
@@ -1157,6 +1181,7 @@ fn buildState(server: *Server, buf: []u8) usize {
             cl.scroll_column,
             @as(u8, @intCast(@min(scrolling.tileIndex(cl), 255))),
             cl.focus_seq,
+            ident,
         });
         if (off > buf.len - 2048) break;
     }

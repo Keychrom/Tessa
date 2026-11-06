@@ -298,9 +298,11 @@ Highlights include:
     notification actions
   - brightness (logind) and power-profile (power-profiles-daemon) controls;
     `control_features` gates each control-center feature independently
-  - MRU window switcher (`Alt+Tab`, `Alt+Shift+Tab`) with per-window snapshot
-    previews cropped from one screencopy, icon-only mode, and `Esc`/click/
-    release-to-commit; `window_switcher = snapshot|icons|off`
+  - MRU window switcher (`Alt+Tab`, `Alt+Shift+Tab`) across all outputs and
+    workspaces: live GPU-rendered per-window previews capped at 512 px, blurred
+    per-card backdrops, switching to the selected output/workspace, icon-only
+    mode, and `Esc`/click/Alt-release commit; `window_switcher =
+    snapshot|icons|off`
   - bar placement on any edge (`bar_position = top|bottom|left|right`), with
     vertical layouts for the bar and control center
   - MPRIS media chip and controls (`Super+M`), local album artwork, progress,

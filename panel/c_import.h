@@ -10,10 +10,14 @@
 #include <text-input-client-protocol.h>
 #include <wlr-data-control-unstable-v1-client-protocol.h>
 #include <wlr-screencopy-unstable-v1-client-protocol.h>
+#include <ext-foreign-toplevel-list-v1-client-protocol.h>
+#include <ext-image-capture-source-v1-client-protocol.h>
+#include <ext-image-copy-capture-v1-client-protocol.h>
 
 #include <cairo/cairo.h>
 #include "text.h"
 #include "gpu.h"
+#include "preview.h"
 
 #include <xkbcommon/xkbcommon.h>
 

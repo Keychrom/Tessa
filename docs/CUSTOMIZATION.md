@@ -585,7 +585,7 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
-| `window_switcher` | `snapshot` | Alt+Tab switcher: `snapshot` thumbnails, `icons`, or `off` |
+| `window_switcher` | `snapshot` | Alt+Tab switcher: live `snapshot` previews, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | distance from the chosen edge (0–64) |
 | `bar_side_margin` | inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |

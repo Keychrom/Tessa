@@ -617,7 +617,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_position` | `top` | バーの位置: `top`、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
-| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（サムネイル）、`icons`、`off` |
+| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（ライブプレビュー）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | `16` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
@@ -651,10 +651,9 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 `tray`、`calendar`、`power` をカンマ、空白、または `|` 区切りで指定します。
 `control_action` は最大 4 件まで繰り返せます。
 
-`window_switcher = snapshot`（既定）はスイッチャーを開いた時点でフォーカス
-出力を 1 回キャプチャし、ウィンドウ矩形で切り出してプレビューにします。
-`icons` はキャプチャせずアプリのモノグラムだけを表示し、`off` は
-スイッチャーを無効にします。詳細は
+`window_switcher = snapshot`（既定）は全出力・全ワークスペースの
+ウィンドウをライブでプレビューします。`icons` はアプリのモノグラムだけ、
+`off` はスイッチャーを無効にします。詳細は
 [ウィンドウスイッチャー](#ウィンドウスイッチャー) を参照してください。
 
 `bar_height` や `bar_position` を変更すると、設定リロード時にバーの layer
@@ -1844,11 +1843,13 @@ power-profiles-daemon、logind は任意の実行時サービスで、ない場�
 
 ### ウィンドウスイッチャー
 
-`Alt+Tab` で、フォーカス出力の現在のワークスペースにウィンドウスイッチャーを
-開きます。並び順は最近使った順です。`Tab` / `Shift+Tab`、矢印キー、ホイールで
-選択を移動し、`Enter`、クリック、または Alt の解放で確定します。`Esc` は
-キャンセルです。`Alt+Shift+Tab` は反対側から始まります。既定のキーは
-`window-switcher` アクションで変更できます:
+`Alt+Tab` で、**全出力・全ワークスペース**のウィンドウを最近使った順に
+表示します。`Tab` / `Shift+Tab`、矢印キー、ホイールで選択を移動し、`Enter`、
+クリック、または Alt の解放で確定します。`Esc` はキャンセルです。
+`Alt+Shift+Tab` は反対側から始まります。別のワークスペースや出力の
+ウィンドウを確定すると、その場所へ切り替えてフォーカスします。名前付き
+特殊ワークスペースも復元します。スクラッチパッドのウィンドウは対象外です。
+既定のキーは `window-switcher` アクションで変更できます:
 
 ```
 bind = ALT+Tab window-switcher
@@ -1857,15 +1858,20 @@ bind = ALT+Shift+Tab window-switcher prev
 
 `window_switcher` で表示方法を選びます:
 
-- `snapshot`（既定）: 出力を 1 回キャプチャし、各ウィンドウ矩形で切り出して
-  プレビュー表示します。フローティングや画面外のウィンドウはアプリの
-  モノグラムになります。
+- `snapshot`（既定）: 各ウィンドウを専用のオフスクリーン GPU シーンへ
+  ライブ描画し、サブサーフェスも含めて `ext-image-copy-capture` で
+  パネルへ転送します。ウィンドウのダメージに応じて更新され、長辺 512 px
+  に制限されるため、4K や fractional scale でもフル解像度の読み戻しは
+  発生しません。フローティングや非表示ワークスペースのウィンドウも
+  プレビューされます。各カードにはプレビューのぼかし背景を描きます。
 - `icons`: キャプチャせず、アプリのモノグラムだけを表示します。
 - `off`: スイッチャーを無効化します（キーは何もしません）。
 
-Phase 1 ではフォーカス出力の現在のワークスペースだけが対象です。スナップ
-ショットは静的で、開いた時点の画面を切り出すためライブ更新はしません。
-`zwlr_screencopy` が必要です。IPC からは `tessa-ctl panel switcher` で開けます。
+直近 12 ウィンドウまで保持します。`ext-foreign-toplevel-list-v1`、
+`ext-image-capture-source-v1`、`ext-image-copy-capture-v1` が必要ですが、
+Tessa が提供します。利用できない場合は、出力を 1 回キャプチャして
+ウィンドウ矩形で切り出す方式にフォールバックします。IPC からは
+`tessa-ctl panel switcher` で開けます。
 
 ### 12.5 通知
 

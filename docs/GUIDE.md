@@ -606,7 +606,7 @@ stagger, and slides its selection marker between results.
 | `bar_position` | `top` | Bar edge: `top`, `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
-| `window_switcher` | `snapshot` | Alt+Tab switcher: `snapshot` thumbnails, `icons`, or `off` |
+| `window_switcher` | `snapshot` | Alt+Tab switcher: live `snapshot` previews, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
 | `bar_side_margin` | `16` | Inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
@@ -639,10 +639,9 @@ stagger, and slides its selection marker between results.
 `tray`, `calendar`, and `power`, separated by commas, spaces, or `|`.
 `control_action` is repeatable up to four times.
 
-`window_switcher = snapshot` (default) captures the focused output when the
-switcher opens and crops per-window previews from that frame. `icons` skips the
-capture and shows app monograms; `off` disables the switcher. See
-[Window switcher](#window-switcher).
+`window_switcher = snapshot` (default) renders live per-window previews for
+all outputs and workspaces. `icons` shows app monograms; `off` disables the
+switcher. See [Window switcher](#window-switcher).
 
 Changing bar geometry or `bar_position` recreates the bar layer surface and
 updates its exclusive zone. On `left`/`right` the bar becomes a vertical strip:
@@ -1825,11 +1824,13 @@ shows an unavailable state instead of failing the panel.
 
 ### Window switcher
 
-`Alt+Tab` opens the window switcher on the focused output's current workspace.
-Entries are ordered most-recently-used first. `Tab` / `Shift+Tab`, the arrow
+`Alt+Tab` opens the task switcher with **all windows on every output and
+workspace**, ordered most-recently-used first. `Tab` / `Shift+Tab`, the arrow
 keys, and the wheel move the selection; `Enter`, a click, or releasing Alt
-commits; `Esc` cancels. `Alt+Shift+Tab` starts from the other end. The defaults
-can be overridden with the `window-switcher` action:
+commits; `Esc` cancels. `Alt+Shift+Tab` starts from the other end. Committing a
+window on another workspace or output switches there, then focuses it. Named
+special workspaces are restored too; scratchpad windows are omitted. The
+defaults can be overridden with the `window-switcher` action:
 
 ```
 bind = ALT+Tab window-switcher
@@ -1838,14 +1839,21 @@ bind = ALT+Shift+Tab window-switcher prev
 
 `window_switcher` selects the presentation:
 
-- `snapshot` (default): captures the output once, then crops the frame by each
-  window rectangle. Floating and off-screen windows use an app monogram.
-- `icons`: app monograms only, without a screen capture.
+- `snapshot` (default): each mapped window is rendered live into a private
+  offscreen GPU scene, including subsurfaces, and copied into the panel over
+  `ext-image-copy-capture`. Previews update when the window is damaged and are
+  capped at 512 px on the longest edge, so 4K and fractional-scale windows are
+  never read back at full resolution. Floating and hidden-workspace windows
+  get previews too. Each card draws a blurred thumbnail backdrop behind the
+  sharp preview.
+- `icons`: app monograms only, without capture.
 - `off`: the binding does nothing.
 
-Phase 1 is limited to the focused output and current workspace. Snapshots are
-static and show the screen as it was when the switcher opened; they need
-`zwlr_screencopy`. `tessa-ctl panel switcher` opens the switcher from IPC.
+The switcher keeps the 12 most recent windows. It requires the
+`ext-foreign-toplevel-list-v1`, `ext-image-capture-source-v1`, and
+`ext-image-copy-capture-v1` globals, which Tessa provides. If they are
+unavailable, it falls back to a single screencopy frame cropped by window
+rectangles. `tessa-ctl panel switcher` opens it from IPC.
 
 ### Notifications
 

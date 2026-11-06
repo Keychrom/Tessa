@@ -587,7 +587,7 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
-| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（サムネイル）、`icons`、`off` |
+| `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（ライブプレビュー）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |

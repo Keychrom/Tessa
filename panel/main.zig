@@ -39,6 +39,25 @@ extern fn tessa_system_bt_agent_reply(code: c_int, text: [*:0]const u8) void;
 extern fn tessa_system_set_brightness(percent: c_int) void;
 extern fn tessa_system_set_profile(name: [*:0]const u8) void;
 
+extern fn tessa_preview_available() c_int;
+extern fn tessa_preview_start(client_id: u64, identifier: [*:0]const u8) c_int;
+extern fn tessa_preview_stop_all() void;
+extern fn tessa_preview_init(
+    display: ?*c.wl_display,
+    shm: ?*c.wl_shm,
+    list: ?*c.ext_foreign_toplevel_list_v1,
+    source_mgr: ?*c.ext_foreign_toplevel_image_capture_source_manager_v1,
+    capture_mgr: ?*c.ext_image_copy_capture_manager_v1,
+    frame_cb: *const fn (u64, ?*const anyopaque, u32, u32, u32, u32, ?*anyopaque) callconv(.c) void,
+    gone_cb: *const fn (u64, ?*anyopaque) callconv(.c) void,
+    userdata: ?*anyopaque,
+) void;
+
+var preview_list: ?*c.ext_foreign_toplevel_list_v1 = null;
+var preview_source_mgr: ?*c.ext_foreign_toplevel_image_capture_source_manager_v1 = null;
+var preview_capture_mgr: ?*c.ext_image_copy_capture_manager_v1 = null;
+var preview_ready = false;
+
 var registry_listener: c.wl_registry_listener = undefined;
 var seat_listener: c.wl_seat_listener = undefined;
 var keyboard_listener: c.wl_keyboard_listener = undefined;
@@ -86,6 +105,10 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
 fn destroyOverlay() void {
     const s = g.overlay orelse return;
     if (g.overlay_mode == .screenshot or g.overlay_mode == .switcher) freeScreenshot();
+    if (g.overlay_mode == .switcher) {
+        if (preview_ready) tessa_preview_stop_all();
+        clearSwitcherThumbs();
+    }
     g.screenshot_for_switcher = false;
     g.overlay = null;
     g.overlay_mode = .none;
@@ -757,6 +780,111 @@ fn runModuleAction(index: usize) void {
     closeOverlay();
 }
 
+fn clearSwitcherThumbs() void {
+    var i: usize = 0;
+    while (i < g.switcher_thumbs.len) : (i += 1) {
+        if (g.switcher_thumbs[i].data) |data| c.free(data);
+        g.switcher_thumbs[i] = .{};
+    }
+}
+
+fn switcherEntryIndex(id: u64) ?usize {
+    var i: usize = 0;
+    while (i < g.switcher_count) : (i += 1) {
+        if (g.switcher_entries[i].id == id) return i;
+    }
+    return null;
+}
+
+fn onPreviewFrame(
+    client_id: u64,
+    data: ?*const anyopaque,
+    width: u32,
+    height: u32,
+    stride: u32,
+    format: u32,
+    userdata: ?*anyopaque,
+) callconv(.c) void {
+    _ = userdata;
+    if (!preview_ready or g.overlay_mode != .switcher) return;
+    if (data == null or width == 0 or height == 0 or stride < width * 4) return;
+    const idx = switcherEntryIndex(client_id) orelse return;
+    const len: usize = @as(usize, stride) * @as(usize, height);
+    const copy = c.malloc(len) orelse return;
+    const dst: [*]u8 = @ptrCast(copy);
+    const src: [*]const u8 = @ptrCast(data.?);
+    @memcpy(dst[0..len], src[0..len]);
+
+    var out_format = format;
+    if (format == 0x34325258) {
+        out_format = c.WL_SHM_FORMAT_XRGB8888;
+    } else if (format == 0x34325241) {
+        out_format = c.WL_SHM_FORMAT_ARGB8888;
+    }
+    const swap = format == c.WL_SHM_FORMAT_XBGR8888 or format == c.WL_SHM_FORMAT_ABGR8888;
+    if (swap) {
+        var y: usize = 0;
+        while (y < height) : (y += 1) {
+            const row = dst + y * stride;
+            var x: usize = 0;
+            while (x < width) : (x += 1) {
+                const off = x * 4;
+                const tmp = row[off];
+                row[off] = row[off + 2];
+                row[off + 2] = tmp;
+            }
+        }
+        out_format = if (format == c.WL_SHM_FORMAT_XBGR8888) c.WL_SHM_FORMAT_XRGB8888 else c.WL_SHM_FORMAT_ARGB8888;
+    }
+
+    const thumb = &g.switcher_thumbs[idx];
+    if (thumb.data) |old| c.free(old);
+    thumb.* = .{
+        .data = dst,
+        .len = len,
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .format = out_format,
+        .version = thumb.version +% 1,
+        .ready = true,
+        .blur_version = thumb.blur_version,
+    };
+    draw.updateSwitcherBlur(thumb);
+    if (thumb.version == 1) {
+        logDebug("switcher: thumbnail id={d} {d}x{d}", .{ client_id, width, height });
+    }
+    g.overlay_content_dirty = true;
+    refreshOverlay();
+}
+
+fn onPreviewGone(client_id: u64, userdata: ?*anyopaque) callconv(.c) void {
+    _ = userdata;
+    const idx = switcherEntryIndex(client_id) orelse return;
+    const thumb = &g.switcher_thumbs[idx];
+    if (thumb.data) |data| c.free(data);
+    const version = thumb.version;
+    thumb.* = .{ .version = version +% 1 };
+    g.overlay_content_dirty = true;
+    refreshOverlay();
+}
+
+fn startSwitcherPreviews() bool {
+    if (g.window_switcher != .snapshot or !preview_ready) return false;
+    if (tessa_preview_available() == 0) return false;
+    var started = false;
+    var i: usize = 0;
+    while (i < g.switcher_count) : (i += 1) {
+        const entry = &g.switcher_entries[i];
+        if (entry.identifier_len == 0) continue;
+        var id_buf: [65]u8 = @splat(0);
+        const n = @min(entry.identifier_len, entry.identifier.len);
+        @memcpy(id_buf[0..n], entry.identifier[0..n]);
+        if (tessa_preview_start(entry.id, @ptrCast(&id_buf)) != 0) started = true;
+    }
+    return started;
+}
+
 fn currentAltDown() bool {
     const state = g.xkb_state orelse return false;
     return c.xkb_state_mod_name_is_active(state, "Mod1", c.XKB_STATE_MODS_EFFECTIVE) != 0;
@@ -765,10 +893,16 @@ fn currentAltDown() bool {
 fn buildSwitcherEntries() void {
     g.switcher_count = 0;
     var wi: usize = 0;
-    while (wi < g.window_count and g.switcher_count < m.MAX_SWITCHER) : (wi += 1) {
+    while (wi < g.window_count) : (wi += 1) {
         const w = &g.windows[wi];
-        if (!w.visible or w.scratchpad or w.ws != g.active_ws) continue;
+        if (w.scratchpad) continue;
         if (w.id == 0 or w.w <= 0 or w.h <= 0) continue;
+        if (g.switcher_count >= m.MAX_SWITCHER) {
+            // Keep the most recent windows when more than the deck capacity
+            // are mapped across outputs and workspaces.
+            if (w.focus_seq <= g.switcher_entries[m.MAX_SWITCHER - 1].focus_seq) continue;
+            g.switcher_count -= 1;
+        }
         const entry = &g.switcher_entries[g.switcher_count];
         entry.* = std.mem.zeroes(m.SwitcherEntry);
         entry.id = w.id;
@@ -778,9 +912,11 @@ fn buildSwitcherEntries() void {
         entry.w = w.w;
         entry.h = w.h;
         entry.focus_seq = w.focus_seq;
-        entry.preview = g.window_switcher == .snapshot and w.on_screen and !w.floating;
+        entry.preview = g.window_switcher == .snapshot;
         m.copyTrunc(&entry.app_id, &entry.app_len, w.app_id[0..w.app_len]);
         m.copyTrunc(&entry.title, &entry.title_len, w.title[0..w.title_len]);
+        m.copyTrunc(&entry.identifier, &entry.identifier_len, w.identifier[0..w.identifier_len]);
+        m.copyTrunc(&entry.output_name, &entry.output_len, w.output_name[0..w.output_len]);
         g.switcher_count += 1;
 
         // Insert by MRU (focus_seq descending); stable for never-focused windows.
@@ -799,6 +935,7 @@ fn buildSwitcherEntries() void {
 fn openSwitcher(reverse: bool, alt_held: bool) void {
     if (g.window_switcher == .off) return;
     if (g.overlay != null) closeOverlay();
+    clearSwitcherThumbs();
     buildSwitcherEntries();
     if (g.switcher_count < 2) {
         logDebug("switcher: need at least two visible windows", .{});
@@ -810,12 +947,14 @@ fn openSwitcher(reverse: bool, alt_held: bool) void {
     beginOverlay(.switcher);
     disableTextInput();
     g.switcher_alt_down = alt_held or currentAltDown();
-    logMsg("switcher: open windows={d} selected={d} previews={}", .{
+    const live = startSwitcherPreviews();
+    logMsg("switcher: open windows={d} selected={d} previews={} live={}", .{
         g.switcher_count,
         g.switcher_selected,
         g.window_switcher == .snapshot,
+        live,
     });
-    if (g.window_switcher == .snapshot and g.screenshot_manager != null and g.target_output != null) {
+    if (!live and g.window_switcher == .snapshot and g.screenshot_manager != null and g.target_output != null) {
         if (g.screenshot_pending or g.screenshot_ready) freeScreenshot();
         g.screenshot_for_switcher = true;
         if (!startScreenshotCapture()) g.screenshot_for_switcher = false;
@@ -826,6 +965,8 @@ fn openSwitcher(reverse: bool, alt_held: bool) void {
 fn closeSwitcher() void {
     g.switcher_done = true;
     g.screenshot_for_switcher = false;
+    if (preview_ready) tessa_preview_stop_all();
+    clearSwitcherThumbs();
     closeOverlay();
 }
 
@@ -844,8 +985,8 @@ fn commitSwitcher() void {
     if (g.overlay_mode != .switcher or g.switcher_done) return;
     if (g.switcher_selected < g.switcher_count) {
         const entry = &g.switcher_entries[g.switcher_selected];
-        sendCmd("CMD focus {d}\n", .{entry.id});
-        logMsg("switcher: focus id={d}", .{entry.id});
+        sendCmd("CMD activate {d}\n", .{entry.id});
+        logMsg("switcher: activate id={d}", .{entry.id});
     }
     closeSwitcher();
 }
@@ -4215,6 +4356,18 @@ fn onRegistryGlobal(data: ?*anyopaque, registry: ?*c.wl_registry, name: u32, int
         if (c.wl_registry_bind(reg, name, &c.zwlr_screencopy_manager_v1_interface, v)) |p| {
             g.screenshot_manager = @ptrCast(@alignCast(p));
         }
+    } else if (std.mem.eql(u8, iface, "ext_foreign_toplevel_list_v1") and preview_list == null) {
+        if (c.wl_registry_bind(reg, name, &c.ext_foreign_toplevel_list_v1_interface, 1)) |p| {
+            preview_list = @ptrCast(@alignCast(p));
+        }
+    } else if (std.mem.eql(u8, iface, "ext_foreign_toplevel_image_capture_source_manager_v1") and preview_source_mgr == null) {
+        if (c.wl_registry_bind(reg, name, &c.ext_foreign_toplevel_image_capture_source_manager_v1_interface, 1)) |p| {
+            preview_source_mgr = @ptrCast(@alignCast(p));
+        }
+    } else if (std.mem.eql(u8, iface, "ext_image_copy_capture_manager_v1") and preview_capture_mgr == null) {
+        if (c.wl_registry_bind(reg, name, &c.ext_image_copy_capture_manager_v1_interface, 1)) |p| {
+            preview_capture_mgr = @ptrCast(@alignCast(p));
+        }
     } else if (std.mem.eql(u8, iface, "wl_output")) {
         if (g.output_count < g.outputs.len) {
             const v = @min(version, 4);
@@ -4773,7 +4926,9 @@ fn handleStateLine(line: []const u8) void {
         g.occ = @splat(0);
         var wi: usize = 0;
         while (wi < g.window_count) : (wi += 1) {
-            const ws = g.windows[wi].ws;
+            const w = &g.windows[wi];
+            if (!m.windowOnTarget(w)) continue;
+            const ws = w.ws;
             if (ws >= 1 and ws <= 9) g.occ[ws] += 1;
         }
         g.bar.dirty = true;
@@ -4831,7 +4986,7 @@ fn handleStateLine(line: []const u8) void {
     }
 
     if (std.mem.startsWith(u8, line, "WIN\t")) {
-        var fields: [24][]const u8 = undefined;
+        var fields: [25][]const u8 = undefined;
         var count: usize = 0;
         var start: usize = 0;
         var i: usize = 0;
@@ -4843,19 +4998,18 @@ fn handleStateLine(line: []const u8) void {
             }
         }
         if (count < 9) return;
-        if (g.target_name_len > 0 and
-            !std.mem.eql(u8, fields[8], g.target_name[0..g.target_name_len])) return;
         if (g.window_count >= g.windows.len) return;
         const w = &g.windows[g.window_count];
         w.* = std.mem.zeroes(m.WindowInfo);
         w.id = std.fmt.parseInt(u64, fields[1], 10) catch 0;
         w.ws = std.fmt.parseInt(usize, fields[2], 10) catch 1;
-        w.focused = std.mem.eql(u8, fields[3], "1");
+        m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
+        w.focused = std.mem.eql(u8, fields[3], "1") and m.windowOnTarget(w);
         w.floating = std.mem.eql(u8, fields[4], "1");
         w.fullscreen = std.mem.eql(u8, fields[5], "1");
         m.decodeEscapes(&w.app_id, &w.app_len, fields[6]);
         m.decodeEscapes(&w.title, &w.title_len, fields[7]);
-        m.decodeEscapes(&w.output_name, &w.output_len, fields[8]);
+        if (count >= 22) m.decodeEscapes(&w.identifier, &w.identifier_len, fields[21]);
         if (count >= 14) w.scratchpad = std.mem.eql(u8, fields[13], "1");
         if (count >= 15) w.visible = std.mem.eql(u8, fields[14], "1");
         if (count >= 13) {
@@ -4870,8 +5024,8 @@ fn handleStateLine(line: []const u8) void {
             w.group_id = std.fmt.parseInt(u32, fields[15], 10) catch 0;
             w.group_active = std.mem.eql(u8, fields[16], "1");
         }
-        if (count >= 19) w.column = std.fmt.parseInt(i32, fields[17], 10) catch -1;
-        if (count >= 20) w.tile = std.fmt.parseInt(i32, fields[18], 10) catch -1;
+        if (count >= 19) w.column = std.fmt.parseInt(i32, fields[18], 10) catch -1;
+        if (count >= 20) w.tile = std.fmt.parseInt(i32, fields[19], 10) catch -1;
         g.window_count += 1;
         return;
     }
@@ -5366,6 +5520,18 @@ pub fn main(init: std.process.Init.Minimal) !void {
     _ = c.wl_registry_add_listener(g.registry.?, &registry_listener, null);
     _ = c.wl_display_roundtrip(g.display.?);
     _ = c.wl_display_roundtrip(g.display.?);
+    tessa_preview_init(
+        g.display.?,
+        g.shm,
+        preview_list,
+        preview_source_mgr,
+        preview_capture_mgr,
+        onPreviewFrame,
+        onPreviewGone,
+        null,
+    );
+    preview_ready = true;
+    if (tessa_preview_available() != 0) logMsg("window switcher: live per-window capture enabled", .{});
     selectTargetOutput();
 
     if (g.compositor == null or g.shm == null or g.layer_shell == null) {

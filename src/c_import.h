@@ -72,6 +72,7 @@
 #include <fcntl.h>
 #include "regex_shim.h"
 #include "window_shader.h"
+#include "preview_source.h"
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

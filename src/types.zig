@@ -1059,6 +1059,7 @@ pub const Client = struct {
     foreign_fullscreen: c.wl_listener,
     foreign_destroy: c.wl_listener,
     ext_foreign_toplevel: ?*c.wlr_ext_foreign_toplevel_handle_v1,
+    preview_source: ?*c.wlr_ext_image_capture_source_v1,
 };
 
 pub fn effectiveClientOpacity(cl: *const Client) f32 {
@@ -1344,6 +1345,9 @@ pub const Server = struct {
     xdg_activation: ?*c.wlr_xdg_activation_v1,
     foreign_toplevel_manager: ?*c.wlr_foreign_toplevel_manager_v1,
     ext_foreign_toplevel_list: ?*c.wlr_ext_foreign_toplevel_list_v1,
+    preview_source_manager: ?*c.wlr_ext_foreign_toplevel_image_capture_source_manager_v1,
+    new_preview_source: c.wl_listener,
+    preview_source_destroy: c.wl_listener,
     ext_workspace_manager: ?*c.wlr_ext_workspace_manager_v1,
     tearing_manager: ?*c.wlr_tearing_control_manager_v1,
     explicit_sync_manager: ?*c.wlr_linux_drm_syncobj_manager_v1,
