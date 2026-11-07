@@ -596,7 +596,9 @@ bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
 ```
 
 For Niri, spawn `tessa-panel-compat --send launcher` and the same
-`--send switcher` targets from `binds`.
+`--send switcher` targets from `binds`. When running directly from a source
+checkout, replace `tessa-panel-compat` with
+`python3 tools/tessa-panel-compat.py`.
 
 The bar maps workspaces 1–9. Special/named workspaces and Tessa extensions are
 not translated yet. Window switcher previews fall back to screencopy or

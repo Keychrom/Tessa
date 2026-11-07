@@ -610,7 +610,8 @@ bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
 ```
 
 Niri では `binds` から `tessa-panel-compat --send launcher` と同じ
-`--send switcher` を起動してください。
+`--send switcher` を起動してください。ソースツリーから直接動かす場合は
+`tessa-panel-compat` を `python3 tools/tessa-panel-compat.py` に置き換えます。
 
 バーはワークスペース 1〜9 を前提にしています。特殊/名前付きワークスペースと
 Tessa 拡張はまだ変換されません。ウィンドウスイッチャーのプレビューは

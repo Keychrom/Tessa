@@ -723,6 +723,7 @@ class Bridge:
             self._handle_command(line[4:].strip())
         elif line.startswith("SEND "):
             self._send_event(line[5:].strip())
+            self._send(conn, b"OK\n")
 
     def _handle_command(self, command: str) -> None:
         if not command:
@@ -935,6 +936,18 @@ def send_control(socket_path: str, spec: str) -> int:
         client.settimeout(2.0)
         client.connect(socket_path)
         client.sendall(("SEND " + spec + "\n").encode("utf-8"))
+        # The bridge sends the current state before handling SEND.  Drain that
+        # snapshot and wait for its acknowledgement so a key binding cannot
+        # race the connection close.
+        reply = b""
+        try:
+            while b"OK\n" not in reply:
+                chunk = client.recv(65536)
+                if not chunk:
+                    break
+                reply += chunk
+        except socket.timeout:
+            pass
     except OSError as exc:
         print(f"tessa-panel-compat: cannot reach {socket_path}: {exc}", file=sys.stderr)
         return 1

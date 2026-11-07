@@ -40,6 +40,7 @@ requires Zig 0.17.x.
 It installs:
 
 - `/usr/bin/tessa`, `/usr/bin/tessa-panel`, `/usr/bin/tessa-ctl`
+- `/usr/bin/tessa-panel-compat` (requires the optional `python` package)
 - `/usr/bin/tessa-session`
 - `/usr/share/wayland-sessions/tessa.desktop`
 - `/usr/share/tessa/config.example`
