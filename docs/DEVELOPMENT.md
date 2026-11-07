@@ -61,6 +61,10 @@ cd ~/tessa
 
 # Compositor only: no tessa-panel or panel C dependencies
 ./scripts/build.sh -Dpanel=false
+
+# One side only
+./scripts/build.sh panel
+./scripts/build.sh compositor
 ```
 
 Check dependencies:

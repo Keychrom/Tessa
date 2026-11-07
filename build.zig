@@ -109,7 +109,10 @@ pub fn build(b: *std.Build) void {
     // build mode, including Debug.
     server.use_llvm = true;
     server.use_lld = true;
-    b.installArtifact(server);
+    const server_install = b.addInstallArtifact(server, .{});
+    b.getInstallStep().dependOn(&server_install.step);
+    const compositor_step = b.step("compositor", "Build and install the Tessa compositor only");
+    compositor_step.dependOn(&server_install.step);
 
     if (with_panel) {
         const panel_libs: []const Translator.LinkSystemLib = &.{
@@ -223,7 +226,10 @@ pub fn build(b: *std.Build) void {
         panel.pie = true;
         panel.use_llvm = true;
         panel.use_lld = true;
-        b.installArtifact(panel);
+        const panel_install = b.addInstallArtifact(panel, .{});
+        b.getInstallStep().dependOn(&panel_install.step);
+        const panel_step = b.step("panel", "Build and install tessa-panel only");
+        panel_step.dependOn(&panel_install.step);
     }
 
     const ctl_c = Translator.init(translate_c, .{

@@ -310,6 +310,17 @@ Run an external layer-shell bar or launcher instead. The built-in panel,
 launcher, notifications, tray, and wallpaper are unavailable, and `panel = true`
 in the config is ignored. The default remains `-Dpanel=true`.
 
+To build just one side, use the named steps:
+
+```sh
+./scripts/build.sh panel       # tessa-panel only
+./scripts/build.sh compositor  # tessa only
+```
+
+The panel still expects Tessa's IPC socket at runtime. A panel-only build is
+intended for packaging and for future compatibility adapters; it does not by
+itself make the panel run under another compositor.
+
 ---
 
 ## 3. Run and Install

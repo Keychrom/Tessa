@@ -313,6 +313,17 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 ランチャー、通知、トレイ、壁紙は利用できず、設定の `panel = true` は無視
 されます。既定値は `-Dpanel=true` のままです。
 
+片方だけをビルドする場合は、名前付きステップを使います:
+
+```sh
+./scripts/build.sh panel       # tessa-panel のみ
+./scripts/build.sh compositor  # tessa のみ
+```
+
+パネルは実行時に Tessa の IPC ソケットを必要とします。パネル単体ビルドは
+パッケージングと将来の互換アダプター向けであり、それだけで別コンポジタ上で
+動作するわけではありません。
+
 ---
 
 ## 3. 起動とインストール

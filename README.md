@@ -551,6 +551,17 @@ The resulting `tessa` still works with external layer-shell bars and launchers,
 but the built-in panel, launcher, notifications, tray, and wallpaper are not
 included; `panel = true` in the config is ignored. `tessa-ctl` is still built.
 
+To build only one side, use the named steps:
+
+```sh
+./scripts/build.sh panel       # tessa-panel only
+./scripts/build.sh compositor  # tessa only
+```
+
+The panel still expects Tessa's IPC socket at runtime; a panel-only build is
+intended for packaging and for future compatibility adapters. This default
+install still includes all three binaries.
+
 This produces:
 
 - `zig-out/bin/tessa` — the compositor
