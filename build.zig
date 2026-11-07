@@ -1,6 +1,12 @@
 const std = @import("std");
 const Translator = @import("translate_c").Translator;
 
+fn pkgConfigExists(b: *std.Build, name: []const u8) bool {
+    var exit_code: u8 = 1;
+    _ = b.runAllowFail(&.{ "pkg-config", "--exists", name }, &exit_code, .ignore) catch return false;
+    return exit_code == 0;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -115,10 +121,13 @@ pub fn build(b: *std.Build) void {
     compositor_step.dependOn(&server_install.step);
 
     if (with_panel) {
+        // Pango 1.58 renamed pangocairo-1.0.pc to pangocairo.pc. Keep the old
+        // name for older distributions while accepting the new one.
+        const pangocairo = if (pkgConfigExists(b, "pangocairo-1.0")) "pangocairo-1.0" else "pangocairo";
         const panel_libs: []const Translator.LinkSystemLib = &.{
             .{ .name = "wayland-client" },
             .{ .name = "cairo" },
-            .{ .name = "pangocairo-1.0" },
+            .{ .name = pangocairo },
             .{ .name = "gio-2.0" },
             .{ .name = "gdk-pixbuf-2.0" },
             .{ .name = "xkbcommon" },
@@ -145,7 +154,7 @@ pub fn build(b: *std.Build) void {
         panel_mod.addOptions("build_options", build_options);
         panel_mod.linkSystemLibrary("wayland-client", .{});
         panel_mod.linkSystemLibrary("cairo", .{});
-        panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
+        panel_mod.linkSystemLibrary(pangocairo, .{});
         panel_mod.linkSystemLibrary("gio-2.0", .{});
         panel_mod.linkSystemLibrary("gdk-pixbuf-2.0", .{});
         panel_mod.linkSystemLibrary("xkbcommon", .{});
