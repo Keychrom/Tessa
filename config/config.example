@@ -242,7 +242,8 @@ blur = true
 blur_radius = 6
 blur_passes = 3
 
-# Start tessa-panel together with the compositor.
+# Start tessa-panel together with the compositor. This is ignored by a
+# compositor-only build made with -Dpanel=false.
 panel = true
 # Select the parts of Tessa Panel that run. Use this to keep Tessa
 # notifications while Waybar owns the bar, or to let an external launcher take

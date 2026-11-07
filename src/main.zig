@@ -424,7 +424,11 @@ pub fn main(init: std.process.Init.Minimal) !void {
     });
 
     if (server.config.autostart_panel and c.getenv("TESSA_NO_PANEL") == null) {
-        core.logInfo("panels will be started per output", .{});
+        if (build_options.panel) {
+            core.logInfo("panels will be started per output", .{});
+        } else {
+            core.logInfo("built without tessa-panel; panel autostart disabled", .{});
+        }
     }
 
     server.startup_pending = true;

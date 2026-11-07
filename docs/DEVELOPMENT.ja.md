@@ -39,10 +39,16 @@ scenefx なしの plain wlroots シーンにする場合は、明示的に無効
 ./scripts/build.sh -Dscenefx=false
 ```
 
+パネルを含めず、コンポジタと `tessa-ctl` だけをビルドする場合:
+
+```sh
+./scripts/build.sh -Dpanel=false
+```
+
 必要なものはメイン README にまとめています。要点は Zig 0.17、wlroots 0.20、
-Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、Cairo、Pango、
-GLib/GIO、gdk-pixbuf、フォントです。X11 をテストする場合は
-`xwayland-satellite` も `PATH` に入れてください。
+Wayland、xkbcommon、pixman、DRM/input/seat の開発ヘッダー、フォントです。
+Cairo、Pango、GLib/GIO、gdk-pixbuf はパネルを含める既定ビルドで必要です。
+X11 をテストする場合は `xwayland-satellite` も `PATH` に入れてください。
 
 ライブラリの確認:
 

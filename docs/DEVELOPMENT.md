@@ -58,6 +58,9 @@ cd ~/tessa
 
 # Plain wlroots scene without scenefx effects
 ./scripts/build.sh -Dscenefx=false
+
+# Compositor only: no tessa-panel or panel C dependencies
+./scripts/build.sh -Dpanel=false
 ```
 
 Check dependencies:

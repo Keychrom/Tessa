@@ -299,6 +299,20 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 `corner_radius`、`blur` などは `-Dscenefx=false` ビルドでも読み込まれますが、
 視覚効果はありません。
 
+### パネルのビルド
+
+既定ビルドにはシェルパネル `tessa-panel` が含まれます。コンポジタと
+`tessa-ctl` だけをビルド・インストールする場合は、パネルを無効にします:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dpanel=false
+```
+
+パネルが使う Cairo、Pango、GdkPixbuf、GIO のビルド依存も不要になります。
+代わりに外部の layer-shell バーやランチャーを起動してください。内蔵パネル、
+ランチャー、通知、トレイ、壁紙は利用できず、設定の `panel = true` は無視
+されます。既定値は `-Dpanel=true` のままです。
+
 ---
 
 ## 3. 起動とインストール

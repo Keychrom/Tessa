@@ -19,11 +19,17 @@ pub fn build(b: *std.Build) void {
         "shaders",
         "build opt-in per-window GLES2 shader effects (default: true; set false for no EGL/GLES dependency in the compositor)",
     ) orelse true;
+    const with_panel = b.option(
+        bool,
+        "panel",
+        "build and install tessa-panel, the Tessa shell panel (default: true; set false for a compositor-only build)",
+    ) orelse true;
 
     const build_options = b.addOptions();
     build_options.addOption(bool, "scenefx", scenefx);
     build_options.addOption(bool, "gpu", gpu);
     build_options.addOption(bool, "shaders", shaders);
+    build_options.addOption(bool, "panel", with_panel);
 
     const translate_c = b.dependency("translate_c", .{});
 
@@ -105,118 +111,120 @@ pub fn build(b: *std.Build) void {
     server.use_lld = true;
     b.installArtifact(server);
 
-    const panel_libs: []const Translator.LinkSystemLib = &.{
-        .{ .name = "wayland-client" },
-        .{ .name = "cairo" },
-        .{ .name = "pangocairo-1.0" },
-        .{ .name = "gio-2.0" },
-        .{ .name = "gdk-pixbuf-2.0" },
-        .{ .name = "xkbcommon" },
-    };
-    const panel_c = Translator.init(translate_c, .{
-        .name = "tessa_panel_c",
-        .c_source_file = b.path("panel/c_import.h"),
-        .target = target,
-        .optimize = optimize,
-        .link_system_libs = panel_libs,
-    });
-    panel_c.addIncludePath(b.path("protocol"));
-    panel_c.addIncludePath(b.path("panel"));
+    if (with_panel) {
+        const panel_libs: []const Translator.LinkSystemLib = &.{
+            .{ .name = "wayland-client" },
+            .{ .name = "cairo" },
+            .{ .name = "pangocairo-1.0" },
+            .{ .name = "gio-2.0" },
+            .{ .name = "gdk-pixbuf-2.0" },
+            .{ .name = "xkbcommon" },
+        };
+        const panel_c = Translator.init(translate_c, .{
+            .name = "tessa_panel_c",
+            .c_source_file = b.path("panel/c_import.h"),
+            .target = target,
+            .optimize = optimize,
+            .link_system_libs = panel_libs,
+        });
+        panel_c.addIncludePath(b.path("protocol"));
+        panel_c.addIncludePath(b.path("panel"));
 
-    const panel_mod = b.createModule(.{
-        .root_source_file = b.path("panel/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-    panel_mod.addImport("c_translated", panel_c.mod);
-    panel_mod.addIncludePath(b.path("protocol"));
-    panel_mod.addIncludePath(b.path("panel"));
-    panel_mod.addOptions("build_options", build_options);
-    panel_mod.linkSystemLibrary("wayland-client", .{});
-    panel_mod.linkSystemLibrary("cairo", .{});
-    panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
-    panel_mod.linkSystemLibrary("gio-2.0", .{});
-    panel_mod.linkSystemLibrary("gdk-pixbuf-2.0", .{});
-    panel_mod.linkSystemLibrary("xkbcommon", .{});
-    if (gpu) {
-        panel_mod.linkSystemLibrary("egl", .{});
-        panel_mod.linkSystemLibrary("glesv2", .{});
-        panel_mod.linkSystemLibrary("wayland-egl", .{});
+        const panel_mod = b.createModule(.{
+            .root_source_file = b.path("panel/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        });
+        panel_mod.addImport("c_translated", panel_c.mod);
+        panel_mod.addIncludePath(b.path("protocol"));
+        panel_mod.addIncludePath(b.path("panel"));
+        panel_mod.addOptions("build_options", build_options);
+        panel_mod.linkSystemLibrary("wayland-client", .{});
+        panel_mod.linkSystemLibrary("cairo", .{});
+        panel_mod.linkSystemLibrary("pangocairo-1.0", .{});
+        panel_mod.linkSystemLibrary("gio-2.0", .{});
+        panel_mod.linkSystemLibrary("gdk-pixbuf-2.0", .{});
+        panel_mod.linkSystemLibrary("xkbcommon", .{});
+        if (gpu) {
+            panel_mod.linkSystemLibrary("egl", .{});
+            panel_mod.linkSystemLibrary("glesv2", .{});
+            panel_mod.linkSystemLibrary("wayland-egl", .{});
+        }
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/layer-shell-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/xdg-shell-client-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/text-input-client-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/wlr-data-control-unstable-v1-client-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/wlr-screencopy-unstable-v1-client-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/ext-foreign-toplevel-list-v1-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/ext-image-capture-source-v1-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("protocol/ext-image-copy-capture-v1-protocol.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/preview.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/text.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path(if (gpu) "panel/gpu.c" else "panel/gpu_stub.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/notifications.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/media.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/tray.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/audio.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+        });
+        panel_mod.addCSourceFile(.{
+            .file = b.path("panel/system.c"),
+            .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
+        });
+        panel_mod.linkSystemLibrary("m", .{ .use_pkg_config = .no });
+        const panel = b.addExecutable(.{
+            .name = "tessa-panel",
+            .root_module = panel_mod,
+        });
+        panel.pie = true;
+        panel.use_llvm = true;
+        panel.use_lld = true;
+        b.installArtifact(panel);
     }
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/layer-shell-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/xdg-shell-client-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/text-input-client-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/wlr-data-control-unstable-v1-client-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/wlr-screencopy-unstable-v1-client-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/ext-foreign-toplevel-list-v1-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/ext-image-capture-source-v1-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("protocol/ext-image-copy-capture-v1-protocol.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/preview.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/text.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path(if (gpu) "panel/gpu.c" else "panel/gpu_stub.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/notifications.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/media.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/tray.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/audio.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
-    });
-    panel_mod.addCSourceFile(.{
-        .file = b.path("panel/system.c"),
-        .flags = &.{ "-std=c99", "-D_GNU_SOURCE", "-pthread" },
-    });
-    panel_mod.linkSystemLibrary("m", .{ .use_pkg_config = .no });
-    const panel = b.addExecutable(.{
-        .name = "tessa-panel",
-        .root_module = panel_mod,
-    });
-    panel.pie = true;
-    panel.use_llvm = true;
-    panel.use_lld = true;
-    b.installArtifact(panel);
 
     const ctl_c = Translator.init(translate_c, .{
         .name = "tessa_ctl_c",

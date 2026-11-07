@@ -539,10 +539,22 @@ disable scenefx explicitly:
 If scenefx is installed under a non-system prefix, export its pkg-config and
 library paths when building and running.
 
+`tessa-panel` is built and installed by default, together with its Cairo,
+Pango, GdkPixbuf, and GIO dependencies. For a compositor-only build that omits
+the panel entirely, pass:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dpanel=false
+```
+
+The resulting `tessa` still works with external layer-shell bars and launchers,
+but the built-in panel, launcher, notifications, tray, and wallpaper are not
+included; `panel = true` in the config is ignored. `tessa-ctl` is still built.
+
 This produces:
 
 - `zig-out/bin/tessa` — the compositor
-- `zig-out/bin/tessa-panel` — the shell panel (one process per output, auto-started by tessa)
+- `zig-out/bin/tessa-panel` — the shell panel (one process per output, auto-started by tessa; omitted with `-Dpanel=false`)
 - `zig-out/bin/tessa-ctl` — state/event/automation client for scripts and extensions
 
 The generated Wayland protocol headers are committed under `protocol/`, so a

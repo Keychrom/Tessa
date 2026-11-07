@@ -553,10 +553,22 @@ scenefx を明示的に無効にします:
 scenefx をシステム以外の prefix に入れた場合は、ビルド時と実行時に
 pkg-config とライブラリのパスを設定してください。
 
+`tessa-panel` は既定でビルド・インストールされ、Cairo、Pango、GdkPixbuf、
+GIO も必要とします。パネルを完全に含めないコンポジタ単体ビルドにする場合は、
+次のように指定します:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dpanel=false
+```
+
+生成される `tessa` は外部の layer-shell バーやランチャーと組み合わせて使用
+できますが、内蔵パネル、ランチャー、通知、トレイ、壁紙は含まれません。
+設定の `panel = true` は無視されます。`tessa-ctl` は引き続き生成されます。
+
 生成されるもの:
 
 - `zig-out/bin/tessa` — コンポジタ
-- `zig-out/bin/tessa-panel` — シェルパネル（出力ごとに 1 プロセス、Tessa が自動起動）
+- `zig-out/bin/tessa-panel` — シェルパネル（出力ごとに 1 プロセス、Tessa が自動起動。`-Dpanel=false` では生成されません）
 - `zig-out/bin/tessa-ctl` — スクリプト/拡張向けの状態・イベント・自動化クライアント
 
 生成済みの Wayland プロトコルヘッダーは `protocol/` にコミットされているので、

@@ -296,6 +296,20 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 The `corner_radius` and `blur` keys are accepted in a `-Dscenefx=false` build
 but have no visual effect.
 
+### Panel build
+
+The default build includes `tessa-panel`, the shell panel. To build and install
+only the compositor and `tessa-ctl`, disable the panel:
+
+```sh
+./scripts/build.sh -Doptimize=ReleaseSafe -Dpanel=false
+```
+
+This also drops the panel's Cairo, Pango, GdkPixbuf, and GIO build dependencies.
+Run an external layer-shell bar or launcher instead. The built-in panel,
+launcher, notifications, tray, and wallpaper are unavailable, and `panel = true`
+in the config is ignored. The default remains `-Dpanel=true`.
+
 ---
 
 ## 3. Run and Install

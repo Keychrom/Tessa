@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const types = @import("types.zig");
 const core = @import("core.zig");
+const build_options = @import("build_options");
 
 const Output = types.Output;
 const Server = types.Server;
@@ -99,6 +100,7 @@ fn onRestartTimer(data: ?*anyopaque) callconv(.c) c_int {
 /// the rest of the compositor's child processes.
 pub fn start(out: *Output) void {
     const server = out.server;
+    if (!build_options.panel) return;
     if (!server.config.autostart_panel) return;
     if (c.getenv("TESSA_NO_PANEL") != null) return;
 
@@ -205,7 +207,7 @@ pub fn shutdown(server: *Server) void {
 /// Apply a config reload to panel supervision. Enabling the panel starts it on
 /// existing outputs; disabling it stops the supervised children.
 pub fn reload(server: *Server) void {
-    const want = server.config.autostart_panel and c.getenv("TESSA_NO_PANEL") == null;
+    const want = build_options.panel and server.config.autostart_panel and c.getenv("TESSA_NO_PANEL") == null;
     var i: usize = 0;
     while (i < server.outputs.len) : (i += 1) {
         const out = server.outputs[i] orelse continue;
