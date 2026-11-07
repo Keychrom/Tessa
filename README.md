@@ -474,6 +474,24 @@ xdpw needs a source chooser; for a single monitor set
 `chooser_type=none` and `output_name=<output>` in
 `~/.config/xdg-desktop-portal-wlr/config`.
 
+Portal services are D-Bus activated from the systemd user manager, which does
+not know the Wayland display on its own. `tessa-session` publishes
+`WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, `XDG_SESSION_TYPE`, and
+`XDG_SESSION_DESKTOP` there once the compositor socket exists, and restarts a
+portal that resolved its backends before the import. When starting `tessa` by
+hand, run the same import:
+
+```sh
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP \
+  XDG_SESSION_TYPE XDG_SESSION_DESKTOP
+systemctl --user restart xdg-desktop-portal
+```
+
+With no `chooser_type` set, xdpw runs the first chooser it finds (`slurp`,
+`wmenu`, `wofi`, `rofi`, `bemenu`, `mew`, or `fuzzel`) and falls back to an
+arbitrary output. Discord, Chromium-based browsers, and OBS share their screen
+through this portal.
+
 On Ubuntu 26.04, install Zig 0.17 from upstream if the distribution package is
 older, then the development headers:
 

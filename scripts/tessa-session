@@ -10,6 +10,21 @@ export XDG_CURRENT_DESKTOP=Tessa
 export XDG_SESSION_DESKTOP=tessa
 export XDG_SESSION_TYPE=wayland
 
+# Portals are D-Bus activated into the systemd user manager, which does not
+# inherit the variables the compositor sets for its own children. Publish the
+# Wayland session environment once the socket exists, then drop a portal that
+# resolved its backends before the import so the Tessa portal is selected.
+# Without this, xdg-desktop-portal never starts the wlr backend and screen
+# sharing (Discord, OBS, browsers) reports no sources.
+portal_env='systemctl --user import-environment WAYLAND_DISPLAY XDG_SESSION_TYPE XDG_SESSION_DESKTOP XDG_CURRENT_DESKTOP 2>/dev/null || true'
+portal_env="$portal_env; systemctl --user try-restart xdg-desktop-portal 2>/dev/null || true"
+if [ -n "${TESSA_STARTUP:-}" ]; then
+    TESSA_STARTUP="$portal_env; $TESSA_STARTUP"
+else
+    TESSA_STARTUP=$portal_env
+fi
+export TESSA_STARTUP
+
 # The ISO boot menu uses tessa.software=1 as a fallback for systems where the
 # GPU driver cannot create a GL renderer.
 if [ -z "${WLR_RENDERER:-}" ] && grep -q 'tessa.software=1' /proc/cmdline 2>/dev/null; then

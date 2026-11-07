@@ -531,6 +531,23 @@ chooser_type=none
 output_name=HEADLESS-1
 ```
 
+Portal services are D-Bus activated from the systemd user manager and do not
+inherit the variables the compositor sets for its own children. `tessa-session`
+publishes them once the Wayland socket exists:
+
+```sh
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP \
+  XDG_SESSION_TYPE XDG_SESSION_DESKTOP
+systemctl --user try-restart xdg-desktop-portal
+```
+
+Without that import the portal never starts `xdg-desktop-portal-wlr` and
+applications such as Discord, Chromium-based browsers, or OBS report that no
+screen sources are available. Starting `tessa` directly from a TTY needs the
+same commands. With no `chooser_type` configured, xdpw runs the first chooser
+it finds (`slurp`, `wmenu`, `wofi`, `rofi`, `bemenu`, `mew`, or `fuzzel`) and
+otherwise falls back to an arbitrary output.
+
 ---
 
 ## 4. Environment Variables

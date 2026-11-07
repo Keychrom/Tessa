@@ -546,6 +546,22 @@ chooser_type=none
 output_name=HEADLESS-1
 ```
 
+ポータルサービスは systemd のユーザーマネージャから D-Bus 起動されるため、
+コンポジタが子プロセス向けに設定した環境変数をそのままでは受け取りません。
+`tessa-session` は Wayland ソケットの生成後に次を実行して登録します:
+
+```sh
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP \
+  XDG_SESSION_TYPE XDG_SESSION_DESKTOP
+systemctl --user try-restart xdg-desktop-portal
+```
+
+この登録がないとポータルは `xdg-desktop-portal-wlr` を起動せず、Discord や
+Chromium 系ブラウザ、OBS では共有できる画面が 1 つも表示されません。TTY から
+`tessa` を直接起動する場合も同じコマンドが必要です。`chooser_type` を設定
+しない場合、xdpw は利用可能な chooser（`slurp`、`wmenu`、`wofi`、`rofi`、
+`bemenu`、`mew`、`fuzzel`）を順に試し、どれもなければ任意の出力を使います。
+
 ---
 
 ## 4. 環境変数

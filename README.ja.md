@@ -485,6 +485,24 @@ wlroots 0.20 の開発ファイルを要求するよう更新しています。U
 `~/.config/xdg-desktop-portal-wlr/config` に `chooser_type=none` と
 `output_name=<出力名>` を設定してください。
 
+ポータルサービスは systemd のユーザーマネージャから D-Bus 起動されるため、
+コンポジタが設定した Wayland の環境変数をそのままでは受け取りません。
+`tessa-session` はソケット生成後に `WAYLAND_DISPLAY`、`XDG_CURRENT_DESKTOP`、
+`XDG_SESSION_TYPE`、`XDG_SESSION_DESKTOP` をユーザーマネージャへ登録し、
+先に起動していたポータルを再起動します。`tessa` を手動で起動する場合は同じ
+コマンドを実行してください:
+
+```sh
+systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP \
+  XDG_SESSION_TYPE XDG_SESSION_DESKTOP
+systemctl --user restart xdg-desktop-portal
+```
+
+`chooser_type` を設定しない場合、xdpw は利用可能な chooser（`slurp`、
+`wmenu`、`wofi`、`rofi`、`bemenu`、`mew`、`fuzzel`）を順に試し、どれも
+なければ任意の出力を使います。Discord や Chromium 系ブラウザ、OBS はこの
+ポータル経由で画面を共有します。
+
 Ubuntu 26.04 の場合、ディストリビューションの Zig が古ければ上流の Zig 0.17 を
 導入し、開発ヘッダーを入れます:
 
