@@ -20,6 +20,7 @@
   mesa,
   libdrm,
   xcursor-themes,
+  python3,
   withScenefx ? true,
 }:
 
@@ -52,6 +53,7 @@ stdenv.mkDerivation (finalAttrs: {
     zig
     pkg-config
     autoPatchelfHook
+    python3
   ];
 
   buildInputs = [
@@ -97,6 +99,9 @@ stdenv.mkDerivation (finalAttrs: {
     runHook preInstall
 
     install -Dm755 scripts/tessa-session "$out/bin/tessa-session"
+    install -Dm755 tools/tessa-panel-compat.py "$out/bin/tessa-panel-compat"
+    substituteInPlace "$out/bin/tessa-panel-compat" \
+      --replace '#!/usr/bin/env python3' '#!${python3}/bin/python3'
     install -Dm644 session/tessa.desktop \
       "$out/share/wayland-sessions/tessa.desktop"
     install -Dm644 config/config.example "$out/share/tessa/config.example"

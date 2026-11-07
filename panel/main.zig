@@ -913,6 +913,7 @@ fn buildSwitcherEntries() void {
         entry.h = w.h;
         entry.focus_seq = w.focus_seq;
         entry.preview = g.window_switcher == .snapshot;
+        entry.on_screen = w.on_screen;
         m.copyTrunc(&entry.app_id, &entry.app_len, w.app_id[0..w.app_len]);
         m.copyTrunc(&entry.title, &entry.title_len, w.title[0..w.title_len]);
         m.copyTrunc(&entry.identifier, &entry.identifier_len, w.identifier[0..w.identifier_len]);

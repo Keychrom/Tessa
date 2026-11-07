@@ -349,7 +349,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
 `tests/panel-theme.sh`、`tests/bar-position.sh`、
 `tests/panel-popovers.sh`、`tests/control-center.sh`、
-`tests/window-switcher.sh`、`tests/wifi.sh`、
+`tests/window-switcher.sh`、`tests/panel-compat.sh`、`tests/wifi.sh`、
 `tests/bluetooth.sh`、`tests/brightness.sh`、`tests/clipboard.sh`、
 `tests/screenshot.sh`、
 `tests/notifications.sh`、`tests/notification-routing.sh`、
@@ -586,6 +586,38 @@ GIO も必要とします。パネルを完全に含めないコンポジタ単�
 wlroots 側に `xdg-shell-protocol.h` がなくてもビルドできます。
 
 ## 実行
+
+### Hyprland / Niri で Tessa Panel を使う（実験的）
+
+`tessa-panel` は、Hyprland/Niri の IPC を Tessa のパネル IPC に変換する
+Python 3 製の互換ブリッジ `tessa-panel-compat` 経由で単体動作できます。
+パネルをビルドし、セッション内でブリッジを起動します:
+
+```sh
+./scripts/build.sh panel
+python3 tools/tessa-panel-compat.py
+```
+
+パッケージ版では `tessa-panel-compat` が `PATH` に入ります。ブリッジは出力
+ごとにパネルを起動し、`$XDG_RUNTIME_DIR/tessa.sock` で待ち受けます。
+
+Hyprland のキーバインド例:
+
+```ini
+bind = SUPER, Space, exec, tessa-panel-compat --send launcher
+bind = ALT, Tab, exec, tessa-panel-compat --send switcher
+bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
+```
+
+Niri では `binds` から `tessa-panel-compat --send launcher` と同じ
+`--send switcher` を起動してください。
+
+バーはワークスペース 1〜9 を前提にしています。特殊/名前付きワークスペースと
+Tessa 拡張はまだ変換されません。ウィンドウスイッチャーのプレビューは
+screencopy またはモノグラムにフォールバックし、ブラーと角丸はホスト側の
+コンポジタ設定になります。起動前に他の通知デーモンとトレイデーモンを停止して
+ください。詳細とトラブルシューティングは
+[ガイド](docs/GUIDE.ja.md#パネルのビルド) を参照してください。
 
 ### TTY から（最初のテストに推奨）
 

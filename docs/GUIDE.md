@@ -317,9 +317,79 @@ To build just one side, use the named steps:
 ./scripts/build.sh compositor  # tessa only
 ```
 
-The panel still expects Tessa's IPC socket at runtime. A panel-only build is
-intended for packaging and for future compatibility adapters; it does not by
-itself make the panel run under another compositor.
+The panel still expects Tessa's IPC socket at runtime. To run it under another
+compositor, use the compatibility bridge below.
+
+### Running Tessa Panel under Hyprland or Niri
+
+`tools/tessa-panel-compat.py` is a stdlib-only Python 3 bridge. It translates
+Hyprland or Niri's state into the panel's `WIN`/`OUT`/`FOCUSED` IPC lines,
+starts one `tessa-panel` per output, and translates the panel's `spawn`,
+`workspace`, `focus`, and `close` commands back to the host compositor.
+
+Build the panel and start the bridge inside the Hyprland/Niri session:
+
+```sh
+./scripts/build.sh panel
+python3 tools/tessa-panel-compat.py
+```
+
+Packaged installs provide `tessa-panel-compat` in `PATH`; use that instead of
+the `tools/` path. The bridge auto-detects the compositor from
+`HYPRLAND_INSTANCE_SIGNATURE` or `NIRI_SOCKET`. Force one with
+`--compositor hyprland` or `--compositor niri`.
+
+It listens on `$XDG_RUNTIME_DIR/tessa.sock` (override with `--socket` or
+`TESSA_IPC`), starts panels with `TESSA_PANEL_OUTPUT` and the output
+make/model/serial, and restarts a panel that exits. Only the first output gets
+the notification and system-service owner flags.
+
+Open the launcher and switcher from compositor key bindings:
+
+```ini
+# Hyprland
+bind = SUPER, Space, exec, tessa-panel-compat --send launcher
+bind = ALT, Tab, exec, tessa-panel-compat --send switcher
+bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
+```
+
+For Niri, spawn `tessa-panel-compat --send launcher` or
+`tessa-panel-compat --send switcher` from `binds`. Other panel views are
+available as `--send control`, `--send wifi`, `--send bluetooth`,
+`--send notifications`, and `--send calendar`.
+
+The panel reads the normal Tessa config (`panel_modules`, `bar_layout`, theme,
+fonts, and so on). To use a specific file, set `TESSA_CONFIG` before starting
+the bridge. If `tessa-panel` is not in `PATH`, pass `--panel /path/to/tessa-panel`.
+
+Current limitations:
+
+- The bar only represents workspaces 1–9. Hyprland special/named workspaces and
+  dynamic Niri workspaces outside that range are not translated.
+- Tessa extensions, status entries, and `tessa-ctl` automation are unavailable;
+  the bridge has no extension host. Actions that invoke `tessa-ctl` (such as the
+  config editor) will not work; edit the config file directly.
+- The window switcher falls back to wlr-screencopy crops or monograms. Live
+  per-window capture requires the host compositor's ext capture protocols.
+- Blur and rounded corners are compositor-side. Hyprland/Niri do not apply
+  Tessa's scenefx effects to panel surfaces.
+- The panel's power-menu Quit action is ignored by the bridge; log out through
+  the host compositor instead.
+- Alt+Tab is press-to-open, not hold-to-cycle. Use Tab/arrow keys and Enter to
+  commit, or Escape to cancel.
+- Stop other notification daemons (mako, dunst) and tray implementations before
+  starting the bridge, or they will compete for the same D-Bus names.
+
+Debug the translated state without starting panels:
+
+```sh
+python3 tools/tessa-panel-compat.py --print-state
+python3 tools/tessa-panel-compat.py --no-spawn --verbose
+```
+
+`--print-state` prints the exact state the panel would receive, which is the
+fastest way to check output names, workspaces, and window IDs after a mapping
+change.
 
 ---
 

@@ -320,9 +320,80 @@ export LD_LIBRARY_PATH=$HOME/.local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
 ./scripts/build.sh compositor  # tessa のみ
 ```
 
-パネルは実行時に Tessa の IPC ソケットを必要とします。パネル単体ビルドは
-パッケージングと将来の互換アダプター向けであり、それだけで別コンポジタ上で
-動作するわけではありません。
+パネルは実行時に Tessa の IPC ソケットを必要とします。別コンポジタで使う
+場合は、次の互換ブリッジを使います。
+
+### Hyprland / Niri で Tessa Panel を動かす
+
+`tools/tessa-panel-compat.py` は Python 3 標準ライブラリだけで動く互換
+ブリッジです。Hyprland/Niri の状態をパネル向けの `WIN`/`OUT`/`FOCUSED` IPC
+行に変換し、出力ごとに `tessa-panel` を起動します。パネルからの `spawn`、
+`workspace`、`focus`、`close` はホスト側のコマンドに変換します。
+
+パネルをビルドし、Hyprland/Niri セッション内でブリッジを起動します:
+
+```sh
+./scripts/build.sh panel
+python3 tools/tessa-panel-compat.py
+```
+
+パッケージ版では `tessa-panel-compat` が `PATH` に入ります。`tools/` の
+パスではなくこちらを使ってください。ブリッジは
+`HYPRLAND_INSTANCE_SIGNATURE` または `NIRI_SOCKET` から自動判定します。
+明示する場合は `--compositor hyprland` / `--compositor niri` を付けます。
+
+`$XDG_RUNTIME_DIR/tessa.sock` で待ち受け（`--socket` または `TESSA_IPC` で
+変更可）、`TESSA_PANEL_OUTPUT` と出力の make/model/serial を設定してパネルを
+起動します。終了したパネルは再起動します。通知とシステムサービスの
+オーナーは最初の出力だけに割り当てます。
+
+ランチャーとスイッチャーはコンポジタのキーバインドから開けます:
+
+```ini
+# Hyprland
+bind = SUPER, Space, exec, tessa-panel-compat --send launcher
+bind = ALT, Tab, exec, tessa-panel-compat --send switcher
+bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
+```
+
+Niri では `binds` から `tessa-panel-compat --send launcher` や
+`tessa-panel-compat --send switcher` を起動してください。ほかのビューは
+`--send control`、`--send wifi`、`--send bluetooth`、`--send notifications`、
+`--send calendar` で開けます。
+
+パネルは通常の Tessa 設定（`panel_modules`、`bar_layout`、テーマ、フォント
+など）を読みます。別ファイルを使う場合は起動前に `TESSA_CONFIG` を設定して
+ください。`tessa-panel` が `PATH` にない場合は
+`--panel /path/to/tessa-panel` を指定します。
+
+現在の制限:
+
+- バーはワークスペース 1〜9 のみ。Hyprland の特殊/名前付きワークスペースや、
+  範囲外の動的な Niri ワークスペースは変換されません。
+- Tessa 拡張、status エントリ、`tessa-ctl` 自動化は使えません。ブリッジに
+  拡張ホストはありません。設定エディタなど `tessa-ctl` を呼ぶ操作は動かない
+  ので、設定ファイルを直接編集してください。
+- ウィンドウスイッチャーは wlr-screencopy のクロップかモノグラムに
+  フォールバックします。ライブのウィンドウごとキャプチャには、ホスト側の
+  ext キャプチャプロトコルが必要です。
+- ブラーと角丸はコンポジタ側の機能です。Hyprland/Niri は Tessa の scenefx
+  エフェクトをパネルサーフェスへ適用しません。
+- パネルの電源メニューの「終了」は無視されます。ログアウトはホスト側の
+  コンポジタから行ってください。
+- Alt+Tab は押して開く方式で、ホールドして巡回する方式ではありません。
+  Tab/矢印で選択し、Enter で確定、Escape でキャンセルします。
+- 起動前に mako/dunst などの通知デーモンと、他のトレイ実装を停止して
+  ください。同じ D-Bus 名を取り合います。
+
+パネルを起動せずに変換結果を確認できます:
+
+```sh
+python3 tools/tessa-panel-compat.py --print-state
+python3 tools/tessa-panel-compat.py --no-spawn --verbose
+```
+
+`--print-state` はパネルが受け取る状態をそのまま出力するので、出力名、
+ワークスペース、ウィンドウ ID の対応を確認するのに便利です。
 
 ---
 

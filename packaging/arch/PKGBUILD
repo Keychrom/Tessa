@@ -28,6 +28,7 @@ optdepends=(
     'xdg-desktop-portal: desktop portals'
     'xdg-desktop-portal-wlr: screen sharing'
     'pipewire: screen sharing streams'
+    'python: tessa-panel compatibility bridge for Hyprland/Niri'
 )
 provides=('tessa')
 conflicts=('tessa')
@@ -49,6 +50,8 @@ package() {
     install -Dm755 "$srcdir/out/bin/tessa" "$pkgdir/usr/bin/tessa"
     install -Dm755 "$srcdir/out/bin/tessa-panel" "$pkgdir/usr/bin/tessa-panel"
     install -Dm755 "$srcdir/out/bin/tessa-ctl" "$pkgdir/usr/bin/tessa-ctl"
+    install -Dm755 tools/tessa-panel-compat.py \
+        "$pkgdir/usr/bin/tessa-panel-compat"
     install -Dm755 scripts/tessa-session "$pkgdir/usr/bin/tessa-session"
     install -Dm644 session/tessa.desktop \
         "$pkgdir/usr/share/wayland-sessions/tessa.desktop"

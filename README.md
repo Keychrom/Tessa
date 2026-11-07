@@ -335,7 +335,7 @@ restarts were exercised by
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
 `tests/panel-theme.sh`, `tests/bar-position.sh`,
 `tests/panel-popovers.sh`, `tests/control-center.sh`,
-`tests/window-switcher.sh`, `tests/wifi.sh`,
+`tests/window-switcher.sh`, `tests/panel-compat.sh`, `tests/wifi.sh`,
 `tests/bluetooth.sh`, `tests/brightness.sh`, `tests/clipboard.sh`,
 `tests/screenshot.sh`,
 `tests/notifications.sh`, `tests/notification-routing.sh`,
@@ -572,6 +572,37 @@ The generated Wayland protocol headers are committed under `protocol/`, so a
 wlroots installation without generated `xdg-shell-protocol.h` still builds.
 
 ## Run
+
+### Tessa Panel on Hyprland or Niri (experimental)
+
+`tessa-panel` can run outside Tessa through `tessa-panel-compat`, a Python 3
+compatibility bridge that translates Hyprland/Niri IPC into the panel's Tessa
+IPC protocol. Build the panel and start the bridge inside the session:
+
+```sh
+./scripts/build.sh panel
+python3 tools/tessa-panel-compat.py
+```
+
+A packaged install provides `tessa-panel-compat` in `PATH`. The bridge starts
+one panel per output and listens on `$XDG_RUNTIME_DIR/tessa.sock`.
+
+Hyprland key bindings:
+
+```ini
+bind = SUPER, Space, exec, tessa-panel-compat --send launcher
+bind = ALT, Tab, exec, tessa-panel-compat --send switcher
+bind = ALT SHIFT, Tab, exec, tessa-panel-compat --send switcher-prev
+```
+
+For Niri, spawn `tessa-panel-compat --send launcher` and the same
+`--send switcher` targets from `binds`.
+
+The bar maps workspaces 1–9. Special/named workspaces and Tessa extensions are
+not translated yet. Window switcher previews fall back to screencopy or
+monograms, and blur/rounding come from the host compositor. Disable other
+notification and tray daemons before starting the bridge. See
+[the guide](docs/GUIDE.md#panel-build) for details and troubleshooting.
 
 ### From a TTY (recommended first test)
 

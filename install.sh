@@ -376,6 +376,7 @@ for bin in tessa tessa-panel tessa-ctl; do
     "${SUDO[@]}" install -Dm755 "zig-out/bin/$bin" "$PREFIX/bin/$bin"
 done
 "${SUDO[@]}" install -Dm755 scripts/tessa-session "$PREFIX/bin/tessa-session"
+"${SUDO[@]}" install -Dm755 tools/tessa-panel-compat.py "$PREFIX/bin/tessa-panel-compat"
 "${SUDO[@]}" install -Dm644 config/config.example "$PREFIX/share/tessa/config.example"
 "${SUDO[@]}" install -Dm644 LICENSE "$PREFIX/share/licenses/tessa/LICENSE"
 
@@ -410,7 +411,7 @@ EOF
     "${SUDO[@]}" install -Dm755 "$tmp" "/usr/local/bin/$name"
     rm -f "$tmp"
 }
-for name in tessa tessa-panel tessa-ctl tessa-session; do
+for name in tessa tessa-panel tessa-ctl tessa-session tessa-panel-compat; do
     write_wrapper "$name"
 done
 
@@ -436,7 +437,8 @@ cat <<EOF
 Tessa is installed.
 
   compositor: $PREFIX/bin/tessa
-  launchers:  /usr/local/bin/tessa, tessa-panel, tessa-ctl, tessa-session
+  launchers:  /usr/local/bin/tessa, tessa-panel, tessa-ctl, tessa-session, tessa-panel-compat
+  panel bridge: $PREFIX/bin/tessa-panel-compat (Hyprland/Niri; requires python3)
   session:    /usr/share/wayland-sessions/tessa.desktop
   config:     ~/.config/tessa/config (copy $PREFIX/share/tessa/config.example)
 

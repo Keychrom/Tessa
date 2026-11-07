@@ -547,6 +547,18 @@ sh tests/control-center.sh
 sh tests/window-switcher.sh
 ```
 
+### パネル互換ブリッジのテスト
+
+`tests/panel-compat.sh` は偽の `hyprctl` / `niri` を使って Python ブリッジを
+実行します。変換後の `OUT`/`WIN`/`FOCUSED`、ウィンドウタイトルの
+エスケープ、Unix ソケットの subscribe、`focus` コマンドの変換、
+`--send launcher`、終了時のソケット削除を確認します。Python 3 がない環境
+ではスキップします。
+
+```sh
+sh tests/panel-compat.sh
+```
+
 ### クリップボード履歴のテスト
 
 `tests/clipboard.sh` は 2 つの文字列を `wl-copy` でコピーし、`wtype` で

@@ -33,7 +33,8 @@ Recommends: xwayland-satellite, foot | kitty
 Suggests: kitty, swaylock, swayidle, wlopm, dbus,
           network-manager, bluez, power-profiles-daemon, upower,
           polkitd | policykit-1,
-          xdg-desktop-portal, xdg-desktop-portal-wlr, pipewire
+          xdg-desktop-portal, xdg-desktop-portal-wlr, pipewire,
+          python3
 Description: quiet tiled Wayland compositor and desktop shell
  Tessa is a wlroots-based tiled Wayland compositor written in Zig. It includes
  its own taskbar, launcher, wallpaper, per-output workspaces, compositor-level

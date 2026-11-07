@@ -4557,7 +4557,9 @@ fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: 
     }
     if (!drew_preview) {
         if (args.preview) |surface| {
-            if (entry.preview) {
+            const same_output = entry.output_len == 0 or
+                (g.target_name_len > 0 and std.mem.eql(u8, entry.output_name[0..entry.output_len], g.target_name[0..g.target_name_len]));
+            if (entry.preview and entry.on_screen and same_output) {
             const src_x = @as(f64, @floatFromInt(entry.x)) * args.scale_x;
             const src_y = @as(f64, @floatFromInt(entry.y)) * args.scale_y;
             const src_w = @max(1.0, @as(f64, @floatFromInt(entry.w)) * args.scale_x);

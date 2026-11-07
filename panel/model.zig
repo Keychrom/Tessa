@@ -464,6 +464,7 @@ pub const SwitcherEntry = struct {
     h: i32 = 0,
     focus_seq: u64 = 0,
     preview: bool = false,
+    on_screen: bool = false,
     identifier: [64]u8 = @splat(0),
     identifier_len: usize = 0,
     output_name: [64]u8 = @splat(0),

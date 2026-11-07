@@ -662,6 +662,18 @@ keyboard's empty modifier state closed the switcher.
 sh tests/window-switcher.sh
 ```
 
+### Panel compatibility bridge test
+
+`tests/panel-compat.sh` runs the Python bridge against fake `hyprctl` and
+`niri` executables. It validates the translated `OUT`/`WIN`/`FOCUSED` state,
+window-title escaping, the Unix-socket subscribe path, a translated `focus`
+command, the `--send launcher` control path, and socket cleanup on exit. It
+skips when Python 3 is unavailable.
+
+```sh
+sh tests/panel-compat.sh
+```
+
 ### Clipboard history test
 
 `tests/clipboard.sh` copies two strings with `wl-copy`, opens the history with
