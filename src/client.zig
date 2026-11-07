@@ -641,6 +641,18 @@ fn onPopupCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     }
 }
 
+// Scene tree of the root toplevel or layer surface that owns a popup.
+fn rootSurfaceTree(server: *Server, surface: *c.wlr_surface) ?*c.wlr_scene_tree {
+    const root = c.wlr_surface_get_root_surface(surface) orelse return null;
+    const xdg = c.wlr_xdg_surface_try_from_wlr_surface(root);
+    if (xdg) |p| {
+        const root_xdg: *c.wlr_xdg_surface = @ptrCast(@alignCast(p));
+        if (root_xdg.data) |raw| return @ptrCast(@alignCast(raw));
+        return null;
+    }
+    return layerSurfaceTree(server, root);
+}
+
 fn onPopupConstrainIdle(data: ?*anyopaque) callconv(.c) void {
     const popup: *Popup = @ptrCast(@alignCast(data.?));
     popup.constrain_idle = null;
@@ -648,6 +660,21 @@ fn onPopupConstrainIdle(data: ?*anyopaque) callconv(.c) void {
     if (core.outputIndexOf(popup.server, out) == null) return;
     if (!pBase(popup.xdg_popup).initialized) return;
     var box = out.full;
+    // wlr_xdg_popup_unconstrain_from_box() takes the box in the root
+    // toplevel's surface coordinate space, while out.full is in layout space.
+    // Without subtracting the toplevel origin, a popup on an output that is
+    // not at (0,0) is slid by the output offset and ends up off-screen (for
+    // example the Fcitx5 candidate window drawn by a GTK IM module).
+    if (popup.xdg_popup.parent) |parent_surface| {
+        if (rootSurfaceTree(popup.server, parent_surface)) |tree| {
+            var lx: c_int = 0;
+            var ly: c_int = 0;
+            if (c.wlr_scene_node_coords(&tree.node, &lx, &ly)) {
+                box.x -= lx;
+                box.y -= ly;
+            }
+        }
+    }
     c.wlr_xdg_popup_unconstrain_from_box(popup.xdg_popup, &box);
 }
 
