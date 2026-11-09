@@ -821,9 +821,11 @@ sh tests/tray.sh
 
 ### Audio test
 
-`tests/audio.sh` puts a fake `wpctl` in `PATH` and drives the volume popover with
-`Up`, `m`, and `Down`. It checks the initial 42% state, mute/unmute, volume
-changes, and `Super+Shift+A`.
+`tests/audio.sh` puts a fake `wpctl` in `PATH` and drives the audio card with
+`Tab`, `Up`, `m`, `d`, and `Down`. It checks output and input volume, input
+mute, default device cycling, device lists (excluding Video sources),
+`Super+Shift+A`, and the classic popover. The unified control-center audio page
+shares the same service and hit handlers; verify its layout on a real session.
 
 ```sh
 sh tests/audio.sh

@@ -29,7 +29,7 @@ trap cleanup EXIT INT TERM
 mkdir -p "$runtime" "$runtime/bin"
 chmod 700 "$runtime"
 printf 'panel = true\nxwayland = false\n' >"$runtime/config"
-printf '40 0\n' >"$runtime/volume"
+printf '40 0 60 0 1 3\n' >"$runtime/volume"
 cp "$root/tests/fake-wpctl" "$runtime/bin/wpctl"
 chmod +x "$runtime/bin/wpctl"
 
@@ -92,13 +92,27 @@ wait_log_count() {
 }
 
 wait_log "audio: service ready"
-wait_log "audio: source=wpctl volume=40 muted=0"
+wait_log "audio: source=wpctl volume=40 muted=0 input=60 in_muted=0 devices=2/2"
 echo "audio detection: ok"
 
 tessa-ctl panel audio
 wait_log "audio: controls open"
 wait_log "layer map: tessa-overlay layer=3 keyboard=1"
 sleep 0.3
+wtype -k Tab
+wait_log "audio: tab input"
+wtype -k Up
+wait_log "audio: source=wpctl volume=40 muted=0 input=65 in_muted=0 devices=2/2"
+wtype -k m
+wait_log "audio: source=wpctl volume=40 muted=0 input=65 in_muted=1 devices=2/2"
+wtype -k d
+wait_log "audio: set default input device 'USB Microphone'"
+wtype -k d
+wait_log "audio: set default input device 'Built-in Microphone'"
+echo "input tab, volume, and device selection: ok"
+
+wtype -k Tab
+wait_log "audio: tab output"
 wtype -k Up
 wait_log "audio: source=wpctl volume=45 muted=0"
 echo "volume up: ok"

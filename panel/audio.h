@@ -5,10 +5,17 @@ int tessa_audio_start(const char *status_cmd, const char *up_cmd,
         const char *down_cmd, const char *mute_cmd);
 void tessa_audio_stop(void);
 
-/* 1 = volume up, 2 = volume down, 3 = toggle mute */
+/* 1 = volume up, 2 = volume down, 3 = toggle mute; 5/6/7 are the input
+ * counterparts. */
 void tessa_audio_command(unsigned int code);
 
 /* Absolute output volume, 0..150. */
 void tessa_audio_set_percent(int percent);
+
+/* Absolute input (microphone) volume, 0..150. */
+void tessa_audio_set_input_percent(int percent);
+
+/* Select the default output (0) or input (1) device by backend id. */
+void tessa_audio_set_default(int direction, const char *id);
 
 #endif

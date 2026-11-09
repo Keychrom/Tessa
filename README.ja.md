@@ -322,8 +322,9 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
     再生位置表示、クリックでシーク
   - StatusNotifier トレイの watcher/host、アイコン描画、アクティベート
     （`Super+Shift+T`）
-  - `wpctl` / `pactl` / `amixer` を使った音量表示とポップオーバー
-    （`Super+Shift+A`）、コマンド上書き設定と、コントロールセンターの
+  - `wpctl` / `pactl` / `amixer` を使った音量表示とオーディオカード
+    （`Super+Shift+A`）。出力/入力タブ、既定の出力先・入力先の選択、
+    入力音量/ミュート、コマンド上書き設定、コントロールセンターの
     絶対値スライダー
   - `xdg-desktop-portal` 連携: `xdg-desktop-portal-wlr` と PipeWire による
     画面共有のための screencopy、dmabuf、出力キャプチャソース、
@@ -1012,9 +1013,12 @@ include = /home/you/.config/tessa/launcher-entries.conf
   開きます。`Up`/`Down` で選択し `Enter` でアクティベートします。DBusMenu
   によるコンテキストメニューは未対応です。
 - `wpctl`、`pactl`、`amixer` のいずれかがあるとバーに音量が表示されます。
-  クリックまたは `Super+Shift+A` で開き、`Up`/`Down` で音量、`m` でミュート、
-  `Esc` で閉じます。`volume_status`、`volume_up`、`volume_down`、
-  `volume_mute` でコマンドを上書きできます。
+  クリックまたは `Super+Shift+A` でオーディオカードを開きます。`OUTPUT` と
+  `INPUT` のタブがあり、`Up`/`Down` で選択中の音量、`m` でミュート、`Tab`
+  でタブ切り替え、`d` で既定デバイスを切り替え、`Esc` で閉じます。デバイス
+  一覧をクリックすると、その出力先または入力先が既定になります。
+  `volume_status`、`volume_up`、`volume_down`、`volume_mute` で出力側の
+  コマンドを上書きできます。
 
 ## 設定
 
@@ -1379,7 +1383,9 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
 - **音量はコマンドブリッジです。** `wpctl`（PipeWire）、`pactl`
   （PulseAudio）、`amixer`（ALSA）を検出してワーカースレッドで実行します。
   どれもない環境では音量表示が出ません。パネル設定で独自コマンドも指定
-  できます。
+  できます。既定の出力先・入力先の選択とデバイス一覧は `wpctl` または
+  `pactl` が必要です。`amixer` は `Master`/`Capture` の音量のみ、独自
+  コマンドは出力側のみに対応します。
 - **画面共有にはポータルパッケージが必要です。** Tessa はコンポジタ側
   （`wlr-screencopy`、利用可能なら linux-dmabuf、出力キャプチャソース、
   image-copy capture、foreign-toplevel リスト）を提供します。

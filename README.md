@@ -309,9 +309,10 @@ Highlights include:
     and click-to-seek
   - StatusNotifier tray watcher/host with icon rendering and activation
     (`Super+Shift+T`)
-  - volume indicator and popover through `wpctl`, `pactl`, or `amixer`
-    (`Super+Shift+A`), with configurable command overrides and an absolute
-    control-center slider
+  - volume indicator and audio card through `wpctl`, `pactl`, or `amixer`
+    (`Super+Shift+A`), with Output/Input tabs, default output and input device
+    selection, input volume/mute, configurable command overrides, and an
+    absolute control-center slider
   - compositor-side xdg-desktop-portal support: screencopy, dmabuf, output
     capture sources, image-copy capture, and foreign-toplevel lists for
     `xdg-desktop-portal-wlr` + PipeWire screen sharing
@@ -982,9 +983,12 @@ Mouse:
   right-click or `Super+Shift+T` opens the tray popover. `Up`/`Down` selects and
   `Enter` activates. DBusMenu context menus are not implemented.
 - The bar shows output volume when `wpctl`, `pactl`, or `amixer` is available.
-  Click it or press `Super+Shift+A`. `Up`/`Down` changes volume, `m` toggles
-  mute, and `Esc` closes. Use `volume_status`, `volume_up`, `volume_down`, and
-  `volume_mute` to override the detected commands.
+  Click it or press `Super+Shift+A`. The audio card has `OUTPUT` and `INPUT`
+  tabs; `Up`/`Down` changes the active volume, `m` toggles mute, `Tab` switches
+  tabs, `d` cycles the default device, and `Esc` closes. Click a device in the
+  list to make it the default output or input. Use `volume_status`,
+  `volume_up`, `volume_down`, and `volume_mute` to override the detected output
+  commands.
 
 ## Configuration
 
@@ -1340,7 +1344,9 @@ These are real and important:
 - **Volume is a command bridge.** Tessa detects `wpctl` (PipeWire), `pactl`
   (PulseAudio), or `amixer` (ALSA) and executes it on a worker thread. Systems
   without one of these tools show no volume indicator; custom commands can be
-  supplied in the panel config.
+  supplied in the panel config. Default output/input selection and the device
+  lists use `wpctl` or `pactl`; `amixer` exposes the `Master`/`Capture` controls
+  without a device list, and custom commands remain output-only.
 - **Screen sharing needs the portal packages.** Tessa exposes the compositor
   side (`wlr-screencopy`, linux-dmabuf where available, output image-capture
   sources, image-copy capture, and foreign-toplevel lists). Install

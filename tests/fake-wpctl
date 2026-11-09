@@ -1,48 +1,142 @@
 #!/bin/sh
-# Fake wpctl used by tests/audio.sh. State file: "<percent> <muted>".
+# Fake wpctl used by tests/audio.sh.
+# State file: "<output%> <output-muted> <input%> <input-muted> <sink-id> <source-id>"
 set -eu
 state=${TESSA_FAKE_VOLUME_STATE:?}
 log=${TESSA_FAKE_AUDIO_LOG:?}
 command=${1:-}
-arg3=${3:-}
-read -r percent muted <"$state"
+target=${2:-}
+value=${3:-}
+
+read -r percent muted input_percent input_muted sink_id source_id <"$state"
+: "${input_percent:=0}" "${input_muted:=0}" "${sink_id:=1}" "${source_id:=3}"
+
+is_source() {
+    case "$target" in
+    *SOURCE*|*source*) return 0 ;;
+    *) return 1 ;;
+    esac
+}
 
 emit() {
-    value=$(awk "BEGIN { printf \"%.2f\", $percent / 100 }")
-    if [ "$muted" = "1" ]; then
+    pct=$percent
+    mute=$muted
+    if is_source; then
+        pct=$input_percent
+        mute=$input_muted
+    fi
+    value=$(awk "BEGIN { printf \"%.2f\", $pct / 100 }")
+    if [ "$mute" = "1" ]; then
         printf 'Volume: %s [MUTED]\n' "$value"
     else
         printf 'Volume: %s\n' "$value"
     fi
 }
 
+save() {
+    printf '%s %s %s %s %s %s\n' \
+        "$percent" "$muted" "$input_percent" "$input_muted" "$sink_id" "$source_id" >"$state"
+}
+
+status() {
+    sink_mark=' '
+    source_mark=' '
+    if [ "$sink_id" = "1" ]; then sink_mark='*'; fi
+    if [ "$source_id" = "3" ]; then source_mark='*'; fi
+    cat <<EOF
+Audio
+ ├─ Devices:
+ │      1. Built-in Audio
+ │
+ ├─ Sinks:
+ │  $sink_mark   1. Built-in Speakers [vol: 0.40]
+ │      2. USB Headphones [vol: 0.50]
+ │
+ ├─ Sources:
+ │  $source_mark   3. Built-in Microphone [vol: 0.60]
+ │      4. USB Microphone [vol: 0.70]
+ │
+ ├─ Filters:
+ │
+ └─ Streams:
+
+Video
+ ├─ Sinks:
+ │
+ ├─ Sources:
+ │  *   9. Camera (V4L2)
+ │
+ └─ Streams:
+
+Settings
+ └─ Default Configured Devices:
+EOF
+}
+
 case "$command" in
 get-volume)
-    echo "get-volume" >>"$log"
+    echo "get-volume $target" >>"$log"
     emit
     ;;
 set-volume)
-    echo "set-volume $arg3" >>"$log"
-    case "$arg3" in
-    *%+)
-        step=${arg3%\%+}
-        percent=$((percent + step))
-        ;;
-    *%-)
-        step=${arg3%\%-}
-        percent=$((percent - step))
-        ;;
-    esac
-    if [ "$percent" -lt 0 ]; then percent=0; fi
-    if [ "$percent" -gt 150 ]; then percent=150; fi
-    printf '%s %s\n' "$percent" "$muted" >"$state"
+    echo "set-volume $target $value" >>"$log"
+    if is_source; then
+        case "$value" in
+        *%+)
+            step=${value%\%+}
+            input_percent=$((input_percent + step))
+            ;;
+        *%-)
+            step=${value%\%-}
+            input_percent=$((input_percent - step))
+            ;;
+        *%)
+            input_percent=${value%\%}
+            ;;
+        esac
+        if [ "$input_percent" -lt 0 ]; then input_percent=0; fi
+        if [ "$input_percent" -gt 150 ]; then input_percent=150; fi
+    else
+        case "$value" in
+        *%+)
+            step=${value%\%+}
+            percent=$((percent + step))
+            ;;
+        *%-)
+            step=${value%\%-}
+            percent=$((percent - step))
+            ;;
+        *%)
+            percent=${value%\%}
+            ;;
+        esac
+        if [ "$percent" -lt 0 ]; then percent=0; fi
+        if [ "$percent" -gt 150 ]; then percent=150; fi
+    fi
+    save
     emit
     ;;
 set-mute)
-    echo "set-mute $arg3" >>"$log"
-    if [ "$muted" = "1" ]; then muted=0; else muted=1; fi
-    printf '%s %s\n' "$percent" "$muted" >"$state"
+    echo "set-mute $target" >>"$log"
+    if is_source; then
+        if [ "$input_muted" = "1" ]; then input_muted=0; else input_muted=1; fi
+    else
+        if [ "$muted" = "1" ]; then muted=0; else muted=1; fi
+    fi
+    save
     emit
+    ;;
+set-default)
+    echo "set-default $target" >>"$log"
+    case "$target" in
+    3|4) source_id=$target ;;
+    *) sink_id=$target ;;
+    esac
+    save
+    ;;
+status)
+    echo "status" >>"$log"
+    status
     ;;
 *)
     echo "unexpected wpctl invocation: $*" >&2

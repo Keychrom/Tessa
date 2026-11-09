@@ -2520,10 +2520,11 @@ fn popoverLayout(mode: m.OverlayMode, W: f64, H: f64) PopoverLayout {
     return .{ .x = x, .y = y, .w = w, .h = h };
 }
 
-/// A compact audio mixer bar that opens next to the volume indicator.
+/// The audio mixer card that opens next to the volume indicator.
 fn audioBarLayout(W: f64, H: f64) PopoverLayout {
-    const w = @min(452.0, @max(300.0, W - 16.0));
-    const h = 80.0;
+    const w = @min(440.0, @max(320.0, W - 16.0));
+    const rows = @min(m.audioDeviceCount(), 4);
+    const h = @min(232.0 + @as(f64, @floatFromInt(rows)) * 38.0, @max(220.0, H - 16.0));
     const bar = m.barOutputRect(W, H);
     const gap = 8.0;
     var anchor_y = bar.y + bar.h / 2.0;
@@ -3226,6 +3227,15 @@ fn drawScreenshotOverlay(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     }, hint_w - 120, 0.25);
 }
 
+fn audioBackendLabel() []const u8 {
+    const source = g.volume_source[0..g.volume_source_len];
+    if (std.mem.eql(u8, source, "wpctl")) return "PIPEWIRE";
+    if (std.mem.eql(u8, source, "pactl")) return "PULSE";
+    if (std.mem.eql(u8, source, "amixer")) return "ALSA";
+    if (std.mem.eql(u8, source, "custom")) return "CUSTOM";
+    return "NO AUDIO";
+}
+
 fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const accent = g.accent;
     const fam = m.popoverFont();
@@ -3234,8 +3244,15 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const y = p.y;
     const w = p.w;
     const h = p.h;
-    const available = g.volume_percent >= 0;
+    const tab = g.audio_tab;
+    const percent = m.audioPercent();
+    const muted = m.audioMuted();
+    const available = percent >= 0;
+    const devices = m.audioDevices();
+    const default_device = m.audioDefaultDevice();
+    const source = g.volume_source[0..g.volume_source_len];
 
+    g.audio_visible = 4;
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1;
     g.overlay_hit_x = x;
@@ -3244,130 +3261,325 @@ fn drawAudioPopover(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_push_group(cr);
     drawPopoverCard(cr, x, y, w, h);
 
-    const ix = x + 24.0;
-    const iy = y + h / 2.0 - 2.0;
-    const icon_col: [4]f64 = if (available and !g.volume_muted)
+    const fg = g.popover_fg;
+    const faint = [4]f64{ fg[0], fg[1], fg[2], 0.42 };
+    const icon_col: [4]f64 = if (available and !muted)
         .{ accent[0], accent[1], accent[2], 0.92 }
     else
-        .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.42 };
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, ix, iy - 3);
-    c.cairo_line_to(cr, ix + 5, iy - 3);
-    c.cairo_line_to(cr, ix + 10, iy - 7);
-    c.cairo_line_to(cr, ix + 10, iy + 7);
-    c.cairo_line_to(cr, ix + 5, iy + 3);
-    c.cairo_line_to(cr, ix, iy + 3);
-    c.cairo_close_path(cr);
-    setColor(cr, icon_col);
-    c.cairo_fill(cr);
-    if (available and !g.volume_muted) {
+        .{ fg[0], fg[1], fg[2], 0.42 };
+
+    const ix = x + 30.0;
+    const iy = y + 31.0;
+    if (tab == .output) {
         c.cairo_new_path(cr);
-        c.cairo_arc(cr, ix + 10.5, iy, 4.5, -0.85, 0.85);
+        c.cairo_move_to(cr, ix - 9, iy - 3);
+        c.cairo_line_to(cr, ix - 4, iy - 3);
+        c.cairo_line_to(cr, ix + 1, iy - 8);
+        c.cairo_line_to(cr, ix + 1, iy + 8);
+        c.cairo_line_to(cr, ix - 4, iy + 3);
+        c.cairo_line_to(cr, ix - 9, iy + 3);
+        c.cairo_close_path(cr);
+        setColor(cr, icon_col);
+        c.cairo_fill(cr);
+        if (available and !muted) {
+            c.cairo_new_path(cr);
+            c.cairo_arc(cr, ix + 1.5, iy, 4.8, -0.85, 0.85);
+            setColor(cr, .{ icon_col[0], icon_col[1], icon_col[2], 0.72 });
+            c.cairo_set_line_width(cr, 1.3);
+            c.cairo_stroke(cr);
+        } else if (muted) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, ix + 3, iy - 5);
+            c.cairo_line_to(cr, ix + 7, iy + 5);
+            setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+            c.cairo_set_line_width(cr, 1.3);
+            c.cairo_stroke(cr);
+        }
+    } else {
+        c.cairo_new_path(cr);
+        c.cairo_rectangle(cr, ix - 3.5, iy - 9, 7, 11);
+        setColor(cr, icon_col);
+        c.cairo_set_line_width(cr, 1.3);
+        c.cairo_stroke(cr);
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, ix, iy - 1, 7, 0, PI);
         setColor(cr, .{ icon_col[0], icon_col[1], icon_col[2], 0.72 });
         c.cairo_set_line_width(cr, 1.3);
         c.cairo_stroke(cr);
-    } else if (g.volume_muted) {
         c.cairo_new_path(cr);
-        c.cairo_move_to(cr, ix + 12, iy - 5);
-        c.cairo_line_to(cr, ix + 16, iy + 5);
-        setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+        c.cairo_move_to(cr, ix, iy + 6);
+        c.cairo_line_to(cr, ix, iy + 10);
+        c.cairo_move_to(cr, ix - 4, iy + 10);
+        c.cairo_line_to(cr, ix + 4, iy + 10);
         c.cairo_set_line_width(cr, 1.3);
         c.cairo_stroke(cr);
+        if (muted) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, ix - 8, iy + 7);
+            c.cairo_line_to(cr, ix + 8, iy - 10);
+            setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+            c.cairo_set_line_width(cr, 1.3);
+            c.cairo_stroke(cr);
+        }
     }
 
-    _ = drawText(cr, "AUDIO", x + 44, y + 11, fam, "Medium", 7.2, .{
+    _ = drawText(cr, "AUDIO", x + 50, y + 11, fam, "Medium", 7.2, .{
         0.64, 0.70, 0.80, 0.45,
     }, 0, 1.5);
 
+    const title = if (default_device) |device|
+        device.name[0..device.name_len]
+    else if (tab == .output)
+        "No output device"
+    else
+        "No input device";
+    _ = drawText(cr, title, x + 50, y + 23, fam, "Semi-Bold", 12.0, .{
+        fg[0], fg[1], fg[2], if (available) 0.96 else 0.55,
+    }, w - 190.0, 0);
+
+    const detail = if (default_device) |device| device.detail[0..device.detail_len] else source;
+    if (detail.len > 0) {
+        _ = drawText(cr, detail, x + 50, y + 41, MONO, "Medium", 6.6, faint, w - 190.0, 0.4);
+    }
+
     if (available) {
         var value_buf: [16]u8 = undefined;
-        const value = std.fmt.bufPrint(&value_buf, "{d}", .{g.volume_percent}) catch "0";
-        const value_col: [4]f64 = if (g.volume_muted)
+        const value = std.fmt.bufPrint(&value_buf, "{d}", .{percent}) catch "0";
+        const tw = textWidth(cr, value, fam, "Semi-Bold", 27.0, 0);
+        const value_col: [4]f64 = if (muted)
             .{ 0.58, 0.63, 0.72, 0.55 }
         else
-            .{ g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.98 };
-        const vw = drawText(cr, value, x + 44, y + 25, fam, "Semi-Bold", 27.0, value_col, 60, 0).w;
-        _ = drawText(cr, "%", x + 47 + vw, y + 39, fam, "Medium", 10.0, .{
+            .{ fg[0], fg[1], fg[2], 0.98 };
+        _ = drawText(cr, value, x + w - 46.0 - tw, y + 14, fam, "Semi-Bold", 27.0, value_col, 0, 0);
+        _ = drawText(cr, "%", x + w - 42.0, y + 30, fam, "Medium", 10.0, .{
             value_col[0], value_col[1], value_col[2], 0.62,
         }, 0, 0);
     } else {
-        _ = drawText(cr, "No audio", x + 44, y + 30, fam, "Semi-Bold", 12.0, .{
-            0.86, 0.90, 0.96, 0.84,
-        }, 80, 0);
+        _ = drawText(cr, "OFF", x + w - 58.0, y + 22, fam, "Semi-Bold", 12.0, faint, 40, 0);
+    }
+    if (muted and available) {
+        const label = "MUTED";
+        const tw = textWidth(cr, label, MONO, "Medium", 6.4, 0.8);
+        _ = drawText(cr, label, x + w - 24.0 - tw, y + 46, MONO, "Medium", 6.4, .{
+            accent[0], accent[1], accent[2], 0.9,
+        }, 60, 0.8);
     }
 
-    const mid_x = x + 116;
-    const mid_w = @max(80.0, w - 276.0);
-    const muted = available and g.volume_muted;
-    _ = drawText(cr, if (muted) "MUTED" else "OUTPUT VOLUME", mid_x, y + 16, MONO, "Medium", 6.8, if (muted) .{
-        accent[0], accent[1], accent[2], 0.9,
-    } else .{
-        0.58, 0.64, 0.74, 0.42,
-    }, mid_w, 0.7);
+    const tab_y = y + 66.0;
+    const tab_h = 26.0;
+    const tab_w = 84.0;
+    const tab_labels = [_][]const u8{ "OUTPUT", "INPUT" };
+    const tab_kinds = [_]m.HitKind{ .audio_tab_output, .audio_tab_input };
+    var ti: usize = 0;
+    while (ti < 2) : (ti += 1) {
+        const tx = x + 24.0 + @as(f64, @floatFromInt(ti)) * (tab_w + 6.0);
+        const active = (ti == 0 and tab == .output) or (ti == 1 and tab == .input);
+        const hit_index = g.overlay_hit_count;
+        const hovered = g.overlay_row_hover == hit_index;
+        fillRound(cr, tx, tab_y, tab_w, tab_h, 13, if (active)
+            .{ accent[0], accent[1], accent[2], 0.16 }
+        else
+            .{ 1, 1, 1, if (hovered) 0.075 else 0.045 });
+        if (active) {
+            strokeRound(cr, tx + 0.5, tab_y + 0.5, tab_w - 1, tab_h - 1, 12.5, .{
+                accent[0], accent[1], accent[2], 0.38,
+            }, 1);
+        }
+        _ = drawTextCenteredX(cr, tab_labels[ti], tx + tab_w / 2.0, tab_y + tab_h / 2.0, fam, "Semi-Bold", 7.0, if (active)
+            .{ accent[0], accent[1], accent[2], 0.95 }
+        else
+            .{ fg[0], fg[1], fg[2], 0.45 }, 0, 0.8);
+        addOverlayHit(tx - x, tab_y - y, tab_w, tab_h, .{ .kind = tab_kinds[ti] });
+    }
 
-    const bar_x = mid_x;
-    const bar_y = y + 42;
-    const bar_w = mid_w;
-    fillRound(cr, bar_x, bar_y, bar_w, 8, 4, .{ 1, 1, 1, 0.07 });
+    const backend = audioBackendLabel();
+    const backend_w = textWidth(cr, backend, MONO, "Medium", 6.4, 1.1);
+    _ = drawText(cr, backend, x + w - 24.0 - backend_w, tab_y + 9.0, MONO, "Medium", 6.4, .{
+        0.58, 0.64, 0.74, 0.35,
+    }, 100, 1.1);
+
+    const button_y = y + 100.0;
+    const button_h = 28.0;
+    const gap = 6.0;
+    const minus_w = 30.0;
+    const plus_w = 30.0;
+    const mute_w = 58.0;
+    const total_w = minus_w + plus_w + mute_w + gap * 2.0;
+    const bx0 = x + w - 24.0 - total_w;
+    const button_col: [4]f64 = if (available) .{ fg[0], fg[1], fg[2], 0.9 } else .{ fg[0], fg[1], fg[2], 0.35 };
+    const button_bg: [4]f64 = .{ 1, 1, 1, 0.045 };
+
+    var bi: usize = 0;
+    while (bi < 2) : (bi += 1) {
+        const bx = bx0 + @as(f64, @floatFromInt(bi)) * (minus_w + gap);
+        const hit_index = g.overlay_hit_count;
+        const hovered = g.overlay_row_hover == hit_index;
+        fillRound(cr, bx, button_y, minus_w, button_h, 8, if (hovered and available)
+            .{ 1, 1, 1, 0.09 }
+        else
+            button_bg);
+        strokeRound(cr, bx + 0.5, button_y + 0.5, minus_w - 1, button_h - 1, 7.5, .{
+            1, 1, 1, 0.07,
+        }, 1);
+        _ = drawTextCenteredX(cr, if (bi == 0) "-" else "+", bx + minus_w / 2.0, button_y + button_h / 2.0, fam, "Semi-Bold", 15.0, button_col, 0, 0);
+        addOverlayHit(bx - x, button_y - y, minus_w, button_h, .{
+            .kind = if (bi == 0) .audio_down else .audio_up,
+        });
+    }
+
+    const mute_x = bx0 + (minus_w + gap) * 2.0;
+    const mute_hit = g.overlay_hit_count;
+    const mute_hovered = g.overlay_row_hover == mute_hit;
+    fillRound(cr, mute_x, button_y, mute_w, button_h, 8, if (muted and available)
+        .{ accent[0], accent[1], accent[2], 0.88 }
+    else if (mute_hovered and available)
+        .{ 1, 1, 1, 0.09 }
+    else
+        button_bg);
+    if (!(muted and available)) {
+        strokeRound(cr, mute_x + 0.5, button_y + 0.5, mute_w - 1, button_h - 1, 7.5, .{
+            1, 1, 1, 0.07,
+        }, 1);
+    }
+    _ = drawTextCenteredX(cr, if (muted) "UNMUTE" else "MUTE", mute_x + mute_w / 2.0, button_y + button_h / 2.0, MONO, "Semi-Bold", 6.3, if (muted and available)
+        .{ 0.055, 0.075, 0.105, 1.0 }
+    else
+        button_col, 0, 0.5);
+    addOverlayHit(mute_x - x, button_y - y, mute_w, button_h, .{ .kind = .audio_mute });
+
+    _ = drawText(cr, if (tab == .output) "OUTPUT VOLUME" else "INPUT VOLUME", x + 24, y + 108, MONO, "Medium", 6.8, if (muted and available)
+        .{ accent[0], accent[1], accent[2], 0.9 }
+    else
+        .{ 0.58, 0.64, 0.74, 0.42 }, 220, 0.7);
+
+    const slider_x = x + 24.0;
+    const slider_y = y + 138.0;
+    const slider_w = w - 48.0;
+    fillRound(cr, slider_x, slider_y, slider_w, 8, 4, .{ 1, 1, 1, 0.07 });
     const pct = if (available)
-        std.math.clamp(@as(f64, @floatFromInt(g.volume_percent)) / 100.0, 0.0, 1.0)
+        std.math.clamp(@as(f64, @floatFromInt(percent)) / 100.0, 0.0, 1.0)
     else
         0.0;
     if (pct > 0.005) {
-        const fill_col: [4]f64 = if (g.volume_muted)
+        const fill_col: [4]f64 = if (muted)
             .{ 0.56, 0.61, 0.70, 0.42 }
         else
             .{ accent[0], accent[1], accent[2], 0.92 };
-        fillRound(cr, bar_x, bar_y, bar_w * pct, 8, 4, fill_col);
+        fillRound(cr, slider_x, slider_y, slider_w * pct, 8, 4, fill_col);
     }
-    if (available and !g.volume_muted) {
-        fillCircle(cr, bar_x + bar_w * pct, bar_y + 4, 4.5, .{ 1, 1, 1, 0.92 });
+    if (available and !muted) {
+        fillCircle(cr, slider_x + slider_w * pct, slider_y + 4, 4.5, .{ 1, 1, 1, 0.92 });
     }
     var tick: usize = 1;
     while (tick < 4) : (tick += 1) {
-        fillRound(cr, bar_x + bar_w * @as(f64, @floatFromInt(tick)) / 4.0, bar_y + 13, 1, 3, 0.5, .{ 1, 1, 1, 0.06 });
+        fillRound(cr, slider_x + slider_w * @as(f64, @floatFromInt(tick)) / 4.0, slider_y + 13, 1, 3, 0.5, .{ 1, 1, 1, 0.06 });
+    }
+    g.audio_slider = .{ .x = slider_x, .y = slider_y - 5, .w = slider_w, .h = 18 };
+    if (available) {
+        addOverlayHit(slider_x - x, slider_y - y - 5, slider_w, 18, .{ .kind = .audio_slider });
     }
 
-    const source = g.volume_source[0..g.volume_source_len];
-    if (source.len > 0) {
-        _ = drawText(cr, source, mid_x, y + 62, MONO, "Medium", 6.6, .{
-            0.60, 0.66, 0.76, 0.42,
-        }, mid_w, 0.5);
+    const list_title_y = y + 166.0;
+    _ = drawText(cr, if (tab == .output) "OUTPUT DEVICES" else "INPUT DEVICES", x + 24, list_title_y, MONO, "Medium", 6.8, faint, 220, 0.7);
+    var count_buf: [40]u8 = undefined;
+    const visible = m.audioVisibleDevices();
+    const count_text = if (devices.len == 0)
+        "NONE"
+    else if (devices.len > visible)
+        std.fmt.bufPrint(&count_buf, "{d}-{d} / {d}", .{
+            g.audio_scroll + 1,
+            @min(g.audio_scroll + visible, devices.len),
+            devices.len,
+        }) catch ""
+    else
+        std.fmt.bufPrint(&count_buf, "{d}", .{devices.len}) catch "";
+    const count_w = textWidth(cr, count_text, MONO, "Medium", 6.4, 0.7);
+    _ = drawText(cr, count_text, x + w - 24.0 - count_w, list_title_y, MONO, "Medium", 6.4, faint, 80, 0.7);
+
+    const list_x = x + 16.0;
+    const list_y = y + 180.0;
+    const list_w = w - 32.0;
+    const row_h = 38.0;
+    g.audio_list = .{
+        .x = list_x,
+        .y = list_y,
+        .w = list_w,
+        .h = row_h * @as(f64, @floatFromInt(@min(visible, devices.len))),
+    };
+
+    if (devices.len == 0) {
+        const message = if (!g.audio_device_selection)
+            "Device selection needs PipeWire or PulseAudio"
+        else if (tab == .input)
+            "No input device"
+        else
+            "No output device";
+        _ = drawText(cr, message, x + 28, list_y + 12, fam, "Medium", 9.0, faint, w - 56, 0.2);
     } else {
-        _ = drawText(cr, if (available) "\xe2\x86\x91/\xe2\x86\x93 volume   m mute   esc close" else "Install wpctl, pactl, or amixer", mid_x, y + 62, if (available) fam else MONO, "Medium", 6.6, .{
-            0.60, 0.66, 0.75, 0.38,
-        }, mid_w, 0.3);
+        const start = @min(g.audio_scroll, devices.len);
+        var row_i: usize = 0;
+        while (row_i < visible and start + row_i < devices.len) : (row_i += 1) {
+            const index = start + row_i;
+            const device = &devices[index];
+            const row_y = list_y + @as(f64, @floatFromInt(row_i)) * row_h;
+            const hit_index = g.overlay_hit_count;
+            const hovered = g.overlay_row_hover == hit_index;
+            if (hovered) {
+                fillRound(cr, list_x, row_y, list_w, row_h - 4.0, 10, .{ 1, 1, 1, 0.055 });
+            } else if (device.is_default) {
+                fillRound(cr, list_x, row_y, list_w, row_h - 4.0, 10, .{
+                    accent[0], accent[1], accent[2], 0.05,
+                });
+            }
+
+            const radio_x = list_x + 16.0;
+            const radio_y = row_y + 17.0;
+            if (device.is_default) {
+                fillCircle(cr, radio_x, radio_y, 4.2, .{ accent[0], accent[1], accent[2], 0.9 });
+            } else {
+                c.cairo_new_path(cr);
+                c.cairo_arc(cr, radio_x, radio_y, 4.0, 0, PI * 2.0);
+                setColor(cr, .{ 1, 1, 1, 0.18 });
+                c.cairo_set_line_width(cr, 1.0);
+                c.cairo_stroke(cr);
+            }
+
+            _ = drawText(cr, device.name[0..device.name_len], list_x + 28, row_y + 6, fam, "Semi-Bold", 10.5, .{
+                fg[0], fg[1], fg[2], if (device.is_default) 0.96 else 0.82,
+            }, list_w - 92.0, 0);
+            const detail_text = if (device.detail_len > 0)
+                device.detail[0..device.detail_len]
+            else if (device.is_default)
+                "Default device"
+            else
+                "";
+            if (detail_text.len > 0) {
+                _ = drawText(cr, detail_text, list_x + 28, row_y + 21, MONO, "Medium", 6.5, .{
+                    0.58, 0.64, 0.74, 0.38,
+                }, list_w - 92.0, 0.2);
+            }
+            if (device.is_default) {
+                const label = "DEFAULT";
+                const tw = textWidth(cr, label, MONO, "Medium", 6.2, 0.8);
+                _ = drawText(cr, label, list_x + list_w - 12.0 - tw, row_y + 15.0, MONO, "Medium", 6.2, .{
+                    accent[0], accent[1], accent[2], 0.8,
+                }, 60, 0.8);
+            }
+
+            addOverlayHit(list_x - x, row_y - y, list_w, row_h - 4.0, .{
+                .kind = .audio_device,
+                .value = index,
+            });
+        }
     }
 
-    const labels = [_][]const u8{ "-", if (g.volume_muted) "UNMUTE" else "MUTE", "+" };
-    const hits = [_]m.HitKind{ .audio_down, .audio_mute, .audio_up };
-    const button_w = 38.0;
-    const button_h = 36.0;
-    const gap = 6.0;
-    const total_w = button_w * 3.0 + gap * 2.0;
-    const start_x = x + w - 18.0 - total_w;
-    const button_y = y + 22.0;
-    var i: usize = 0;
-    while (i < 3) : (i += 1) {
-        const bx = start_x + @as(f64, @floatFromInt(i)) * (button_w + gap);
-        const hovered = g.overlay_row_hover == i;
-        const primary = i == 1;
-        fillRound(cr, bx, button_y, button_w, button_h, 9, if (primary) .{
-            accent[0], accent[1], accent[2], if (available) 0.88 else 0.25,
-        } else .{
-            1, 1, 1, if (hovered and available) 0.09 else 0.045,
-        });
-        if (!primary) {
-            strokeRound(cr, bx + 0.5, button_y + 0.5, button_w - 1, button_h - 1, 8.5, .{
-                1, 1, 1, 0.07,
-            }, 1);
-        }
-        const label_col: [4]f64 = if (primary) .{
-            0.055, 0.075, 0.105, if (available) 1.0 else 0.5,
-        } else .{ 0.82, 0.87, 0.94, if (available) 0.9 else 0.4 };
-        _ = drawTextCenteredX(cr, labels[i], bx + button_w / 2.0, button_y + button_h / 2.0, if (i == 1) MONO else fam, "Semi-Bold", if (i == 1) 6.4 else 15.0, label_col, 0, 0);
-        addOverlayHit(bx - x, button_y - y, button_w, button_h, .{ .kind = hits[i] });
-    }
+    const hint = if (devices.len > visible)
+        "scroll devices   tab switch   d device   esc close"
+    else
+        "\xe2\x86\x91/\xe2\x86\x93 volume   tab switch   d device   esc close";
+    _ = drawText(cr, hint, x + 24, y + h - 20.0, fam, "Medium", 6.6, .{
+        0.60, 0.66, 0.75, 0.38,
+    }, w - 48.0, 0.2);
 
     c.cairo_pop_group_to_source(cr);
     c.cairo_paint_with_alpha(cr, t);
@@ -4111,6 +4323,11 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             _ = drawText(cr, vtext, right_x + col_w - 16 - vw, sy, MONO, "Medium", 8.0, .{
                 fg[0], fg[1], fg[2], 0.62,
             }, 0, 0);
+            const sound_w = textWidth(cr, "SOUND", MONO, "Medium", 6.2, 0.8);
+            drawChevron(cr, right_x + 16.0 + sound_w + 9.0, sy + 6.0, 7.0, .{
+                fg[0], fg[1], fg[2], 0.30,
+            });
+            registerControlNav(right_x + 8, sy - 4, col_w - 16, 24, .audio);
             const pct = if (g.volume_percent >= 0) @as(f64, @floatFromInt(g.volume_percent)) / 100.0 else 0.0;
             controlSlider(cr, right_x + 16, sy + 22, col_w - 32, pct, .volume);
             sy += 52.0;
@@ -4706,6 +4923,7 @@ fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_clip(cr);
     switch (g.control_view) {
         .home => controlHome(cr, l),
+        .audio => drawControlAudio(cr, l),
         .wifi => drawControlWifi(cr, l, true, t),
         .bluetooth => drawControlBluetooth(cr, l, true, t),
         .notifications => drawControlNotifications(cr, l),
@@ -4716,6 +4934,349 @@ fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_restore(cr);
     c.cairo_pop_group_to_source(cr);
     c.cairo_paint_with_alpha(cr, t);
+}
+
+fn drawControlAudio(cr: *c.cairo_t, l: m.ControlLayout) void {
+    const accent = g.accent;
+    const fg = g.popover_fg;
+    const fam = m.popoverFont();
+    const pad = 18.0;
+    const x = l.x + pad;
+    const w = l.w - pad * 2.0;
+    const top = l.y + 50.0;
+    const tab = g.audio_tab;
+    const percent = m.audioPercent();
+    const muted = m.audioMuted();
+    const available = percent >= 0;
+    const devices = m.audioDevices();
+    const default_device = m.audioDefaultDevice();
+    const source = g.volume_source[0..g.volume_source_len];
+    const two = l.columns == 2;
+
+    drawControlHeader(cr, x, l.y + 14, w, "AUDIO", true);
+
+    const faint = [4]f64{ fg[0], fg[1], fg[2], 0.42 };
+    const icon_col: [4]f64 = if (available and !muted)
+        .{ accent[0], accent[1], accent[2], 0.92 }
+    else
+        .{ fg[0], fg[1], fg[2], 0.42 };
+
+    const left_w = if (two) @min(300.0, w * 0.40) else w;
+    const right_gap: f64 = if (two) 20.0 else 0.0;
+    const right_x = x + left_w + right_gap;
+    const right_w = if (two) w - left_w - 20.0 else w;
+    const right_top: f64 = if (two) top else top + 236.0;
+
+    const ix = x + 14.0;
+    const iy = top + 16.0;
+    if (tab == .output) {
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, ix - 10, iy - 3);
+        c.cairo_line_to(cr, ix - 4, iy - 3);
+        c.cairo_line_to(cr, ix + 2, iy - 9);
+        c.cairo_line_to(cr, ix + 2, iy + 9);
+        c.cairo_line_to(cr, ix - 4, iy + 3);
+        c.cairo_line_to(cr, ix - 10, iy + 3);
+        c.cairo_close_path(cr);
+        setColor(cr, icon_col);
+        c.cairo_fill(cr);
+        if (available and !muted) {
+            c.cairo_new_path(cr);
+            c.cairo_arc(cr, ix + 2.5, iy, 5.2, -0.85, 0.85);
+            setColor(cr, .{ icon_col[0], icon_col[1], icon_col[2], 0.72 });
+            c.cairo_set_line_width(cr, 1.4);
+            c.cairo_stroke(cr);
+        } else if (muted) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, ix + 4, iy - 6);
+            c.cairo_line_to(cr, ix + 9, iy + 6);
+            setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+            c.cairo_set_line_width(cr, 1.4);
+            c.cairo_stroke(cr);
+        }
+    } else {
+        c.cairo_new_path(cr);
+        c.cairo_rectangle(cr, ix - 4, iy - 10, 8, 12);
+        setColor(cr, icon_col);
+        c.cairo_set_line_width(cr, 1.4);
+        c.cairo_stroke(cr);
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, ix, iy - 1, 8, 0, PI);
+        setColor(cr, .{ icon_col[0], icon_col[1], icon_col[2], 0.72 });
+        c.cairo_set_line_width(cr, 1.4);
+        c.cairo_stroke(cr);
+        c.cairo_new_path(cr);
+        c.cairo_move_to(cr, ix, iy + 7);
+        c.cairo_line_to(cr, ix, iy + 11);
+        c.cairo_move_to(cr, ix - 5, iy + 11);
+        c.cairo_line_to(cr, ix + 5, iy + 11);
+        c.cairo_set_line_width(cr, 1.4);
+        c.cairo_stroke(cr);
+        if (muted) {
+            c.cairo_new_path(cr);
+            c.cairo_move_to(cr, ix - 9, iy + 8);
+            c.cairo_line_to(cr, ix + 9, iy - 11);
+            setColor(cr, .{ 0.82, 0.87, 0.94, 0.55 });
+            c.cairo_set_line_width(cr, 1.4);
+            c.cairo_stroke(cr);
+        }
+    }
+
+    const title = if (default_device) |device|
+        device.name[0..device.name_len]
+    else if (tab == .output)
+        "No output device"
+    else
+        "No input device";
+    _ = drawText(cr, title, x + 40, top - 2, fam, "Semi-Bold", 14.0, .{
+        fg[0], fg[1], fg[2], if (available) 0.96 else 0.55,
+    }, left_w - 150.0, 0);
+    const detail = if (default_device) |device| device.detail[0..device.detail_len] else source;
+    if (detail.len > 0) {
+        _ = drawText(cr, detail, x + 40, top + 20, MONO, "Medium", 7.0, faint, left_w - 150.0, 0.35);
+    }
+
+    if (available) {
+        var value_buf: [16]u8 = undefined;
+        const value = std.fmt.bufPrint(&value_buf, "{d}", .{percent}) catch "0";
+        const tw = textWidth(cr, value, fam, "Semi-Bold", 32.0, 0);
+        const value_col: [4]f64 = if (muted)
+            .{ 0.58, 0.63, 0.72, 0.55 }
+        else
+            .{ fg[0], fg[1], fg[2], 0.98 };
+        _ = drawText(cr, value, x + left_w - 42.0 - tw, top - 8, fam, "Semi-Bold", 32.0, value_col, 0, 0);
+        _ = drawText(cr, "%", x + left_w - 36.0, top + 12, fam, "Medium", 10.0, .{
+            value_col[0], value_col[1], value_col[2], 0.62,
+        }, 0, 0);
+    } else {
+        _ = drawText(cr, "OFF", x + left_w - 48.0, top + 4, fam, "Semi-Bold", 12.0, faint, 40, 0);
+    }
+    if (muted and available) {
+        const label = "MUTED";
+        const tw = textWidth(cr, label, MONO, "Medium", 6.5, 0.8);
+        _ = drawText(cr, label, x + left_w - 24.0 - tw, top + 34, MONO, "Medium", 6.5, .{
+            accent[0], accent[1], accent[2], 0.9,
+        }, 60, 0.8);
+    }
+
+    const tab_y = top + 54.0;
+    const tab_h = 28.0;
+    const tab_gap = 6.0;
+    const tab_w = if (two) (left_w - tab_gap) / 2.0 else 92.0;
+    const tab_labels = [_][]const u8{ "OUTPUT", "INPUT" };
+    const tab_kinds = [_]m.HitKind{ .audio_tab_output, .audio_tab_input };
+    var ti: usize = 0;
+    while (ti < 2) : (ti += 1) {
+        const tx = x + @as(f64, @floatFromInt(ti)) * (tab_w + tab_gap);
+        const active = (ti == 0 and tab == .output) or (ti == 1 and tab == .input);
+        const hit_index = g.overlay_hit_count;
+        const hovered = g.overlay_row_hover == hit_index;
+        fillRound(cr, tx, tab_y, tab_w, tab_h, 14, if (active)
+            .{ accent[0], accent[1], accent[2], 0.16 }
+        else
+            .{ 1, 1, 1, if (hovered) 0.075 else 0.045 });
+        if (active) {
+            strokeRound(cr, tx + 0.5, tab_y + 0.5, tab_w - 1, tab_h - 1, 13.5, .{
+                accent[0], accent[1], accent[2], 0.38,
+            }, 1);
+        }
+        _ = drawTextCenteredX(cr, tab_labels[ti], tx + tab_w / 2.0, tab_y + tab_h / 2.0, fam, "Semi-Bold", 7.2, if (active)
+            .{ accent[0], accent[1], accent[2], 0.95 }
+        else
+            .{ fg[0], fg[1], fg[2], 0.45 }, 0, 0.8);
+        addOverlayHit(tx, tab_y, tab_w, tab_h, .{ .kind = tab_kinds[ti] });
+    }
+
+    const backend = audioBackendLabel();
+    const backend_w = textWidth(cr, backend, MONO, "Medium", 6.6, 1.1);
+    _ = drawText(cr, backend, x + left_w - backend_w, tab_y + tab_h + 14.0, MONO, "Medium", 6.6, .{
+        0.58, 0.64, 0.74, 0.35,
+    }, 100, 1.1);
+
+    _ = drawText(cr, if (tab == .output) "OUTPUT VOLUME" else "INPUT VOLUME", x, tab_y + tab_h + 34.0, MONO, "Medium", 7.0, if (muted and available)
+        .{ accent[0], accent[1], accent[2], 0.9 }
+    else
+        .{ 0.58, 0.64, 0.74, 0.42 }, 220, 0.7);
+
+    const slider_y = tab_y + tab_h + 58.0;
+    fillRound(cr, x, slider_y, left_w, 9, 4.5, .{ 1, 1, 1, 0.07 });
+    const pct = if (available)
+        std.math.clamp(@as(f64, @floatFromInt(percent)) / 100.0, 0.0, 1.0)
+    else
+        0.0;
+    if (pct > 0.005) {
+        const fill_col: [4]f64 = if (muted)
+            .{ 0.56, 0.61, 0.70, 0.42 }
+        else
+            .{ accent[0], accent[1], accent[2], 0.92 };
+        fillRound(cr, x, slider_y, left_w * pct, 9, 4.5, fill_col);
+    }
+    if (available and !muted) {
+        fillCircle(cr, x + left_w * pct, slider_y + 4.5, 5.0, .{ 1, 1, 1, 0.92 });
+    }
+    var tick: usize = 1;
+    while (tick < 4) : (tick += 1) {
+        fillRound(cr, x + left_w * @as(f64, @floatFromInt(tick)) / 4.0, slider_y + 15, 1, 3, 0.5, .{ 1, 1, 1, 0.06 });
+    }
+    g.audio_slider = .{ .x = x, .y = slider_y - 5, .w = left_w, .h = 18 };
+    if (available) {
+        addOverlayHit(x, slider_y - 5, left_w, 18, .{ .kind = .audio_slider });
+    }
+
+    const button_y = slider_y + 26.0;
+    const button_h = 30.0;
+    const gap = 6.0;
+    const small_w: f64 = if (two) 38.0 else 34.0;
+    const mute_w = left_w - small_w * 2.0 - gap * 2.0;
+    const button_col: [4]f64 = if (available) .{ fg[0], fg[1], fg[2], 0.9 } else .{ fg[0], fg[1], fg[2], 0.35 };
+    const button_bg: [4]f64 = .{ 1, 1, 1, 0.045 };
+
+    var bi: usize = 0;
+    while (bi < 2) : (bi += 1) {
+        const bx = x + @as(f64, @floatFromInt(bi)) * (small_w + gap);
+        const hit_index = g.overlay_hit_count;
+        const hovered = g.overlay_row_hover == hit_index;
+        fillRound(cr, bx, button_y, small_w, button_h, 8, if (hovered and available)
+            .{ 1, 1, 1, 0.09 }
+        else
+            button_bg);
+        strokeRound(cr, bx + 0.5, button_y + 0.5, small_w - 1, button_h - 1, 7.5, .{
+            1, 1, 1, 0.07,
+        }, 1);
+        _ = drawTextCenteredX(cr, if (bi == 0) "-" else "+", bx + small_w / 2.0, button_y + button_h / 2.0, fam, "Semi-Bold", 16.0, button_col, 0, 0);
+        addOverlayHit(bx, button_y, small_w, button_h, .{
+            .kind = if (bi == 0) .audio_down else .audio_up,
+        });
+    }
+
+    const mute_x = x + (small_w + gap) * 2.0;
+    const mute_hit = g.overlay_hit_count;
+    const mute_hovered = g.overlay_row_hover == mute_hit;
+    fillRound(cr, mute_x, button_y, mute_w, button_h, 8, if (muted and available)
+        .{ accent[0], accent[1], accent[2], 0.88 }
+    else if (mute_hovered and available)
+        .{ 1, 1, 1, 0.09 }
+    else
+        button_bg);
+    if (!(muted and available)) {
+        strokeRound(cr, mute_x + 0.5, button_y + 0.5, mute_w - 1, button_h - 1, 7.5, .{
+            1, 1, 1, 0.07,
+        }, 1);
+    }
+    _ = drawTextCenteredX(cr, if (muted) "UNMUTE" else "MUTE", mute_x + mute_w / 2.0, button_y + button_h / 2.0, MONO, "Semi-Bold", 6.4, if (muted and available)
+        .{ 0.055, 0.075, 0.105, 1.0 }
+    else
+        button_col, 0, 0.5);
+    addOverlayHit(mute_x, button_y, mute_w, button_h, .{ .kind = .audio_mute });
+
+    const list_title_y = right_top;
+    _ = drawText(cr, if (tab == .output) "OUTPUT DEVICES" else "INPUT DEVICES", right_x, list_title_y, MONO, "Medium", 7.0, faint, 220, 0.7);
+
+    const row_h: f64 = if (two) 56.0 else 50.0;
+    const list_y = right_top + 24.0;
+    const available_h = l.y + l.h - 40.0 - list_y;
+    const capacity_by_height: usize = if (available_h > 0)
+        @intFromFloat(@floor(available_h / row_h))
+    else
+        0;
+    const capacity = @min(@as(usize, 8), @max(@as(usize, 0), capacity_by_height));
+    g.audio_visible = capacity;
+    const start = @min(g.audio_scroll, m.audioScrollMax());
+    const shown = @min(capacity, devices.len -| start);
+
+    var count_buf: [40]u8 = undefined;
+    const count_text = if (devices.len == 0)
+        "NONE"
+    else if (devices.len > capacity and capacity > 0)
+        std.fmt.bufPrint(&count_buf, "{d}-{d} / {d}", .{
+            start + 1,
+            start + shown,
+            devices.len,
+        }) catch ""
+    else
+        std.fmt.bufPrint(&count_buf, "{d}", .{devices.len}) catch "";
+    const count_w = textWidth(cr, count_text, MONO, "Medium", 6.6, 0.7);
+    _ = drawText(cr, count_text, right_x + right_w - count_w, list_title_y, MONO, "Medium", 6.6, faint, 80, 0.7);
+
+    g.audio_list = .{
+        .x = right_x,
+        .y = list_y,
+        .w = right_w,
+        .h = row_h * @as(f64, @floatFromInt(capacity)),
+    };
+
+    if (devices.len == 0) {
+        const message = if (!g.audio_device_selection)
+            "Device selection needs PipeWire or PulseAudio"
+        else if (tab == .input)
+            "No input device"
+        else
+            "No output device";
+        _ = drawText(cr, message, right_x + 8, list_y + 16, fam, "Medium", 9.0, faint, right_w - 16, 0.2);
+    } else {
+        var slot: usize = 0;
+        while (slot < shown) : (slot += 1) {
+            const index = start + slot;
+            const device = &devices[index];
+            const ry = list_y + @as(f64, @floatFromInt(slot)) * row_h;
+            const hit_index = g.overlay_hit_count;
+            const hovered = g.overlay_row_hover == hit_index;
+            if (hovered) {
+                fillRound(cr, right_x, ry, right_w, row_h - 6.0, 10, .{ 1, 1, 1, 0.055 });
+            } else if (device.is_default) {
+                fillRound(cr, right_x, ry, right_w, row_h - 6.0, 10, .{
+                    accent[0], accent[1], accent[2], 0.05,
+                });
+            }
+
+            const radio_x = right_x + 16.0;
+            const radio_y = ry + 25.0;
+            if (device.is_default) {
+                fillCircle(cr, radio_x, radio_y, 4.6, .{ accent[0], accent[1], accent[2], 0.9 });
+            } else {
+                c.cairo_new_path(cr);
+                c.cairo_arc(cr, radio_x, radio_y, 4.4, 0, PI * 2.0);
+                setColor(cr, .{ 1, 1, 1, 0.18 });
+                c.cairo_set_line_width(cr, 1.0);
+                c.cairo_stroke(cr);
+            }
+
+            _ = drawText(cr, device.name[0..device.name_len], right_x + 30, ry + 9, fam, "Semi-Bold", 11.5, .{
+                fg[0], fg[1], fg[2], if (device.is_default) 0.96 else 0.82,
+            }, right_w - 104.0, 0);
+            const detail_text = if (device.detail_len > 0)
+                device.detail[0..device.detail_len]
+            else if (device.is_default)
+                "Default device"
+            else
+                "";
+            if (detail_text.len > 0) {
+                _ = drawText(cr, detail_text, right_x + 30, ry + 29, MONO, "Medium", 6.8, .{
+                    0.58, 0.64, 0.74, 0.38,
+                }, right_w - 104.0, 0.2);
+            }
+            if (device.is_default) {
+                const label = "DEFAULT";
+                const tw = textWidth(cr, label, MONO, "Medium", 6.3, 0.8);
+                _ = drawText(cr, label, right_x + right_w - 14.0 - tw, ry + 22.0, MONO, "Medium", 6.3, .{
+                    accent[0], accent[1], accent[2], 0.8,
+                }, 60, 0.8);
+            }
+
+            addOverlayHit(right_x, ry, right_w, row_h - 6.0, .{
+                .kind = .audio_device,
+                .value = index,
+            });
+        }
+    }
+
+    const hint = if (devices.len > capacity)
+        "scroll devices   tab switch   d device   esc back"
+    else
+        "\xe2\x86\x91/\xe2\x86\x93 volume   tab switch   d device   esc back";
+    _ = drawText(cr, hint, x, l.y + l.h - 24.0, fam, "Medium", 6.8, .{
+        0.60, 0.66, 0.75, 0.38,
+    }, w, 0.2);
 }
 
 fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) void {

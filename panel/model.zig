@@ -16,6 +16,10 @@ pub const MAX_NOTIFICATIONS = 50;
 pub const MAX_TOASTS = 4;
 pub const MAX_MEDIA_ART = 128;
 pub const MAX_MEDIA_ART_BYTES = MAX_MEDIA_ART * MAX_MEDIA_ART * 4;
+pub const MAX_AUDIO_DEVICES = 8;
+pub const MAX_AUDIO_ID = 128;
+pub const MAX_AUDIO_NAME = 96;
+pub const MAX_AUDIO_DETAIL = 64;
 pub const MAX_SWITCHER = 12;
 pub const MAX_NOTIFICATION_ACTIONS = 4;
 pub const MAX_NOTIFICATION_ICON = 64;
@@ -38,7 +42,17 @@ pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, scree
 pub const LauncherStyle = enum { centered, start };
 pub const PanelStyle = enum { classic, unified };
 pub const WindowSwitcher = enum { off, icons, snapshot };
-pub const ControlView = enum { home, wifi, bluetooth, notifications, calendar, tray, power };
+pub const AudioTab = enum { output, input };
+pub const AudioDevice = struct {
+    id: [MAX_AUDIO_ID]u8 = @splat(0),
+    id_len: usize = 0,
+    name: [MAX_AUDIO_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    detail: [MAX_AUDIO_DETAIL]u8 = @splat(0),
+    detail_len: usize = 0,
+    is_default: bool = false,
+};
+pub const ControlView = enum { home, audio, wifi, bluetooth, notifications, calendar, tray, power };
 pub const BarPosition = enum { top, bottom, left, right };
 pub const PanelRenderer = enum { cairo, gpu };
 pub const OverlayRenderer = enum { cairo, gpu };
@@ -379,6 +393,10 @@ pub const HitKind = enum {
     audio_down,
     audio_mute,
     audio_up,
+    audio_tab_output,
+    audio_tab_input,
+    audio_device,
+    audio_slider,
     extension,
     module_action,
     bar_overflow,
@@ -769,8 +787,22 @@ pub const Panel = struct {
     volume_muted: bool = false,
     volume_source: [16]u8 = @splat(0),
     volume_source_len: usize = 0,
+    audio_tab: AudioTab = .output,
+    input_percent: i32 = -1,
+    input_muted: bool = false,
+    audio_device_selection: bool = false,
+    output_devices: [MAX_AUDIO_DEVICES]AudioDevice = @splat(.{}),
+    output_device_count: usize = 0,
+    input_devices: [MAX_AUDIO_DEVICES]AudioDevice = @splat(.{}),
+    input_device_count: usize = 0,
+    audio_scroll: usize = 0,
+    audio_visible: usize = 4,
+    audio_list: HitRect = .{},
+    audio_slider: HitRect = .{},
+    audio_drag: bool = false,
+    audio_drag_ms: i64 = 0,
     audio_fd: c_int = -1,
-    audio_buf: [4096]u8 = undefined,
+    audio_buf: [8192]u8 = undefined,
     audio_len: usize = 0,
     audio_ready: bool = false,
     volume_status: [512]u8 = @splat(0),
@@ -1234,6 +1266,41 @@ pub fn popoverFont() []const u8 {
 pub fn toastFont() []const u8 {
     if (g.toast_font_len > 0) return g.toast_font[0..g.toast_font_len];
     return g.font[0..g.font_len];
+}
+
+pub fn audioPercent() i32 {
+    return if (g.audio_tab == .output) g.volume_percent else g.input_percent;
+}
+
+pub fn audioMuted() bool {
+    return if (g.audio_tab == .output) g.volume_muted else g.input_muted;
+}
+
+pub fn audioDevices() []const AudioDevice {
+    return if (g.audio_tab == .output)
+        g.output_devices[0..g.output_device_count]
+    else
+        g.input_devices[0..g.input_device_count];
+}
+
+pub fn audioDeviceCount() usize {
+    return if (g.audio_tab == .output) g.output_device_count else g.input_device_count;
+}
+
+pub fn audioVisibleDevices() usize {
+    return g.audio_visible;
+}
+
+pub fn audioScrollMax() usize {
+    return audioDeviceCount() -| audioVisibleDevices();
+}
+
+pub fn audioDefaultDevice() ?*const AudioDevice {
+    const devices = audioDevices();
+    for (devices) |*device| {
+        if (device.is_default) return device;
+    }
+    return null;
 }
 
 pub fn windowOnTarget(w: *const WindowInfo) bool {

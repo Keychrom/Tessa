@@ -2021,6 +2021,15 @@ volume_mute = wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 
 Empty commands auto-detect `wpctl`, `pactl`, then `amixer`.
 
+The audio card has `OUTPUT` and `INPUT` tabs. Each tab shows the active volume,
+mute, and the sink/source list; click a device to make it the default output or
+input. Input volume and mute use `@DEFAULT_AUDIO_SOURCE@` (`Capture` with
+amixer). `Tab` switches tabs, `Up`/`Down` changes the active volume, `m`
+toggles mute, and `d` cycles the default device. In unified mode, `panel audio`
+and the SOUND card in the control center open the same controls as a page.
+Device selection needs `wpctl` or `pactl`; the custom `volume_*` commands
+override output only.
+
 ### Lock and idle
 
 - `ext-session-lock-v1`

@@ -148,6 +148,17 @@ wtype -k Escape
 wait_log "tessa-panel: overlay close"
 echo "notifications view + back: ok"
 
+tessa-ctl panel audio >/dev/null
+wait_log "tessa-panel: control: open view=audio"
+wait_log_count "layer map: tessa-overlay layer=3 keyboard=1" 5
+wtype -k Tab
+wait_log "audio: tab input"
+wtype -k Escape
+wait_log "tessa-panel: control: view=home"
+wtype -k Escape
+wait_log "tessa-panel: overlay close"
+echo "audio view + tabs: ok"
+
 tessa-ctl quit
 wait "$tpid" 2>/dev/null || true
 tpid=

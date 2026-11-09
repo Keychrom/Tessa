@@ -2036,6 +2036,15 @@ volume_mute = wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 
 空欄なら `wpctl`、`pactl`、`amixer` を順に自動検出します。
 
+オーディオカードには `OUTPUT` と `INPUT` のタブがあります。各タブに現在の
+音量、ミュート、シンク/ソースの一覧を表示し、デバイスをクリックすると既定の
+出力先・入力先に切り替えます。入力音量とミュートは
+`@DEFAULT_AUDIO_SOURCE@`（amixer は `Capture`）を使います。`Tab` でタブ、
+`Up`/`Down` で選択中の音量、`m` でミュート、`d` で既定デバイスを切り替え
+ます。unified では `panel audio` とコントロールセンターの SOUND カードが
+同じ画面を開きます。デバイス選択には `wpctl` または `pactl` が必要です。
+独自の `volume_*` コマンドは出力側のみを上書きします。
+
 ### 12.8 ロック・idle
 
 - `ext-session-lock-v1` 実装

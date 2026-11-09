@@ -706,9 +706,12 @@ sh tests/tray.sh
 
 ### 音量のテスト
 
-`tests/audio.sh` は `PATH` に偽の `wpctl` を置き、`Up`、`m`、`Down` で音量
-ポップオーバーを操作します。初期値 42%、ミュート/解除、音量変更、
-`Super+Shift+A` を確認します。
+`tests/audio.sh` は `PATH` に偽の `wpctl` を置き、`Tab`、`Up`、`m`、`d`、
+`Down` でオーディオカードを操作します。出力/入力の音量、入力ミュート、
+既定デバイスの切り替え、デバイス一覧（Video ソースを除外）、
+`Super+Shift+A`、classic ポップオーバーを確認します。unified の
+コントロールセンター内オーディオページは同じサービスとヒット処理を共有する
+ため、レイアウトは実セッションで確認してください。
 
 ```sh
 sh tests/audio.sh

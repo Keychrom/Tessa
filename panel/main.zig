@@ -22,6 +22,8 @@ extern fn tessa_audio_start(status_cmd: [*:0]const u8, up_cmd: [*:0]const u8, do
 extern fn tessa_audio_stop() void;
 extern fn tessa_audio_command(code: c_uint) void;
 extern fn tessa_audio_set_percent(percent: c_int) void;
+extern fn tessa_audio_set_input_percent(percent: c_int) void;
+extern fn tessa_audio_set_default(direction: c_int, id: [*:0]const u8) void;
 extern fn tessa_system_start() c_int;
 extern fn tessa_system_stop() void;
 extern fn tessa_system_set_features(mask: c_uint) void;
@@ -552,6 +554,7 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.launcher_open = mode == .launcher;
     g.hover = .{};
     g.overlay_row_hover = 999;
+    g.audio_drag = false;
     g.preedit_len = 0;
     g.preedit[0] = 0;
     g.menu_from = g.menu_anim;
@@ -1046,7 +1049,7 @@ fn openPanel(name: []const u8) void {
         }
     } else if (std.mem.eql(u8, name, "audio")) {
         if (g.panel_style == .unified and m.controlFeatureEnabled(.volume)) {
-            openControlCenter(.home);
+            openControlCenter(.audio);
         } else {
             openAudio();
         }
@@ -1069,6 +1072,7 @@ fn closeOverlay() void {
     if (g.overlay == null or g.menu_target == 0) return;
     disableTextInput();
     g.launcher_open = false;
+    g.audio_drag = false;
     g.menu_from = g.menu_anim;
     g.menu_target = 0;
     g.menu_anim_start = m.nowMs();
@@ -1238,6 +1242,10 @@ fn controlSetView(view: m.ControlView) void {
     g.control_scroll = 0;
     g.wifi_selected = 0;
     g.bt_selected = 0;
+    if (view == .audio) {
+        g.audio_tab = .output;
+        g.audio_scroll = 0;
+    }
     if (leaving_bt and view != .bluetooth) tessa_system_bt_discovery(0);
     if (view == .wifi) tessa_system_wifi_scan();
     if (view == .bluetooth) tessa_system_bt_discovery(1);
@@ -1515,6 +1523,10 @@ fn activateOverlayHit(h: m.Hit) void {
         .audio_down => audioCommand(2),
         .audio_mute => audioCommand(3),
         .audio_up => audioCommand(1),
+        .audio_tab_output => audioSetTab(.output),
+        .audio_tab_input => audioSetTab(.input),
+        .audio_device => audioSelectDevice(h.value),
+        .audio_slider => audioSliderPress(),
         .control_view => controlSetView(@enumFromInt(h.value)),
         .control_action => runControlAction(@enumFromInt(h.value), h.value),
         .control_slider => controlSliderPress(@enumFromInt(h.value)),
@@ -1724,6 +1736,14 @@ fn restartAudioService() void {
     g.audio_len = 0;
     g.volume_percent = -1;
     g.volume_muted = false;
+    g.input_percent = -1;
+    g.input_muted = false;
+    g.audio_device_selection = false;
+    g.output_device_count = 0;
+    g.input_device_count = 0;
+    g.audio_scroll = 0;
+    g.audio_visible = 4;
+    g.audio_tab = .output;
     g.volume_source_len = 0;
     g.volume_source[0] = 0;
     startAudioService();
@@ -2103,12 +2123,16 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
     if (g.overlay_mode == .audio) {
         if (sym == c.XKB_KEY_Escape) {
             closeOverlay();
+        } else if (sym == c.XKB_KEY_Tab or sym == c.XKB_KEY_ISO_Left_Tab) {
+            audioSetTab(if (g.audio_tab == .output) .input else .output);
         } else if (sym == c.XKB_KEY_Up or sym == c.XKB_KEY_Right or sym == c.XKB_KEY_Page_Up) {
             audioCommand(1);
         } else if (sym == c.XKB_KEY_Down or sym == c.XKB_KEY_Left or sym == c.XKB_KEY_Page_Down) {
             audioCommand(2);
         } else if (sym == c.XKB_KEY_m) {
             audioCommand(3);
+        } else if (sym == c.XKB_KEY_d) {
+            audioCycleDevice();
         }
         return;
     }
@@ -2153,6 +2177,28 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
                 controlConfirmModal();
             }
             return;
+        }
+        if (g.overlay_mode == .control and g.control_view == .audio) {
+            if (sym == c.XKB_KEY_Tab or sym == c.XKB_KEY_ISO_Left_Tab) {
+                audioSetTab(if (g.audio_tab == .output) .input else .output);
+                return;
+            }
+            if (sym == c.XKB_KEY_Up or sym == c.XKB_KEY_Page_Up) {
+                audioCommand(1);
+                return;
+            }
+            if (sym == c.XKB_KEY_Down or sym == c.XKB_KEY_Page_Down) {
+                audioCommand(2);
+                return;
+            }
+            if (sym == c.XKB_KEY_m) {
+                audioCommand(3);
+                return;
+            }
+            if (sym == c.XKB_KEY_d) {
+                audioCycleDevice();
+                return;
+            }
         }
         if (g.overlay_mode == .control and g.control_view == .wifi) {
             if (sym == c.XKB_KEY_Up) {
@@ -3583,21 +3629,139 @@ fn openTray() void {
     logDebug("tray: popover open ({d} items)", .{g.tray_count});
 }
 
-fn audioUpdate(percent: i32, muted: bool, source: []const u8) void {
-    g.volume_percent = percent;
-    g.volume_muted = muted;
+fn audioUpdateState(
+    out_percent: i32,
+    out_muted: bool,
+    in_percent: i32,
+    in_muted: bool,
+    source: []const u8,
+    selection: bool,
+    out_devices: []const m.AudioDevice,
+    in_devices: []const m.AudioDevice,
+) void {
+    g.volume_percent = out_percent;
+    g.volume_muted = out_muted;
+    g.input_percent = in_percent;
+    g.input_muted = in_muted;
+    g.audio_device_selection = selection;
     m.copyTrunc(&g.volume_source, &g.volume_source_len, source);
+    g.output_device_count = out_devices.len;
+    if (out_devices.len > 0) {
+        @memcpy(g.output_devices[0..out_devices.len], out_devices);
+    }
+    g.input_device_count = in_devices.len;
+    if (in_devices.len > 0) {
+        @memcpy(g.input_devices[0..in_devices.len], in_devices);
+    }
+    const max_scroll = m.audioScrollMax();
+    if (g.audio_scroll > max_scroll) g.audio_scroll = max_scroll;
     g.bar.dirty = true;
     if (g.overlay_mode == .audio) refreshOverlay();
-    if (percent < 0) {
+    if (out_percent < 0) {
         logDebug("audio: unavailable ({s})", .{g.volume_source[0..g.volume_source_len]});
     } else {
-        logDebug("audio: source={s} volume={d} muted={d}", .{
+        logDebug("audio: source={s} volume={d} muted={d} input={d} in_muted={d} devices={d}/{d}", .{
             g.volume_source[0..g.volume_source_len],
-            percent,
-            @intFromBool(muted),
+            out_percent,
+            @intFromBool(out_muted),
+            in_percent,
+            @intFromBool(in_muted),
+            out_devices.len,
+            in_devices.len,
         });
     }
+}
+
+fn audioSetTab(tab: m.AudioTab) void {
+    if (g.audio_tab == tab) return;
+    g.audio_tab = tab;
+    g.audio_scroll = 0;
+    logDebug("audio: tab {s}", .{@tagName(tab)});
+    refreshOverlay();
+}
+
+fn audioCommand(code: u32) void {
+    const actual: u32 = if (g.audio_tab == .input) code + 4 else code;
+    tessa_audio_command(@intCast(actual));
+    logDebug("audio: command {d} tab={s}", .{ actual, @tagName(g.audio_tab) });
+}
+
+fn audioSelectDevice(index: usize) void {
+    const devices = if (g.audio_tab == .output)
+        g.output_devices[0..g.output_device_count]
+    else
+        g.input_devices[0..g.input_device_count];
+    if (index >= devices.len) return;
+    if (devices[index].is_default) return;
+
+    const device = &devices[index];
+    logDebug("audio: set default {s} device '{s}'", .{
+        @tagName(g.audio_tab),
+        device.name[0..device.name_len],
+    });
+    var id_buf: [m.MAX_AUDIO_ID]u8 = @splat(0);
+    const id = zText(id_buf.len, &id_buf, device.id[0..device.id_len]);
+    tessa_audio_set_default(if (g.audio_tab == .input) 1 else 0, id);
+
+    for (devices) |*entry| entry.is_default = false;
+    devices[index].is_default = true;
+    refreshOverlay();
+}
+
+fn audioCycleDevice() void {
+    const devices = if (g.audio_tab == .output)
+        g.output_devices[0..g.output_device_count]
+    else
+        g.input_devices[0..g.input_device_count];
+    if (devices.len < 2) return;
+    var current: usize = 0;
+    for (devices, 0..) |device, index| {
+        if (device.is_default) {
+            current = index;
+            break;
+        }
+    }
+    audioSelectDevice((current + 1) % devices.len);
+}
+
+fn audioScroll(delta: i32) void {
+    const max_scroll = m.audioScrollMax();
+    if (max_scroll == 0) return;
+    if (delta > 0) {
+        if (g.audio_scroll < max_scroll) g.audio_scroll += 1;
+    } else {
+        g.audio_scroll -|= 1;
+    }
+    refreshOverlay();
+}
+
+fn audioSliderUpdate(force: bool) void {
+    if (g.audio_slider.w <= 1.0) return;
+    const now = m.nowMs();
+    const send = force or now - g.audio_drag_ms >= 35;
+    if (send) g.audio_drag_ms = now;
+    const pct = std.math.clamp(
+        (g.pointer_x - g.audio_slider.x) / g.audio_slider.w,
+        0.0,
+        1.0,
+    );
+    const value: i32 = @intFromFloat(@round(pct * 100.0));
+    if (g.audio_tab == .output) {
+        g.volume_percent = value;
+        g.volume_muted = false;
+        if (send) tessa_audio_set_percent(value);
+    } else {
+        g.input_percent = value;
+        g.input_muted = false;
+        if (send) tessa_audio_set_input_percent(value);
+    }
+    refreshOverlay();
+}
+
+fn audioSliderPress() void {
+    g.audio_drag = true;
+    g.audio_drag_ms = 0;
+    audioSliderUpdate(false);
 }
 
 fn audioShift(count: usize) void {
@@ -3610,23 +3774,96 @@ fn audioShift(count: usize) void {
     g.audio_len = remain;
 }
 
+fn audioClearState() void {
+    var none: [0]m.AudioDevice = .{};
+    audioUpdateState(-1, false, -1, false, "", false, &none, &none);
+}
+
+fn parseAudioDevices(
+    bytes: []const u8,
+    start: usize,
+    count: usize,
+    out: *[m.MAX_AUDIO_DEVICES]m.AudioDevice,
+) ?usize {
+    var off = start;
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        if (off + 13 > bytes.len) return null;
+        const id_len: usize = @intCast(readU32(bytes, off));
+        const name_len: usize = @intCast(readU32(bytes, off + 4));
+        const detail_len: usize = @intCast(readU32(bytes, off + 8));
+        const is_default = bytes[off + 12] != 0;
+        off += 13;
+        if (id_len >= m.MAX_AUDIO_ID or name_len >= m.MAX_AUDIO_NAME or
+            detail_len >= m.MAX_AUDIO_DETAIL)
+        {
+            return null;
+        }
+        const total = id_len + name_len + detail_len;
+        if (off + total > bytes.len) return null;
+        var device = m.AudioDevice{};
+        m.copyTrunc(&device.id, &device.id_len, bytes[off .. off + id_len]);
+        off += id_len;
+        m.copyTrunc(&device.name, &device.name_len, bytes[off .. off + name_len]);
+        off += name_len;
+        m.copyTrunc(&device.detail, &device.detail_len, bytes[off .. off + detail_len]);
+        off += detail_len;
+        device.is_default = is_default;
+        out[i] = device;
+    }
+    return off;
+}
+
 fn processAudioMessages() void {
     while (g.audio_len > 0) {
         const kind = g.audio_buf[0];
-        if (kind == 1) {
-            if (g.audio_len < 12) return;
-            const muted = g.audio_buf[1] != 0;
-            const raw_percent = readU32(&g.audio_buf, 4);
-            const percent: i32 = if (raw_percent > 150) -1 else @intCast(raw_percent);
-            const source_len: usize = @intCast(readU32(&g.audio_buf, 8));
-            const total = 12 + source_len;
-            if (total > g.audio_buf.len) {
+        if (kind == 6) {
+            if (g.audio_len < 24) return;
+            const out_muted = g.audio_buf[1] != 0;
+            const in_muted = g.audio_buf[2] != 0;
+            const flags = g.audio_buf[3];
+            const out_raw = readU32(&g.audio_buf, 4);
+            const in_raw = readU32(&g.audio_buf, 8);
+            const out_count: usize = @intCast(readU32(&g.audio_buf, 12));
+            const in_count: usize = @intCast(readU32(&g.audio_buf, 16));
+            const source_len: usize = @intCast(readU32(&g.audio_buf, 20));
+            if (out_count > m.MAX_AUDIO_DEVICES or
+                in_count > m.MAX_AUDIO_DEVICES or source_len > 15)
+            {
                 g.audio_len = 0;
                 return;
             }
-            if (g.audio_len < total) return;
-            audioUpdate(percent, muted, g.audio_buf[12..total]);
-            audioShift(total);
+            var off: usize = 24;
+            if (g.audio_len < off + source_len) return;
+            const source = g.audio_buf[off .. off + source_len];
+            off += source_len;
+
+            var out_devices: [m.MAX_AUDIO_DEVICES]m.AudioDevice = @splat(.{});
+            var in_devices: [m.MAX_AUDIO_DEVICES]m.AudioDevice = @splat(.{});
+            const bytes = g.audio_buf[0..g.audio_len];
+            off = parseAudioDevices(bytes, off, out_count, &out_devices) orelse {
+                g.audio_len = 0;
+                return;
+            };
+            off = parseAudioDevices(bytes, off, in_count, &in_devices) orelse {
+                g.audio_len = 0;
+                return;
+            };
+            if (g.audio_len < off) return;
+
+            const out_percent: i32 = if (out_raw > 150) -1 else @intCast(out_raw);
+            const in_percent: i32 = if (in_raw > 150) -1 else @intCast(in_raw);
+            audioUpdateState(
+                out_percent,
+                out_muted,
+                in_percent,
+                in_muted,
+                source,
+                (flags & 4) != 0,
+                out_devices[0..out_count],
+                in_devices[0..in_count],
+            );
+            audioShift(off);
         } else if (kind == 2) {
             g.audio_ready = true;
             logMsg("audio: service ready", .{});
@@ -3652,7 +3889,7 @@ fn readAudio() void {
         logMsg("audio: service disconnected", .{});
         _ = c.close(g.audio_fd);
         g.audio_fd = -1;
-        audioUpdate(-1, false, "");
+        audioClearState();
         return;
     }
     g.audio_len += @intCast(n);
@@ -3962,11 +4199,6 @@ fn startAudioService() void {
     logDebug("audio: starting service", .{});
 }
 
-fn audioCommand(code: u32) void {
-    tessa_audio_command(@intCast(code));
-    logDebug("audio: command {d}", .{code});
-}
-
 fn openAudio() void {
     if (!m.moduleEnabled(m.MODULE_POPOVERS) or !m.moduleEnabled(m.MODULE_AUDIO)) return;
     if (g.overlay != null and g.overlay_mode == .audio and g.menu_target == 1) {
@@ -3975,6 +4207,8 @@ fn openAudio() void {
     }
     if (g.overlay != null) destroyOverlay();
     if (!ensureOverlay()) return;
+    g.audio_tab = .output;
+    g.audio_scroll = 0;
     beginOverlay(.audio);
     logDebug("audio: controls open", .{});
 }
@@ -4014,6 +4248,10 @@ fn openControlCenter(view: m.ControlView) void {
     if (g.overlay != null) destroyOverlay();
     resetControlState();
     g.control_view = view;
+    if (view == .audio) {
+        g.audio_tab = .output;
+        g.audio_scroll = 0;
+    }
     if (!ensureOverlay()) return;
     beginOverlay(.control);
     disableTextInput();
@@ -4537,6 +4775,12 @@ fn onPointerMotion(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, sx: c.
         refreshOverlay();
         return;
     }
+    if (g.audio_drag and (g.overlay_mode == .audio or
+        (g.overlay_mode == .control and g.control_view == .audio)))
+    {
+        audioSliderUpdate(false);
+        return;
+    }
     if (g.overlay_mode == .control and g.control_drag != .none) {
         controlSliderUpdate(g.control_drag, false);
         return;
@@ -4570,6 +4814,11 @@ fn handleInputButton(button: u32, state: u32) void {
         } else if (button == 0x111 and state == 1) {
             cancelScreenshot();
         }
+        return;
+    }
+    if (state == 0 and g.audio_drag) {
+        audioSliderUpdate(true);
+        g.audio_drag = false;
         return;
     }
     if (state == 0 and g.overlay_mode == .control and g.control_drag != .none) {
@@ -4642,7 +4891,7 @@ fn handleInputButton(button: u32, state: u32) void {
             .volume => {
                 if (button == 0x110) {
                     if (g.panel_style == .unified and m.controlFeatureEnabled(.volume)) {
-                        openControlCenter(.home);
+                        openControlCenter(.audio);
                     } else {
                         openAudio();
                     }
@@ -4793,7 +5042,13 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
     } else if (g.overlay_mode == .switcher) {
         moveSwitcherSelection(if (v > 0) 1 else -1);
     } else if (g.overlay_mode == .audio) {
-        audioCommand(if (v > 0) 2 else 1);
+        const over_list = g.audio_list.w > 1.0 and
+            hitIn(&g.audio_list, g.pointer_x, g.pointer_y);
+        if (over_list and m.audioScrollMax() > 0) {
+            audioScroll(if (v > 0) 1 else -1);
+        } else {
+            audioCommand(if (v > 0) 2 else 1);
+        }
     } else if (g.overlay_mode == .control) {
         const h = hitOverlay(g.pointer_x, g.pointer_y);
         if (h.kind == .control_slider) {
@@ -4822,7 +5077,15 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
             refreshOverlay();
             return;
         }
-        if (g.control_view == .wifi) {
+        if (g.control_view == .audio) {
+            const over_list = g.audio_list.w > 1.0 and
+                hitIn(&g.audio_list, g.pointer_x, g.pointer_y);
+            if (over_list and m.audioScrollMax() > 0) {
+                audioScroll(if (v > 0) 1 else -1);
+            } else {
+                audioCommand(if (v > 0) 2 else 1);
+            }
+        } else if (g.control_view == .wifi) {
             if (v > 0) {
                 if (g.wifi_selected + 1 < g.wifi_ap_count) g.wifi_selected += 1;
             } else {
