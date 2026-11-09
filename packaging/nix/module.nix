@@ -147,7 +147,7 @@ in
     security.polkit.enable = lib.mkDefault true;
     services.dbus.enable = lib.mkDefault true;
     hardware.graphics.enable = lib.mkDefault true;
-    services.networkmanager.enable = lib.mkIf cfg.networkmanager true;
+    networking.networkmanager.enable = lib.mkIf cfg.networkmanager true;
     hardware.bluetooth.enable = lib.mkIf cfg.bluetooth true;
     services.power-profiles-daemon.enable = lib.mkIf cfg.powerProfiles true;
 
