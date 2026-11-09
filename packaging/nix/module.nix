@@ -59,6 +59,16 @@ in
       '';
     };
 
+    fonts = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Install Noto Sans CJK so the panel can render Japanese, Chinese, and
+        Korean text. Disable this only when the system provides its own CJK
+        fonts.
+      '';
+    };
+
     portals = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -113,6 +123,8 @@ in
 
     environment.systemPackages = [ cfg.package ] ++ cfg.extraPackages
       ++ lib.optional (cfg.xwayland && pkgs ? xwayland-satellite) pkgs.xwayland-satellite;
+
+    fonts.packages = lib.mkIf cfg.fonts [ pkgs.noto-fonts-cjk-sans ];
 
     services.displayManager.sessionPackages = [ cfg.package ];
 

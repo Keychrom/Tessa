@@ -1575,6 +1575,13 @@ at ≤1080, stats at ≤1180, and media at ≤1250. Window chips show at most si
 an overflow `+N` badge counts only chips skipped for width before the six-chip
 cap, so windows beyond the cap are not necessarily counted.
 
+For CJK text the panel appends a locale-appropriate fallback list after `font`
+(`Noto Sans CJK JP`, `Noto Sans JP`, `Source Han Sans JP`, `IPAGothic`, and
+`TakaoPGothic` for Japanese). The explicit Japanese list keeps shared kanji in
+Japanese glyph variants instead of letting fontconfig select the Korean CJK
+face. Install `noto-fonts-cjk` (Arch), `fonts-noto-cjk` (Debian/Ubuntu), or
+`noto-fonts-cjk-sans` (NixOS) if CJK text still renders as empty boxes.
+
 Semantic theme roles let one value drive the compositor and panel:
 
 ```ini

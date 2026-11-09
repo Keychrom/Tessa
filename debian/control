@@ -29,7 +29,7 @@ Homepage: https://github.com/Keychrom/Tessa
 Package: tessa
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, xcursor-themes
-Recommends: xwayland-satellite, foot | kitty
+Recommends: xwayland-satellite, foot | kitty, fonts-noto-cjk
 Suggests: kitty, swaylock, swayidle, wlopm, dbus,
           network-manager, bluez, power-profiles-daemon, upower,
           polkitd | policykit-1,

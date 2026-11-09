@@ -234,6 +234,7 @@ The extension, shell-module, and effect work is covered by:
 sh tests/extensions.sh      # manifests, dependencies, token scopes, enable/disable
 sh tests/extension-api.sh   # v1 contract: auth, revocation, timeout, JSON diagnostics
 sh tests/panel-modules.sh   # panel_modules ownership and supervisor restart
+sh tests/panel-fonts.sh     # locale-aware CJK font fallback
 sh tests/effect-v2.sh       # tint and animation overrides, v1 compatibility
 sh tests/effect-cache.sh    # scenefx-only last-applied cache counters
 sh tests/shell-coexistence.sh # Quickshell/Noctalia when installed

@@ -5403,6 +5403,8 @@ pub fn main(init: std.process.Init.Minimal) !void {
     g.audio_fd = -1;
     g.system_fd = -1;
 
+    c.tessa_text_init();
+
     var check_only = false;
     var list_modules = false;
     var list_json = false;

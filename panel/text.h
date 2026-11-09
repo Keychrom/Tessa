@@ -3,6 +3,9 @@
 
 typedef struct _cairo cairo_t;
 
+/* Set the process locale and cache the CJK fallback family list. */
+void tessa_text_init(void);
+
 double tessa_text_draw(
     cairo_t *cr,
     const char *utf8,

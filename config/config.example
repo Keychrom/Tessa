@@ -429,6 +429,11 @@ bg = #0a0f1a
 # Empty border_active uses accent.
 # border_active = #e2684f
 # border_inactive = #293347
+# The panel appends a locale-appropriate CJK fallback after this family
+# (Noto Sans CJK JP, Noto Sans JP, Source Han Sans JP, IPAGothic,
+# TakaoPGothic, ...). Install a Japanese font if CJK text renders as boxes:
+# noto-fonts-cjk on Arch, fonts-noto-cjk on Debian/Ubuntu, or
+# noto-fonts-cjk-sans on NixOS.
 font = Inter
 
 # Semantic theme roles shared by the compositor and panel. Roles are applied

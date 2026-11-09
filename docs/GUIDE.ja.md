@@ -1590,6 +1590,13 @@ network ≤1000、volume ≤1080、stats ≤1180、media ≤1250 で非表示に
 省略した分だけを数えるため、上限を超えたウィンドウが必ず数えられるわけでは
 ありません。
 
+CJK テキストには `font` の後にロケールに応じたフォールバック
+（日本語なら `Noto Sans CJK JP`、`Noto Sans JP`、`Source Han Sans JP`、
+`IPAGothic`、`TakaoPGothic`）を追加します。日本語のリストを明示することで、
+共有漢字が fontconfig の選択により韓国語字形になるのを防ぎます。CJK が
+豆腐（□）になる場合は Arch の `noto-fonts-cjk`、Debian/Ubuntu の
+`fonts-noto-cjk`、NixOS の `noto-fonts-cjk-sans` を導入してください。
+
 意味論的テーマロールを使うと、1 つの値をコンポジタとパネルで共有できます:
 
 ```ini

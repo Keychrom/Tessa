@@ -1,8 +1,72 @@
 #include "text.h"
 
 #include <cairo/cairo.h>
+#include <locale.h>
 #include <pango/pangocairo.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static const char *tessa_cjk_fallbacks = NULL;
+
+/*
+ * Pango's fontconfig fallback often resolves CJK text to Noto Sans CJK KR on
+ * systems that also have the JP face, even with a Japanese locale. Pango
+ * language attributes do not override that choice; an explicit family list
+ * does. Keep the configured family first for Latin text, then prefer the
+ * locale's CJK face.
+ */
+static const char *tessa_pick_cjk_fallbacks(void) {
+    const char *locale = getenv("LC_ALL");
+    if (!locale || !*locale) locale = getenv("LC_CTYPE");
+    if (!locale || !*locale) locale = getenv("LANG");
+
+    if (locale && locale[0] && locale[1]) {
+        const char first = (char)(locale[0] | 0x20);
+        const char second = (char)(locale[1] | 0x20);
+        if (first == 'k' && second == 'o') {
+            return "Noto Sans CJK KR, Noto Sans KR, Source Han Sans KR, "
+                   "NanumGothic, sans-serif";
+        }
+        if (first == 'z' && second == 'h') {
+            if (strstr(locale, "TW") || strstr(locale, "HK") || strstr(locale, "MO")) {
+                return "Noto Sans CJK TC, Noto Sans TC, Source Han Sans TC, "
+                       "sans-serif";
+            }
+            return "Noto Sans CJK SC, Noto Sans SC, Source Han Sans SC, "
+                   "WenQuanYi Zen Hei, sans-serif";
+        }
+    }
+
+    return "Noto Sans CJK JP, Noto Sans JP, Source Han Sans JP, IPAGothic, "
+           "IPAPGothic, TakaoPGothic, VL PGothic, sans-serif";
+}
+
+void tessa_text_init(void) {
+    setlocale(LC_CTYPE, "");
+    tessa_cjk_fallbacks = tessa_pick_cjk_fallbacks();
+    if (getenv("TESSA_DEBUG")) {
+        fprintf(stderr, "tessa-panel: font fallback=%s\n", tessa_cjk_fallbacks);
+    }
+}
+
+static const char *tessa_fallbacks(void) {
+    if (!tessa_cjk_fallbacks) tessa_text_init();
+    return tessa_cjk_fallbacks;
+}
+
+static void tessa_font_string(
+    char *buf,
+    size_t len,
+    const char *family,
+    const char *style,
+    double size) {
+    snprintf(buf, len, "%s, %s %s %.1f",
+        family && family[0] ? family : "Inter",
+        tessa_fallbacks(),
+        style && style[0] ? style : "Regular",
+        size);
+}
 
 static PangoLayout *tessa_make_layout(
     cairo_t *cr,
@@ -17,11 +81,8 @@ static PangoLayout *tessa_make_layout(
     PangoLayout *layout = pango_cairo_create_layout(cr);
     if (!layout) return NULL;
 
-    char font[256];
-    snprintf(font, sizeof(font), "%s %s %.1f",
-        family && family[0] ? family : "Inter",
-        style && style[0] ? style : "Regular",
-        size);
+    char font[512];
+    tessa_font_string(font, sizeof(font), family, style, size);
 
     PangoFontDescription *desc = pango_font_description_from_string(font);
     if (desc) {

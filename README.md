@@ -333,7 +333,7 @@ restarts were exercised by
 `tests/customization.sh`, `tests/layout-helper.sh`, `tests/layout-helper-v2.sh`,
 `tests/config-validation.sh`,
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
-`tests/panel-theme.sh`, `tests/bar-position.sh`,
+`tests/panel-theme.sh`, `tests/panel-fonts.sh`, `tests/bar-position.sh`,
 `tests/panel-popovers.sh`, `tests/control-center.sh`,
 `tests/window-switcher.sh`, `tests/panel-compat.sh`, `tests/wifi.sh`,
 `tests/bluetooth.sh`, `tests/brightness.sh`, `tests/clipboard.sh`,

@@ -25,6 +25,7 @@ optdepends=(
     'polkit: authorization for NetworkManager and Bluetooth'
     'fcitx5: input method framework'
     'fcitx5-mozc: Japanese input'
+    'noto-fonts-cjk: Japanese, Chinese, and Korean panel text'
     'xdg-desktop-portal: desktop portals'
     'xdg-desktop-portal-wlr: screen sharing'
     'pipewire: screen sharing streams'
