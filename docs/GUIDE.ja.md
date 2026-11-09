@@ -873,7 +873,8 @@ EGL/GLES 依存自体を外せます。
 | `Super+Shift+grave` | フォーカス中ウィンドウをスクラッチパッドへ移動／復帰 |
 | `Super+Shift+G` | ワークスペースのタイルウィンドウをグループ化／解除 |
 | `Super+Escape` | `spawn swaylock` |
-| `Super+Tab` / `Super+Shift+Tab` | ウィンドウ巡回。グループのフォーカス中はタブ巡回 |
+| `Super+Tab` / `Super+Page_Up` | ウィンドウ巡回。グループのフォーカス中はタブ巡回 |
+| `Super+Shift+Tab` | Scene デッキを開く |
 | `Alt+Tab` / `Alt+Shift+Tab` | MRU 順のウィンドウスイッチャー。Alt を押したまま選択し、解放で確定 |
 | `Super+Ctrl+H/L` | master 比率を縮小/拡大 |
 | `Super+Alt+H/L` | フローティング幅を縮小/拡大 |
@@ -901,7 +902,7 @@ bind = SUPER+SHIFT+r enter-mode resize
 `move-to-special`、`toggle-group`、`group-next`、
 `group-prev`、`group-add`、`group-remove`、`focus-next`、
 `focus-prev`、`launcher`、`clipboard`、`screenshot`、`media`、`tray`、
-`audio`、`window-switcher`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
+`audio`、`window-switcher`、`scene-switcher`、`reload`、`ratio`、`toggle-layout`、`set-layout`、
 `resize-width`、`resize-height`、`focus-column-*`、`move-column-*`、
 `move-window-up/down`、`consume-window`、`expel-window`、
 `column-width-cycle`、`column-width-cycle-back`、`column-width-set`、
@@ -2001,6 +2002,65 @@ bind = ALT+Shift+Tab window-switcher prev
 Tessa が提供します。利用できない場合は、出力を 1 回キャプチャして
 ウィンドウ矩形で切り出す方式にフォールバックします。IPC からは
 `tessa-ctl panel switcher` で開けます。
+
+### Scene
+
+Scene は再利用できるワークスペースのテンプレートです。レイアウト、レイアウト
+調整値、そこに置くウィンドウ/アプリを保存し、後から適用したり Scene デッキから
+切り替えたりできます。
+
+```sh
+tessa-ctl scene save coding        # フォーカス中の WS を保存
+tessa-ctl scene activate coding    # 保存した WS へ切り替えて適用
+tessa-ctl scene apply coding 2     # テンプレートを WS 2 に適用
+tessa-ctl scene list
+tessa-ctl scene delete coding
+tessa-ctl scene clear              # 現在の WS の Scene 調整を解除
+tessa-ctl scene reload             # 外部編集したファイルを再走査
+```
+
+`Super+Shift+Tab` で Scene デッキを開きます。`Tab` / `Shift+Tab`、矢印、
+ホイールで選択し、`Enter`、クリック、`Space` で適用、`Esc` で閉じます。
+カードには Scene 名、WS、レイアウト、アプリ数/ライブ数、最大4枚の
+ライブプレビューが表示されます。
+
+Scene ファイルは `~/.config/tessa/scenes/<name>.scene` に保存されます
+（メイン設定の隣。`TESSA_SCENE_DIR` で変更可能）。プレーンテキストなので
+手編集できます:
+
+```ini
+name = coding
+workspace = 3
+layout = master
+gaps = 10
+outer_gaps = 18
+master_ratio = 0.62
+master_count = 1
+mosaic_ratio = 0.64
+mosaic_min_size = 180
+grid_columns = 0
+column_width = 50%
+center_focused_column = never
+
+[app]
+command = kitty
+app_id = kitty
+title = ~/src/tessa
+floating = false
+```
+
+保存時は有効なレイアウト調整値を記録し、各ウィンドウのコマンドラインを
+`/proc/<pid>/cmdline` から取得します。これによりネイティブ Wayland アプリは
+再起動できます。XWayland（`xwayland-satellite` 経由）のウィンドウは
+ウィンドウ単位の PID がないため、`app_id`/`title` のみ保存され、自動再起動は
+できません。コマンドはシェルクォートされた argv として 0600 のファイルに
+保存されます。引数に機密情報を含む Scene ファイルは公開しないでください。
+
+適用は**非破壊**です。対象ワークスペースに既にあるウィンドウは残し、Scene の
+アプリのうち存在しないものだけを起動します。そのため別 Scene のウィンドウと
+同じ WS に混在できます。きれいに切り替えたい場合は別の WS を使ってください。
+新しく map されたアプリは Scene の WS へ割り当てられます。Scene 別の
+テーマ・壁紙切替はこのバージョンには含まれません。
 
 ### 12.5 通知
 

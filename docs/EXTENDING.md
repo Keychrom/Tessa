@@ -162,6 +162,7 @@ OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
+SCENE	coding	master	2	2	1	0	1	2	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
@@ -170,7 +171,10 @@ LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height, scratchpad, visible, group id, group-active, on-screen,
 scrolling column id, and 0-based tile index. Geometry is in logical compositor
-coordinates and is included for tooling that tracks windows. `LAYER` is
+coordinates and is included for tooling that tracks windows. `SCENE` is
+tab-separated: name, layout, saved app count, live matching window count,
+saved workspace (0 when unbound), active (`0`/`1`), and up to four preview
+window ids (0 when unused). `LAYER` is
 `namespace`, output,
 layer number (`0` background … `3` overlay), effective opacity, effective
 corner radius, and effective blur (`0`/`1`). `PANEL` is output, panel pid,
@@ -285,6 +289,7 @@ EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
 EVENT	panel	arg=extensions	output=HEADLESS-1
 EVENT	special-change	ws=3	output=HEADLESS-1	arg=notes
+EVENT	scene-change	ws=3	output=HEADLESS-1	arg=coding
 EVENT	notification-action	id=12	action=reply
 ```
 
@@ -306,6 +311,7 @@ field, so receivers filter by notification id.
 | `special-change` | Special workspace shown/hidden or window moved | ws, output, arg (name; omitted when restoring) |
 | `window-moved` | Window sent to another workspace | id, ws, previous-ws, app, title, output |
 | `layout-change` | Workspace layout changed | ws, output, arg |
+| `scene-change` | A scene was applied to a workspace | ws, output, arg (scene name) |
 | `mode-change` | Active input mode changed | arg (mode name) |
 | `config-reload` | Config successfully reloaded | — |
 | `launcher` | Launcher requested | arg (query), output |
@@ -413,6 +419,8 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 `api` is checked against the compositor's extension API. `permissions` is a
 comma-separated subset of `read`, `events`, `status`, `window`, `workspace`,
 `layout`, `spawn`, `panel`, `control`, and `extensions` (`all`/`none` allowed).
+The `scene` command family requires `control` because it can change the
+workspace layout and spawn commands.
 The default is `read,status`. `requires` and `after` are extension ids; unknown
 ids, duplicates, self-dependencies, an id in both lists, and cycles are config
 errors. The supervisor starts in topological order, uses pidfd exit detection,

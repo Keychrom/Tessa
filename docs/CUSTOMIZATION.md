@@ -294,6 +294,59 @@ Mosaic is deliberately bounded: when the configured minimum tile size cannot be
 maintained, the whole workspace uses the grid layout instead of overlapping or
 producing unusable slivers.
 
+## Scenes
+
+Scenes save a workspace as a reusable template. The compositor writes
+`<config-dir>/scenes/<name>.scene` and the panel renders the Scene deck from the
+same files. Set `TESSA_SCENE_DIR` to keep scenes somewhere else.
+
+```sh
+tessa-ctl scene save coding
+tessa-ctl scene activate coding
+tessa-ctl scene apply coding 2
+tessa-ctl scene list
+tessa-ctl scene delete coding
+tessa-ctl scene clear
+tessa-ctl scene reload
+```
+
+Scene files are line-oriented. The header contains the layout and effective
+tuning; each `[app]` block stores the window identity, command line, and floating
+geometry:
+
+```ini
+name = coding
+workspace = 3
+layout = master
+gaps = 10
+outer_gaps = 18
+master_ratio = 0.62
+master_count = 1
+mosaic_ratio = 0.64
+mosaic_min_size = 180
+grid_columns = 0
+column_width = 50%
+center_focused_column = never
+
+[app]
+command = kitty
+app_id = kitty
+title = ~/src/tessa
+floating = false
+```
+
+`scene save` captures every mapped, non-scratchpad window on the focused
+workspace, in client order. Native Wayland commands come from
+`/proc/<pid>/cmdline`; XWayland windows are matched by `app_id`/`title` only.
+`scene apply` sets the layout and tuning, switches to the target workspace by
+default, and launches only missing apps. Existing windows are left in place, so
+applying is non-destructive and can mix scenes on one workspace. Newly mapped
+windows are matched to the scene and placed on its workspace.
+
+`scene clear` removes the runtime tuning and name for the active workspace but
+leaves the current layout in place. Scene files are mode 0600 because command
+arguments may contain sensitive values.
+
 ## External layout helper
 
 Custom tiling lives in long-lived helper processes, one per output. Select it

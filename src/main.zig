@@ -21,6 +21,7 @@ const events = @import("events.zig");
 const event_names = @import("event_names.zig");
 const window_effects = @import("window_effects.zig");
 const window_shader = @import("window_shader.zig");
+const scene = @import("scene.zig");
 const shutdown = @import("shutdown.zig");
 
 const Server = types.Server;
@@ -281,6 +282,7 @@ pub fn main(init: std.process.Init.Minimal) !void {
     server.ipc_dirty = true;
 
     config.load(server);
+    scene.init(server);
 
     const virtual_gpu = virtualGpuDetected();
     if (virtual_gpu and c.getenv("WLR_NO_HARDWARE_CURSORS") == null) {

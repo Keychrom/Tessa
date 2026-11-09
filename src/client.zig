@@ -12,6 +12,7 @@ const event_names = @import("event_names.zig");
 const ext_workspace = @import("ext_workspace.zig");
 const render = @import("render.zig");
 const scrolling = @import("scrolling.zig");
+const scene = @import("scene.zig");
 
 const Server = types.Server;
 const Client = types.Client;
@@ -306,6 +307,7 @@ fn onMap(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     client.announced = true;
     copyMeta(client);
     rules.applyToClient(client);
+    scene.onClientMap(client.server, client);
     scrolling.onClientMapped(client);
     render.trackClientBuffer(client);
     layout.startOpenAnimation(client);
@@ -523,6 +525,15 @@ fn onNewToplevel(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     const client = @as(*Client, @ptrCast(@alignCast(c.calloc(1, @sizeOf(Client)).?)));
     client.server = server;
     client.xdg = xdg;
+    client.pid = -1;
+    if (xdg.resource) |resource| {
+        const wl_client = c.wl_resource_get_client(resource);
+        if (wl_client != null) {
+            var pid: c.pid_t = 0;
+            c.wl_client_get_credentials(wl_client, &pid, null, null);
+            client.pid = @intCast(pid);
+        }
+    }
     client.output = out;
     client.ws = out.active_ws;
     client.mapped = false;

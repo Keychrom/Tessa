@@ -484,6 +484,17 @@ headless 既定へフォールバックします。その後、一致する出�
 状態はまだ永続化しません。出力電源管理プロトコルは別で、`idle.zig` が
 処理します。
 
+Scene は `scene.zig` の独立した永続化層です。`<設定ディレクトリ>/scenes/
+<name>.scene` に有効なチューニング、レイアウト、map 済みウィンドウごとの
+`[app]` ブロックを保存します。ネイティブアプリのコマンドはクライアント PID
+（`wl_client_get_credentials` と `/proc/<pid>/cmdline`）から取得し、XWayland
+satellite のウィンドウはウィンドウ単位の PID がないため app-id/title で照合
+します。コンポジタは `SCENE` state 行用にサマリーをキャッシュし、新規 map
+ウィンドウを配置する15秒の復元キューを持ちます。Scene を適用すると実行時の
+`Output.scene_tuning`/`scene_name` を更新し、`rules.tuningFor` がユーザーの
+runtime ratio より前に読みます。Scene のレイアウト選択は `outputs.conf` には
+書かず、Scene ファイルを正とします。
+
 ## フラクショナルスケーリング
 
 `main.zig` はシェルのグローバルより先に `wp_fractional_scale_manager_v1` を

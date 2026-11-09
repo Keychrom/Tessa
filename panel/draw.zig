@@ -4618,6 +4618,199 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
     _ = fg;
 }
 
+fn sceneThumbIndex(id: u64) ?usize {
+    var i: usize = 0;
+    while (i < g.switcher_count) : (i += 1) {
+        if (g.switcher_entries[i].id == id) return i;
+    }
+    return null;
+}
+
+fn drawSceneThumb(cr: *c.cairo_t, id: u64, x: f64, y: f64, w: f64, h: f64, alpha: f64) bool {
+    const idx = sceneThumbIndex(id) orelse return false;
+    const thumb = &g.switcher_thumbs[idx];
+    if (!thumb.ready or thumb.data == null or thumb.width == 0 or thumb.height == 0 or thumb.stride < thumb.width * 4) return false;
+
+    const fmt: c.cairo_format_t = if (thumb.format == c.WL_SHM_FORMAT_XRGB8888)
+        c.CAIRO_FORMAT_RGB24
+    else
+        c.CAIRO_FORMAT_ARGB32;
+    const image = c.cairo_image_surface_create_for_data(
+        @ptrCast(thumb.data.?),
+        fmt,
+        @intCast(thumb.width),
+        @intCast(thumb.height),
+        @intCast(thumb.stride),
+    );
+    if (c.cairo_surface_status(image) != c.CAIRO_STATUS_SUCCESS) {
+        c.cairo_surface_destroy(image);
+        return false;
+    }
+    c.cairo_surface_mark_dirty(image);
+    const tw: f64 = @floatFromInt(thumb.width);
+    const th: f64 = @floatFromInt(thumb.height);
+    const fit = @max(w / tw, h / th);
+    const dw = tw * fit;
+    const dh = th * fit;
+    c.cairo_save(cr);
+    roundRect(cr, x, y, w, h, 7);
+    c.cairo_clip(cr);
+    c.cairo_translate(cr, x + (w - dw) / 2.0, y + (h - dh) / 2.0);
+    c.cairo_scale(cr, fit, fit);
+    c.cairo_set_source_surface(cr, image, 0, 0);
+    c.cairo_paint_with_alpha(cr, alpha);
+    c.cairo_restore(cr);
+    c.cairo_surface_destroy(image);
+    return true;
+}
+
+fn drawSceneCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, scene: *const m.SceneInfo, index: usize, selected: bool, alpha: f64) void {
+    const bg = g.popover_bg;
+    const fg = g.popover_fg;
+    const accent = g.accent;
+    const fam = m.popoverFont();
+
+    fillRound(cr, x, y, w, h, 16, .{
+        bg[0] * 1.22 + 0.006,
+        bg[1] * 1.22 + 0.006,
+        bg[2] * 1.25 + 0.010,
+        0.95 * alpha,
+    });
+    strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 15.5, if (selected)
+        .{ accent[0], accent[1], accent[2], 0.62 * alpha }
+    else
+        .{ 1, 1, 1, 0.075 * alpha }, if (selected) 1.6 else 1.0);
+    if (scene.active) {
+        fillRound(cr, x + 18, y + 0.8, w - 36, 2, 1, .{ accent[0], accent[1], accent[2], 0.75 * alpha });
+    }
+
+    var name_buf: [64]u8 = undefined;
+    const name = upperAscii(&name_buf, scene.name[0..scene.name_len]);
+    _ = drawText(cr, name, x + 16, y + 14, fam, "Semi-Bold", 13.0, .{
+        fg[0], fg[1], fg[2], 0.96 * alpha,
+    }, w - 80, 0);
+    var meta_buf: [64]u8 = undefined;
+    const meta = if (scene.workspace >= 1)
+        std.fmt.bufPrint(&meta_buf, "WS {d}  {s}", .{ scene.workspace, scene.layout[0..scene.layout_len] }) catch ""
+    else
+        scene.layout[0..scene.layout_len];
+    _ = drawText(cr, meta, x + 16, y + 32, MONO, "Medium", 6.6, .{
+        0.66, 0.72, 0.82, 0.48 * alpha,
+    }, w - 96, 0.7);
+    var count_buf: [48]u8 = undefined;
+    const count = std.fmt.bufPrint(&count_buf, "{d} APPS  {d} LIVE", .{ scene.app_count, scene.live_count }) catch "";
+    const cw = textWidth(cr, count, MONO, "Medium", 6.2, 0.7);
+    _ = drawText(cr, count, x + w - 16 - cw, y + 32, MONO, "Medium", 6.2, .{
+        accent[0], accent[1], accent[2], 0.62 * alpha,
+    }, 90, 0.7);
+    if (scene.active) {
+        const active_label = "ACTIVE";
+        const aw = textWidth(cr, active_label, MONO, "Medium", 6.0, 0.8);
+        _ = drawText(cr, active_label, x + w - 16 - aw, y + 15, MONO, "Medium", 6.0, .{
+            accent[0], accent[1], accent[2], 0.85 * alpha,
+        }, 60, 0.8);
+    }
+
+    const gap = 7.0;
+    const px = x + 14.0;
+    const py = y + 52.0;
+    const pw = (w - 28.0 - gap) / 2.0;
+    const ph = (h - 70.0 - gap) / 2.0;
+    var slot: usize = 0;
+    while (slot < 4) : (slot += 1) {
+        const sx = px + @as(f64, @floatFromInt(slot % 2)) * (pw + gap);
+        const sy = py + @as(f64, @floatFromInt(slot / 2)) * (ph + gap);
+        const id = if (slot < scene.preview_count) scene.preview_ids[slot] else 0;
+        if (id == 0 or !drawSceneThumb(cr, id, sx, sy, pw, ph, alpha)) {
+            fillRound(cr, sx, sy, pw, ph, 7, .{
+                accent[0], accent[1], accent[2], 0.055 * alpha,
+            });
+            fillRound(cr, sx + pw / 2.0 - 12.0, sy + ph / 2.0 - 1.0, 24.0, 2.0, 1.0, .{
+                1, 1, 1, 0.10 * alpha,
+            });
+        }
+    }
+
+    addOverlayHit(x, y, w, h, .{ .kind = .scene_card, .value = index });
+}
+
+fn drawSceneDeck(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
+    g.overlay_hit_count = 0;
+    g.overlay_hit_scale = 1.0;
+    g.overlay_hit_x = 0;
+    g.overlay_hit_y = 0;
+
+    c.cairo_rectangle(cr, 0, 0, W, H);
+    setColor(cr, .{ 0.01, 0.015, 0.022, 0.42 * t });
+    c.cairo_fill(cr);
+
+    const max_cols: usize = 3;
+    const max_rows: usize = 2;
+    const card_w = 280.0;
+    const card_h = 196.0;
+    const gap = 18.0;
+    const page_size = max_cols * max_rows;
+    const cx = W / 2.0;
+
+    var page: usize = 0;
+    var start: usize = 0;
+    var visible: usize = 0;
+    if (g.scene_count > 0) {
+        page = g.scene_selected / page_size;
+        start = page * page_size;
+        visible = @min(page_size, g.scene_count - start);
+    }
+    const page_cols: usize = if (visible == 0) max_cols else if (visible <= 2) visible else if (visible <= 4) 2 else 3;
+    const page_rows: usize = if (visible == 0) 1 else (visible + page_cols - 1) / page_cols;
+    const grid_w = card_w * @as(f64, @floatFromInt(page_cols)) + gap * @as(f64, @floatFromInt(page_cols - 1));
+    const grid_h = card_h * @as(f64, @floatFromInt(page_rows)) + gap * @as(f64, @floatFromInt(page_rows - 1));
+    const top = H / 2.0 - grid_h / 2.0 + 10.0;
+    const left = cx - grid_w / 2.0;
+
+    g.overlay_panel = .{
+        .x = left - 26.0,
+        .y = top - 42.0,
+        .w = grid_w + 52.0,
+        .h = grid_h + 74.0,
+    };
+
+    _ = drawTextCenteredX(cr, "SCENES", cx, top - 34.0, MONO, "Medium", 8.0, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.82 * t,
+    }, 0, 2.2);
+    _ = drawTextCenteredX(cr, "TAB / ARROWS TO MOVE    ENTER OR CLICK TO APPLY    ESC CANCEL", cx, top - 19.0, MONO, "Medium", 6.2, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.38 * t,
+    }, 0, 0.7);
+
+    if (g.scene_count == 0) {
+        _ = drawTextCenteredX(cr, "No scenes yet", cx, H / 2.0 - 8.0, m.popoverFont(), "Semi-Bold", 14.0, .{
+            g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.82 * t,
+        }, 0, 0);
+        _ = drawTextCenteredX(cr, "tessa-ctl scene save <name>", cx, H / 2.0 + 16.0, MONO, "Medium", 7.0, .{
+            g.accent[0], g.accent[1], g.accent[2], 0.62 * t,
+        }, 0, 0.4);
+        return;
+    }
+
+    var slot: usize = 0;
+    while (slot < visible) : (slot += 1) {
+        const index = start + slot;
+        const col = slot % page_cols;
+        const row = slot / page_cols;
+        const x = left + @as(f64, @floatFromInt(col)) * (card_w + gap);
+        const y = top + @as(f64, @floatFromInt(row)) * (card_h + gap);
+        drawSceneCard(cr, x, y, card_w, card_h, &g.scenes[index], index, index == g.scene_selected, t);
+    }
+
+    const pages = (g.scene_count + page_size - 1) / page_size;
+    if (pages > 1) {
+        var page_buf: [32]u8 = undefined;
+        const text = std.fmt.bufPrint(&page_buf, "{d} / {d}", .{ page + 1, pages }) catch "";
+        _ = drawTextCenteredX(cr, text, cx, top + grid_h + 14.0, MONO, "Medium", 7.0, .{
+            g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.42 * t,
+        }, 0, 0.8);
+    }
+}
+
 fn drawWindowSwitcher(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     g.overlay_hit_count = 0;
     g.overlay_hit_scale = 1.0;
@@ -6077,6 +6270,8 @@ fn drawOverlayCore(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
         drawBluetoothPopover(cr, W, H, t);
     } else if (g.overlay_mode == .switcher) {
         drawWindowSwitcher(cr, W, H, t);
+    } else if (g.overlay_mode == .scene) {
+        drawSceneDeck(cr, W, H, t);
     }
 }
 

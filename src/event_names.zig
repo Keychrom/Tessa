@@ -9,6 +9,7 @@ pub const workspace_change = "workspace-change";
 pub const special_change = "special-change";
 pub const window_moved = "window-moved";
 pub const layout_change = "layout-change";
+pub const scene_change = "scene-change";
 pub const mode_change = "mode-change";
 pub const config_reload = "config-reload";
 pub const launcher = "launcher";
@@ -36,6 +37,7 @@ pub const known = [_][]const u8{
     special_change,
     window_moved,
     layout_change,
+    scene_change,
     mode_change,
     config_reload,
     launcher,

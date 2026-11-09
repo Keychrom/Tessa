@@ -439,6 +439,17 @@ file is mode 0600 and is only rewritten when settings change, not at startup.
 Output `enabled` state is not persisted yet. The output power-management
 protocol is separate and handled in `idle.zig`.
 
+Scenes are a separate persistence layer in `scene.zig`. Each
+`<config-dir>/scenes/<name>.scene` file stores the effective scene tuning,
+layout, and one `[app]` block per mapped window. Native commands come from the
+client PID (`wl_client_get_credentials` + `/proc/<pid>/cmdline`); XWayland
+satellite windows have no per-window PID and are matched by app-id/title only.
+The compositor caches scene summaries for `SCENE` state lines and uses a
+15-second restore queue to place newly mapped windows. Applying a scene mutates
+the runtime `Output.scene_tuning`/`scene_name` arrays; `rules.tuningFor` reads
+them before the user's runtime ratio. Scene layout choices are intentionally not
+written to `outputs.conf`; the scene file is the source of truth.
+
 ## Fractional scaling
 
 `main.zig` creates `wp_fractional_scale_manager_v1` before the shell globals.

@@ -21,6 +21,9 @@ pub const MAX_AUDIO_ID = 128;
 pub const MAX_AUDIO_NAME = 96;
 pub const MAX_AUDIO_DETAIL = 64;
 pub const MAX_SWITCHER = 12;
+pub const MAX_SCENES = 32;
+pub const MAX_SCENE_PREVIEWS = 4;
+pub const MAX_SCENE_NAME = 32;
 pub const MAX_NOTIFICATION_ACTIONS = 4;
 pub const MAX_NOTIFICATION_ICON = 64;
 pub const MAX_NOTIFICATION_ICON_BYTES = MAX_NOTIFICATION_ICON * MAX_NOTIFICATION_ICON * 4;
@@ -38,7 +41,7 @@ pub const MAX_BT_PATH = 256;
 pub const MAX_BT_NAME = 96;
 pub const MAX_CONTROL_ERROR = 160;
 
-pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module, control, wifi, bluetooth, switcher };
+pub const OverlayMode = enum { none, launcher, calendar, power, clipboard, screenshot, media, tray, audio, extensions, module, control, wifi, bluetooth, switcher, scene };
 pub const LauncherStyle = enum { centered, start };
 pub const PanelStyle = enum { classic, unified };
 pub const WindowSwitcher = enum { off, icons, snapshot };
@@ -569,6 +572,7 @@ pub const HitKind = enum {
     theme_base,
     theme_reset,
     switcher_card,
+    scene_card,
 };
 
 pub const Hit = struct {
@@ -645,6 +649,19 @@ pub const SwitcherEntry = struct {
     app_len: usize = 0,
     title: [160]u8 = @splat(0),
     title_len: usize = 0,
+};
+
+pub const SceneInfo = struct {
+    name: [MAX_SCENE_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    layout: [16]u8 = @splat(0),
+    layout_len: usize = 0,
+    app_count: usize = 0,
+    live_count: usize = 0,
+    workspace: usize = 0,
+    active: bool = false,
+    preview_ids: [MAX_SCENE_PREVIEWS]u64 = @splat(0),
+    preview_count: usize = 0,
 };
 
 pub const StatusInfo = struct {
@@ -1205,6 +1222,11 @@ pub const Panel = struct {
     switcher_alt_down: bool = false,
     switcher_done: bool = false,
     screenshot_for_switcher: bool = false,
+    scenes: [MAX_SCENES]SceneInfo = @splat(.{}),
+    scene_count: usize = 0,
+    scene_selected: usize = 0,
+    scene_done: bool = false,
+    scene_previews_started: bool = false,
     control_features: u32 = CONTROL_FEATURE_ALL,
     control_actions: [MAX_CONTROL_ACTIONS]ControlActionEntry = undefined,
     control_action_count: usize = 0,

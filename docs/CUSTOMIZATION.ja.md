@@ -295,6 +295,60 @@ bind = SUPER+ALT+SHIFT+g group-remove
 モザイクは設定された最小タイルを維持できない場合、重なりや極端に細い
 タイルを作らず、ワークスペース全体をグリッドに切り替えます。
 
+## Scene
+
+Scene はワークスペースを再利用可能なテンプレートとして保存します。コンポジタが
+`<設定ディレクトリ>/scenes/<name>.scene` を書き、パネルは同じファイルから
+Scene デッキを描画します。`TESSA_SCENE_DIR` で保存先を変更できます。
+
+```sh
+tessa-ctl scene save coding
+tessa-ctl scene activate coding
+tessa-ctl scene apply coding 2
+tessa-ctl scene list
+tessa-ctl scene delete coding
+tessa-ctl scene clear
+tessa-ctl scene reload
+```
+
+Scene ファイルは行指向です。ヘッダーにレイアウトと有効な調整値、各 `[app]`
+ブロックにウィンドウ識別子、コマンドライン、フローティングジオメトリを
+保存します:
+
+```ini
+name = coding
+workspace = 3
+layout = master
+gaps = 10
+outer_gaps = 18
+master_ratio = 0.62
+master_count = 1
+mosaic_ratio = 0.64
+mosaic_min_size = 180
+grid_columns = 0
+column_width = 50%
+center_focused_column = never
+
+[app]
+command = kitty
+app_id = kitty
+title = ~/src/tessa
+floating = false
+```
+
+`scene save` はフォーカス中のワークスペースの map 済みウィンドウ
+（スクラッチパッドを除く）をクライアント順で保存します。ネイティブ Wayland
+アプリのコマンドは `/proc/<pid>/cmdline` から取得し、XWayland ウィンドウは
+`app_id`/`title` だけで照合します。`scene apply` はレイアウトと調整値を設定し、
+既定では対象ワークスペースへ切り替えて、不足しているアプリだけを起動します。
+既存ウィンドウはそのまま残る非破壊動作なので、同じ WS に複数 Scene が混在
+できます。新しく map されたウィンドウは Scene に照合され、その WS へ配置
+されます。
+
+`scene clear` は現在のワークスペースの実行時調整値と名前を消しますが、
+現在のレイアウトはそのまま残します。コマンド引数に機密情報が入る可能性が
+あるため、Scene ファイルは 0600 で保存されます。
+
 ## 外部レイアウトヘルパー
 
 独自タイルは出力ごとの常駐ヘルパープロセスで実装します。`layout = custom`

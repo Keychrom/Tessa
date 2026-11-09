@@ -2037,6 +2037,16 @@ fn changeLayoutMode(out: *Output, ws: usize, mode: types.LayoutMode) void {
     if (mode == .scrolling) scrolling.enter(out);
 }
 
+/// Apply a scene's layout without persisting it to outputs.conf; the scene
+/// file remains the source of truth and is re-applied on activation.
+pub fn applySceneLayout(server: *Server, out: *Output, ws: usize, mode: types.LayoutMode) void {
+    if (ws < 1 or ws > types.WS_COUNT) return;
+    changeLayoutMode(out, ws, mode);
+    out.layout_overridden[ws - 1] = true;
+    arrangeOutput(server, out);
+    core.markDirty(server);
+}
+
 pub fn cycleLayout(server: *Server) void {
     const out = core.focusOutput(server) orelse return;
     const ws = out.active_ws;

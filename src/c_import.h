@@ -69,6 +69,7 @@
 #include <wlr/util/region.h>
 
 #include <xkbcommon/xkbcommon.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include "regex_shim.h"
 #include "window_shader.h"

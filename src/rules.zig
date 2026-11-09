@@ -113,6 +113,20 @@ fn outputMatches(rule: *const types.OutputRule, out: *Output) bool {
     return true;
 }
 
+fn applySceneTuning(out: *Output, index: usize, tuning: *Tuning) void {
+    if (!out.scene_tuning_set[index]) return;
+    const scene = &out.scene_tuning[index];
+    tuning.gaps = scene.gaps;
+    tuning.outer_gaps = scene.outer_gaps;
+    tuning.master_ratio = scene.master_ratio;
+    tuning.master_count = scene.master_count;
+    tuning.mosaic_ratio = scene.mosaic_ratio;
+    tuning.mosaic_min_size = scene.mosaic_min_size;
+    tuning.grid_columns = scene.grid_columns;
+    tuning.column_width = scene.column_width;
+    tuning.center_focused_column = scene.center_focused_column;
+}
+
 pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
     const cfg = &server.config;
     const index = @min(@max(ws, 1), types.WS_COUNT) - 1;
@@ -130,6 +144,7 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
     };
     if (cfg.output_rule_count == 0) {
         applyWorkspaceOverrides(cfg, index, &tuning);
+        applySceneTuning(out, index, &tuning);
         if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
         return tuning;
     }
@@ -150,6 +165,7 @@ pub fn tuningFor(server: *Server, out: *Output, ws: usize) Tuning {
         if (!outputMatches(rule, out)) continue;
         applyOutputRule(cfg, rule, &tuning);
     }
+    applySceneTuning(out, index, &tuning);
     if (out.runtime_ratio_set[index]) tuning.master_ratio = out.runtime_ratio[index];
     return tuning;
 }

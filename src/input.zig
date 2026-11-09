@@ -619,6 +619,11 @@ fn executeBinding(server: *Server, b: *Binding) void {
                 (if (alt_held) "switcher:alt" else "switcher");
             ipc.emitPanel(server, cmd, "");
         },
+        .scene_switcher => {
+            const reverse = std.mem.eql(u8, b.arg[0..b.arg_len], "prev") or
+                std.mem.eql(u8, b.arg[0..b.arg_len], "back");
+            ipc.emitPanel(server, if (reverse) "scenes-prev" else "scenes", "");
+        },
         .audio => ipc.emitPanel(server, "audio", ""),
         .reload => reloadRuntime(server),
         .ratio => layout.adjustRatio(server, b.ratio),

@@ -24,12 +24,16 @@ fn usage() void {
         "  rpc <json>                    send one JSON-RPC request and print the reply\n" ++
         "  dispatch <compositor command> send a raw command, adding CMD\n" ++
         "  workspace <1-9|name> [output] switch workspace\n" ++
+        "  scene save <name> [ws]        save the focused workspace as a scene\n" ++
+        "  scene apply <name> [ws] [out] apply a scene template\n" ++
+        "  scene activate <name> [out]   switch to the scene's workspace and apply\n" ++
+        "  scene delete <name>|clear|reload|list\n" ++
         "  special <name>                toggle a named special workspace\n" ++
         "  move-to-special <name>        move the focused window to a special workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
-        "  panel <control|wifi|bluetooth|notifications|theme|calendar|power|\n" ++
-        "         clipboard|screenshot|media|tray|audio> [out]\n" ++
+        "  panel <control|wifi|bluetooth|notifications|theme|scenes|calendar|\n" ++
+        "         power|clipboard|screenshot|media|tray|audio> [out]\n" ++
         "                                open a panel popover or control-center view\n" ++
         "  panel module <widget-id>      open an external widget's popover\n" ++
         "  notify-action <id> <key>      invoke a notification action\n" ++
@@ -397,6 +401,68 @@ fn runWorkspace(args: []const []const u8) !void {
     else
         std.fmt.bufPrint(&line, "CMD workspace {s}\n", .{args[1]}) catch return error.LineTooLong;
     try sendCommand(msg);
+}
+
+fn printSceneList() !void {
+    const fd = try connectSocket();
+    defer _ = c.close(fd);
+    try sendAll(fd, "CMD scene list\n");
+    var reader = LineReader{ .fd = fd };
+    var line_buf: [8192]u8 = undefined;
+    var in_list = false;
+    while (try reader.next(&line_buf)) |line| {
+        if (std.mem.eql(u8, line, "SCENE_LIST")) {
+            in_list = true;
+            continue;
+        }
+        if (!in_list) continue;
+        if (std.mem.eql(u8, line, "END")) return;
+        writeLine(line);
+    }
+    return error.Closed;
+}
+
+fn runScene(args: []const []const u8) !void {
+    if (args.len < 2) return error.BadArguments;
+    const sub = args[1];
+    if (std.mem.eql(u8, sub, "list")) {
+        try printSceneList();
+        return;
+    }
+    if (std.mem.eql(u8, sub, "clear") or std.mem.eql(u8, sub, "reload")) {
+        var line: [128]u8 = undefined;
+        const msg = std.fmt.bufPrint(&line, "CMD scene {s}\n", .{sub}) catch return error.LineTooLong;
+        try sendCommand(msg);
+        return;
+    }
+    if (args.len < 3) return error.BadArguments;
+    var line: [512]u8 = undefined;
+    if (std.mem.eql(u8, sub, "save")) {
+        const msg = if (args.len >= 4)
+            std.fmt.bufPrint(&line, "CMD scene save {s} {s}\n", .{ args[2], args[3] }) catch return error.LineTooLong
+        else
+            std.fmt.bufPrint(&line, "CMD scene save {s}\n", .{args[2]}) catch return error.LineTooLong;
+        try sendCommand(msg);
+    } else if (std.mem.eql(u8, sub, "apply")) {
+        const msg = if (args.len >= 5)
+            std.fmt.bufPrint(&line, "CMD scene apply {s} {s} {s}\n", .{ args[2], args[3], args[4] }) catch return error.LineTooLong
+        else if (args.len >= 4)
+            std.fmt.bufPrint(&line, "CMD scene apply {s} {s}\n", .{ args[2], args[3] }) catch return error.LineTooLong
+        else
+            std.fmt.bufPrint(&line, "CMD scene apply {s}\n", .{args[2]}) catch return error.LineTooLong;
+        try sendCommand(msg);
+    } else if (std.mem.eql(u8, sub, "activate")) {
+        const msg = if (args.len >= 4)
+            std.fmt.bufPrint(&line, "CMD scene activate {s} {s}\n", .{ args[2], args[3] }) catch return error.LineTooLong
+        else
+            std.fmt.bufPrint(&line, "CMD scene activate {s}\n", .{args[2]}) catch return error.LineTooLong;
+        try sendCommand(msg);
+    } else if (std.mem.eql(u8, sub, "delete") or std.mem.eql(u8, sub, "remove")) {
+        const msg = std.fmt.bufPrint(&line, "CMD scene delete {s}\n", .{args[2]}) catch return error.LineTooLong;
+        try sendCommand(msg);
+    } else {
+        return error.BadArguments;
+    }
 }
 
 fn runState(args: []const []const u8) !void {
@@ -1003,6 +1069,8 @@ pub fn main(init: std.process.Init.Minimal) void {
         runDispatch(args)
     else if (std.mem.eql(u8, cmd, "workspace"))
         runWorkspace(args)
+    else if (std.mem.eql(u8, cmd, "scene"))
+        runScene(args)
     else if (std.mem.eql(u8, cmd, "special"))
         runSpecial(args, false)
     else if (std.mem.eql(u8, cmd, "move-to-special"))

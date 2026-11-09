@@ -478,6 +478,8 @@ font = Inter
 # These two are also the built-in defaults; `prev` starts from the other end.
 # bind = ALT+Tab window-switcher
 # bind = ALT+SHIFT+Tab window-switcher prev
+# Scene deck; the built-in default. SUPER+Tab remains focus-next.
+# bind = SUPER+SHIFT+Tab scene-switcher
 # bind = SUPER+SHIFT+s screenshot
 # bind = SUPER+m media
 # bind = SUPER+SHIFT+t tray

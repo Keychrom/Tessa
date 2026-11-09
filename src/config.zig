@@ -418,7 +418,8 @@ fn addDefaults(cfg: *Config) void {
     _ = addBinding(cfg, "super+shift+g", "toggle-group", "");
     _ = addBinding(cfg, "super+escape", "spawn", "swaylock");
     _ = addBinding(cfg, "super+tab", "focus-next", "");
-    _ = addBinding(cfg, "super+shift+tab", "focus-prev", "");
+    _ = addBinding(cfg, "super+Page_Up", "focus-prev", "");
+    _ = addBinding(cfg, "super+shift+tab", "scene-switcher", "");
     _ = addBinding(cfg, "alt+tab", "window-switcher", "");
     _ = addBinding(cfg, "alt+shift+tab", "window-switcher", "prev");
     _ = addBinding(cfg, "super+h", "focus", "left");
@@ -2751,6 +2752,9 @@ fn parseAction(name: []const u8) Action {
     if (std.ascii.eqlIgnoreCase(name, "enter-mode") or std.ascii.eqlIgnoreCase(name, "mode")) return .enter_mode;
     if (std.ascii.eqlIgnoreCase(name, "window-switcher") or
         std.ascii.eqlIgnoreCase(name, "switcher")) return .window_switcher;
+    if (std.ascii.eqlIgnoreCase(name, "scene-switcher") or
+        std.ascii.eqlIgnoreCase(name, "scenes") or
+        std.ascii.eqlIgnoreCase(name, "scene-deck")) return .scene_switcher;
     return .none;
 }
 

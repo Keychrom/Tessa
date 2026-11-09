@@ -319,6 +319,10 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
     （長辺 512 px）、カードごとのぼかし背景、選択先の出力／ワークスペースへ
     の切り替え、アイコンのみの表示、`Esc`／クリック／Alt 解放での確定に対応。
     `window_switcher = snapshot|icons|off`
+  - 再利用可能なワークスペース Scene（`scene save/activate/apply`）。
+    レイアウト、調整値、ウィンドウ識別子、再起動コマンドを
+    `~/.config/tessa/scenes/*.scene` に保存し、`Super+Shift+Tab` の Scene
+    デッキとライブプレビューで切り替え。適用は非破壊
   - バーを上下左右の任意の端に配置（`bar_position = top|bottom|left|right`）。
     縦バーではバーとコントロールセンターも縦レイアウト
   - MPRIS メディアチップと操作（`Super+M`）、ローカルアルバムアート、
@@ -369,7 +373,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/xwayland-kitty.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/theme-editor.sh`、
-`tests/reduced-motion.sh`、
+`tests/scenes.sh`、`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/scratchpad.sh`、`tests/window-groups.sh`、`tests/workspace-names.sh`、
@@ -1341,6 +1345,13 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   内のクライアントへ公開されるため、信頼されたアプリはキーボードフォーカス
   なしでセレクションを読めます。セッション内アプリを信頼できる前提で使って
   ください。
+- **Scene の復元はベストエフォート。** 適用は非破壊なので、別 Scene の
+  ウィンドウが同じワークスペースに残る場合があります。ネイティブ Wayland
+  アプリは `/proc/<pid>/cmdline` から再起動しますが、XWayland ウィンドウは
+  app-id/title で照合するだけで自動再起動できません。タイル順、タブグループ、
+  Scrolling のカラム構造は近似で、フローティングのジオメトリは復元します。
+  コマンド引数に機密情報が入る可能性があるため Scene ファイルは 0600 です。
+  Scene 別のテーマ・壁紙切替は未実装です。
 - **通知履歴はメモリ上に保持されます。** パネルが
   `org.freedesktop.Notifications` を所有し、アクション、`default` クリック、
   静的アイコン（`image-data` / `image-path` / `icon-name`）、Pango

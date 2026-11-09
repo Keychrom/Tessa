@@ -28,6 +28,11 @@ pub const MAX_INPUT_DEVICES = 32;
 pub const MAX_WORKSPACE_NAME = 32;
 pub const MAX_SPECIAL_WORKSPACES = 8;
 pub const MAX_CONFIG_ISSUES = 64;
+pub const MAX_SCENES = 32;
+pub const MAX_SCENE_APPS = 16;
+pub const MAX_SCENE_NAME = 32;
+pub const MAX_SCENE_COMMAND = 512;
+pub const MAX_SCENE_PREVIEWS = 4;
 pub const MAX_TOUCH_DEVICES = 8;
 pub const MAX_TABLETS = 8;
 pub const MAX_TABLET_TOOLS = 16;
@@ -208,6 +213,81 @@ pub const ColumnWidth = struct {
 
 pub const CenterFocusedColumn = enum { never, always, on_overflow };
 
+pub const SceneTuning = struct {
+    gaps: i32 = 10,
+    outer_gaps: i32 = 16,
+    master_ratio: f32 = 0.58,
+    master_count: usize = 1,
+    mosaic_ratio: f32 = 0.62,
+    mosaic_min_size: i32 = 160,
+    grid_columns: usize = 0,
+    column_width: ColumnWidth = .{},
+    center_focused_column: CenterFocusedColumn = .never,
+};
+
+pub const SceneApp = struct {
+    app_id: [MAX_APP_ID]u8 = @splat(0),
+    app_id_len: usize = 0,
+    title: [MAX_TITLE]u8 = @splat(0),
+    title_len: usize = 0,
+    command: [MAX_SCENE_COMMAND]u8 = @splat(0),
+    command_len: usize = 0,
+    floating: bool = false,
+    x: i32 = 0,
+    y: i32 = 0,
+    w: i32 = 0,
+    h: i32 = 0,
+};
+
+pub const Scene = struct {
+    name: [MAX_SCENE_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    workspace: usize = 0,
+    layout: LayoutMode = .master,
+    tuning: SceneTuning = .{},
+    apps: [MAX_SCENE_APPS]SceneApp = @splat(.{}),
+    app_count: usize = 0,
+};
+
+pub const SceneSummary = struct {
+    name: [MAX_SCENE_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    workspace: usize = 0,
+    layout: LayoutMode = .master,
+    app_count: usize = 0,
+    live_count: usize = 0,
+    active: bool = false,
+    preview_ids: [MAX_SCENE_PREVIEWS]u64 = @splat(0),
+    preview_count: usize = 0,
+};
+
+/// A best-effort restore queue. New toplevels matching these entries are moved
+/// to `output_name`/`workspace` and given their saved floating geometry.
+pub const SceneRestoreApp = struct {
+    app_id: [MAX_APP_ID]u8 = @splat(0),
+    app_id_len: usize = 0,
+    title: [MAX_TITLE]u8 = @splat(0),
+    title_len: usize = 0,
+    floating: bool = false,
+    x: i32 = 0,
+    y: i32 = 0,
+    w: i32 = 0,
+    h: i32 = 0,
+    matched: bool = false,
+};
+
+pub const SceneRestore = struct {
+    active: bool = false,
+    name: [MAX_SCENE_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    output_name: [64]u8 = @splat(0),
+    output_len: usize = 0,
+    workspace: usize = 0,
+    apps: [MAX_SCENE_APPS]SceneRestoreApp = @splat(.{}),
+    app_count: usize = 0,
+    deadline_ms: i64 = 0,
+};
+
 pub const ScrollColumn = struct {
     used: bool,
     id: u16,
@@ -310,6 +390,7 @@ pub const Action = enum {
     center_column,
     enter_mode,
     window_switcher,
+    scene_switcher,
 };
 
 pub const Binding = struct {
@@ -908,6 +989,10 @@ pub const Output = struct {
     layout_overridden: [WS_COUNT]bool,
     runtime_ratio: [WS_COUNT]f32,
     runtime_ratio_set: [WS_COUNT]bool,
+    scene_tuning: [WS_COUNT]SceneTuning,
+    scene_tuning_set: [WS_COUNT]bool,
+    scene_name: [WS_COUNT][MAX_SCENE_NAME]u8,
+    scene_name_len: [WS_COUNT]usize,
     last_focused: [WS_COUNT + 1]?*Client,
     helper: LayoutHelperState,
     panel: PanelState,
@@ -932,6 +1017,7 @@ pub const Client = struct {
     server: *Server,
     id: u64,
     focus_seq: u64,
+    pid: i32,
     xdg: *c.wlr_xdg_toplevel,
     output: *Output,
     frame: *c.wlr_scene_tree,
@@ -1321,6 +1407,11 @@ pub const Server = struct {
     saved_layout_count: usize,
     output_config_path: [512]u8,
     output_config_len: usize,
+    scene_dir: [512]u8,
+    scene_dir_len: usize,
+    scene_summaries: [MAX_SCENES]SceneSummary,
+    scene_summary_count: usize,
+    scene_restore: SceneRestore,
     clients: [MAX_CLIENTS]?*Client,
     client_count: usize,
     scroll_columns: [MAX_CLIENTS]ScrollColumn,

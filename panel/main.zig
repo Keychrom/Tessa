@@ -107,7 +107,7 @@ fn onLayerConfigure(data: ?*anyopaque, layer: ?*c.zwlr_layer_surface_v1, serial:
 fn destroyOverlay() void {
     const s = g.overlay orelse return;
     if (g.overlay_mode == .screenshot or g.overlay_mode == .switcher) freeScreenshot();
-    if (g.overlay_mode == .switcher) {
+    if (g.overlay_mode == .switcher or g.overlay_mode == .scene) {
         if (preview_ready) tessa_preview_stop_all();
         clearSwitcherThumbs();
     }
@@ -809,7 +809,7 @@ fn onPreviewFrame(
     userdata: ?*anyopaque,
 ) callconv(.c) void {
     _ = userdata;
-    if (!preview_ready or g.overlay_mode != .switcher) return;
+    if (!preview_ready or (g.overlay_mode != .switcher and g.overlay_mode != .scene)) return;
     if (data == null or width == 0 or height == 0 or stride < width * 4) return;
     const idx = switcherEntryIndex(client_id) orelse return;
     const len: usize = @as(usize, stride) * @as(usize, height);
@@ -936,6 +936,113 @@ fn buildSwitcherEntries() void {
     }
 }
 
+fn buildScenePreviewEntries() void {
+    g.switcher_count = 0;
+    var si: usize = 0;
+    while (si < g.scene_count and g.switcher_count < m.MAX_SWITCHER) : (si += 1) {
+        const scene = &g.scenes[si];
+        var pi: usize = 0;
+        while (pi < scene.preview_count and g.switcher_count < m.MAX_SWITCHER) : (pi += 1) {
+            const id = scene.preview_ids[pi];
+            if (id == 0) continue;
+            var duplicate = false;
+            var di: usize = 0;
+            while (di < g.switcher_count) : (di += 1) {
+                if (g.switcher_entries[di].id == id) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+
+            var wi: usize = 0;
+            while (wi < g.window_count) : (wi += 1) {
+                const w = &g.windows[wi];
+                if (w.id != id) continue;
+                const entry = &g.switcher_entries[g.switcher_count];
+                entry.* = std.mem.zeroes(m.SwitcherEntry);
+                entry.id = w.id;
+                entry.ws = w.ws;
+                entry.x = w.x;
+                entry.y = w.y;
+                entry.w = w.w;
+                entry.h = w.h;
+                entry.focus_seq = w.focus_seq;
+                entry.preview = g.window_switcher == .snapshot;
+                entry.on_screen = w.on_screen;
+                m.copyTrunc(&entry.app_id, &entry.app_len, w.app_id[0..w.app_len]);
+                m.copyTrunc(&entry.title, &entry.title_len, w.title[0..w.title_len]);
+                m.copyTrunc(&entry.identifier, &entry.identifier_len, w.identifier[0..w.identifier_len]);
+                m.copyTrunc(&entry.output_name, &entry.output_len, w.output_name[0..w.output_len]);
+                g.switcher_count += 1;
+                break;
+            }
+        }
+    }
+}
+
+fn openSceneDeck(reverse: bool) void {
+    if (g.overlay != null) closeOverlay();
+    sendCmd("CMD scene reload\n", .{});
+    clearSwitcherThumbs();
+    buildScenePreviewEntries();
+    g.scene_done = false;
+    g.scene_previews_started = false;
+    if (g.scene_count > 0) {
+        g.scene_selected = if (reverse) g.scene_count - 1 else 0;
+        var i: usize = 0;
+        while (i < g.scene_count) : (i += 1) {
+            if (g.scenes[i].active) {
+                g.scene_selected = i;
+                break;
+            }
+        }
+    } else {
+        g.scene_selected = 0;
+    }
+    if (!ensureOverlay()) return;
+    beginOverlay(.scene);
+    disableTextInput();
+    const live = startSwitcherPreviews();
+    g.scene_previews_started = true;
+    logMsg("scene deck: open scenes={d} selected={d} previews={} live={}", .{
+        g.scene_count,
+        g.scene_selected,
+        g.switcher_count,
+        live,
+    });
+    refreshOverlay();
+}
+
+fn closeSceneDeck() void {
+    g.scene_done = true;
+    g.scene_previews_started = false;
+    if (preview_ready) tessa_preview_stop_all();
+    clearSwitcherThumbs();
+    closeOverlay();
+}
+
+fn moveSceneSelection(delta: isize) void {
+    if (g.scene_count == 0) return;
+    const count: isize = @intCast(g.scene_count);
+    var next = @as(isize, @intCast(g.scene_selected)) + delta;
+    while (next < 0) next += count;
+    while (next >= count) next -= count;
+    g.scene_selected = @intCast(next);
+    g.overlay_content_dirty = true;
+    refreshOverlay();
+}
+
+fn commitScene() void {
+    if (g.overlay_mode != .scene or g.scene_done) return;
+    if (g.scene_selected < g.scene_count) {
+        const scene = &g.scenes[g.scene_selected];
+        sendCmd("CMD scene activate {s}\n", .{scene.name[0..scene.name_len]});
+        logMsg("scene deck: activate {s}", .{scene.name[0..scene.name_len]});
+    }
+    closeSceneDeck();
+}
+
 fn openSwitcher(reverse: bool, alt_held: bool) void {
     if (g.window_switcher == .off) return;
     if (g.overlay != null) closeOverlay();
@@ -1011,6 +1118,10 @@ fn openPanel(name: []const u8) void {
         openSwitcher(true, alt_held);
     } else if (std.mem.eql(u8, command, "switcher-commit")) {
         commitSwitcher();
+    } else if (std.mem.eql(u8, command, "scenes") or std.mem.eql(u8, command, "scene-deck")) {
+        openSceneDeck(false);
+    } else if (std.mem.eql(u8, command, "scenes-prev")) {
+        openSceneDeck(true);
     } else if (std.mem.eql(u8, command, "control") or std.mem.eql(u8, command, "controls")) {
         openControlCenter(.home);
     } else if (std.mem.eql(u8, name, "theme")) {
@@ -1563,6 +1674,12 @@ fn activateOverlayHit(h: m.Hit) void {
             if (h.value < g.switcher_count) {
                 g.switcher_selected = h.value;
                 commitSwitcher();
+            }
+        },
+        .scene_card => {
+            if (h.value < g.scene_count) {
+                g.scene_selected = h.value;
+                commitScene();
             }
         },
         else => {},
@@ -2186,6 +2303,29 @@ fn onKeyboardKey(data: ?*anyopaque, keyboard: ?*c.wl_keyboard, serial: u32, time
             refreshOverlay();
         } else if (sym == c.XKB_KEY_End) {
             if (g.switcher_count > 0) g.switcher_selected = g.switcher_count - 1;
+            refreshOverlay();
+        }
+        return;
+    }
+
+    if (g.overlay_mode == .scene) {
+        if (sym == c.XKB_KEY_Escape) {
+            closeSceneDeck();
+        } else if (sym == c.XKB_KEY_Return or sym == c.XKB_KEY_KP_Enter or sym == c.XKB_KEY_space) {
+            commitScene();
+        } else if (sym == c.XKB_KEY_Tab or sym == c.XKB_KEY_ISO_Left_Tab) {
+            const shift = c.xkb_state_mod_name_is_active(xstate, "Shift", c.XKB_STATE_MODS_EFFECTIVE) != 0;
+            const back = sym == c.XKB_KEY_ISO_Left_Tab or shift;
+            moveSceneSelection(if (back) -1 else 1);
+        } else if (sym == c.XKB_KEY_Left or sym == c.XKB_KEY_Up) {
+            moveSceneSelection(-1);
+        } else if (sym == c.XKB_KEY_Right or sym == c.XKB_KEY_Down) {
+            moveSceneSelection(1);
+        } else if (sym == c.XKB_KEY_Home) {
+            g.scene_selected = 0;
+            refreshOverlay();
+        } else if (sym == c.XKB_KEY_End) {
+            if (g.scene_count > 0) g.scene_selected = g.scene_count - 1;
             refreshOverlay();
         }
         return;
@@ -5390,6 +5530,7 @@ fn splitTabs(line: []const u8, fields: [][]const u8) usize {
 fn handleStateLine(line: []const u8) void {
     if (std.mem.eql(u8, line, "STATE")) {
         g.window_count = 0;
+        g.scene_count = 0;
         g.occ = @splat(0);
         g.focused_id = 0;
         g.is_focused_output = false;
@@ -5409,6 +5550,16 @@ fn handleStateLine(line: []const u8) void {
             if (!m.windowOnTarget(w)) continue;
             const ws = w.ws;
             if (ws >= 1 and ws <= 9) g.occ[ws] += 1;
+        }
+        if (g.overlay_mode == .scene) {
+            if (g.scene_count > 0 and g.scene_selected >= g.scene_count) {
+                g.scene_selected = g.scene_count - 1;
+            }
+            if (!g.scene_previews_started and g.scene_count > 0) {
+                buildScenePreviewEntries();
+                _ = startSwitcherPreviews();
+                g.scene_previews_started = true;
+            }
         }
         g.bar.dirty = true;
         refreshOverlay();
@@ -5506,6 +5657,29 @@ fn handleStateLine(line: []const u8) void {
         if (count >= 19) w.column = std.fmt.parseInt(i32, fields[18], 10) catch -1;
         if (count >= 20) w.tile = std.fmt.parseInt(i32, fields[19], 10) catch -1;
         g.window_count += 1;
+        return;
+    }
+
+    if (std.mem.startsWith(u8, line, "SCENE\t")) {
+        var fields: [12][]const u8 = undefined;
+        const count = splitTabs(line, &fields);
+        if (count < 7 or g.scene_count >= g.scenes.len) return;
+        const scene = &g.scenes[g.scene_count];
+        scene.* = .{};
+        m.copyTrunc(&scene.name, &scene.name_len, fields[1]);
+        m.copyTrunc(&scene.layout, &scene.layout_len, fields[2]);
+        scene.app_count = std.fmt.parseInt(usize, fields[3], 10) catch 0;
+        scene.live_count = std.fmt.parseInt(usize, fields[4], 10) catch 0;
+        scene.workspace = std.fmt.parseInt(usize, fields[5], 10) catch 0;
+        scene.active = std.mem.eql(u8, fields[6], "1");
+        var pi: usize = 0;
+        while (pi < m.MAX_SCENE_PREVIEWS and 7 + pi < count) : (pi += 1) {
+            const id = std.fmt.parseInt(u64, fields[7 + pi], 10) catch 0;
+            if (id == 0) break;
+            scene.preview_ids[pi] = id;
+            scene.preview_count += 1;
+        }
+        g.scene_count += 1;
         return;
     }
 

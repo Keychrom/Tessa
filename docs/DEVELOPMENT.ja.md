@@ -543,6 +543,18 @@ THEME ページを開き、仮想ポインタで Indigo パレットのカード
 sh tests/theme-editor.sh
 ```
 
+### Scene のテスト
+
+`tests/scenes.sh` は決定論的な xdg-shell フィクスチャを2つ使ってアクティブ
+ワークスペースを保存し、生成された `.scene` ファイルを検査します。ウィンドウを
+閉じてから `scene activate` で再起動・配置されること、非破壊適用、レイアウト
+復元、パネルの Scene デッキと `Super+Shift+Tab` バインド、コンポジタ再起動
+後の永続化、削除までを確認します。
+
+```sh
+sh tests/scenes.sh
+```
+
 ### ウィンドウスイッチャーのテスト
 
 `tests/window-switcher.sh` は `foot` を 3 つ起動し、`wtype` で Alt を 2 秒

@@ -15,6 +15,7 @@ const render = @import("render.zig");
 const scrolling = @import("scrolling.zig");
 const api = @import("api.zig");
 const extension_manager = @import("extension_manager.zig");
+const scene = @import("scene.zig");
 
 const Server = types.Server;
 const IpcClient = types.IpcClient;
@@ -599,7 +600,8 @@ fn scopeForCommand(cmd: []const u8) u16 {
         return types.EXT_PERM_PANEL;
     }
     if (std.mem.eql(u8, cmd, "reload") or std.mem.eql(u8, cmd, "quit") or
-        std.mem.eql(u8, cmd, "mode") or std.mem.eql(u8, cmd, "perf-reset"))
+        std.mem.eql(u8, cmd, "mode") or std.mem.eql(u8, cmd, "perf-reset") or
+        std.mem.eql(u8, cmd, "scene"))
     {
         return types.EXT_PERM_CONTROL;
     }
@@ -708,6 +710,49 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
         if (start + 1 < n) {
             const ws = types.resolveWorkspace(&server.config, toks[start + 1]) orelse return;
             layout.moveToWorkspace(server, ws);
+            broadcastState(server);
+        }
+    } else if (std.mem.eql(u8, cmd, "scene")) {
+        if (start + 1 >= n) return;
+        const sub = toks[start + 1];
+        if (std.mem.eql(u8, sub, "save")) {
+            if (start + 2 < n) {
+                const ws = if (start + 3 < n)
+                    (std.fmt.parseInt(usize, toks[start + 3], 10) catch 0)
+                else
+                    0;
+                _ = scene.save(server, toks[start + 2], ws);
+                broadcastState(server);
+            }
+        } else if (std.mem.eql(u8, sub, "apply") or std.mem.eql(u8, sub, "activate")) {
+            if (start + 2 < n) {
+                const activate = std.mem.eql(u8, sub, "activate");
+                const ws = if (!activate and start + 3 < n)
+                    (std.fmt.parseInt(usize, toks[start + 3], 10) catch 0)
+                else
+                    0;
+                const output_name = if (activate)
+                    (if (start + 3 < n) toks[start + 3] else "")
+                else
+                    (if (start + 4 < n) toks[start + 4] else "");
+                _ = scene.apply(server, toks[start + 2], ws, output_name, activate);
+                broadcastState(server);
+            }
+        } else if (std.mem.eql(u8, sub, "clear")) {
+            _ = scene.clear(server);
+            broadcastState(server);
+        } else if (std.mem.eql(u8, sub, "delete") or std.mem.eql(u8, sub, "remove")) {
+            if (start + 2 < n) {
+                _ = scene.delete(server, toks[start + 2]);
+                broadcastState(server);
+            }
+        } else if (std.mem.eql(u8, sub, "reload") or std.mem.eql(u8, sub, "list")) {
+            scene.reload(server);
+            if (std.mem.eql(u8, sub, "list")) {
+                var list_buf: [4096]u8 = undefined;
+                const text = scene.buildList(server, &list_buf);
+                if (text.len > 0) sendRaw(cl, text);
+            }
             broadcastState(server);
         }
     } else if (std.mem.eql(u8, cmd, "toggle-scratchpad")) {
@@ -960,6 +1005,10 @@ fn handleCommand(cl: *IpcClient, line: []const u8) void {
     } else if (std.mem.eql(u8, cmd, "panel")) {
         if (start + 1 < n) {
             const name = toks[start + 1];
+            if (std.mem.eql(u8, name, "scenes") or std.mem.eql(u8, name, "scenes-prev") or std.mem.eql(u8, name, "scene-deck")) {
+                scene.reload(server);
+                broadcastState(server);
+            }
             if (std.mem.eql(u8, name, "module") and start + 2 < n) {
                 var arg_buf: [types.MAX_STATUS_ID + 8]u8 = undefined;
                 const arg = std.fmt.bufPrint(&arg_buf, "module {s}", .{toks[start + 2]}) catch return;
@@ -1239,6 +1288,8 @@ fn buildState(server: *Server, buf: []u8) usize {
         });
         if (off > buf.len - 512) break;
     }
+
+    scene.appendState(server, buf, &off);
 
     append(buf, &off, "END\n", .{});
     return off;

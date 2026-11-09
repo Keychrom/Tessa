@@ -859,7 +859,8 @@ See the event table in section 13.
 | `Super+Shift+grave` | Move the focused window to/from the scratchpad |
 | `Super+Shift+G` | Group/ungroup tiled windows on the workspace |
 | `Super+Escape` | Spawn `swaylock` |
-| `Super+Tab` / `Super+Shift+Tab` | Cycle windows; cycles tabs when a group is focused |
+| `Super+Tab` / `Super+Page_Up` | Cycle windows; cycles tabs when a group is focused |
+| `Super+Shift+Tab` | Open the Scene deck |
 | `Alt+Tab` / `Alt+Shift+Tab` | MRU window switcher; hold Alt, release to commit |
 | `Super+Ctrl+H/L` | Shrink/grow master ratio |
 | `Super+Alt+H/L` | Shrink/grow floating width |
@@ -884,7 +885,7 @@ Actions: `terminal`, `spawn`, `close`, `quit`, `workspace`,
 `move-to-special`, `toggle-group`, `group-next`,
 `group-prev`, `group-add`, `group-remove`,
 `focus-next`, `focus-prev`, `launcher`, `clipboard`, `screenshot`, `media`,
-`tray`, `audio`, `window-switcher`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
+`tray`, `audio`, `window-switcher`, `scene-switcher`, `reload`, `ratio`, `toggle-layout`, `set-layout`,
 `resize-width`, `resize-height`, `focus-column-*`, `move-column-*`,
 `move-window-up/down`, `consume-window`, `expel-window`,
 `column-width-cycle`, `column-width-cycle-back`, `column-width-set`,
@@ -1984,6 +1985,66 @@ The switcher keeps the 12 most recent windows. It requires the
 `ext-image-copy-capture-v1` globals, which Tessa provides. If they are
 unavailable, it falls back to a single screencopy frame cropped by window
 rectangles. `tessa-ctl panel switcher` opens it from IPC.
+
+### Scenes
+
+A Scene is a reusable workspace template: layout, layout tuning, and the
+windows/apps that belong there. Save the current workspace, then apply it later
+or switch to it from the Scene deck.
+
+```sh
+tessa-ctl scene save coding        # save the focused workspace
+tessa-ctl scene activate coding    # switch to its workspace and apply it
+tessa-ctl scene apply coding 2     # apply the template to workspace 2
+tessa-ctl scene list
+tessa-ctl scene delete coding
+tessa-ctl scene clear              # drop scene tuning on the active workspace
+tessa-ctl scene reload             # rescan files edited outside Tessa
+```
+
+`Super+Shift+Tab` opens the Scene deck. `Tab` / `Shift+Tab`, the arrows, and
+the wheel move the selection; `Enter`, a click, or `Space` applies the scene;
+`Esc` closes it. Cards show the scene name, workspace, layout, app/live window
+counts, and up to four live window previews.
+
+Scene files live in `~/.config/tessa/scenes/<name>.scene` (next to the main
+config; override the directory with `TESSA_SCENE_DIR`). They are plain text and
+can be edited by hand:
+
+```ini
+name = coding
+workspace = 3
+layout = master
+gaps = 10
+outer_gaps = 18
+master_ratio = 0.62
+master_count = 1
+mosaic_ratio = 0.64
+mosaic_min_size = 180
+grid_columns = 0
+column_width = 50%
+center_focused_column = never
+
+[app]
+command = kitty
+app_id = kitty
+title = ~/src/tessa
+floating = false
+```
+
+Saving reads the effective layout tuning and captures the command line of each
+window from `/proc/<pid>/cmdline`, so restore can relaunch native Wayland apps.
+XWayland windows (served through `xwayland-satellite`) have no per-window PID;
+they are saved by `app_id`/`title` but cannot be relaunched automatically.
+Commands are stored as shell-quoted argv in a mode-0600 file; do not publish
+scene files that contain secrets in their arguments.
+
+Applying is **non-destructive**: windows already on the target workspace stay,
+and only missing scene apps are launched. This means a scene switch can share a
+workspace with other windows; use a separate workspace when you want a clean
+context. Missing apps are matched as they map and moved to
+the scene workspace. Scene theme/wallpaper switching is not part of this
+version.
 
 ### Notifications
 

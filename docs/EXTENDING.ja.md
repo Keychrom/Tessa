@@ -161,6 +161,7 @@ OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
+SCENE	coding	master	2	2	1	0	1	2	0	0
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
@@ -171,6 +172,9 @@ id、ワークスペース、フォーカス、フローティング、フルス
 グループ ID、グループアクティブ、オンスクリーン、Scrolling カラム ID、
 0 始まりのタイル位置です。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
+`SCENE` はタブ区切りで、名前、レイアウト、保存アプリ数、ライブ一致ウィンドウ数、
+保存ワークスペース（未束縛は 0）、アクティブ（`0`/`1`）、最大4件のプレビュー
+ウィンドウ ID（未使用は 0）です。
 `LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
 overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。`PANEL` は
 出力名、パネル PID、監視中（`0`/`1`）、通知所有者（`0`/`1`）です。
@@ -285,6 +289,7 @@ EVENT	panel	arg=tray	output=HEADLESS-1
 EVENT	panel	arg=audio	output=HEADLESS-1
 EVENT	panel	arg=extensions	output=HEADLESS-1
 EVENT	special-change	ws=3	output=HEADLESS-1	arg=notes
+EVENT	scene-change	ws=3	output=HEADLESS-1	arg=coding
 EVENT	notification-action	id=12	action=reply
 ```
 
@@ -306,6 +311,7 @@ EVENT	notification-action	id=12	action=reply
 | `special-change` | スペシャル WS の表示/非表示、移動 | ws, output, arg（名前。復帰時は省略） |
 | `window-moved` | ウィンドウを別ワークスペースへ移動 | id, ws, previous-ws, app, title, output |
 | `layout-change` | ワークスペースのレイアウト変更 | ws, output, arg |
+| `scene-change` | Scene をワークスペースへ適用 | ws, output, arg（Scene 名） |
 | `mode-change` | アクティブ入力モードの変更 | arg（モード名） |
 | `config-reload` | 設定の再読み込み成功 | — |
 | `launcher` | ランチャー要求 | arg（クエリ）, output |
@@ -498,7 +504,8 @@ extension = id=theme; command=tessa-theme; api=1; requires=weather; after=weathe
 `api` はコンポジタの拡張 API と照合されます。`permissions` は `read`、
 `events`、`status`、`window`、`workspace`、`layout`、`spawn`、`panel`、
 `control`、`extensions` のカンマ区切り（`all`/`none` 可）で、既定は
-`read,status` です。`requires`/`after` は拡張 ID で、未知 ID、重複、自己依存、
+`read,status` です。`scene` コマンド群はレイアウト変更とコマンド起動を行うため
+`control` が必要です。`requires`/`after` は拡張 ID で、未知 ID、重複、自己依存、
 両方への指定、循環は設定エラーです。トポロジカル順に起動し、pidfd で終了を
 検知して指数バックオフ（1 秒、2 秒、4 秒、以降 8 秒。10 秒以上安定すると
 失敗回数をリセット）で再起動します。`requires` は依存先が `ready` になるまで

@@ -659,6 +659,18 @@ restores the configured palette.
 sh tests/theme-editor.sh
 ```
 
+### Scene test
+
+`tests/scenes.sh` saves the active workspace with two deterministic xdg-shell
+fixtures, checks the generated `.scene` file, closes the windows, and verifies
+that `scene activate` relaunches and places them. It also checks
+non-destructive apply, layout restoration, the panel deck and `Super+Shift+Tab`
+binding, persistence across a compositor restart, and deletion.
+
+```sh
+sh tests/scenes.sh
+```
+
 ### Window switcher test
 
 `tests/window-switcher.sh` starts three `foot` windows and drives `Alt+Tab`
