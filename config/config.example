@@ -450,6 +450,10 @@ font = Inter
 # theme-role = panel.foreground = #eef2f8
 # theme-role = wallpaper.top = #162038
 # theme-role = wallpaper.bottom = #070a12
+#
+# The unified control center's THEME page writes theme-colors.conf next to this
+# file. Both the compositor and panel load it after this config and any theme
+# package, so it wins without editing either. RESET deletes it.
 
 # Run commands at startup, or react to compositor events.
 # Hooks receive TESSA_EVENT plus TESSA_WINDOW_ID, TESSA_WORKSPACE,

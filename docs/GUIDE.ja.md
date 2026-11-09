@@ -1932,6 +1932,8 @@ Controls ボタンが追加され、バーの各ポップオーバー入口が1�
 - Focus（通知の一時停止）、通知履歴（50件）、クリア、アクション
 - 音量・輝度スライダー、電源プロファイル（power-profiles-daemon）
 - メディアカード（ローカルの `file://` ジャケット、進行バー、クリックシーク）
+- THEME ページ。6種類のフルパレット、アクセント、ベーストーン、リセット。
+  パネル・ウィンドウ枠・壁紙をまとめて変更
 - バッテリー、ロック/サスペンド/再起動/電源OFF、スクリーンショット、
   クリップボード、設定、最大4件の `control_action`
 
@@ -1946,7 +1948,15 @@ tessa-ctl panel control
 tessa-ctl panel wifi
 tessa-ctl panel bluetooth
 tessa-ctl panel notifications
+tessa-ctl panel theme
 ```
+
+THEME ページは unified モードで使えます。メイン設定の隣に
+`theme-colors.conf` を書き、コンポジタへ再読み込みを要求するため、パネル・
+ウィンドウ枠・壁紙が同時に変わります。このファイルはメイン設定と `theme`
+パッケージより後に読み込まれます。`RESET` はファイルを削除して設定済みの
+パレットへ戻します。フルパレットを選ぶと各サーフェスの背景・前景も保存され、
+アクセント行とベース行は現在のパレットの片方だけを変更します。
 
 Wi-Fi はシステムの NetworkManager D-Bus API を使います。WPA2/WPA3-PSK、
 オープン、隠しSSID に対応し、802.1X/EAP・VPN・キャプティブポータルは対象外です。

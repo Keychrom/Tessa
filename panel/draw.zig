@@ -1462,7 +1462,7 @@ fn drawBarVertical(s: *m.Surface) void {
     var mi: usize = 0;
     while (mi < g.bar_module_count) : (mi += 1) {
         const module = g.bar_modules[mi];
-        if (plan.hidden[@intFromEnum(module)]) continue;
+        if (plan.hidden[@backingInt(module)]) continue;
         const h = m.barModuleHeight(module);
         if (h <= 0 or bottom - h < y + 4.0) continue;
         bottom -= h;
@@ -1710,7 +1710,7 @@ pub fn drawBar(s: *m.Surface) void {
     var mi: usize = 0;
     while (mi < g.bar_module_count) : (mi += 1) {
         const module = g.bar_modules[mi];
-        if (bar_plan.hidden[@intFromEnum(module)]) continue;
+        if (bar_plan.hidden[@backingInt(module)]) continue;
         switch (module) {
             .clock => {
                 if (!g.show_clock) continue;
@@ -4145,7 +4145,7 @@ fn controlSlider(cr: *c.cairo_t, x: f64, y: f64, w: f64, pct: f64, kind: m.DragT
     }
     fillCircle(cr, x + w * clamped, y + track_h / 2.0, 5.0, .{ 1, 1, 1, 0.94 });
     const hit = m.HitRect{ .x = x - 4, .y = y - 7, .w = w + 8, .h = track_h + 14 };
-    addOverlayHit(hit.x, hit.y, hit.w, hit.h, .{ .kind = .control_slider, .value = @intFromEnum(kind) });
+    addOverlayHit(hit.x, hit.y, hit.w, hit.h, .{ .kind = .control_slider, .value = @backingInt(kind) });
     switch (kind) {
         .volume => g.control_volume_slider = hit,
         .brightness => g.control_brightness_slider = hit,
@@ -4159,7 +4159,7 @@ fn drawControlHeader(cr: *c.cairo_t, x: f64, y: f64, w: f64, title: []const u8, 
     const fg = g.popover_fg;
     if (back) {
         drawChevron(cr, x + 2, y + 12, 10.0, .{ fg[0], fg[1], fg[2], 0.62 });
-        addOverlayHit(x - 10, y - 2, 28, 28, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.back) });
+        addOverlayHit(x - 10, y - 2, 28, 28, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.back) });
         _ = drawText(cr, title, x + 24, y + 5, m.popoverFont(), "Semi-Bold", 13.0, .{
             fg[0], fg[1], fg[2], 0.96,
         }, w - 24, 0);
@@ -4176,6 +4176,36 @@ fn drawControlHeader(cr: *c.cairo_t, x: f64, y: f64, w: f64, title: []const u8, 
             accent[0], accent[1], accent[2], 0.42,
         }, 200, 0.4);
     }
+}
+
+fn colorNear(a: [3]f64, b: [3]f64) bool {
+    return @abs(a[0] - b[0]) < 0.012 and
+        @abs(a[1] - b[1]) < 0.012 and
+        @abs(a[2] - b[2]) < 0.012;
+}
+
+fn themePaletteActive(item: m.ThemePalette) bool {
+    return colorNear(g.accent, item.accent) and colorNear(g.panel_bg, item.panel_bg);
+}
+
+fn currentThemeName() []const u8 {
+    for (m.THEME_PALETTES) |item| {
+        if (themePaletteActive(item)) return item.name;
+    }
+    return "custom";
+}
+
+fn themeBaseActive(base: m.ThemeBase) bool {
+    return colorNear(g.bg_rgb, base.bg) and colorNear(g.panel_bg, base.panel_bg);
+}
+
+fn drawPaletteChip(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, top: [3]f64, bottom: [3]f64, accent: [3]f64) void {
+    c.cairo_save(cr);
+    roundRect(cr, x, y, w, h, 8);
+    c.cairo_clip(cr);
+    paintGradientRect(cr, x, y, w, h, .{ top[0], top[1], top[2], 1 }, .{ bottom[0], bottom[1], bottom[2], 1 });
+    fillRound(cr, x + 8, y + 8, 10, h - 16, 5, .{ accent[0], accent[1], accent[2], 0.95 });
+    c.cairo_restore(cr);
 }
 
 fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
@@ -4258,7 +4288,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
                 0.64, 0.70, 0.80, 0.52,
             }, col_w - 120, 0);
             controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.dnd);
-            addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
+            addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
         }
         if (show_ppd) {
             var py: f64 = left_y + 10.0;
@@ -4306,6 +4336,36 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     if (m.controlFeatureEnabled(.quick_actions)) {
         drawQuickActions(cr, left_x, left_y, col_w);
         left_y += 62.0;
+    }
+
+    const theme_h = 66.0;
+    if (left_y + theme_h < l.y + l.h - 8.0) {
+        controlCard(cr, left_x, left_y, col_w, theme_h);
+        controlSection(cr, "THEME", left_x + 16, left_y + 12, col_w - 32);
+        var theme_name_buf: [64]u8 = undefined;
+        const theme_name = upperAscii(&theme_name_buf, currentThemeName());
+        _ = drawText(cr, theme_name, left_x + 16, left_y + 27, fam, "Semi-Bold", 11.0, .{
+            fg[0], fg[1], fg[2], 0.94,
+        }, col_w - 112, 0);
+        _ = drawText(cr, "Accent, borders and wallpaper", left_x + 16, left_y + 45, fam, "Regular", 7.2, .{
+            0.64, 0.70, 0.80, 0.50,
+        }, col_w - 112, 0);
+        const swatch_cols = [4][3]f64{
+            g.accent,
+            g.panel_bg,
+            if (g.bg_top_set) g.bg_top else g.bg_rgb,
+            if (g.bg_bottom_set) g.bg_bottom else g.bg_rgb,
+        };
+        var si: usize = 0;
+        while (si < swatch_cols.len) : (si += 1) {
+            const sx = left_x + col_w - 74.0 + @as(f64, @floatFromInt(si)) * 12.0;
+            fillCircle(cr, sx, left_y + 35.0, 4.2, .{
+                swatch_cols[si][0], swatch_cols[si][1], swatch_cols[si][2], 0.95,
+            });
+        }
+        drawChevron(cr, left_x + col_w - 22.0, left_y + 36.0, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
+        registerControlNav(left_x + 8, left_y + 4, col_w - 16, theme_h - 8, .theme);
+        left_y += theme_h + 12.0;
     }
 
     // Right column: sliders, media, notifications. On narrow/vertical bars
@@ -4374,7 +4434,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         if (pct > 0.005) fillRound(cr, right_x + 16, right_y + 102, (col_w - 32) * pct, 5, 2.5, .{
             accent[0], accent[1], accent[2], 0.82,
         });
-        addOverlayHit(right_x + 16, right_y + 96, col_w - 32, 17, .{ .kind = .control_slider, .value = @intFromEnum(m.DragTarget.seek) });
+        addOverlayHit(right_x + 16, right_y + 96, col_w - 32, 17, .{ .kind = .control_slider, .value = @backingInt(m.DragTarget.seek) });
         g.control_seek_slider = .{ .x = right_x + 16, .y = right_y + 96, .w = col_w - 32, .h = 17 };
         const buttons = [_]struct { label: []const u8, action: m.ControlAction }{
             .{ .label = "prev", .action = .back },
@@ -4397,9 +4457,9 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
                 0.64, 0.70, 0.80, 0.48,
             }, 0, 0);
             drawControlButton(cr, "SILENT", right_x + col_w - 116, right_y + 8, 46, 18, g.dnd);
-            addOverlayHit(right_x + col_w - 118, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
+            addOverlayHit(right_x + col_w - 118, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
             drawControlButton(cr, "CLEAR", right_x + col_w - 64, right_y + 8, 46, 18, false);
-            addOverlayHit(right_x + col_w - 66, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.clear_notifications) });
+            addOverlayHit(right_x + col_w - 66, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.clear_notifications) });
             var ny = right_y + 34.0;
             const row_h = 38.0;
             var shown: usize = 0;
@@ -4435,14 +4495,14 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
                 _ = drawText(cr, "View all", right_x + col_w - 62, right_y + nh - 22, fam, "Medium", 7.2, .{
                     accent[0], accent[1], accent[2], 0.7,
                 }, 60, 0);
-                addOverlayHit(right_x + col_w - 70, right_y + nh - 30, 66, 24, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.view_notifications) });
+                addOverlayHit(right_x + col_w - 70, right_y + nh - 30, 66, 24, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.view_notifications) });
             }
         }
     }
 }
 
 fn registerControlNav(x: f64, y: f64, w: f64, h: f64, view: m.ControlView) void {
-    addOverlayHit(x, y, w, h, .{ .kind = .control_view, .value = @intFromEnum(view) });
+    addOverlayHit(x, y, w, h, .{ .kind = .control_view, .value = @backingInt(view) });
 }
 
 fn drawControlButton(cr: *c.cairo_t, label: []const u8, x: f64, y: f64, w: f64, h: f64, active: bool) void {
@@ -4533,7 +4593,7 @@ fn drawPowerButtons(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
     for (actions, 0..) |item, i| {
         const bx = x + @as(f64, @floatFromInt(i)) * (bw + gap);
         drawControlButton(cr, item.label, bx, y, bw, 24.0, false);
-        addOverlayHit(bx, y, bw, 24.0, .{ .kind = .control_action, .value = @intFromEnum(item.action) });
+        addOverlayHit(bx, y, bw, 24.0, .{ .kind = .control_action, .value = @backingInt(item.action) });
     }
 }
 
@@ -4552,7 +4612,7 @@ fn drawQuickActions(cr: *c.cairo_t, x: f64, y: f64, w: f64) void {
     for (actions, 0..) |item, i| {
         const bx = x + 12.0 + @as(f64, @floatFromInt(i)) * (bw + gap);
         drawControlButton(cr, item.label, bx, y + 13, bw, 24, false);
-        addOverlayHit(bx, y + 13, bw, 24, .{ .kind = .control_action, .value = @intFromEnum(item.action) });
+        addOverlayHit(bx, y + 13, bw, 24, .{ .kind = .control_action, .value = @backingInt(item.action) });
     }
     _ = accent;
     _ = fg;
@@ -4777,25 +4837,25 @@ fn drawSwitcherCard(cr: *c.cairo_t, entry: *const m.SwitcherEntry, cx: f64, cy: 
             const same_output = entry.output_len == 0 or
                 (g.target_name_len > 0 and std.mem.eql(u8, entry.output_name[0..entry.output_len], g.target_name[0..g.target_name_len]));
             if (entry.preview and entry.on_screen and same_output) {
-            const src_x = @as(f64, @floatFromInt(entry.x)) * args.scale_x;
-            const src_y = @as(f64, @floatFromInt(entry.y)) * args.scale_y;
-            const src_w = @max(1.0, @as(f64, @floatFromInt(entry.w)) * args.scale_x);
-            const src_h = @max(1.0, @as(f64, @floatFromInt(entry.h)) * args.scale_y);
-            // Cover the preview and anchor the crop at the window's top-left,
-            // so terminal output at the top stays visible and no letterbox
-            // margins expose the rest of the screenshot.
-            const fit = @max(preview_w / src_w, preview_h / src_h);
-            const dw = src_w * fit;
-            const dh = src_h * fit;
-            c.cairo_save(cr);
-            c.cairo_rectangle(cr, preview_x, preview_y, @min(dw, preview_w), @min(dh, preview_h));
-            c.cairo_clip(cr);
-            c.cairo_translate(cr, preview_x, preview_y);
-            c.cairo_scale(cr, fit, fit);
-            c.cairo_set_source_surface(cr, surface, -src_x, -src_y);
-            c.cairo_paint_with_alpha(cr, alpha);
-            c.cairo_restore(cr);
-            drew_preview = true;
+                const src_x = @as(f64, @floatFromInt(entry.x)) * args.scale_x;
+                const src_y = @as(f64, @floatFromInt(entry.y)) * args.scale_y;
+                const src_w = @max(1.0, @as(f64, @floatFromInt(entry.w)) * args.scale_x);
+                const src_h = @max(1.0, @as(f64, @floatFromInt(entry.h)) * args.scale_y);
+                // Cover the preview and anchor the crop at the window's top-left,
+                // so terminal output at the top stays visible and no letterbox
+                // margins expose the rest of the screenshot.
+                const fit = @max(preview_w / src_w, preview_h / src_h);
+                const dw = src_w * fit;
+                const dh = src_h * fit;
+                c.cairo_save(cr);
+                c.cairo_rectangle(cr, preview_x, preview_y, @min(dw, preview_w), @min(dh, preview_h));
+                c.cairo_clip(cr);
+                c.cairo_translate(cr, preview_x, preview_y);
+                c.cairo_scale(cr, fit, fit);
+                c.cairo_set_source_surface(cr, surface, -src_x, -src_y);
+                c.cairo_paint_with_alpha(cr, alpha);
+                c.cairo_restore(cr);
+                drew_preview = true;
             }
         }
     }
@@ -4924,6 +4984,7 @@ fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     switch (g.control_view) {
         .home => controlHome(cr, l),
         .audio => drawControlAudio(cr, l),
+        .theme => drawControlTheme(cr, l),
         .wifi => drawControlWifi(cr, l, true, t),
         .bluetooth => drawControlBluetooth(cr, l, true, t),
         .notifications => drawControlNotifications(cr, l),
@@ -5279,6 +5340,178 @@ fn drawControlAudio(cr: *c.cairo_t, l: m.ControlLayout) void {
     }, w, 0.2);
 }
 
+fn drawControlTheme(cr: *c.cairo_t, l: m.ControlLayout) void {
+    const accent = g.accent;
+    const fg = g.popover_fg;
+    const fam = m.popoverFont();
+    const pad = 18.0;
+    const x = l.x + pad;
+    const w = l.w - pad * 2.0;
+    const top = l.y + 50.0;
+    const faint = [4]f64{ fg[0], fg[1], fg[2], 0.42 };
+
+    drawControlHeader(cr, x, l.y + 14, w, "THEME", true);
+
+    // Current-palette preview card.
+    const preview_h = 86.0;
+    controlCard(cr, x, top, w, preview_h);
+    const tile = 62.0;
+    const tile_x = x + 16.0;
+    const tile_y = top + 12.0;
+    drawPaletteChip(
+        cr,
+        tile_x,
+        tile_y,
+        tile,
+        tile,
+        g.bg_top,
+        if (g.bg_bottom_set) g.bg_bottom else g.bg_rgb,
+        accent,
+    );
+    var name_buf: [64]u8 = undefined;
+    const name = upperAscii(&name_buf, currentThemeName());
+    _ = drawText(cr, "CURRENT PALETTE", x + 94.0, top + 15.0, MONO, "Medium", 6.4, faint, 220, 0.8);
+    _ = drawText(cr, name, x + 94.0, top + 29.0, fam, "Semi-Bold", 16.0, .{
+        fg[0], fg[1], fg[2], 0.96,
+    }, 230, 0);
+    _ = drawText(cr, "Panel, window borders and wallpaper update together.", x + 94.0, top + 55.0, fam, "Regular", 7.4, faint, if (w > 520.0) w - 250.0 else w - 110.0, 0);
+    if (w > 520.0) {
+        const dots = [4][3]f64{
+            g.accent,
+            g.panel_bg,
+            if (g.bg_top_set) g.bg_top else g.bg_rgb,
+            if (g.bg_bottom_set) g.bg_bottom else g.bg_rgb,
+        };
+        var di: usize = 0;
+        while (di < dots.len) : (di += 1) {
+            fillRound(
+                cr,
+                x + w - 16.0 - @as(f64, @floatFromInt(dots.len - di)) * 18.0,
+                top + 20.0,
+                12.0,
+                12.0,
+                4.0,
+                .{ dots[di][0], dots[di][1], dots[di][2], 0.95 },
+            );
+        }
+    }
+
+    var y = top + preview_h + 16.0;
+
+    // Full palettes.
+    controlSection(cr, "PALETTES", x, y, w);
+    y += 16.0;
+    const gap = 8.0;
+    const cols: usize = if (w >= 500.0) 3 else 2;
+    const card_w = (w - gap * @as(f64, @floatFromInt(cols - 1))) / @as(f64, @floatFromInt(cols));
+    const card_h = 62.0;
+    for (m.THEME_PALETTES, 0..) |item, i| {
+        const col = i % cols;
+        const row = i / cols;
+        const cx = x + @as(f64, @floatFromInt(col)) * (card_w + gap);
+        const cy = y + @as(f64, @floatFromInt(row)) * (card_h + gap);
+        const active = themePaletteActive(item);
+        fillRound(cr, cx, cy, card_w, card_h, 12, .{
+            item.panel_bg[0] * 1.18 + 0.004,
+            item.panel_bg[1] * 1.18 + 0.004,
+            item.panel_bg[2] * 1.18 + 0.006,
+            0.96,
+        });
+        drawPaletteChip(
+            cr,
+            cx + 8.0,
+            cy + 8.0,
+            card_w - 16.0,
+            26.0,
+            item.bg_top,
+            item.bg_bottom,
+            item.accent,
+        );
+        var item_name_buf: [64]u8 = undefined;
+        const item_name = upperAscii(&item_name_buf, item.name);
+        _ = drawText(cr, item_name, cx + 10.0, cy + 41.0, fam, "Semi-Bold", 8.4, .{
+            item.panel_fg[0], item.panel_fg[1], item.panel_fg[2], 0.92,
+        }, card_w - 20.0, 0.4);
+        strokeRound(cr, cx + 0.5, cy + 0.5, card_w - 1.0, card_h - 1.0, 11.5, if (active)
+            .{ accent[0], accent[1], accent[2], 0.62 }
+        else
+            .{ 1, 1, 1, 0.07 }, if (active) 1.4 else 1.0);
+        addOverlayHit(cx, cy, card_w, card_h, .{ .kind = .theme_preset, .value = i });
+    }
+    const rows = (m.THEME_PALETTES.len + cols - 1) / cols;
+    y += @as(f64, @floatFromInt(rows)) * (card_h + gap) + 6.0;
+
+    // Accent colours.
+    controlSection(cr, "ACCENT", x, y, w);
+    y += 17.0;
+    const swatch: f64 = if (w < 420.0) 24.0 else 30.0;
+    const swatch_gap: f64 = if (w < 420.0) 5.0 else 9.0;
+    for (m.THEME_ACCENTS, 0..) |option, i| {
+        const cx = x + @as(f64, @floatFromInt(i)) * (swatch + swatch_gap);
+        const cy = y;
+        const active = colorNear(g.accent, option.rgb);
+        fillCircle(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.40, .{
+            option.rgb[0], option.rgb[1], option.rgb[2], 0.96,
+        });
+        if (active) {
+            c.cairo_new_path(cr);
+            c.cairo_arc(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.48, 0, PI * 2.0);
+            setColor(cr, .{ fg[0], fg[1], fg[2], 0.82 });
+            c.cairo_set_line_width(cr, 1.6);
+            c.cairo_stroke(cr);
+        } else {
+            c.cairo_new_path(cr);
+            c.cairo_arc(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.46, 0, PI * 2.0);
+            setColor(cr, .{ 1, 1, 1, 0.10 });
+            c.cairo_set_line_width(cr, 1.0);
+            c.cairo_stroke(cr);
+        }
+        addOverlayHit(cx, cy, swatch, swatch, .{ .kind = .theme_accent, .value = i });
+    }
+    y += swatch + 18.0;
+
+    // Base tones.
+    controlSection(cr, "BASE", x, y, w);
+    y += 17.0;
+    const base_gap = 8.0;
+    const base_cols: usize = if (w >= 500.0) 5 else 3;
+    const base_w = (w - base_gap * @as(f64, @floatFromInt(base_cols - 1))) / @as(f64, @floatFromInt(base_cols));
+    const base_h = 48.0;
+    for (m.THEME_BASES, 0..) |base, i| {
+        const col = i % base_cols;
+        const row = i / base_cols;
+        const bx = x + @as(f64, @floatFromInt(col)) * (base_w + base_gap);
+        const by = y + @as(f64, @floatFromInt(row)) * (base_h + base_gap);
+        const active = themeBaseActive(base);
+        fillRound(cr, bx, by, base_w, base_h, 10, .{
+            base.panel_bg[0], base.panel_bg[1], base.panel_bg[2], 0.96,
+        });
+        fillRound(cr, bx + 9.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg[0], base.bg[1], base.bg[2], 1 });
+        fillRound(cr, bx + 25.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg_top[0], base.bg_top[1], base.bg_top[2], 1 });
+        fillRound(cr, bx + 41.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg_bottom[0], base.bg_bottom[1], base.bg_bottom[2], 1 });
+        var base_name_buf: [64]u8 = undefined;
+        const base_name = upperAscii(&base_name_buf, base.name);
+        _ = drawText(cr, base_name, bx + 9.0, by + 29.0, fam, "Medium", 7.4, .{
+            base.panel_fg[0], base.panel_fg[1], base.panel_fg[2], 0.80,
+        }, base_w - 16.0, 0.4);
+        strokeRound(cr, bx + 0.5, by + 0.5, base_w - 1.0, base_h - 1.0, 9.5, if (active)
+            .{ accent[0], accent[1], accent[2], 0.58 }
+        else
+            .{ 1, 1, 1, 0.07 }, if (active) 1.4 else 1.0);
+        addOverlayHit(bx, by, base_w, base_h, .{ .kind = .theme_base, .value = i });
+    }
+    const base_rows = (m.THEME_BASES.len + base_cols - 1) / base_cols;
+    y += @as(f64, @floatFromInt(base_rows)) * (base_h + base_gap) + 8.0;
+
+    const reset_w = 72.0;
+    const reset_y = @min(y, l.y + l.h - 36.0);
+    drawControlButton(cr, "RESET", x + w - reset_w, reset_y, reset_w, 25.0, false);
+    addOverlayHit(x + w - reset_w, reset_y, reset_w, 25.0, .{ .kind = .theme_reset });
+    _ = drawText(cr, "Saved to theme-colors.conf. Applies to borders and wallpaper.", x, reset_y + 7.0, fam, "Medium", 7.0, .{
+        0.60, 0.66, 0.75, 0.40,
+    }, w - reset_w - 12.0, 0.2);
+}
+
 fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) void {
     _ = t;
     const accent = g.accent;
@@ -5291,9 +5524,9 @@ fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) v
     drawControlHeader(cr, x, top, w, "WI-FI", in_panel);
     // Toggle and scan controls.
     controlPill(cr, x + w - 58, top + 3, 42, 20, g.wifi_enabled);
-    addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.wifi_toggle) });
+    addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_toggle) });
     drawControlButton(cr, "SCAN", x + w - 112, top + 3, 46, 20, false);
-    addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.wifi_scan) });
+    addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_scan) });
     const status = if (!g.wifi_present) "Wi-Fi adapter not found" else if (!g.wifi_enabled) "Wi-Fi is off" else if (g.wifi_scanning) "Scanning..." else if (g.wifi_ssid_len > 0) g.wifi_ssid[0..g.wifi_ssid_len] else "Not connected";
     _ = drawText(cr, status, x, top + 32, fam, "Regular", 8.4, .{
         fg[0], fg[1], fg[2], 0.58,
@@ -5342,10 +5575,10 @@ fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) v
     // Bottom actions.
     if (g.wifi_ssid_len > 0) {
         drawControlButton(cr, "DISCONNECT", x, l.y + l.h - 36, 94, 22, false);
-        addOverlayHit(x, l.y + l.h - 36, 94, 22, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.wifi_disconnect) });
+        addOverlayHit(x, l.y + l.h - 36, 94, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_disconnect) });
     }
     drawControlButton(cr, "OTHER NETWORK", x + w - 112, l.y + l.h - 36, 112, 22, false);
-    addOverlayHit(x + w - 112, l.y + l.h - 36, 112, 22, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.wifi_hidden) });
+    addOverlayHit(x + w - 112, l.y + l.h - 36, 112, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_hidden) });
     if (g.wifi_modal != .none) drawControlModal(cr, l);
 }
 
@@ -5369,9 +5602,9 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "BLUETOOTH", in_panel);
     controlPill(cr, x + w - 58, top + 3, 42, 20, g.bt_powered);
-    addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.bt_toggle) });
+    addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_toggle) });
     drawControlButton(cr, if (g.bt_discovering) "STOP" else "SCAN", x + w - 112, top + 3, 46, 20, false);
-    addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.bt_scan) });
+    addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_scan) });
     const status = if (!g.bt_present) "Bluetooth adapter not found" else if (!g.bt_powered) "Bluetooth is off" else if (g.bt_discovering) "Scanning..." else "On";
     _ = drawText(cr, status, x, top + 32, fam, "Regular", 8.4, .{
         fg[0], fg[1], fg[2], 0.58,
@@ -5416,7 +5649,7 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
         }
         if (paired) {
             drawControlButton(cr, "FORGET", x + w - 62, y + 10, 58, 22, false);
-            addOverlayHit(x + w - 62, y + 10, 58, 22, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.bt_forget) + @as(usize, i) * 1000 });
+            addOverlayHit(x + w - 62, y + 10, 58, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_forget) + @as(usize, i) * 1000 });
         }
         addOverlayHit(x - 4, y - 2, w + 8, row_h - 6, .{ .kind = .control_bt_device, .value = i });
         y += row_h;
@@ -5439,9 +5672,9 @@ fn drawControlNotifications(cr: *c.cairo_t, l: m.ControlLayout) void {
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "NOTIFICATIONS", true);
     drawControlButton(cr, if (g.dnd) "SILENT ON" else "SILENT", x + w - 150, top + 3, 66, 20, g.dnd);
-    addOverlayHit(x + w - 152, top, 70, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.dnd) });
+    addOverlayHit(x + w - 152, top, 70, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
     drawControlButton(cr, "CLEAR", x + w - 76, top + 3, 66, 20, false);
-    addOverlayHit(x + w - 78, top, 70, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.clear_notifications) });
+    addOverlayHit(x + w - 78, top, 70, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.clear_notifications) });
     var y = top + 38;
     const row_h = 48.0;
     var i: usize = 0;
@@ -5680,9 +5913,9 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
             addOverlayHit(mx + 18, my + 84, mw - 36, 30, .{ .kind = .control_input, .value = 0 });
         }
         drawControlButton(cr, "CANCEL", mx + mw - 170, my + mh - 42, 72, 26, false);
-        addOverlayHit(mx + mw - 170, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.modal_cancel) });
+        addOverlayHit(mx + mw - 170, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.modal_cancel) });
         drawControlButton(cr, if (g.bt_agent == .display_passkey) "DONE" else "PAIR", mx + mw - 90, my + mh - 42, 72, 26, true);
-        addOverlayHit(mx + mw - 90, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.modal_confirm) });
+        addOverlayHit(mx + mw - 90, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.modal_confirm) });
         return;
     }
 
@@ -5718,9 +5951,9 @@ fn drawControlModal(cr: *c.cairo_t, l: m.ControlLayout) void {
         addOverlayHit(mx + 18, my + 58, mw - 36, 30, .{ .kind = .control_input, .value = 0 });
     }
     drawControlButton(cr, "CANCEL", mx + mw - 170, my + mh - 42, 72, 26, false);
-    addOverlayHit(mx + mw - 170, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.modal_cancel) });
+    addOverlayHit(mx + mw - 170, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.modal_cancel) });
     drawControlButton(cr, "CONNECT", mx + mw - 90, my + mh - 42, 72, 26, true);
-    addOverlayHit(mx + mw - 90, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @intFromEnum(m.ControlAction.modal_confirm) });
+    addOverlayHit(mx + mw - 90, my + mh - 42, 72, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.modal_confirm) });
 
     const field_y: f64 = if (g.wifi_modal == .wifi_hidden) 104.0 else 58.0;
     g.control_input_rect = .{
@@ -5909,9 +6142,9 @@ fn overlayMatrix(s: *m.Surface, t: f64) [9]f32 {
     const ox = px * (1.0 - scale) + (offset_x / W) * 2.0;
     const oy = py * (1.0 - scale) - (offset_y / H) * 2.0;
     return .{
-        @floatCast(scale), 0.0, 0.0,
-        0.0, @floatCast(scale), 0.0,
-        @floatCast(ox), @floatCast(oy), 1.0,
+        @floatCast(scale), 0.0,               0.0,
+        0.0,               @floatCast(scale), 0.0,
+        @floatCast(ox),    @floatCast(oy),    1.0,
     };
 }
 

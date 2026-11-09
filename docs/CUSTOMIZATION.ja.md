@@ -703,6 +703,21 @@ theme = ~/.config/tessa/themes/vermilion-ink
 `examples/themes/vermilion-ink/`、解決後の値は `tessa-panel --theme-json` で
 確認できます。
 
+unified コントロールセンターの THEME ページでは、設定ファイルを編集せずに
+色を変更できます。6種類のフルパレット、8色のアクセント、5種類のベース
+トーン、RESET を用意しています。`tessa-ctl panel theme` で直接開けます。
+変更はメイン設定の隣の `theme-colors.conf` に保存されます:
+
+```
+~/.config/tessa/theme-colors.conf
+```
+
+コンポジタとパネルの両方が、メイン設定と `theme` パッケージの後にこの
+ファイルを読むため、どちらも編集せずに上書きできます。パレットを適用すると
+`CMD reload` を送り、ウィンドウ枠・パネル・壁紙をまとめて更新します。
+RESET はファイルを削除して再読み込みします。中身は `theme-role` 行なので
+手編集も可能です。削除すれば設定済みのパレットへ戻ります。
+
 ## モーション、シャドウ、壁紙
 
 ウィンドウは map 時に設定可能なオフセットからスライドインし、ワークスペース

@@ -3354,6 +3354,14 @@ pub fn resolvePath(path_buf: *[512]u8) []const u8 {
     return "";
 }
 
+fn fileExists(path: []const u8) bool {
+    var zpath: [512:0]u8 = undefined;
+    if (path.len >= zpath.len) return false;
+    @memcpy(zpath[0..path.len], path);
+    zpath[path.len] = 0;
+    return c.access(&zpath, c.F_OK) == 0;
+}
+
 pub fn load(server: *Server) void {
     server.config_issue_count = 0;
     server.config_error_count = 0;
@@ -3364,6 +3372,14 @@ pub fn load(server: *Server) void {
 
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
+    if (path.len > 0) {
+        var override_buf: [512]u8 = undefined;
+        const dir = std.fs.path.dirname(path) orelse ".";
+        const override = std.fmt.bufPrint(&override_buf, "{s}/theme-colors.conf", .{dir}) catch "";
+        if (override.len > 0 and fileExists(override)) {
+            loadPath(server, override, 0, &parse_mode, "", 0);
+        }
+    }
     resolveTerminal(server);
     resolveProfileReferences(server);
     resolveWorkspaceReferences(server);

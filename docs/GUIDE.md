@@ -1912,6 +1912,8 @@ center:
 - Focus (do-not-disturb), notification history (50 entries), clear, actions
 - Volume and brightness sliders, power profile (power-profiles-daemon)
 - Media card with local `file://` artwork, progress, and click-to-seek
+- THEME page with six full palettes, accent swatches, base tones, and reset;
+  changes apply to the panel, window borders, and wallpaper together
 - Battery, lock/suspend/reboot/power off, screenshot, clipboard, settings, and
   up to four `control_action` buttons
 
@@ -1926,7 +1928,16 @@ tessa-ctl panel control
 tessa-ctl panel wifi
 tessa-ctl panel bluetooth
 tessa-ctl panel notifications
+tessa-ctl panel theme
 ```
+
+The THEME page is available in unified mode. It writes
+`theme-colors.conf` next to the main config and asks the compositor to reload,
+so the panel, window borders, and wallpaper change together. The file is
+loaded after the main config and any `theme` package; `RESET` deletes it and
+returns to the configured palette. Selecting a full palette also stores its
+surface backgrounds and foregrounds, while the accent and base rows change one
+half of the current palette.
 
 Wi-Fi uses the system NetworkManager D-Bus API. Basic WPA2/WPA3-PSK, open, and
 hidden networks are supported; 802.1X/EAP, VPNs, and captive portals are not.

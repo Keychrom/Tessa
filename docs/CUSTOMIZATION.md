@@ -701,6 +701,22 @@ changes, follows a `theme` change to a different package, and `Super+R` reloads
 it manually. See `examples/themes/vermilion-ink/` for a complete palette, and
 `tessa-panel --theme-json` to inspect the resolved tokens.
 
+The unified control center has a THEME page for changing colors without editing
+the config. It offers six full palettes, eight accent swatches, five base tones,
+and RESET. `tessa-ctl panel theme` opens the page directly. Changes are written
+to `theme-colors.conf` next to the main config:
+
+```
+~/.config/tessa/theme-colors.conf
+```
+
+Both the compositor and panel load this file after the main config and any
+`theme` package, so it wins without modifying either one. Applying a palette
+sends `CMD reload` so borders, the panel, and the wallpaper update together.
+RESET deletes the file and reloads. Because the file contains `theme-role`
+lines, it can also be edited by hand; remove it to fall back to the configured
+palette.
+
 ## Motion, shadows, and wallpaper
 
 Windows slide in from a configurable offset when mapped, and workspace

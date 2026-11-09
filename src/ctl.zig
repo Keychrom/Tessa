@@ -28,8 +28,9 @@ fn usage() void {
         "  move-to-special <name>        move the focused window to a special workspace\n" ++
         "  spawn <command...>            start a command\n" ++
         "  launcher [query...]           open the launcher\n" ++
-        "  panel <calendar|power|clipboard|screenshot|media|tray|audio> [out]\n" ++
-        "                                open a panel popover\n" ++
+        "  panel <control|wifi|bluetooth|notifications|theme|calendar|power|\n" ++
+        "         clipboard|screenshot|media|tray|audio> [out]\n" ++
+        "                                open a panel popover or control-center view\n" ++
         "  panel module <widget-id>      open an external widget's popover\n" ++
         "  notify-action <id> <key>      invoke a notification action\n" ++
         "  layout [name] [output]       cycle or set a workspace layout\n" ++

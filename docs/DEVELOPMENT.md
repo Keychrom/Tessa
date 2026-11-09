@@ -646,6 +646,19 @@ layer-map before sending keys.
 sh tests/control-center.sh
 ```
 
+### Theme editor test
+
+`tests/theme-editor.sh` opens the control-center THEME page with
+`tessa-ctl panel theme` and drives a virtual pointer into the Indigo palette
+card. It checks that `theme-colors.conf` contains the expected accent, border,
+surface, and wallpaper roles, that `tessa-ctl config` reports the new accent
+after the compositor reload, and that the reset button deletes the override and
+restores the configured palette.
+
+```sh
+sh tests/theme-editor.sh
+```
+
 ### Window switcher test
 
 `tests/window-switcher.sh` starts three `foot` windows and drives `Alt+Tab`

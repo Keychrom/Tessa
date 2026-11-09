@@ -289,6 +289,9 @@ Highlights include:
     dedicated Controls button and one panel with home, Wi-Fi, Bluetooth,
     notifications, calendar, tray, and power views; classic mode keeps the
     separate popovers and adds Wi-Fi/Bluetooth ones
+  - THEME page with six full palettes, independent accent and base-tone
+    swatches, and reset; changes are written to `theme-colors.conf` and reload
+    window borders, the panel, and the wallpaper together
   - NetworkManager Wi-Fi: scan, signal strength, WPA2/WPA3-PSK and open
     networks, hidden SSIDs, saved connections, connect/disconnect/forget, and
     radio power
@@ -352,7 +355,8 @@ restarts were exercised by
 `tests/xwayland-ready.sh`, `tests/kitty-startup.sh`,
 `tests/xwayland-kitty.sh`, `tests/workspace-pinning.sh`,
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
-`tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/reduced-motion.sh`,
+`tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/theme-editor.sh`,
+`tests/reduced-motion.sh`,
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
 `tests/scratchpad.sh`, `tests/window-groups.sh`, `tests/workspace-names.sh`,

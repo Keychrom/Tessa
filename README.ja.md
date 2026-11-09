@@ -303,6 +303,9 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
     専用の Controls ボタンと、ホーム・Wi-Fi・Bluetooth・通知・カレンダー・
     トレイ・電源の各ビューを一体化。classic では従来の個別ポップオーバーに
     Wi-Fi / Bluetooth を追加
+  - THEME ページ。6種類のフルパレット、アクセントとベーストーンの個別変更、
+    リセットに対応。変更は `theme-colors.conf` に保存され、ウィンドウ枠・
+    パネル・壁紙をまとめて再読み込み
   - NetworkManager による Wi-Fi: スキャン、電波強度、WPA2/WPA3-PSK と
     オープンネットワーク、隠し SSID、保存済み接続、接続/切断/忘れる、
     ラジオのオン/オフ
@@ -365,7 +368,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/kitty-startup.sh`、
 `tests/xwayland-kitty.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
-`tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/reduced-motion.sh`、
+`tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/theme-editor.sh`、
+`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/scratchpad.sh`、`tests/window-groups.sh`、`tests/workspace-names.sh`、

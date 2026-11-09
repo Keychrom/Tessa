@@ -52,7 +52,157 @@ pub const AudioDevice = struct {
     detail_len: usize = 0,
     is_default: bool = false,
 };
-pub const ControlView = enum { home, audio, wifi, bluetooth, notifications, calendar, tray, power };
+pub const ControlView = enum { home, audio, theme, wifi, bluetooth, notifications, calendar, tray, power };
+
+pub const ThemePalette = struct {
+    name: []const u8,
+    accent: [3]f64,
+    bg: [3]f64,
+    bg_top: [3]f64,
+    bg_bottom: [3]f64,
+    panel_bg: [3]f64,
+    panel_fg: [3]f64,
+    border_inactive: [3]f64,
+};
+
+pub const ThemeAccent = struct {
+    name: []const u8,
+    rgb: [3]f64,
+};
+
+pub const ThemeBase = struct {
+    name: []const u8,
+    bg: [3]f64,
+    bg_top: [3]f64,
+    bg_bottom: [3]f64,
+    panel_bg: [3]f64,
+    panel_fg: [3]f64,
+    border_inactive: [3]f64,
+};
+
+/// Full palettes shown in the control-center theme editor. Accent-only and
+/// base-only changes reuse the other half of the current palette.
+pub const THEME_PALETTES = [_]ThemePalette{
+    .{
+        .name = "vermilion",
+        .accent = .{ 0.886, 0.408, 0.31 },
+        .bg = .{ 0.039, 0.059, 0.102 },
+        .bg_top = .{ 0.086, 0.125, 0.220 },
+        .bg_bottom = .{ 0.027, 0.039, 0.071 },
+        .panel_bg = .{ 0.055, 0.075, 0.125 },
+        .panel_fg = .{ 0.933, 0.949, 0.973 },
+        .border_inactive = .{ 0.161, 0.200, 0.278 },
+    },
+    .{
+        .name = "indigo",
+        .accent = .{ 0.478, 0.635, 0.969 },
+        .bg = .{ 0.027, 0.043, 0.078 },
+        .bg_top = .{ 0.086, 0.137, 0.247 },
+        .bg_bottom = .{ 0.024, 0.031, 0.063 },
+        .panel_bg = .{ 0.055, 0.086, 0.149 },
+        .panel_fg = .{ 0.910, 0.933, 0.988 },
+        .border_inactive = .{ 0.149, 0.196, 0.290 },
+    },
+    .{
+        .name = "moss",
+        .accent = .{ 0.561, 0.749, 0.435 },
+        .bg = .{ 0.031, 0.051, 0.039 },
+        .bg_top = .{ 0.102, 0.165, 0.114 },
+        .bg_bottom = .{ 0.024, 0.039, 0.027 },
+        .panel_bg = .{ 0.063, 0.102, 0.075 },
+        .panel_fg = .{ 0.929, 0.957, 0.918 },
+        .border_inactive = .{ 0.173, 0.251, 0.188 },
+    },
+    .{
+        .name = "rose",
+        .accent = .{ 0.878, 0.561, 0.690 },
+        .bg = .{ 0.063, 0.039, 0.063 },
+        .bg_top = .{ 0.165, 0.090, 0.145 },
+        .bg_bottom = .{ 0.039, 0.024, 0.035 },
+        .panel_bg = .{ 0.102, 0.063, 0.094 },
+        .panel_fg = .{ 0.973, 0.929, 0.953 },
+        .border_inactive = .{ 0.275, 0.188, 0.243 },
+    },
+    .{
+        .name = "amber",
+        .accent = .{ 0.941, 0.702, 0.353 },
+        .bg = .{ 0.051, 0.043, 0.031 },
+        .bg_top = .{ 0.165, 0.125, 0.078 },
+        .bg_bottom = .{ 0.035, 0.027, 0.020 },
+        .panel_bg = .{ 0.098, 0.078, 0.051 },
+        .panel_fg = .{ 0.973, 0.941, 0.886 },
+        .border_inactive = .{ 0.275, 0.227, 0.157 },
+    },
+    .{
+        .name = "graphite",
+        .accent = .{ 0.788, 0.820, 0.851 },
+        .bg = .{ 0.039, 0.043, 0.051 },
+        .bg_top = .{ 0.133, 0.145, 0.165 },
+        .bg_bottom = .{ 0.031, 0.035, 0.043 },
+        .panel_bg = .{ 0.078, 0.086, 0.098 },
+        .panel_fg = .{ 0.933, 0.945, 0.961 },
+        .border_inactive = .{ 0.204, 0.224, 0.255 },
+    },
+};
+
+pub const THEME_ACCENTS = [_]ThemeAccent{
+    .{ .name = "vermilion", .rgb = .{ 0.886, 0.408, 0.31 } },
+    .{ .name = "indigo", .rgb = .{ 0.478, 0.635, 0.969 } },
+    .{ .name = "moss", .rgb = .{ 0.561, 0.749, 0.435 } },
+    .{ .name = "rose", .rgb = .{ 0.878, 0.561, 0.690 } },
+    .{ .name = "amber", .rgb = .{ 0.941, 0.702, 0.353 } },
+    .{ .name = "iris", .rgb = .{ 0.706, 0.557, 0.678 } },
+    .{ .name = "cyan", .rgb = .{ 0.498, 0.820, 0.780 } },
+    .{ .name = "silver", .rgb = .{ 0.788, 0.820, 0.851 } },
+};
+
+pub const THEME_BASES = [_]ThemeBase{
+    .{
+        .name = "ink",
+        .bg = .{ 0.039, 0.059, 0.102 },
+        .bg_top = .{ 0.086, 0.125, 0.220 },
+        .bg_bottom = .{ 0.027, 0.039, 0.071 },
+        .panel_bg = .{ 0.055, 0.075, 0.125 },
+        .panel_fg = .{ 0.933, 0.949, 0.973 },
+        .border_inactive = .{ 0.161, 0.200, 0.278 },
+    },
+    .{
+        .name = "navy",
+        .bg = .{ 0.024, 0.043, 0.086 },
+        .bg_top = .{ 0.078, 0.133, 0.227 },
+        .bg_bottom = .{ 0.020, 0.027, 0.051 },
+        .panel_bg = .{ 0.047, 0.090, 0.157 },
+        .panel_fg = .{ 0.910, 0.941, 0.984 },
+        .border_inactive = .{ 0.141, 0.204, 0.298 },
+    },
+    .{
+        .name = "slate",
+        .bg = .{ 0.043, 0.063, 0.082 },
+        .bg_top = .{ 0.114, 0.165, 0.200 },
+        .bg_bottom = .{ 0.035, 0.051, 0.067 },
+        .panel_bg = .{ 0.071, 0.102, 0.129 },
+        .panel_fg = .{ 0.918, 0.945, 0.965 },
+        .border_inactive = .{ 0.173, 0.239, 0.286 },
+    },
+    .{
+        .name = "graphite",
+        .bg = .{ 0.039, 0.043, 0.051 },
+        .bg_top = .{ 0.133, 0.145, 0.165 },
+        .bg_bottom = .{ 0.031, 0.035, 0.043 },
+        .panel_bg = .{ 0.078, 0.086, 0.098 },
+        .panel_fg = .{ 0.933, 0.945, 0.961 },
+        .border_inactive = .{ 0.204, 0.224, 0.255 },
+    },
+    .{
+        .name = "black",
+        .bg = .{ 0.020, 0.020, 0.024 },
+        .bg_top = .{ 0.078, 0.078, 0.086 },
+        .bg_bottom = .{ 0.012, 0.012, 0.016 },
+        .panel_bg = .{ 0.051, 0.051, 0.063 },
+        .panel_fg = .{ 0.949, 0.949, 0.957 },
+        .border_inactive = .{ 0.165, 0.165, 0.188 },
+    },
+};
 pub const BarPosition = enum { top, bottom, left, right };
 pub const PanelRenderer = enum { cairo, gpu };
 pub const OverlayRenderer = enum { cairo, gpu };
@@ -167,7 +317,7 @@ pub const control_feature_specs = [_]ControlFeatureSpec{
 };
 
 pub fn controlFeatureBit(feature: ControlFeature) u32 {
-    return @as(u32, 1) << @intFromEnum(feature);
+    return @as(u32, 1) << @backingInt(feature);
 }
 
 pub const CONTROL_FEATURE_ALL: u32 = (@as(u32, 1) << CONTROL_FEATURE_COUNT) - 1;
@@ -414,6 +564,10 @@ pub const HitKind = enum {
     control_power,
     control_profile,
     control_input,
+    theme_preset,
+    theme_accent,
+    theme_base,
+    theme_reset,
     switcher_card,
 };
 
@@ -1016,6 +1170,8 @@ pub const Panel = struct {
     overlay_content_dirty: bool = true,
     panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    border_active: [3]f64 = .{ 0.886, 0.408, 0.31 },
+    border_inactive: [3]f64 = .{ 0.161, 0.200, 0.278 },
     bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
     launcher_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
     popover_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
@@ -1432,6 +1588,10 @@ fn applyThemeRoles() void {
         const name = role.name[0..role.name_len];
         if (std.mem.eql(u8, name, "accent")) {
             g.accent = role.color;
+        } else if (std.mem.eql(u8, name, "window.border.active")) {
+            g.border_active = role.color;
+        } else if (std.mem.eql(u8, name, "window.border.inactive")) {
+            g.border_inactive = role.color;
         } else if (std.mem.eql(u8, name, "window.background")) {
             g.bg_rgb = role.color;
         } else if (std.mem.eql(u8, name, "panel.background")) {
@@ -1690,12 +1850,12 @@ fn parseBarPriority(value: []const u8) void {
         const name = trim(item[0..eq]);
         const module = barModuleByName(name) orelse continue;
         const priority = std.fmt.parseInt(i32, trim(item[eq + 1 ..]), 10) catch continue;
-        g.bar_priorities[@intFromEnum(module)] = priority;
+        g.bar_priorities[@backingInt(module)] = priority;
     }
 }
 
 pub fn barPriority(module: BarModule) i32 {
-    return g.bar_priorities[@intFromEnum(module)];
+    return g.bar_priorities[@backingInt(module)];
 }
 
 pub fn barModuleName(module: BarModule) []const u8 {
@@ -1793,10 +1953,10 @@ fn planBarImpl(width: f64, available: f64, assume_active: bool) BarPlan {
     while (count > 0 and total + 36.0 > available) {
         var lowest: ?usize = null;
         for (candidates[0..candidate_count], 0..) |module, i| {
-            if (plan.hidden[@intFromEnum(module)]) continue;
+            if (plan.hidden[@backingInt(module)]) continue;
             if (lowest) |best| {
-                if (g.bar_priorities[@intFromEnum(module)] <
-                    g.bar_priorities[@intFromEnum(candidates[best])])
+                if (g.bar_priorities[@backingInt(module)] <
+                    g.bar_priorities[@backingInt(candidates[best])])
                 {
                     lowest = i;
                 }
@@ -1806,7 +1966,7 @@ fn planBarImpl(width: f64, available: f64, assume_active: bool) BarPlan {
         }
         const index = lowest orelse break;
         const module = candidates[index];
-        plan.hidden[@intFromEnum(module)] = true;
+        plan.hidden[@backingInt(module)] = true;
         plan.hidden_count += 1;
         total -= barModuleCost(module) + 10.0;
         count -= 1;
@@ -1860,10 +2020,10 @@ pub fn planBarVertical(available: f64) BarPlan {
     while (remaining > 0 and total + 24.0 > available) {
         var lowest: ?usize = null;
         for (candidates[0..candidate_count], 0..) |module, i| {
-            if (plan.hidden[@intFromEnum(module)]) continue;
+            if (plan.hidden[@backingInt(module)]) continue;
             if (lowest) |best| {
-                if (g.bar_priorities[@intFromEnum(module)] <
-                    g.bar_priorities[@intFromEnum(candidates[best])])
+                if (g.bar_priorities[@backingInt(module)] <
+                    g.bar_priorities[@backingInt(candidates[best])])
                 {
                     lowest = i;
                 }
@@ -1873,7 +2033,7 @@ pub fn planBarVertical(available: f64) BarPlan {
         }
         const index = lowest orelse break;
         const module = candidates[index];
-        plan.hidden[@intFromEnum(module)] = true;
+        plan.hidden[@backingInt(module)] = true;
         plan.hidden_count += 1;
         total -= barModuleHeight(module) + 6.0;
         remaining -= 1;
@@ -1903,7 +2063,7 @@ pub fn printBarPlan(width: f64, left: f64) void {
             std.debug.print("skip: {s} priority={d} cost={d:.0} reason=minimum-width\n", .{
                 name, barPriority(module), barModuleCost(module),
             });
-        } else if (plan.hidden[@intFromEnum(module)]) {
+        } else if (plan.hidden[@backingInt(module)]) {
             std.debug.print("hidden: {s} priority={d} cost={d:.0}\n", .{
                 name, barPriority(module), barModuleCost(module),
             });
@@ -2377,6 +2537,28 @@ fn resolveTerminal() void {
     std.debug.print("tessa-panel: no terminal found; launcher Terminal apps will not start\n", .{});
 }
 
+fn configPath(buf: []u8) []const u8 {
+    if (c.getenv("TESSA_CONFIG")) |p| {
+        return std.mem.span(p);
+    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
+        return std.fmt.bufPrint(buf, "{s}/tessa/config", .{std.mem.span(p)}) catch "";
+    } else if (c.getenv("HOME")) |p| {
+        return std.fmt.bufPrint(buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
+    }
+    return "";
+}
+
+/// Colour overrides written by the control-center theme editor. The file sits
+/// next to the main config and is loaded after it, so it wins over both the
+/// base config and an included theme package.
+pub fn themeOverridePath(buf: []u8) []const u8 {
+    var base_buf: [512]u8 = undefined;
+    const path = configPath(&base_buf);
+    if (path.len == 0) return "";
+    const dir = std.fs.path.dirname(path) orelse ".";
+    return std.fmt.bufPrint(buf, "{s}/theme-colors.conf", .{dir}) catch "";
+}
+
 pub fn loadConfig() void {
     copyTrunc(&g.terminal, &g.terminal_len, "kitty");
     g.terminal_explicit = false;
@@ -2446,6 +2628,8 @@ pub fn loadConfig() void {
     g.shadows_enabled = true;
     g.animations_enabled = true;
     g.accent = .{ 0.886, 0.408, 0.31 };
+    g.border_active = g.accent;
+    g.border_inactive = .{ 0.161, 0.200, 0.278 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
     g.bg_top = .{ 0, 0, 0 };
     g.bg_top_set = false;
@@ -2494,15 +2678,11 @@ pub fn loadConfig() void {
     while (wsn < WS_COUNT) : (wsn += 1) g.ws_name_lens[wsn] = 0;
 
     var path_buf: [512]u8 = undefined;
-    var path: []const u8 = "";
-    if (c.getenv("TESSA_CONFIG")) |p| {
-        path = std.mem.span(p);
-    } else if (c.getenv("XDG_CONFIG_HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/tessa/config", .{std.mem.span(p)}) catch "";
-    } else if (c.getenv("HOME")) |p| {
-        path = std.fmt.bufPrint(&path_buf, "{s}/.config/tessa/config", .{std.mem.span(p)}) catch "";
-    }
+    const path = configPath(&path_buf);
     if (path.len > 0) loadConfigFile(path, 0);
+    var override_buf: [512]u8 = undefined;
+    const override = themeOverridePath(&override_buf);
+    if (override.len > 0) loadConfigFile(override, 0);
     resolveTerminal();
     applyThemeRoles();
     applyOutputTheme();

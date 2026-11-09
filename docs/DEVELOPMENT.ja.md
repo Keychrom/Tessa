@@ -530,6 +530,19 @@ overlay の layer-map がログに出るまで待ちます。
 sh tests/control-center.sh
 ```
 
+### テーマエディタのテスト
+
+`tests/theme-editor.sh` は `tessa-ctl panel theme` でコントロールセンターの
+THEME ページを開き、仮想ポインタで Indigo パレットのカードをクリックします。
+`theme-colors.conf` にアクセント、ウィンドウ枠、各サーフェス、壁紙の
+`theme-role` が期待どおり書かれること、コンポジタの再読み込み後に
+`tessa-ctl config` が新しいアクセントを返すこと、リセットボタンで
+オーバーライドが削除され設定済みパレットへ戻ることを確認します。
+
+```sh
+sh tests/theme-editor.sh
+```
+
 ### ウィンドウスイッチャーのテスト
 
 `tests/window-switcher.sh` は `foot` を 3 つ起動し、`wtype` で Alt を 2 秒
