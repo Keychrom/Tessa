@@ -118,6 +118,28 @@ fn textWidth(cr: *c.cairo_t, text: []const u8, family: []const u8, style: []cons
     return c.tessa_text_measure(cr, text.ptr, @intCast(text.len), fam, sty, size, spacing, &h);
 }
 
+fn fitLogoLabel(cr: *c.cairo_t, text: []const u8, max_w: f64, buf: *[66]u8) []const u8 {
+    if (text.len == 0) return text;
+    const family = m.barFont();
+    if (textWidth(cr, text, family, "Semi-Bold", 10.0, 1.8) <= max_w) return text;
+
+    var i: usize = 0;
+    var fit: usize = 0;
+    while (i < text.len) {
+        const seq = std.unicode.utf8ByteSequenceLength(text[i]) catch 1;
+        const n: usize = @intCast(seq);
+        if (i + n > text.len) break;
+        i += n;
+        if (textWidth(cr, text[0..i], family, "Semi-Bold", 10.0, 1.8) + 7.0 > max_w) break;
+        fit = i;
+    }
+    if (fit == 0) return text[0..0];
+    @memcpy(buf[0..fit], text[0..fit]);
+    buf[fit] = '.';
+    buf[fit + 1] = '.';
+    return buf[0 .. fit + 2];
+}
+
 /// Keep workspace pills compact: at most seven UTF-8 characters plus "..".
 fn workspaceLabel(wi: usize, buf: *[32]u8) []const u8 {
     const name = g.ws_names[wi][0..g.ws_name_lens[wi]];
@@ -160,6 +182,30 @@ fn drawPetal(cr: *c.cairo_t, cx: f64, cy: f64, r: f64, col: [4]f64) void {
     }
     c.cairo_restore(cr);
     fillCircle(cr, cx, cy, r * 0.18, col);
+}
+
+/// Draw the configurable brand mark inside a 28 px button box. A configured
+/// logo_icon is scaled to 22 px preserving its aspect ratio; otherwise the
+/// five-petal mark is drawn.
+fn drawBrandMark(cr: *c.cairo_t, x: f64, y: f64, size: f64, accent: [3]f64) void {
+    if (g.logo_icon_surface) |surface| {
+        const iw = c.cairo_image_surface_get_width(surface);
+        const ih = c.cairo_image_surface_get_height(surface);
+        if (iw > 0 and ih > 0) {
+            const box = size * (22.0 / 28.0);
+            const scale = @min(box / @as(f64, @floatFromInt(iw)), box / @as(f64, @floatFromInt(ih)));
+            const dw = @as(f64, @floatFromInt(iw)) * scale;
+            const dh = @as(f64, @floatFromInt(ih)) * scale;
+            c.cairo_save(cr);
+            c.cairo_translate(cr, x + (size - dw) / 2.0, y + (size - dh) / 2.0);
+            c.cairo_scale(cr, scale, scale);
+            c.cairo_set_source_surface(cr, surface, 0, 0);
+            c.cairo_paint(cr);
+            c.cairo_restore(cr);
+            return;
+        }
+    }
+    drawPetal(cr, x + size / 2.0, y + size / 2.0, 7.2, .{ accent[0], accent[1], accent[2], 1.0 });
 }
 
 fn appColor(app: *const apps.App) [3]f64 {
@@ -1327,7 +1373,7 @@ fn drawBarVertical(s: *m.Surface) void {
         strokeRound(cr, x + 0.5, y + 0.5, size - 1, size - 1, 9, .{
             accent[0], accent[1], accent[2], if (hovered) 0.55 else 0.30,
         }, 1.0);
-        drawPetal(cr, W / 2.0, y + size / 2.0, 7.2, .{ accent[0], accent[1], accent[2], 1.0 });
+        drawBrandMark(cr, x, y, size, accent);
         addBarHit(4, y, W - 8, size, .{ .kind = .menu });
         y += size + 7.0;
         c.cairo_new_path(cr);
@@ -1537,13 +1583,23 @@ pub fn drawBar(s: *m.Surface) void {
         strokeRound(cr, mark_x + 0.5, mark_y + 0.5, 27, 27, 9, .{
             accent[0], accent[1], accent[2], if (hover_menu) 0.55 else 0.30,
         }, 1.0);
-        drawPetal(cr, mark_x + 14, cy, 7.2, .{ accent[0], accent[1], accent[2], 1.0 });
+        drawBrandMark(cr, mark_x, mark_y, 28.0, accent);
 
-        const word = "TESSA";
-        const word_w = textWidth(cr, word, m.barFont(), "Semi-Bold", 10.0, 1.8);
-        _ = drawTextCentered(cr, word, mark_x + 38, cy + 0.5, m.barFont(), "Semi-Bold", 10.0, .{ fg[0], fg[1], fg[2], 0.92 }, 0, 1.8);
+        var label_buf: [66]u8 = undefined;
+        const label = fitLogoLabel(
+            cr,
+            g.logo_text[0..g.logo_text_len],
+            @max(48.0, W * 0.18),
+            &label_buf,
+        );
+        var menu_right: f64 = mark_x + 28.0;
+        if (label.len > 0) {
+            const word_w = textWidth(cr, label, m.barFont(), "Semi-Bold", 10.0, 1.8);
+            _ = drawTextCentered(cr, label, mark_x + 38, cy + 0.5, m.barFont(), "Semi-Bold", 10.0, .{ fg[0], fg[1], fg[2], 0.92 }, 0, 1.8);
+            menu_right = mark_x + 38 + word_w;
+        }
 
-        menu_end = mark_x + 38 + word_w + 8;
+        menu_end = menu_right + 8;
         addBarHit(mark_x, 4, menu_end - mark_x, H - 8, .{ .kind = .menu });
 
         div_x = menu_end + 7;

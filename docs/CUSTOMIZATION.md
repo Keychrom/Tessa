@@ -670,6 +670,8 @@ Use `xim = false` when another input method stack manages `XMODIFIERS`.
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | distance from the chosen edge (0–64) |
 | `bar_side_margin` | inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
+| `logo_text` | brand label on horizontal bars (default `TESSA`); empty shows the mark alone |
+| `logo_icon` | PNG drawn in place of the five-petal mark (absolute or `~/...`); invalid files fall back |
 | `panel_bg` | bar background color |
 | `panel_fg` | bar primary text color |
 | `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
@@ -702,7 +704,11 @@ The panel rereads the palette, launcher entries, bar geometry, and power
 commands when the compositor emits `config-reload`. A geometry change recreates
 the bar layer surface, so the reserved area follows immediately. `bg_top`,
 `bg_bottom`, `wallpaper_art`, and `wallpaper_image` repaint the panel background
-without a restart. Theme packages are loaded through `theme`; see below.
+without a restart. `logo_text` and `logo_icon` also apply on reload: the icon is
+scaled into the 28 px mark box with its aspect ratio preserved, an empty label
+leaves only the icon/mark, and a missing or invalid PNG falls back to the
+five-petal mark. Vertical bars show the icon or mark only. Theme packages are
+loaded through `theme`; see below.
 
 ### Bar modules, priority, and overflow
 

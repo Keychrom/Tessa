@@ -1268,6 +1268,11 @@ pub const Panel = struct {
     bar_position: BarPosition = .top,
     bar_top_margin: i32 = 12,
     bar_side_margin: i32 = 16,
+    logo_text: [64]u8 = undefined,
+    logo_text_len: usize = 0,
+    logo_icon: [512]u8 = undefined,
+    logo_icon_len: usize = 0,
+    logo_icon_surface: ?*c.cairo_surface_t = null,
     bar_layout: [256]u8 = undefined,
     bar_layout_len: usize = 0,
     bar_layout_set: bool = false,
@@ -2241,6 +2246,12 @@ fn loadConfigFile(path: []const u8, depth: usize) void {
             copyTrunc(&g.popover_font, &g.popover_font_len, val);
         } else if (std.mem.eql(u8, key, "toast_font") or std.mem.eql(u8, key, "toast-font")) {
             copyTrunc(&g.toast_font, &g.toast_font_len, val);
+        } else if (std.mem.eql(u8, key, "logo_text") or std.mem.eql(u8, key, "logo-text")) {
+            copyTrunc(&g.logo_text, &g.logo_text_len, val);
+        } else if (std.mem.eql(u8, key, "logo_icon") or std.mem.eql(u8, key, "logo-icon") or
+            std.mem.eql(u8, key, "logo_image") or std.mem.eql(u8, key, "logo-image"))
+        {
+            copyTrunc(&g.logo_icon, &g.logo_icon_len, val);
         } else if (std.mem.eql(u8, key, "bar_layout") or std.mem.eql(u8, key, "bar-layout") or
             std.mem.eql(u8, key, "bar_modules") or std.mem.eql(u8, key, "bar-modules"))
         {
@@ -2537,11 +2548,11 @@ fn loadWallpaperShader() bool {
     return true;
 }
 
-fn loadWallpaperSurface(path: []const u8) ?*c.cairo_surface_t {
+fn loadPngSurface(path: []const u8, label: []const u8) ?*c.cairo_surface_t {
     var path_buf: [512:0]u8 = undefined;
     if (path.len >= 2 and path[0] == '~' and path[1] == '/') {
         const home_ptr = c.getenv("HOME") orelse {
-            std.debug.print("tessa-panel: wallpaper image cannot expand ~ without HOME\n", .{});
+            std.debug.print("tessa-panel: {s} cannot expand ~ without HOME\n", .{label});
             return null;
         };
         const full = std.fmt.bufPrint(path_buf[0..511], "{s}/{s}", .{
@@ -2558,15 +2569,30 @@ fn loadWallpaperSurface(path: []const u8) ?*c.cairo_surface_t {
     const surface = c.cairo_image_surface_create_from_png(&path_buf);
     if (surface == null or c.cairo_surface_status(surface) != c.CAIRO_STATUS_SUCCESS) {
         if (surface) |s| c.cairo_surface_destroy(s);
-        std.debug.print("tessa-panel: cannot load wallpaper image {s}\n", .{path});
+        std.debug.print("tessa-panel: cannot load {s} {s}\n", .{ label, path });
         return null;
     }
-    std.debug.print("tessa-panel: wallpaper image {s} ({d}x{d})\n", .{
+    std.debug.print("tessa-panel: {s} {s} ({d}x{d})\n", .{
+        label,
         path,
         c.cairo_image_surface_get_width(surface),
         c.cairo_image_surface_get_height(surface),
     });
     return surface;
+}
+
+fn loadWallpaperSurface(path: []const u8) ?*c.cairo_surface_t {
+    return loadPngSurface(path, "wallpaper image");
+}
+
+fn loadLogoIcon() void {
+    if (g.logo_icon_surface) |surface| c.cairo_surface_destroy(surface);
+    g.logo_icon_surface = null;
+    if (g.logo_icon_len == 0) return;
+    g.logo_icon_surface = loadPngSurface(g.logo_icon[0..g.logo_icon_len], "logo icon");
+    if (g.logo_icon_surface == null) {
+        std.debug.print("tessa-panel: logo icon failed; using the mark\n", .{});
+    }
 }
 
 fn loadWallpaperImage() void {
@@ -2860,6 +2886,12 @@ pub fn loadConfig() void {
     g.bar_position = .top;
     g.bar_top_margin = 12;
     g.bar_side_margin = 16;
+    copyTrunc(&g.logo_text, &g.logo_text_len, "TESSA");
+    g.logo_icon_len = 0;
+    if (g.logo_icon_surface) |surface| {
+        c.cairo_surface_destroy(surface);
+        g.logo_icon_surface = null;
+    }
     copyTrunc(&g.power_lock, &g.power_lock_len, "loginctl lock-session");
     copyTrunc(&g.power_suspend, &g.power_suspend_len, "systemctl suspend");
     copyTrunc(&g.power_reboot, &g.power_reboot_len, "systemctl reboot");
@@ -2898,6 +2930,7 @@ pub fn loadConfig() void {
     applyThemeRoles();
     applyOutputTheme();
     loadWallpaperImage();
+    loadLogoIcon();
     snapshotBaseTheme();
     g.bg_base_dirty = true;
     g.mark_dirty = true;
@@ -2975,6 +3008,11 @@ pub fn printConfigSummary() void {
         g.wallpaper_shader[0..g.wallpaper_shader_len],
         g.wallpaper_image[0..g.wallpaper_image_len],
         @tagName(g.wallpaper_fit),
+    });
+    std.debug.print("panel logo-text={s} logo-icon={s} loaded={s}\n", .{
+        g.logo_text[0..g.logo_text_len],
+        g.logo_icon[0..g.logo_icon_len],
+        if (g.logo_icon_surface != null) "yes" else "no",
     });
     std.debug.print("panel renderer={s} overlay-renderer={s} wallpaper-engine={s} wallpaper-animation={s} fps={d} idle-pause={d}\n", .{
         @tagName(g.panel_renderer),

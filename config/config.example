@@ -311,6 +311,11 @@ panel_fg = #eef2f8
 # launcher-bg = #0d1220
 # popover-bg = #0d1220
 # toast-bg = #0e1320
+# Brand button. logo_text replaces the TESSA wordmark; an empty value shows
+# only the mark. logo_icon is a PNG (absolute or ~/...) drawn inside the 28 px
+# mark box; a missing or invalid image falls back to the five-petal mark.
+# logo_text = TESSA
+# logo_icon = ~/Pictures/tessa-mark.png
 # Launcher layout: centered (Wofi-style) or start (Windows-style, anchored
 # to the bar edge). The default is centered.
 # launcher_style = centered

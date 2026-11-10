@@ -555,6 +555,17 @@ pixels. It skips when `grim` is unavailable.
 sh tests/wallpaper-image.sh
 ```
 
+### Logo customization test
+
+`tests/logo-customization.sh` checks `logo_text`/`logo_icon` parsing with
+`tessa-panel --check`, then starts a headless session with a solid PNG icon and
+samples the center of the bar's mark box with `grim`. It skips when `grim` is
+unavailable.
+
+```sh
+sh tests/logo-customization.sh
+```
+
 ### Terminal fallback test
 
 `tests/terminal-fallback.sh` hides `kitty` from `PATH`, provides a fake `foot`,

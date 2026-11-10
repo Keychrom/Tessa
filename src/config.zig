@@ -3375,6 +3375,12 @@ fn loadPath(
             std.mem.eql(u8, key, "bar_height") or
             std.mem.eql(u8, key, "bar_top_margin") or
             std.mem.eql(u8, key, "bar_side_margin") or
+            std.mem.eql(u8, key, "logo_text") or
+            std.mem.eql(u8, key, "logo-text") or
+            std.mem.eql(u8, key, "logo_icon") or
+            std.mem.eql(u8, key, "logo-icon") or
+            std.mem.eql(u8, key, "logo_image") or
+            std.mem.eql(u8, key, "logo-image") or
             std.mem.eql(u8, key, "power_lock") or
             std.mem.eql(u8, key, "power_suspend") or
             std.mem.eql(u8, key, "power_reboot") or

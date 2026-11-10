@@ -435,6 +435,17 @@ sh tests/window-groups.sh
 sh tests/wallpaper-image.sh
 ```
 
+### ロゴカスタマイズのテスト
+
+`tests/logo-customization.sh` は `tessa-panel --check` で `logo_text` と
+`logo_icon` の解析を確認したあと、単色 PNG アイコンを指定してヘッドレス
+セッションを起動し、バーのマーク枠中央の画素を `grim` でサンプリングします。
+`grim` がない場合はスキップします。
+
+```sh
+sh tests/logo-customization.sh
+```
+
 ### ターミナルフォールバックのテスト
 
 `tests/terminal-fallback.sh` は `PATH` から `kitty` を隠し、偽の `foot` を

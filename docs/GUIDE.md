@@ -722,6 +722,8 @@ stagger, and slides its selection marker between results.
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
 | `bar_side_margin` | `16` | Inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
+| `logo_text` | `TESSA` | Brand label on horizontal bars; empty shows the mark alone |
+| `logo_icon` | empty | PNG drawn in place of the five-petal mark (absolute or `~/...`); invalid files fall back to the mark |
 | `panel_bg` | `#0e131d` | Base panel background used by `panel.background` and per-surface defaults |
 | `panel_fg` | `#edf2fa` | Base panel foreground used by `panel.foreground` and per-surface defaults |
 | `bar_layout` | all modules | Comma/space-separated module list; selects and orders the right cluster |
@@ -1547,6 +1549,8 @@ synchronously, keep render time short.
 bar_height = 44
 bar_top_margin = 12
 bar_side_margin = 16
+logo_text = TESSA
+logo_icon = ~/Pictures/tessa-mark.png
 panel_bg = #0e1320
 panel_fg = #eef2f8
 font = Inter
@@ -1575,6 +1579,14 @@ responsive: battery hides at width ≤900, tray at ≤980, network at ≤1000, v
 at ≤1080, stats at ≤1180, and media at ≤1250. Window chips show at most six;
 an overflow `+N` badge counts only chips skipped for width before the six-chip
 cap, so windows beyond the cap are not necessarily counted.
+
+`logo_text` replaces the `TESSA` wordmark and `logo_icon` replaces the
+five-petal mark with a PNG. The icon is scaled to fit a 22 px box inside the
+28 px button while preserving its aspect ratio. An empty `logo_text` shows the
+icon/mark alone; an empty or unreadable `logo_icon` keeps the built-in mark.
+Long labels are shortened with `..` so they do not run into the workspace
+pills. Vertical bars have no label area, so they show the icon or mark only.
+Both keys are reread on config reload.
 
 For CJK text the panel appends a locale-appropriate fallback list after `font`
 (`Noto Sans CJK JP`, `Noto Sans JP`, `Source Han Sans JP`, `IPAGothic`, and

@@ -229,7 +229,9 @@ Highlights include:
 - named input modes with mode-specific key bindings, leader keys, `enter-mode`,
   and per-mode timeouts
 - semantic theme roles for accent, borders, wallpaper, and the panel
-- configurable bar height, top/side margins, and bar background/foreground colors
+- configurable bar height, top/side margins, and bar background/foreground colors,
+  plus a custom brand button: replace the five-petal mark with a PNG and change
+  or hide the `TESSA` label
 - window open/workspace slide animations with per-kind durations, named
   cubic-bezier and spring curves, per-window enable/duration/curve overrides,
   configurable offsets, close scale/fade snapshots, reduced-motion close
@@ -1085,6 +1087,8 @@ diagnostics. Selected keys:
 | `bar_height` | panel bar height (32–96 logical pixels) |
 | `bar_top_margin` | panel distance from the top edge (0–64) |
 | `bar_side_margin` | panel left/right margin (0–128) |
+| `logo_text` | bar brand label (default `TESSA`); empty hides the text |
+| `logo_icon` | PNG drawn in place of the five-petal mark (absolute or `~/...`) |
 | `panel_bg` | panel bar background color |
 | `panel_fg` | panel bar primary text color |
 | `power_lock` | command for the power menu's Lock action |

@@ -733,6 +733,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
 | `bar_side_margin` | `16` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
+| `logo_text` | `TESSA` | 上下バーのブランド文字列。空ならマークのみ |
+| `logo_icon` | 空 | 五弁マークの代わりに描く PNG（絶対または `~/...`）。読み込めない場合はマークへフォールバック |
 | `panel_bg` | `#0e131d` | `panel.background` と各サーフェス既定値の基底背景色 |
 | `panel_fg` | `#edf2fa` | `panel.foreground` と各サーフェス既定値の基底前景色 |
 | `panel_modules` | 全部 | 有効にするパネル要素: `background`、`bar`、`launcher`、`popovers`、`notifications`、`toasts`、`tray`、`media`、`audio`。`all`/`none` も可 |
@@ -1564,6 +1566,8 @@ wallpaper_fit = stretch
 bar_height = 44
 bar_top_margin = 12
 bar_side_margin = 16
+logo_text = TESSA
+logo_icon = ~/Pictures/tessa-mark.png
 panel_bg = #0e1320
 panel_fg = #eef2f8
 font = Inter
@@ -1590,6 +1594,13 @@ network ≤1000、volume ≤1080、stats ≤1180、media ≤1250 で非表示に
 ウィンドウチップは最大 6 件です。`+N` バッジは 6 件の上限より前に幅不足で
 省略した分だけを数えるため、上限を超えたウィンドウが必ず数えられるわけでは
 ありません。
+
+`logo_text` は `TESSA` の文字列を、`logo_icon` は五弁マークを PNG 画像に
+置き換えます。アイコンは 28 px のボタン内の 22 px ボックスへ、縦横比を保って
+収まります。`logo_text` を空にするとアイコン／マークのみ、`logo_icon` が空か
+読み込めない場合は組み込みのマークになります。長い文字列はワークスペース
+ピルと重ならないよう `..` で短縮されます。左右バーにはラベル領域がないため、
+アイコンまたはマークのみを表示します。どちらも設定リロードで反映されます。
 
 CJK テキストには `font` の後にロケールに応じたフォールバック
 （日本語なら `Noto Sans CJK JP`、`Noto Sans JP`、`Source Han Sans JP`、
