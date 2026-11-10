@@ -223,8 +223,8 @@ When changing extension behavior:
 1. Decide whether it is additive under `extension_api = 1` or breaking.
 2. Update `src/api.zig`, `src/config.zig`, `src/extension_manager.zig`,
    `src/ipc.zig`, and `src/json_snapshot.zig` together.
-3. Update `config/config.example`, `docs/EXTENDING.*`, `docs/GUIDE.*`, and this
-   document.
+3. Update `config/config.example`, `config/panel.example` for panel keys,
+   `docs/EXTENDING.*`, `docs/GUIDE.*`, and this document.
 4. Add or extend `tests/extension-api.sh` and keep the eight-field `EXT` line
    unchanged.
 5. Run the extension, IPC, JSON, fuzz, and smoke tests.

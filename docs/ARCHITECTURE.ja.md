@@ -742,9 +742,11 @@ inhibitor が存在する間またはセッションロック中は
 ## 設定と診断
 
 `config.zig` は `key = value` ファイルと位置依存の include を、元のファイル
-パスと行番号を追跡しながら解析します。数値、真偽値、色、レイアウト名、
-バインド、フック、ウィンドウルール、include 先を検証します。問題は
-`Server.config_issues` に保存され、`CMD config` の
+パスと行番号を追跡しながら解析します。`config`、その隣の `panel.conf`
+（または `TESSA_PANEL_CONFIG`）、`theme-colors.conf` の順に読み、パネルも
+同じ順序で読むため両者が同じ実効テーマを共有します。数値、真偽値、色、
+レイアウト名、バインド、フック、ウィンドウルール、include 先を検証します。
+問題は `Server.config_issues` に保存され、`CMD config` の
 `diagnostic error path:line: message` 行として公開されます。
 
 リロード時は解析前に以前の `Config` をスナップショットします。新しい

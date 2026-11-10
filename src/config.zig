@@ -3409,6 +3409,19 @@ pub fn resolvePath(path_buf: *[512]u8) []const u8 {
     return "";
 }
 
+/// Panel settings live next to the main config. The compositor reads the same
+/// overlay so Scene saves still capture panel colors and wallpaper. An empty
+/// TESSA_PANEL_CONFIG disables the overlay.
+pub fn resolvePanelPath(path_buf: *[512]u8, main_path: []const u8) []const u8 {
+    if (c.getenv("TESSA_PANEL_CONFIG")) |p| {
+        const path = core.cstr(p);
+        return if (path.len > 0) path else "";
+    }
+    if (main_path.len == 0) return "";
+    const dir = std.fs.path.dirname(main_path) orelse ".";
+    return std.fmt.bufPrint(path_buf, "{s}/panel.conf", .{dir}) catch "";
+}
+
 fn fileExists(path: []const u8) bool {
     var zpath: [512:0]u8 = undefined;
     if (path.len >= zpath.len) return false;
@@ -3428,6 +3441,16 @@ pub fn load(server: *Server) void {
     var parse_mode: usize = 0;
     if (path.len > 0) loadPath(server, path, 0, &parse_mode, "", 0);
     if (path.len > 0) {
+        var panel_buf: [512]u8 = undefined;
+        const panel_path = resolvePanelPath(&panel_buf, path);
+        if (panel_path.len > 0 and !std.mem.eql(u8, panel_path, path)) {
+            if (fileExists(panel_path)) {
+                loadPath(server, panel_path, 0, &parse_mode, "", 0);
+                core.logInfo("config: loaded panel settings from {s}", .{panel_path});
+            } else if (c.getenv("TESSA_PANEL_CONFIG") != null) {
+                core.logInfo("config: panel settings not found at {s}", .{panel_path});
+            }
+        }
         var override_buf: [512]u8 = undefined;
         const dir = std.fs.path.dirname(path) orelse ".";
         const override = std.fmt.bufPrint(&override_buf, "{s}/theme-colors.conf", .{dir}) catch "";

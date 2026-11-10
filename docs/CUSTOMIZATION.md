@@ -23,6 +23,18 @@ The flat `key = value` format is intentional: it keeps the parser small,
 supports positional includes, and makes effective values and parsed rules
 inspectable with `tessa-ctl config`.
 
+## Configuration files
+
+Compositor behavior and shared theme tokens live in `config`. Panel settings
+live in `panel.conf` next to it. The panel loads `config` → `panel.conf` →
+`theme-colors.conf`; the compositor reads `config` → `panel.conf` so Scene saves
+still see the panel wallpaper and colors. Panel keys left in `config` continue
+to work. Use `TESSA_PANEL_CONFIG` to point at another panel file, or set it empty
+to disable the overlay. Saving any `.conf` in the config directory reloads the
+session. Because the compositor reads `panel.conf` for shared visuals,
+`theme`/`include` or compositor keys placed there also take effect; keep
+compositor-only settings in `config`.
+
 ## Window rules
 
 A window rule is one line. Match clauses and actions are separated by `;`:
@@ -653,6 +665,10 @@ settings are applied at compositor startup; restart Tessa after changing them.
 Use `xim = false` when another input method stack manages `XMODIFIERS`.
 
 ## Appearance
+
+Shared colors (`accent`, `bg`, `border_*`, `bg_top`, `bg_bottom`, and theme
+roles) stay in `config` or a theme package. Panel-owned keys below normally live
+in `panel.conf`; they still work in `config` for compatibility.
 
 | Key | Meaning |
 | --- | --- |

@@ -1,8 +1,10 @@
-# Tessa configuration
+# Tessa compositor configuration
 # Install this file as ~/.config/tessa/config.
 # Values are simple `key = value` lines. Lines starting with # are ignored.
 # Relative include paths are resolved next to the including file.
 # The config directory is watched; atomic saves reload automatically.
+# Panel settings live in panel.conf next to this file; see panel.example.
+# This file keeps compositor behavior and shared theme tokens.
 # include = keybindings.conf
 
 terminal = kitty
@@ -256,117 +258,13 @@ panel = true
 # it from `startup` below; the default stays the integrated panel.
 # panel = false
 # startup = waybar
-# Panel geometry and bar palette. Changes apply on config reload; a geometry
-# change recreates the bar layer surface.
-bar_height = 44
-# Bar edge: top (default), bottom, left, or right. bar_top_margin is the
-# distance from that edge; bar_side_margin is the inset along the bar.
-bar_position = top
-bar_top_margin = 12
-bar_side_margin = 16
-# Panel style: classic (default) keeps the separate calendar/audio/media/tray
-# popovers. unified adds a Controls button and one control center for Wi-Fi,
-# Bluetooth, focus, volume, brightness, media, notifications, power profiles,
-# battery, tray, calendar, power actions, and quick actions.
-panel_style = classic
-# Features shown in the unified control center. In classic mode this gates the
-# Wi-Fi/Bluetooth popovers and the Bluetooth indicator. Comma, space, or `|`
-# separated; `all` and `none` are accepted.
-# Names: wifi, bluetooth, focus, notifications, media, volume, brightness,
-# power_profile, battery, quick_actions, tray, calendar, power.
-control_features = all
-# Alt+Tab window switcher: snapshot (default) live-renders per-window GPU
-# previews for all outputs and workspaces, capped at 512 px on the long edge.
-# icons shows app monograms only, off disables the switcher.
-window_switcher = snapshot
-# Add a quick action (repeatable, up to four): Label | command.
-# control_action = Screen record | wf-recorder -f ~/Videos/record.mp4
-panel_bg = #0e1320
-panel_fg = #eef2f8
-# Composable bar modules. The list selects visible modules and orders the
-# right-hand cluster (first listed is closest to the right edge). logo/workspaces/chips stay anchored.
-# Names: logo, workspaces, chips, clock, battery, network, volume, stats, media,
-# tray, status, layout, groups, mode, effects. Unknown names are ignored for
-# forward compatibility. layout/groups/mode/effects expose compositor context.
-# bar_layout = logo,workspaces,chips,clock,media,stats,volume,network,battery,tray,status
-# Context-aware bar:
-# bar_layout = logo,workspaces,chips,layout,groups,mode,effects,clock,tray,status
-# When the right cluster is too narrow, modules hide from the lowest priority
-# upward and a +N chip lists them. Names match bar_layout. `bar_overflow =
-# false` disables the planner. Preview a width with:
-#   tessa-panel --bar-plan 850 200
-# bar_priority = clock=100, status=80, layout=60, groups=55, mode=65, effects=30
-# bar_priority = stats=20, media=40, tray=35, battery=50, network=50, volume=60
-# bar_overflow = true
-# Per-surface fonts and colors. Unset values fall back to `font` and panel_fg.
-# bar-font = Inter
-# launcher-font = Inter
-# popover-font = Inter
-# toast-font = Inter
-# bar-fg = #eef2f8
-# launcher-fg = #eef2f8
-# popover-fg = #eef2f8
-# toast-fg = #eef2f8
-# bar-bg = #0e1320
-# launcher-bg = #0d1220
-# popover-bg = #0d1220
-# toast-bg = #0e1320
-# Brand button. logo_text replaces the TESSA wordmark; an empty value shows
-# only the mark. logo_icon is a PNG (absolute or ~/...) drawn inside the 28 px
-# mark box; a missing or invalid image falls back to the five-petal mark.
-# logo_text = TESSA
-# logo_icon = ~/Pictures/tessa-mark.png
-# Launcher layout: centered (Wofi-style) or start (Windows-style, anchored
-# to the bar edge). The default is centered.
-# launcher_style = centered
-# Wallpaper. bg_top/bg_bottom override the gradient derived from bg. Set
-# wallpaper_art = false for a clean gradient without ink/sun/water artwork.
-# wallpaper_image replaces the gradient/art with a PNG (absolute path or ~/...);
-# wallpaper_fit is cover, contain, or stretch. wallpaper-shader runs a command
-# that prints a binary PPM (P6, maxval 255) frame and takes precedence over the
-# image. It is re-run on config reload, so animated shaders should be driven by
-# a long-lived helper instead.
+# Panel geometry, bar modules, launcher, wallpaper, and power/volume commands
+# live in panel.conf; see panel.example.
+
+# Wallpaper gradient endpoints shared with the panel. The image and fit live
+# in panel.conf.
 # bg_top = #162038
 # bg_bottom = #070a12
-# wallpaper_art = true
-# Dim the ink/sun/water artwork behind translucent windows. 1.0 keeps the
-# original intensity; 0.0 disables the artwork.
-# wallpaper_art_opacity = 0.55
-# Opt-in GPU background renderer: Cairo draws the wallpaper once, then
-# EGL/GLES2 presents it and a shader adds subtle water/ink motion. Falls back
-# to Cairo when EGL/GLES is unavailable or presentation fails.
-# panel_renderer = gpu
-# Launcher/popover presentation: cairo, or gpu (cached Cairo content).
-# overlay_renderer = gpu
-# With panel_renderer = gpu: cairo (Cairo texture) or procedural (GPU-generated).
-# wallpaper_engine = procedural
-# off, on, or auto (auto pauses on battery and after wallpaper_idle_pause).
-# wallpaper_animation = auto
-# wallpaper_fps = 30
-# wallpaper_idle_pause = 120
-# wallpaper_image = ~/Pictures/wallpaper.png
-# wallpaper_shader = ~/.config/tessa/wallpaper.ppm.sh
-# wallpaper_fit = cover
-
-# Commands for the power menu (right-click the TESSA mark).
-power_lock = loginctl lock-session
-power_suspend = systemctl suspend
-power_reboot = systemctl reboot
-power_off = systemctl poweroff
-
-# Screenshot PNG output (default ~/Pictures/Screenshots). Super+Shift+S opens
-# the region/full-output capture UI.
-screenshot_dir = ~/Pictures/Screenshots
-
-# Volume control. Empty commands auto-detect wpctl, pactl, then amixer.
-# Super+Shift+A opens the audio card. Override output commands here; custom
-# commands run through /bin/sh and the status command should print a percentage
-# such as "42%". With wpctl or pactl the card also lists sinks/sources and
-# controls the default output/input plus input volume and mute.
-# volume_status = wpctl get-volume @DEFAULT_AUDIO_SINK@
-# volume_up = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
-# volume_down = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
-# volume_mute = wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 
 # Start xwayland-satellite for X11 applications and export DISPLAY.
 # "auto" picks the first free display (:0, :1, ...).
@@ -435,15 +333,11 @@ bg = #0a0f1a
 # Empty border_active uses accent.
 # border_active = #e2684f
 # border_inactive = #293347
-# The panel appends a locale-appropriate CJK fallback after this family
-# (Noto Sans CJK JP, Noto Sans JP, Source Han Sans JP, IPAGothic,
-# TakaoPGothic, ...). Install a Japanese font if CJK text renders as boxes:
-# noto-fonts-cjk on Arch, fonts-noto-cjk on Debian/Ubuntu, or
-# noto-fonts-cjk-sans on NixOS.
-font = Inter
+# Panel fonts and per-surface colors live in panel.conf.
 
 # Semantic theme roles shared by the compositor and panel. Roles are applied
-# after direct keys, so they win over accent/border/bg/panel values above.
+# after direct keys, so they win over accent/border/bg here and panel values in
+# panel.conf.
 # A matching output-rule theme still wins for that output.
 # Load a theme package instead of listing roles here:
 # theme = ~/.config/tessa/themes/vermilion-ink
@@ -470,10 +364,6 @@ font = Inter
 # before unconditional hooks. Extra fields: event, ws, id (compared as strings).
 # event-rule = window-open; match=app ~ "^firefox$" && ws == "2"; run=notify-send "Firefox" "workspace 2"
 # event-rule = workspace-change; match=ws == "3"; run=~/.config/tessa/on-workspace-3
-
-# Extra launcher entries (panel-side; included files also work).
-# launcher_entry = Notes | foot -e nvim ~/notes.md
-# launcher_entry = Lock screen | swaylock
 
 # Additional or overriding key bindings.
 # XKB keysym names are used: Return, Tab, Left, Right, 1, h, ...

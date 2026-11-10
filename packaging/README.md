@@ -43,7 +43,7 @@ It installs:
 - `/usr/bin/tessa-panel-compat` (requires the optional `python` package)
 - `/usr/bin/tessa-session`
 - `/usr/share/wayland-sessions/tessa.desktop`
-- `/usr/share/tessa/config.example`
+- `/usr/share/tessa/config.example` and `/usr/share/tessa/panel.example`
 - `/usr/share/xdg-desktop-portal/portals/tessa.portal`
 - man pages and documentation under `/usr/share`
 

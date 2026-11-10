@@ -36,7 +36,7 @@ PKGBUILD は `depends=('wlroots0.20' ...)` と `makedepends=('git' 'zig')` を�
 - `/usr/bin/tessa-panel-compat`（任意の `python` パッケージが必要）
 - `/usr/bin/tessa-session`
 - `/usr/share/wayland-sessions/tessa.desktop`
-- `/usr/share/tessa/config.example`
+- `/usr/share/tessa/config.example`、`/usr/share/tessa/panel.example`
 - `/usr/share/xdg-desktop-portal/portals/tessa.portal`
 - man ページとドキュメント（`/usr/share` 以下）
 

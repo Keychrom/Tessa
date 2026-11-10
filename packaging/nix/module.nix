@@ -23,7 +23,9 @@ in
       example = "/etc/nixos/tessa.conf";
       description = ''
         A Tessa configuration file installed as /etc/tessa/config and exposed
-        through TESSA_CONFIG. See /etc/tessa/config.example from the package.
+        through TESSA_CONFIG. Panel settings load from /etc/tessa/panel.conf
+        (or TESSA_PANEL_CONFIG). See /etc/tessa/config.example and
+        /etc/tessa/panel.example from the package.
       '';
     };
 
@@ -31,9 +33,8 @@ in
       type = lib.types.nullOr lib.types.lines;
       default = null;
       example = ''
-        panel = true
-        panel_renderer = gpu
-        wallpaper_animation = auto
+        gaps = 10
+        animations = true
       '';
       description = ''
         Inline Tessa configuration. Ignored when configFile is set.
@@ -133,6 +134,9 @@ in
 
     environment.etc."tessa/config.example".source =
       "${cfg.package}/share/tessa/config.example";
+
+    environment.etc."tessa/panel.example".source =
+      "${cfg.package}/share/tessa/panel.example";
 
     environment.etc."tessa/config" = lib.mkIf hasConfig {
       source = if cfg.configFile != null

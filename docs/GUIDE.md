@@ -577,12 +577,33 @@ otherwise falls back to an arbitrary output.
 
 ## 5. Configuration Basics
 
-Copy the example:
+Copy the examples:
 
 ```sh
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
+cp config/panel.example ~/.config/tessa/panel.conf
 ```
+
+Tessa uses two settings files:
+
+| File | Owns |
+| --- | --- |
+| `config` | key bindings, rules, outputs, layouts, rendering, animations, startup/hooks, and shared theme tokens |
+| `panel.conf` | bar, launcher, popovers, wallpaper, panel fonts/colors, logo, control center, and panel commands |
+
+The panel reads `config` first, then `panel.conf`, then `theme-colors.conf`.
+The compositor reads `config` and then `panel.conf`, because Scene saves need the
+panel wallpaper and panel colors. Panel keys left in `config` still work for
+compatibility, so existing setups need no migration. `TESSA_PANEL_CONFIG`
+overrides the panel file; an empty value disables it. The config directory is
+watched for `.conf` changes, so saving `panel.conf` reloads the session too.
+`theme` packages and `theme-role` stay shared by both. Because the compositor
+loads `panel.conf` for shared visuals, a `theme`/`include` or compositor key
+placed there also takes effect; keep compositor-only settings in `config`.
+When upgrading an existing single-file setup, do not copy `panel.example` over
+an existing `panel.conf`: it contains active defaults. Move the panel keys from
+`config` instead.
 
 Format rules:
 
@@ -598,6 +619,7 @@ Reload and inspect:
 
 ```sh
 tessa --check-config [file]      # offline validation; non-zero on errors
+tessa-panel --check              # effective panel settings (config + panel.conf)
 tessa-ctl config                 # effective settings and parsed rules
 tessa-ctl config --json          # schema-1 JSON
 tessa-ctl config-check           # non-zero on errors
@@ -709,6 +731,10 @@ motion. The panel launcher fades and scales in, reveals result rows in a short
 stagger, and slides its selection marker between results.
 
 ### 6.3 Panel and shell
+
+`panel`/`autostart_panel` and `panel_modules` are compositor startup settings
+and stay in `config`. The remaining keys normally live in `panel.conf`; they
+still work in `config` for compatibility.
 
 | Key | Default | Meaning |
 | --- | --- | --- |

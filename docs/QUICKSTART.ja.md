@@ -146,11 +146,15 @@ Tessa は出力ごとにパネルプロセスを自動起動します。`tessa-p
 ```sh
 mkdir -p ~/.config/tessa
 cp /usr/share/tessa/config.example ~/.config/tessa/config
+cp /usr/share/tessa/panel.example ~/.config/tessa/panel.conf
 ```
 
-ソースツリーでは `config/config.example` を使います。
+ソースツリーでは `config/config.example` と `config/panel.example` を使います。
+`config` はコンポジタの動作と共有テーマ、`panel.conf` はバー、ランチャー、
+ポップオーバー、壁紙、コントロールセンターの設定です。`config` に残した
+Panel 設定も互換性のため動作します。
 
-`~/.config/tessa/config` を編集したら `Super+R` で再読み込みします。確認:
+どちらかのファイルを編集したら `Super+R` で再読み込みします。確認:
 
 ```sh
 tessa-ctl config-check

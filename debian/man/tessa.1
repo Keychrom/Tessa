@@ -27,8 +27,13 @@ display-manager Wayland session. Do not run it as root. Quit with
 .SH FILES
 .TP
 .I ~/.config/tessa/config
-Main configuration file. A commented example is installed at
+Main compositor configuration file. A commented example is installed at
 .IR /usr/share/tessa/config.example .
+.TP
+.I ~/.config/tessa/panel.conf
+Panel-only settings, loaded after the main config. A commented example is
+installed at
+.IR /usr/share/tessa/panel.example .
 .TP
 .I ~/.config/tessa/outputs.conf
 Saved output modes, positions, scales, transforms, and layout overrides.
@@ -36,6 +41,9 @@ Saved output modes, positions, scales, transforms, and layout overrides.
 .TP
 .B TESSA_CONFIG
 Override the configuration path.
+.TP
+.B TESSA_PANEL_CONFIG
+Override the panel configuration path. An empty value disables panel.conf.
 .TP
 .B TESSA_IPC
 Override the IPC socket path.

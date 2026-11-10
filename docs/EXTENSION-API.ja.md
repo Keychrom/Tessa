@@ -216,8 +216,8 @@ schema 1 内で既存キーの削除・改名・並べ替えはできません�
 1. `extension_api = 1` の追加変更か破壊的変更かを決める。
 2. `src/api.zig`、`src/config.zig`、`src/extension_manager.zig`、
    `src/ipc.zig`、`src/json_snapshot.zig` を同時に更新する。
-3. `config/config.example`、`docs/EXTENDING.*`、`docs/GUIDE.*`、この文書を
-   更新する。
+3. `config/config.example`、パネル向けキーなら `config/panel.example`、
+   `docs/EXTENDING.*`、`docs/GUIDE.*`、この文書を更新する。
 4. `tests/extension-api.sh` を追加・拡張し、`EXT` の 8 フィールドを維持する。
 5. 拡張、IPC、JSON、fuzz、smoke テストを実行する。
 

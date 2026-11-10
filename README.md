@@ -1007,7 +1007,15 @@ Copy the example:
 ```sh
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
+cp config/panel.example ~/.config/tessa/panel.conf
 ```
+
+`config` holds compositor behavior and shared theme tokens. `panel.conf` holds
+bar, launcher, popover, wallpaper, and control-center settings and is loaded
+after `config`; panel keys left in `config` still work for compatibility.
+`theme-colors.conf` is loaded last. If you are upgrading an existing setup,
+move panel keys instead of copying `panel.example` over `panel.conf`, because
+the example contains active defaults.
 
 The full configuration used on the development machine is available as
 `examples/vermilion-ink.config`.

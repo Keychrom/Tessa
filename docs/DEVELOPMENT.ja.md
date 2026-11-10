@@ -446,6 +446,17 @@ sh tests/wallpaper-image.sh
 sh tests/logo-customization.sh
 ```
 
+### パネル設定のテスト
+
+`tests/panel-config.sh` は `tessa-panel --check` が `config` → `panel.conf` の
+順に読み込むこと、`TESSA_PANEL_CONFIG` で上書き・無効化できること、さらに
+コンポジタが `panel.conf` のパネル色と壁紙を Scene 保存へ反映することを
+確認します。
+
+```sh
+sh tests/panel-config.sh
+```
+
 ### ターミナルフォールバックのテスト
 
 `tests/terminal-fallback.sh` は `PATH` から `kitty` を隠し、偽の `foot` を

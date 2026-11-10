@@ -691,10 +691,12 @@ frame's rect.
 ## Configuration and diagnostics
 
 `config.zig` parses `key = value` files and positional includes while tracking
-the source path and line number. The parser validates numbers, booleans, colors,
-layout names, bindings, hooks, window rules, and include targets. Problems are
-stored in `Server.config_issues` and exposed through `CMD config` as
-`diagnostic error path:line: message`.
+the source path and line number. It loads `config`, then `panel.conf` next to it
+(or `TESSA_PANEL_CONFIG`), then `theme-colors.conf`; the panel uses the same
+order so both see one effective theme. The parser validates numbers, booleans,
+colors, layout names, bindings, hooks, window rules, and include targets.
+Problems are stored in `Server.config_issues` and exposed through `CMD config`
+as `diagnostic error path:line: message`.
 
 On reload, the previous `Config` value is snapshotted before parsing. If the new
 file has errors, the snapshot is restored, keymaps are not reloaded, and no

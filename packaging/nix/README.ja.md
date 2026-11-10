@@ -62,11 +62,11 @@ flake を input に追加し、モジュールを import します:
             fcitx5-mozc
           ];
 
-          # 任意: Tessa の設定を直接書く。
+          # 任意: コンポジタの設定を直接書く。パネル専用設定は通常
+          # /etc/tessa/panel.conf に置きます（/etc/tessa/panel.example 参照）。
           # programs.tessa.config = ''
-          #   panel = true
-          #   panel_renderer = gpu
-          #   wallpaper_animation = auto
+          #   gaps = 10
+          #   animations = true
           # '';
         }
       ];
@@ -160,13 +160,14 @@ NixOS 26.05 の vmwgfx VM で、パッケージ、モジュール、SDDM セッ�
 ## 注意
 
 - Tessa は `$TESSA_CONFIG`、`$XDG_CONFIG_HOME/tessa/config`、
-  `~/.config/tessa/config` の順に読みます。モジュールの
-  `configFile`/`config` は `/etc/tessa/config` を使い、システム全体に
-  `TESSA_CONFIG` を設定します。
+  `~/.config/tessa/config` の順に読みます。Panel 専用設定は
+  `$TESSA_PANEL_CONFIG`、またはその隣の `panel.conf` から読みます。
+  モジュールの `configFile`/`config` は `/etc/tessa/config` を使い、
+  システム全体に `TESSA_CONFIG` を設定します。
 - nixpkgs に `xwayland-satellite` がある場合は自動で追加されます。ない場合は
   `extraPackages` に別の XWayland パッケージを追加してください。
 - パッケージは `/share/wayland-sessions/tessa.desktop`、
-  `/share/tessa/config.example`、
+  `/share/tessa/config.example`、`/share/tessa/panel.example`、
   `/share/xdg-desktop-portal/portals/tessa.portal` をインストールします。
 - ウィンドウシェーダーは既定で有効です。無効化するには
   `TESSA_SHADER_DISABLE=1` を設定するか、`-Dshaders=false` でビルドします。

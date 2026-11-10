@@ -62,11 +62,11 @@ Add the flake as an input and import the module:
             fcitx5-mozc
           ];
 
-          # Optional: start non-panel sessions or configure Tessa directly.
+          # Optional: configure the compositor. Panel-only settings normally
+          # live in /etc/tessa/panel.conf; see /etc/tessa/panel.example.
           # programs.tessa.config = ''
-          #   panel = true
-          #   panel_renderer = gpu
-          #   wallpaper_animation = auto
+          #   gaps = 10
+          #   animations = true
           # '';
         }
       ];
@@ -161,12 +161,14 @@ choice.
 ## Notes
 
 - Tessa reads `$TESSA_CONFIG`, then `$XDG_CONFIG_HOME/tessa/config`, then
-  `~/.config/tessa/config`. The module's `configFile`/`config` options use
-  `/etc/tessa/config` and set `TESSA_CONFIG` for the whole system.
+  `~/.config/tessa/config`. Panel-only settings load from
+  `$TESSA_PANEL_CONFIG` or `panel.conf` next to that file. The module's
+  `configFile`/`config` options use `/etc/tessa/config` and set `TESSA_CONFIG`
+  for the whole system.
 - `xwayland-satellite` is added when nixpkgs provides it. If your nixpkgs does
   not have it, add another XWayland package to `extraPackages`.
 - The package installs `/share/wayland-sessions/tessa.desktop`,
-  `/share/tessa/config.example`, and
+  `/share/tessa/config.example`, `/share/tessa/panel.example`, and
   `/share/xdg-desktop-portal/portals/tessa.portal`.
 - Window shaders are enabled by default in the package. Use
   `TESSA_SHADER_DISABLE=1` or build with `-Dshaders=false` to disable them.

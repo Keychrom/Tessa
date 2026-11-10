@@ -105,6 +105,7 @@ stdenv.mkDerivation (finalAttrs: {
     install -Dm644 session/tessa.desktop \
       "$out/share/wayland-sessions/tessa.desktop"
     install -Dm644 config/config.example "$out/share/tessa/config.example"
+    install -Dm644 config/panel.example "$out/share/tessa/panel.example"
     install -Dm644 packaging/portal/tessa.portal \
       "$out/share/xdg-desktop-portal/portals/tessa.portal"
 

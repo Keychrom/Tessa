@@ -164,11 +164,15 @@ Tessa works without a config file. To start from the example:
 ```sh
 mkdir -p ~/.config/tessa
 cp /usr/share/tessa/config.example ~/.config/tessa/config
+cp /usr/share/tessa/panel.example ~/.config/tessa/panel.conf
 ```
 
-For a source checkout, use `config/config.example` instead.
+For a source checkout, use `config/config.example` and `config/panel.example`.
+`config` holds compositor behavior and shared theme tokens; `panel.conf` holds
+bar, launcher, popover, wallpaper, and control-center settings. Panel keys left
+in `config` still work for compatibility.
 
-Edit `~/.config/tessa/config`, then press `Super+R`. Check the result with:
+Edit either file, then press `Super+R`. Check the result with:
 
 ```sh
 tessa-ctl config-check

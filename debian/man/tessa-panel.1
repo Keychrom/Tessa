@@ -11,8 +11,13 @@ is normally started by
 once per output. It draws the taskbar and wallpaper, runs the launcher and
 popovers, and provides the notification service and StatusNotifier tray host.
 .PP
-The panel reads the same configuration file and re-reads it after a compositor
-config-reload event.
+The panel reads the compositor configuration, then
+.I panel.conf
+next to it (or
+.BR TESSA_PANEL_CONFIG ),
+then
+.IR theme-colors.conf .
+It re-reads them after a compositor config-reload event.
 .PP
 With
 .B \-\-check
@@ -22,6 +27,12 @@ the panel loads the configuration, prints the resolved per-surface fonts,
 colors, bar module order/fonts, and wallpaper source, then exits without
 connecting to Wayland.
 .SH ENVIRONMENT
+.TP
+.B TESSA_CONFIG
+Override the base configuration path; panel.conf sits next to it by default.
+.TP
+.B TESSA_PANEL_CONFIG
+Override the panel configuration path. An empty value disables panel.conf.
 .TP
 .B TESSA_PANEL_OUTPUT
 Output name this panel instance is attached to.

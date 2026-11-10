@@ -1038,7 +1038,15 @@ include = /home/you/.config/tessa/launcher-entries.conf
 ```sh
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
+cp config/panel.example ~/.config/tessa/panel.conf
 ```
+
+`config` はコンポジタの動作と共有テーマ、`panel.conf` はバー、ランチャー、
+ポップオーバー、壁紙、コントロールセンターの設定です。`panel.conf` は
+`config` の後に読み込まれ、`config` に残した Panel 設定も互換性のため
+そのまま動作します。`theme-colors.conf` は最後に読み込まれます。
+既存環境を移行する場合は、`panel.example` を `panel.conf` へ上書きせず、
+`config` からパネルキーを移してください（サンプルには有効な既定値があります）。
 
 開発機で使っている完全な設定は `examples/vermilion-ink.config` にあります。
 

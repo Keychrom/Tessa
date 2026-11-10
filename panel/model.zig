@@ -2775,9 +2775,25 @@ fn configPath(buf: []u8) []const u8 {
     return "";
 }
 
+/// Panel-only settings. Defaults to panel.conf next to the main config so a
+/// temporary TESSA_CONFIG keeps tests and panel-only sessions isolated.
+/// An explicitly set TESSA_PANEL_CONFIG wins; an empty value disables the
+/// overlay.
+fn panelConfigPath(buf: []u8) []const u8 {
+    if (c.getenv("TESSA_PANEL_CONFIG")) |p| {
+        const path = std.mem.span(p);
+        return if (path.len > 0) path else "";
+    }
+    var base_buf: [512]u8 = undefined;
+    const base = configPath(&base_buf);
+    if (base.len == 0) return "";
+    const dir = std.fs.path.dirname(base) orelse ".";
+    return std.fmt.bufPrint(buf, "{s}/panel.conf", .{dir}) catch "";
+}
+
 /// Colour overrides written by the control-center theme editor. The file sits
-/// next to the main config and is loaded after it, so it wins over both the
-/// base config and an included theme package.
+/// next to the main config and is loaded after config and panel.conf, so it
+/// wins over both and over an included theme package.
 pub fn themeOverridePath(buf: []u8) []const u8 {
     var base_buf: [512]u8 = undefined;
     const path = configPath(&base_buf);
@@ -2923,6 +2939,11 @@ pub fn loadConfig() void {
     var path_buf: [512]u8 = undefined;
     const path = configPath(&path_buf);
     if (path.len > 0) loadConfigFile(path, 0);
+    var panel_buf: [512]u8 = undefined;
+    const panel_path = panelConfigPath(&panel_buf);
+    if (panel_path.len > 0 and !std.mem.eql(u8, panel_path, path)) {
+        loadConfigFile(panel_path, 0);
+    }
     var override_buf: [512]u8 = undefined;
     const override = themeOverridePath(&override_buf);
     if (override.len > 0) loadConfigFile(override, 0);
@@ -3004,6 +3025,12 @@ pub fn printConfigSummary() void {
         std.debug.print("{s}", .{@tagName(module)});
     }
     std.debug.print("\n", .{});
+    var base_path_buf: [512]u8 = undefined;
+    var panel_path_buf: [512]u8 = undefined;
+    std.debug.print("panel config={s} base-config={s}\n", .{
+        panelConfigPath(&panel_path_buf),
+        configPath(&base_path_buf),
+    });
     std.debug.print("panel wallpaper-shader={s} wallpaper-image={s} fit={s}\n", .{
         g.wallpaper_shader[0..g.wallpaper_shader_len],
         g.wallpaper_image[0..g.wallpaper_image_len],

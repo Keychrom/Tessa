@@ -596,7 +596,28 @@ Chromium 系ブラウザ、OBS では共有できる画面が 1 つも表示さ�
 ```sh
 mkdir -p ~/.config/tessa
 cp config/config.example ~/.config/tessa/config
+cp config/panel.example ~/.config/tessa/panel.conf
 ```
+
+Tessa は 2 つの設定ファイルを使います:
+
+| ファイル | 担当 |
+| --- | --- |
+| `config` | キーバインド、ルール、出力、レイアウト、描画、アニメーション、起動/フック、共有テーマトークン |
+| `panel.conf` | バー、ランチャー、ポップオーバー、壁紙、パネルのフォント/色、ロゴ、コントロールセンター、パネル用コマンド |
+
+パネルは `config` → `panel.conf` → `theme-colors.conf` の順に読みます。
+コンポジタも `config` → `panel.conf` の順に読みます（Scene 保存でパネルの
+壁紙と色を取得するため）。`config` に残したパネル設定は互換性のためそのまま
+動作するので、既存環境の移行は不要です。`TESSA_PANEL_CONFIG` でパネル設定
+ファイルを上書きでき、空にすると無効化できます。設定ディレクトリ内の
+`.conf` の変更は監視されるため、`panel.conf` の保存でもセッションが
+リロードされます。`theme` パッケージと `theme-role` は両方で共有します。
+コンポジタは共有ビジュアルのため `panel.conf` も読むので、そこに
+`theme`/`include` やコンポジタのキーを書いた場合も反映されます。
+コンポジタ専用の設定は `config` に置いてください。既存の単一ファイル設定を
+移行する場合は、`panel.example` を既存の `panel.conf` へコピーしないでください。
+有効な既定値が入っています。`config` からパネルキーを移してください。
 
 形式:
 
@@ -611,6 +632,7 @@ cp config/config.example ~/.config/tessa/config
 
 ```sh
 tessa --check-config [file]      # オフライン検証。エラー時は非ゼロ終了
+tessa-panel --check              # 実効パネル設定（config + panel.conf）
 tessa-ctl config                 # 実効設定と解析済みルール
 tessa-ctl config --json          # schema 1 の JSON
 tessa-ctl config-check           # エラー時は非ゼロ終了
@@ -721,6 +743,10 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 短い間隔でずらして表示し、選択マーカーを滑らかに移動させます。
 
 ### 6.3 パネル・シェル
+
+`panel`/`autostart_panel` と `panel_modules` はコンポジタの起動設定なので
+`config` に置きます。それ以外のキーは通常 `panel.conf` に置きますが、
+互換性のため `config` にあっても動作します。
 
 | キー | 既定値 | 内容 |
 | --- | --- | --- |

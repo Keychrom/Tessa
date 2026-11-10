@@ -566,6 +566,17 @@ unavailable.
 sh tests/logo-customization.sh
 ```
 
+### Panel config test
+
+`tests/panel-config.sh` checks that `tessa-panel --check` loads `config` then
+`panel.conf`, that `TESSA_PANEL_CONFIG` overrides or disables the overlay, and
+that the compositor reads panel colors/wallpaper from `panel.conf` by saving a
+Scene and inspecting the generated `.scene` file.
+
+```sh
+sh tests/panel-config.sh
+```
+
 ### Terminal fallback test
 
 `tests/terminal-fallback.sh` hides `kitty` from `PATH`, provides a fake `foot`,
