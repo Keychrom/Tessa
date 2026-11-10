@@ -163,6 +163,7 @@ FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 SCENE	coding	master	2	2	1	0	1	2	0	0
+SCENE_STYLE	HEADLESS-1	coding	#7aa2f7	#070b14	#16233f	#060810	#0e1626	#e8eefc	#7aa2f7	#26324a	/home/user/Wallpapers/indigo.png	cover	0	-
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
@@ -174,7 +175,13 @@ scrolling column id, and 0-based tile index. Geometry is in logical compositor
 coordinates and is included for tooling that tracks windows. `SCENE` is
 tab-separated: name, layout, saved app count, live matching window count,
 saved workspace (0 when unbound), active (`0`/`1`), and up to four preview
-window ids (0 when unused). `LAYER` is
+window ids (0 when unused). `SCENE_STYLE` is emitted for every output when its
+active workspace has a scene: output, scene name (or `-`), accent, window
+background, wallpaper top, wallpaper bottom, panel background, panel
+foreground, active border, inactive border, wallpaper image (or `-`), fit
+(`cover`/`contain`/`stretch` or `-`), art (`1`/`0` or `-`), and art opacity
+(or `-`). Unset tokens are `-`; the panel inherits its base theme for them.
+`LAYER` is
 `namespace`, output,
 layer number (`0` background … `3` overlay), effective opacity, effective
 corner radius, and effective blur (`0`/`1`). `PANEL` is output, panel pid,

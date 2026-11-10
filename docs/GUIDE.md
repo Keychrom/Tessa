@@ -2032,8 +2032,37 @@ title = ~/src/tessa
 floating = false
 ```
 
-Saving reads the effective layout tuning and captures the command line of each
-window from `/proc/<pid>/cmdline`, so restore can relaunch native Wayland apps.
+A scene can also carry a visual layer:
+
+```ini
+[theme]
+accent = #7aa2f7
+bg = #070b14
+border_active = #7aa2f7
+border_inactive = #26324a
+panel_bg = #0e1626
+panel_fg = #e8eefc
+bg_top = #16233f
+bg_bottom = #060810
+
+[wallpaper]
+image = ~/Pictures/Wallpapers/indigo.png
+fit = cover
+art = false
+```
+
+When the scene is active on a workspace, its accent, window background, and
+border colors are used for that output/workspace. The panel process for that
+output also applies the scene's bar/launcher/popover/toast colors and switches
+to its wallpaper image. Moving to a workspace without a scene clears the
+override and restores the base config/output theme. Other outputs keep their
+own active scene. A scene without `[theme]`/`[wallpaper]` leaves the base
+colors and wallpaper untouched.
+
+Saving reads the effective layout tuning, the current visual tokens, the
+configured wallpaper, and the command line of each window from
+`/proc/<pid>/cmdline`, so restore can relaunch native Wayland apps. Saving while
+another scene is active captures that scene's visual tokens and wallpaper.
 XWayland windows (served through `xwayland-satellite`) have no per-window PID;
 they are saved by `app_id`/`title` but cannot be relaunched automatically.
 Commands are stored as shell-quoted argv in a mode-0600 file; do not publish
@@ -2043,8 +2072,7 @@ Applying is **non-destructive**: windows already on the target workspace stay,
 and only missing scene apps are launched. This means a scene switch can share a
 workspace with other windows; use a separate workspace when you want a clean
 context. Missing apps are matched as they map and moved to
-the scene workspace. Scene theme/wallpaper switching is not part of this
-version.
+the scene workspace.
 
 ### Notifications
 

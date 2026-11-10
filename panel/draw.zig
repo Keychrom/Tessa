@@ -426,7 +426,7 @@ const Prng = struct {
     }
 };
 
-fn paintWallpaperImage(cr: *c.cairo_t, surface: *c.cairo_surface_t, w: f64, h: f64) bool {
+fn paintWallpaperImage(cr: *c.cairo_t, surface: *c.cairo_surface_t, w: f64, h: f64, fit_mode: m.WallpaperFit) bool {
     const iw_raw = c.cairo_image_surface_get_width(surface);
     const ih_raw = c.cairo_image_surface_get_height(surface);
     if (iw_raw <= 0 or ih_raw <= 0) return false;
@@ -439,7 +439,7 @@ fn paintWallpaperImage(cr: *c.cairo_t, surface: *c.cairo_surface_t, w: f64, h: f
 
     var scale_x: f64 = w / iw;
     var scale_y: f64 = h / ih;
-    switch (g.wallpaper_fit) {
+    switch (fit_mode) {
         .cover => {
             const scale = @max(scale_x, scale_y);
             scale_x = scale;
@@ -469,8 +469,14 @@ fn paintWallpaperImage(cr: *c.cairo_t, surface: *c.cairo_surface_t, w: f64, h: f
 }
 
 fn drawBackgroundArt(cr: *c.cairo_t, w: f64, h: f64) void {
-    if (g.wallpaper_surface) |surface| {
-        if (paintWallpaperImage(cr, surface, w, h)) return;
+    if (g.scene_visual_active and g.scene_wallpaper_active) {
+        if (g.scene_wallpaper_surface) |surface| {
+            if (paintWallpaperImage(cr, surface, w, h, g.scene_wallpaper_fit)) return;
+        }
+    } else if (!(g.scene_visual_active and g.scene_visual_has_bg)) {
+        if (g.wallpaper_surface) |surface| {
+            if (paintWallpaperImage(cr, surface, w, h, g.wallpaper_fit)) return;
+        }
     }
     const bg = g.bg_rgb;
     const top = if (g.bg_top_set)
@@ -683,7 +689,8 @@ fn drawBackgroundGpu(s: *m.Surface) bool {
         if (!gpu.configure(s, s.width * physical, s.height * physical)) return false;
         destroyBuffers(s);
     }
-    const has_image = m.g.wallpaper_image_len > 0 or m.g.wallpaper_shader_len > 0;
+    const has_image = m.g.wallpaper_image_len > 0 or m.g.wallpaper_shader_len > 0 or
+        m.g.scene_wallpaper_active;
     const procedural = m.g.wallpaper_engine == .procedural and !has_image;
     if (procedural) {
         if (m.g.mark_dirty) {

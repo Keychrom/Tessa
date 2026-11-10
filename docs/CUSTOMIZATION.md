@@ -335,6 +335,34 @@ title = ~/src/tessa
 floating = false
 ```
 
+Optional visual sections switch the compositor's border/window colors and the
+panel's colors/wallpaper while the scene is active:
+
+```ini
+[theme]
+accent = #7aa2f7
+bg = #070b14
+border_active = #7aa2f7
+border_inactive = #26324a
+panel_bg = #0e1626
+panel_fg = #e8eefc
+bg_top = #16233f
+bg_bottom = #060810
+
+[wallpaper]
+image = ~/Pictures/Wallpapers/indigo.png
+fit = cover
+art = false
+art_opacity = 0.55
+```
+
+Scene colors are per output/workspace. The panel process for the target output
+applies the scene's surfaces and loads the wallpaper image; moving to a
+workspace without a scene restores the base config/output theme. Scenes without
+these sections leave the base visual state untouched. `scene save` captures the
+current visual tokens and wallpaper; saving while another scene is active uses
+that scene's values.
+
 `scene save` captures every mapped, non-scratchpad window on the focused
 workspace, in client order. Native Wayland commands come from
 `/proc/<pid>/cmdline`; XWayland windows are matched by `app_id`/`title` only.

@@ -336,6 +336,33 @@ title = ~/src/tessa
 floating = false
 ```
 
+任意の視覚セクションを追加すると、Scene が有効な間だけコンポジタの枠/
+ウィンドウ色とパネルの色/壁紙を切り替えます:
+
+```ini
+[theme]
+accent = #7aa2f7
+bg = #070b14
+border_active = #7aa2f7
+border_inactive = #26324a
+panel_bg = #0e1626
+panel_fg = #e8eefc
+bg_top = #16233f
+bg_bottom = #060810
+
+[wallpaper]
+image = ~/Pictures/Wallpapers/indigo.png
+fit = cover
+art = false
+art_opacity = 0.55
+```
+
+Scene の色は出力/ワークスペース単位です。対象出力のパネルプロセスが Scene の
+各サーフェス色を適用し、壁紙画像を読み込みます。Scene のないワークスペースへ
+移動すると基本設定/出力テーマへ戻ります。これらのセクションがない Scene は
+基本の視覚状態を変更しません。`scene save` は現在の視覚トークンと壁紙を記録し、
+別 Scene の適用中に保存した場合はその Scene の値を使います。
+
 `scene save` はフォーカス中のワークスペースの map 済みウィンドウ
 （スクラッチパッドを除く）をクライアント順で保存します。ネイティブ Wayland
 アプリのコマンドは `/proc/<pid>/cmdline` から取得し、XWayland ウィンドウは

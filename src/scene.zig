@@ -17,6 +17,32 @@ const SceneApp = types.SceneApp;
 const MAX_LINE = 2048;
 const RESTORE_TIMEOUT_MS: i64 = 15_000;
 
+const Section = enum { scene, theme, wallpaper, app };
+
+fn validHexColor(value: []const u8) bool {
+    var hex = value;
+    if (hex.len > 0 and hex[0] == '#') hex = hex[1..];
+    if (hex.len != 6) return false;
+    for (hex) |ch| {
+        if (!std.ascii.isHex(ch)) return false;
+    }
+    return true;
+}
+
+fn parseOptionalColor(value: []const u8, out: *?[3]f32) void {
+    if (!validHexColor(value)) return;
+    var rgb: [3]f32 = .{ 0, 0, 0 };
+    core.parseHexColor(value, &rgb);
+    out.* = rgb;
+}
+
+fn parseWallpaperFit(value: []const u8) ?types.WallpaperFit {
+    if (std.ascii.eqlIgnoreCase(value, "cover")) return .cover;
+    if (std.ascii.eqlIgnoreCase(value, "contain")) return .contain;
+    if (std.ascii.eqlIgnoreCase(value, "stretch")) return .stretch;
+    return null;
+}
+
 fn trim(text: []const u8) []const u8 {
     return std.mem.trim(u8, text, " \t\r\n");
 }
@@ -126,12 +152,14 @@ fn parseFile(path: []const u8, scene: *Scene) bool {
 
     scene.* = .{};
     var current: ?*SceneApp = null;
+    var section: Section = .scene;
     var line: [MAX_LINE]u8 = undefined;
     while (c.fgets(&line, @intCast(line.len), file)) |_| {
         const raw = std.mem.span(@as([*:0]const u8, @ptrCast(&line)));
         const text = trim(raw);
         if (text.len == 0 or text[0] == '#') continue;
         if (std.mem.eql(u8, text, "[app]")) {
+            section = .app;
             if (scene.app_count < scene.apps.len) {
                 current = &scene.apps[scene.app_count];
                 scene.app_count += 1;
@@ -140,7 +168,26 @@ fn parseFile(path: []const u8, scene: *Scene) bool {
             }
             continue;
         }
-        if (text[0] == '[') continue;
+        if (std.mem.eql(u8, text, "[theme]")) {
+            section = .theme;
+            current = null;
+            continue;
+        }
+        if (std.mem.eql(u8, text, "[wallpaper]")) {
+            section = .wallpaper;
+            current = null;
+            continue;
+        }
+        if (std.mem.eql(u8, text, "[scene]")) {
+            section = .scene;
+            current = null;
+            continue;
+        }
+        if (text[0] == '[') {
+            section = .scene;
+            current = null;
+            continue;
+        }
 
         const eq = std.mem.indexOfScalar(u8, text, '=') orelse continue;
         const key = trim(text[0..eq]);
@@ -171,6 +218,35 @@ fn parseFile(path: []const u8, scene: *Scene) bool {
             scene.tuning.column_width = parseColumnWidth(value) orelse scene.tuning.column_width;
         } else if (std.ascii.eqlIgnoreCase(key, "center_focused_column") or std.ascii.eqlIgnoreCase(key, "center-focused-column")) {
             scene.tuning.center_focused_column = parseCenterFocused(value) orelse scene.tuning.center_focused_column;
+        } else if (section == .theme) {
+            if (std.ascii.eqlIgnoreCase(key, "accent")) {
+                parseOptionalColor(value, &scene.theme.accent);
+            } else if (std.ascii.eqlIgnoreCase(key, "bg") or std.ascii.eqlIgnoreCase(key, "background")) {
+                parseOptionalColor(value, &scene.theme.bg);
+            } else if (std.ascii.eqlIgnoreCase(key, "border_active") or std.ascii.eqlIgnoreCase(key, "border-active")) {
+                parseOptionalColor(value, &scene.theme.border_active);
+            } else if (std.ascii.eqlIgnoreCase(key, "border_inactive") or std.ascii.eqlIgnoreCase(key, "border-inactive")) {
+                parseOptionalColor(value, &scene.theme.border_inactive);
+            } else if (std.ascii.eqlIgnoreCase(key, "panel_bg") or std.ascii.eqlIgnoreCase(key, "panel-bg")) {
+                parseOptionalColor(value, &scene.theme.panel_bg);
+            } else if (std.ascii.eqlIgnoreCase(key, "panel_fg") or std.ascii.eqlIgnoreCase(key, "panel-fg")) {
+                parseOptionalColor(value, &scene.theme.panel_fg);
+            } else if (std.ascii.eqlIgnoreCase(key, "bg_top") or std.ascii.eqlIgnoreCase(key, "bg-top")) {
+                parseOptionalColor(value, &scene.theme.bg_top);
+            } else if (std.ascii.eqlIgnoreCase(key, "bg_bottom") or std.ascii.eqlIgnoreCase(key, "bg-bottom")) {
+                parseOptionalColor(value, &scene.theme.bg_bottom);
+            }
+        } else if (section == .wallpaper) {
+            if (std.ascii.eqlIgnoreCase(key, "image") or std.ascii.eqlIgnoreCase(key, "wallpaper_image")) {
+                core.copyString(&scene.wallpaper.image, &scene.wallpaper.image_len, value);
+            } else if (std.ascii.eqlIgnoreCase(key, "fit")) {
+                scene.wallpaper.fit = parseWallpaperFit(value) orelse scene.wallpaper.fit;
+            } else if (std.ascii.eqlIgnoreCase(key, "art")) {
+                scene.wallpaper.art = parseBool(value);
+            } else if (std.ascii.eqlIgnoreCase(key, "art_opacity") or std.ascii.eqlIgnoreCase(key, "art-opacity")) {
+                const opacity = std.fmt.parseFloat(f32, value) catch continue;
+                scene.wallpaper.art_opacity = std.math.clamp(opacity, 0.0, 1.0);
+            }
         } else if (current) |app| {
             if (std.ascii.eqlIgnoreCase(key, "app_id") or std.ascii.eqlIgnoreCase(key, "app-id")) {
                 core.copyString(&app.app_id, &app.app_id_len, value);
@@ -229,6 +305,17 @@ fn writeFmt(file: *c.FILE, comptime fmt: []const u8, args: anytype) void {
     _ = c.fwrite(text.ptr, 1, text.len, file);
 }
 
+fn hexColor(buf: *[7]u8, rgb: [3]f32) []const u8 {
+    const digits = "0123456789abcdef";
+    buf[0] = '#';
+    for (rgb, 0..) |channel, i| {
+        const value: u8 = @intFromFloat(std.math.clamp(channel, 0.0, 1.0) * 255.0 + 0.5);
+        buf[1 + i * 2] = digits[@as(usize, value >> 4)];
+        buf[2 + i * 2] = digits[@as(usize, value & 0x0f)];
+    }
+    return buf[0..7];
+}
+
 fn writeSceneFile(server: *Server, scene: *const Scene) bool {
     if (!ensureDir(server)) return false;
     var path_buf: [512]u8 = undefined;
@@ -259,6 +346,33 @@ fn writeSceneFile(server: *Server, scene: *const Scene) bool {
         .fixed => writeFmt(file, "column_width = {d:.0}\n", .{scene.tuning.column_width.value}),
     }
     writeFmt(file, "center_focused_column = {s}\n", .{@tagName(scene.tuning.center_focused_column)});
+
+    const has_theme = scene.theme.accent != null or scene.theme.bg != null or
+        scene.theme.border_active != null or scene.theme.border_inactive != null or
+        scene.theme.panel_bg != null or scene.theme.panel_fg != null or
+        scene.theme.bg_top != null or scene.theme.bg_bottom != null;
+    if (has_theme) {
+        writeFmt(file, "\n[theme]\n", .{});
+        var hex_buf: [7]u8 = undefined;
+        if (scene.theme.accent) |rgb| writeFmt(file, "accent = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.bg) |rgb| writeFmt(file, "bg = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.border_active) |rgb| writeFmt(file, "border_active = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.border_inactive) |rgb| writeFmt(file, "border_inactive = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.panel_bg) |rgb| writeFmt(file, "panel_bg = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.panel_fg) |rgb| writeFmt(file, "panel_fg = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.bg_top) |rgb| writeFmt(file, "bg_top = {s}\n", .{hexColor(&hex_buf, rgb)});
+        if (scene.theme.bg_bottom) |rgb| writeFmt(file, "bg_bottom = {s}\n", .{hexColor(&hex_buf, rgb)});
+    }
+
+    const has_wallpaper = scene.wallpaper.image_len > 0 or scene.wallpaper.fit != null or
+        scene.wallpaper.art != null or scene.wallpaper.art_opacity != null;
+    if (has_wallpaper) {
+        writeFmt(file, "\n[wallpaper]\n", .{});
+        if (scene.wallpaper.image_len > 0) writeFmt(file, "image = {s}\n", .{scene.wallpaper.image[0..scene.wallpaper.image_len]});
+        if (scene.wallpaper.fit) |fit| writeFmt(file, "fit = {s}\n", .{@tagName(fit)});
+        if (scene.wallpaper.art) |art| writeFmt(file, "art = {}\n", .{art});
+        if (scene.wallpaper.art_opacity) |opacity| writeFmt(file, "art_opacity = {d:.3}\n", .{opacity});
+    }
 
     var i: usize = 0;
     while (i < scene.app_count) : (i += 1) {
@@ -376,6 +490,76 @@ fn commandForClient(client: *Client, buf: []u8) []const u8 {
     return buf[0..out_len];
 }
 
+fn rgb3(value: [4]f32) [3]f32 {
+    return .{ value[0], value[1], value[2] };
+}
+
+fn themeRoleColor(cfg: *const types.Config, name: []const u8) ?[3]f32 {
+    var i: usize = 0;
+    while (i < cfg.theme_role_count) : (i += 1) {
+        const role = &cfg.theme_roles[i];
+        if (std.mem.eql(u8, role.name[0..role.name_len], name)) return role.rgb;
+    }
+    return null;
+}
+
+fn configColor(text: []const u8) ?[3]f32 {
+    if (!validHexColor(text)) return null;
+    var rgb: [3]f32 = .{ 0, 0, 0 };
+    core.parseHexColor(text, &rgb);
+    return rgb;
+}
+
+fn captureTheme(server: *Server, out: *Output, ws: usize) types.SceneTheme {
+    const cfg = &server.config;
+    const active = if (out.scene_theme_set[ws - 1]) out.scene_theme[ws - 1] else types.SceneTheme{};
+    const active_accent: ?[3]f32 = if (out.theme_accent) |color| rgb3(color) else cfg.accent_rgb;
+    const active_border: ?[3]f32 = if (cfg.border_active_len > 0) cfg.border_active_rgb else active_accent;
+    const active_border_inactive: ?[3]f32 = if (cfg.border_inactive_len > 0) cfg.border_inactive_rgb else null;
+
+    return .{
+        .accent = active.accent orelse active_accent,
+        .bg = active.bg orelse rgb3(out.theme_bg),
+        .border_active = active.border_active orelse
+            (if (out.theme_border_active) |color| rgb3(color) else null) orelse
+            active_border,
+        .border_inactive = active.border_inactive orelse
+            (if (out.theme_border_inactive) |color| rgb3(color) else null) orelse
+            active_border_inactive,
+        .panel_bg = active.panel_bg orelse themeRoleColor(cfg, "panel.background") orelse configColor(cfg.panel_bg[0..cfg.panel_bg_len]),
+        .panel_fg = active.panel_fg orelse themeRoleColor(cfg, "panel.foreground") orelse configColor(cfg.panel_fg[0..cfg.panel_fg_len]),
+        .bg_top = active.bg_top orelse themeRoleColor(cfg, "wallpaper.top") orelse configColor(cfg.bg_top[0..cfg.bg_top_len]),
+        .bg_bottom = active.bg_bottom orelse themeRoleColor(cfg, "wallpaper.bottom") orelse configColor(cfg.bg_bottom[0..cfg.bg_bottom_len]),
+    };
+}
+
+fn summaryByName(server: *Server, name: []const u8) ?*types.SceneSummary {
+    var i: usize = 0;
+    while (i < server.scene_summary_count) : (i += 1) {
+        const summary = &server.scene_summaries[i];
+        if (summary.name_len == name.len and
+            std.mem.eql(u8, summary.name[0..summary.name_len], name)) return summary;
+    }
+    return null;
+}
+
+fn captureWallpaper(server: *Server, out: *Output, ws: usize) types.SceneWallpaper {
+    const cfg = &server.config;
+    var wallpaper = types.SceneWallpaper{};
+    if (out.scene_name_len[ws - 1] > 0) {
+        if (summaryByName(server, out.scene_name[ws - 1][0..out.scene_name_len[ws - 1]])) |summary| {
+            wallpaper = summary.wallpaper;
+        }
+    }
+    if (wallpaper.image_len == 0 and cfg.wallpaper_image_len > 0) {
+        core.copyString(&wallpaper.image, &wallpaper.image_len, cfg.wallpaper_image[0..cfg.wallpaper_image_len]);
+    }
+    if (wallpaper.fit == null) wallpaper.fit = cfg.wallpaper_fit;
+    if (wallpaper.art == null) wallpaper.art = cfg.wallpaper_art;
+    if (wallpaper.art_opacity == null) wallpaper.art_opacity = cfg.wallpaper_art_opacity;
+    return wallpaper;
+}
+
 fn tuningFrom(server: *Server, out: *Output, ws: usize) types.SceneTuning {
     const tuning = rules.tuningFor(server, out, ws);
     return .{
@@ -403,6 +587,8 @@ pub fn save(server: *Server, name: []const u8, requested_ws: usize) bool {
     scene.workspace = ws;
     scene.layout = out.ws_layouts[ws - 1];
     scene.tuning = tuningFrom(server, out, ws);
+    scene.theme = captureTheme(server, out, ws);
+    scene.wallpaper = captureWallpaper(server, out, ws);
 
     var i: usize = 0;
     while (i < server.clients.len and scene.app_count < scene.apps.len) : (i += 1) {
@@ -471,10 +657,13 @@ pub fn apply(server: *Server, name: []const u8, requested_ws: usize, output_name
 
     out.scene_tuning[ws - 1] = scene.tuning;
     out.scene_tuning_set[ws - 1] = true;
+    out.scene_theme[ws - 1] = scene.theme;
+    out.scene_theme_set[ws - 1] = true;
     core.copyString(&out.scene_name[ws - 1], &out.scene_name_len[ws - 1], scene.name[0..scene.name_len]);
 
     if (out.active_ws != ws) layout.switchWorkspaceOnOutput(server, out, ws);
     layout.applySceneLayout(server, out, ws, scene.layout);
+    core.updateBackground(out);
 
     server.scene_restore = .{};
     core.copyString(&server.scene_restore.name, &server.scene_restore.name_len, scene.name[0..scene.name_len]);
@@ -528,7 +717,10 @@ pub fn clear(server: *Server) bool {
     const ws = out.active_ws;
     out.scene_tuning_set[ws - 1] = false;
     out.scene_tuning[ws - 1] = .{};
+    out.scene_theme_set[ws - 1] = false;
+    out.scene_theme[ws - 1] = .{};
     out.scene_name_len[ws - 1] = 0;
+    core.updateBackground(out);
     layout.arrangeOutput(server, out);
     core.markDirty(server);
     core.logInfo("scene: cleared ws={d} on {s}", .{ ws, core.outputName(out) });
@@ -580,6 +772,8 @@ pub fn reload(server: *Server) void {
         summary.workspace = scene.workspace;
         summary.layout = scene.layout;
         summary.app_count = scene.app_count;
+        summary.theme = scene.theme;
+        summary.wallpaper = scene.wallpaper;
         server.scene_summary_count += 1;
 
         var i = server.scene_summary_count - 1;
@@ -651,6 +845,79 @@ pub fn appendState(server: *Server, buf: []u8, off: *usize) void {
             preview_ids[2],
             preview_ids[3],
         }) catch return;
+        off.* += line.len;
+    }
+}
+
+fn hexOrDash(buf: *[7]u8, value: ?[3]f32) []const u8 {
+    if (value) |rgb| return hexColor(buf, rgb);
+    return "-";
+}
+
+pub fn appendActiveStyle(server: *Server, buf: []u8, off: *usize) void {
+    var oi: usize = 0;
+    while (oi < server.outputs.len) : (oi += 1) {
+        const out = server.outputs[oi] orelse continue;
+        const ws = out.active_ws;
+        const name = if (out.scene_name_len[ws - 1] > 0)
+            out.scene_name[ws - 1][0..out.scene_name_len[ws - 1]]
+        else
+            "-";
+        var accent_buf: [7]u8 = undefined;
+        var bg_buf: [7]u8 = undefined;
+        var top_buf: [7]u8 = undefined;
+        var bottom_buf: [7]u8 = undefined;
+        var panel_bg_buf: [7]u8 = undefined;
+        var panel_fg_buf: [7]u8 = undefined;
+        var border_active_buf: [7]u8 = undefined;
+        var border_inactive_buf: [7]u8 = undefined;
+        var image_buf: [512]u8 = undefined;
+        var art_buf: [2]u8 = undefined;
+        var opacity_buf: [16]u8 = undefined;
+        var fit: []const u8 = "-";
+        var image: []const u8 = "-";
+        var art: []const u8 = "-";
+        var opacity: []const u8 = "-";
+        var accent: []const u8 = "-";
+        var bg: []const u8 = "-";
+        var bg_top: []const u8 = "-";
+        var bg_bottom: []const u8 = "-";
+        var panel_bg: []const u8 = "-";
+        var panel_fg: []const u8 = "-";
+        var border_active: []const u8 = "-";
+        var border_inactive: []const u8 = "-";
+
+        if (out.scene_name_len[ws - 1] > 0) {
+            if (summaryByName(server, name)) |summary| {
+                accent = hexOrDash(&accent_buf, summary.theme.accent);
+                bg = hexOrDash(&bg_buf, summary.theme.bg);
+                bg_top = hexOrDash(&top_buf, summary.theme.bg_top);
+                bg_bottom = hexOrDash(&bottom_buf, summary.theme.bg_bottom);
+                panel_bg = hexOrDash(&panel_bg_buf, summary.theme.panel_bg);
+                panel_fg = hexOrDash(&panel_fg_buf, summary.theme.panel_fg);
+                border_active = hexOrDash(&border_active_buf, summary.theme.border_active);
+                border_inactive = hexOrDash(&border_inactive_buf, summary.theme.border_inactive);
+                if (summary.wallpaper.image_len > 0) {
+                    @memcpy(image_buf[0..summary.wallpaper.image_len], summary.wallpaper.image[0..summary.wallpaper.image_len]);
+                    image = image_buf[0..summary.wallpaper.image_len];
+                }
+                if (summary.wallpaper.fit) |value| fit = @tagName(value);
+                if (summary.wallpaper.art) |value| {
+                    art_buf[0] = if (value) '1' else '0';
+                    art = art_buf[0..1];
+                }
+                if (summary.wallpaper.art_opacity) |value| {
+                    const text = std.fmt.bufPrint(&opacity_buf, "{d:.3}", .{value}) catch "";
+                    if (text.len > 0) opacity = text;
+                }
+            }
+        }
+
+        const line = std.fmt.bufPrint(
+            buf[off.*..],
+            "SCENE_STYLE\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\t{s}\n",
+            .{ core.outputName(out), name, accent, bg, bg_top, bg_bottom, panel_bg, panel_fg, border_active, border_inactive, image, fit, art, opacity },
+        ) catch return;
         off.* += line.len;
     }
 }

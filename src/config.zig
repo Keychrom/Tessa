@@ -21,6 +21,9 @@ pub fn initDefaults(cfg: *Config) void {
     copyDefault(&cfg.border_inactive, &cfg.border_inactive_len, "#293347");
     core.parseHexColor(cfg.border_inactive[0..cfg.border_inactive_len], &cfg.border_inactive_rgb);
     copyDefault(&cfg.font, &cfg.font_len, "Inter");
+    cfg.wallpaper_fit = .cover;
+    cfg.wallpaper_art = true;
+    cfg.wallpaper_art_opacity = 0.55;
 
     cfg.gaps = 10;
     cfg.outer_gaps = 16;
@@ -3161,6 +3164,48 @@ fn loadPath(
                 core.copyString(&server.config.border_inactive, &server.config.border_inactive_len, value);
             } else {
                 addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "panel_bg") or std.mem.eql(u8, key, "panel-bg")) {
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.panel_bg, &server.config.panel_bg_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "panel_fg") or std.mem.eql(u8, key, "panel-fg")) {
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.panel_fg, &server.config.panel_fg_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "bg_top") or std.mem.eql(u8, key, "bg-top")) {
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.bg_top, &server.config.bg_top_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "bg_bottom") or std.mem.eql(u8, key, "bg-bottom")) {
+            if (value.len == 0 or validHexColor(value)) {
+                core.copyString(&server.config.bg_bottom, &server.config.bg_bottom_len, value);
+            } else {
+                addIssue(server, path, line_no, "invalid color for {s}: '{s}'", .{ key, value });
+            }
+        } else if (std.mem.eql(u8, key, "wallpaper_image") or std.mem.eql(u8, key, "wallpaper-image")) {
+            core.copyString(&server.config.wallpaper_image, &server.config.wallpaper_image_len, value);
+        } else if (std.mem.eql(u8, key, "wallpaper_fit") or std.mem.eql(u8, key, "wallpaper-fit")) {
+            if (std.ascii.eqlIgnoreCase(value, "cover")) {
+                server.config.wallpaper_fit = .cover;
+            } else if (std.ascii.eqlIgnoreCase(value, "contain")) {
+                server.config.wallpaper_fit = .contain;
+            } else if (std.ascii.eqlIgnoreCase(value, "stretch")) {
+                server.config.wallpaper_fit = .stretch;
+            } else {
+                addIssue(server, path, line_no, "invalid wallpaper_fit '{s}'", .{value});
+            }
+        } else if (std.mem.eql(u8, key, "wallpaper_art") or std.mem.eql(u8, key, "wallpaper-art")) {
+            if (parseBoolValue(server, path, line_no, key, value)) |v| server.config.wallpaper_art = v;
+        } else if (std.mem.eql(u8, key, "wallpaper_art_opacity") or std.mem.eql(u8, key, "wallpaper-art-opacity")) {
+            if (parseFloatValue(server, path, line_no, key, value)) |v| {
+                server.config.wallpaper_art_opacity = std.math.clamp(v, 0.0, 1.0);
             }
         } else if (std.mem.eql(u8, key, "mode")) {
             if (ensureMode(&server.config, value)) |mode_index| {

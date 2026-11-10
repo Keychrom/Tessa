@@ -664,6 +664,38 @@ pub const SceneInfo = struct {
     preview_count: usize = 0,
 };
 
+pub const SceneStyle = struct {
+    name: [MAX_SCENE_NAME]u8 = @splat(0),
+    name_len: usize = 0,
+    accent: ?[3]f64 = null,
+    bg: ?[3]f64 = null,
+    bg_top: ?[3]f64 = null,
+    bg_bottom: ?[3]f64 = null,
+    panel_bg: ?[3]f64 = null,
+    panel_fg: ?[3]f64 = null,
+    border_active: ?[3]f64 = null,
+    border_inactive: ?[3]f64 = null,
+    wallpaper_image: [512]u8 = @splat(0),
+    wallpaper_image_len: usize = 0,
+    wallpaper_fit: ?WallpaperFit = null,
+    wallpaper_art: ?bool = null,
+    wallpaper_art_opacity: ?f32 = null,
+};
+
+pub fn parseSceneStyleColor(text: []const u8) ?[3]f64 {
+    if (text.len == 0 or std.mem.eql(u8, text, "-")) return null;
+    var rgb: [3]f64 = undefined;
+    if (!parseHexColor(text, &rgb)) return null;
+    return rgb;
+}
+
+pub fn parseSceneWallpaperFit(text: []const u8) ?WallpaperFit {
+    if (std.ascii.eqlIgnoreCase(text, "cover")) return .cover;
+    if (std.ascii.eqlIgnoreCase(text, "contain")) return .contain;
+    if (std.ascii.eqlIgnoreCase(text, "stretch")) return .stretch;
+    return null;
+}
+
 pub const StatusInfo = struct {
     id: [48]u8 = @splat(0),
     id_len: usize = 0,
@@ -1205,6 +1237,33 @@ pub const Panel = struct {
     launcher_fg_set: bool = false,
     popover_fg_set: bool = false,
     toast_fg_set: bool = false,
+    base_accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
+    base_bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
+    base_bg_top: [3]f64 = .{ 0, 0, 0 },
+    base_bg_top_set: bool = false,
+    base_bg_bottom: [3]f64 = .{ 0, 0, 0 },
+    base_bg_bottom_set: bool = false,
+    base_panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    base_panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    base_bar_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_launcher_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
+    base_launcher_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_popover_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
+    base_popover_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_toast_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
+    base_toast_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_wallpaper_art: bool = true,
+    base_wallpaper_art_opacity: f64 = 0.55,
+    scene_style: SceneStyle = .{},
+    scene_style_seen: bool = false,
+    scene_style_name: [MAX_SCENE_NAME]u8 = @splat(0),
+    scene_style_name_len: usize = 0,
+    scene_visual_active: bool = false,
+    scene_visual_has_bg: bool = false,
+    scene_wallpaper_surface: ?*c.cairo_surface_t = null,
+    scene_wallpaper_active: bool = false,
+    scene_wallpaper_fit: WallpaperFit = .cover,
     bar_height: i32 = 44,
     bar_position: BarPosition = .top,
     bar_top_margin: i32 = 12,
@@ -2478,26 +2537,20 @@ fn loadWallpaperShader() bool {
     return true;
 }
 
-fn loadWallpaperImage() void {
-    if (g.wallpaper_surface) |surface| c.cairo_surface_destroy(surface);
-    g.wallpaper_surface = null;
-    if (loadWallpaperShader()) return;
-    if (g.wallpaper_image_len == 0) return;
-
+fn loadWallpaperSurface(path: []const u8) ?*c.cairo_surface_t {
     var path_buf: [512:0]u8 = undefined;
-    const path = g.wallpaper_image[0..g.wallpaper_image_len];
     if (path.len >= 2 and path[0] == '~' and path[1] == '/') {
         const home_ptr = c.getenv("HOME") orelse {
-            std.debug.print("tessa-panel: wallpaper_image cannot expand ~ without HOME\n", .{});
-            return;
+            std.debug.print("tessa-panel: wallpaper image cannot expand ~ without HOME\n", .{});
+            return null;
         };
         const full = std.fmt.bufPrint(path_buf[0..511], "{s}/{s}", .{
             std.mem.span(home_ptr),
             path[2..],
-        }) catch return;
+        }) catch return null;
         path_buf[full.len] = 0;
     } else {
-        if (path.len >= path_buf.len) return;
+        if (path.len >= path_buf.len) return null;
         @memcpy(path_buf[0..path.len], path);
         path_buf[path.len] = 0;
     }
@@ -2506,14 +2559,140 @@ fn loadWallpaperImage() void {
     if (surface == null or c.cairo_surface_status(surface) != c.CAIRO_STATUS_SUCCESS) {
         if (surface) |s| c.cairo_surface_destroy(s);
         std.debug.print("tessa-panel: cannot load wallpaper image {s}\n", .{path});
-        return;
+        return null;
     }
-    g.wallpaper_surface = surface;
     std.debug.print("tessa-panel: wallpaper image {s} ({d}x{d})\n", .{
         path,
         c.cairo_image_surface_get_width(surface),
         c.cairo_image_surface_get_height(surface),
     });
+    return surface;
+}
+
+fn loadWallpaperImage() void {
+    if (g.wallpaper_surface) |surface| c.cairo_surface_destroy(surface);
+    g.wallpaper_surface = null;
+    if (loadWallpaperShader()) return;
+    if (g.wallpaper_image_len == 0) return;
+    g.wallpaper_surface = loadWallpaperSurface(g.wallpaper_image[0..g.wallpaper_image_len]);
+}
+
+pub fn snapshotBaseTheme() void {
+    g.base_accent = g.accent;
+    g.base_bg_rgb = g.bg_rgb;
+    g.base_bg_top = g.bg_top;
+    g.base_bg_top_set = g.bg_top_set;
+    g.base_bg_bottom = g.bg_bottom;
+    g.base_bg_bottom_set = g.bg_bottom_set;
+    g.base_panel_bg = g.panel_bg;
+    g.base_panel_fg = g.panel_fg;
+    g.base_bar_bg = g.bar_bg;
+    g.base_bar_fg = g.bar_fg;
+    g.base_launcher_bg = g.launcher_bg;
+    g.base_launcher_fg = g.launcher_fg;
+    g.base_popover_bg = g.popover_bg;
+    g.base_popover_fg = g.popover_fg;
+    g.base_toast_bg = g.toast_bg;
+    g.base_toast_fg = g.toast_fg;
+    g.base_wallpaper_art = g.wallpaper_art;
+    g.base_wallpaper_art_opacity = g.wallpaper_art_opacity;
+}
+
+fn markSceneVisualDirty() void {
+    g.bg_base_dirty = true;
+    g.bg.dirty = true;
+    g.bar.dirty = true;
+    if (g.toasts) |surface| surface.dirty = true;
+    g.overlay_content_dirty = true;
+}
+
+pub fn applySceneStyle(style: *const SceneStyle) void {
+    g.scene_visual_active = true;
+    copyTrunc(&g.scene_style_name, &g.scene_style_name_len, style.name[0..style.name_len]);
+
+    g.accent = style.accent orelse g.base_accent;
+    g.bg_rgb = style.bg orelse g.base_bg_rgb;
+    g.bg_top = style.bg_top orelse g.base_bg_top;
+    g.bg_top_set = style.bg_top != null or g.base_bg_top_set;
+    g.bg_bottom = style.bg_bottom orelse g.base_bg_bottom;
+    g.bg_bottom_set = style.bg_bottom != null or g.base_bg_bottom_set;
+    g.scene_visual_has_bg = style.bg != null or style.bg_top != null or style.bg_bottom != null;
+
+    g.panel_bg = style.panel_bg orelse g.base_panel_bg;
+    g.panel_fg = style.panel_fg orelse g.base_panel_fg;
+    if (style.panel_bg != null) {
+        g.bar_bg = g.panel_bg;
+        g.launcher_bg = g.panel_bg;
+        g.popover_bg = g.panel_bg;
+        g.toast_bg = g.panel_bg;
+    } else {
+        g.bar_bg = g.base_bar_bg;
+        g.launcher_bg = g.base_launcher_bg;
+        g.popover_bg = g.base_popover_bg;
+        g.toast_bg = g.base_toast_bg;
+    }
+    if (style.panel_fg != null) {
+        g.bar_fg = g.panel_fg;
+        g.launcher_fg = g.panel_fg;
+        g.popover_fg = g.panel_fg;
+        g.toast_fg = g.panel_fg;
+    } else {
+        g.bar_fg = g.base_bar_fg;
+        g.launcher_fg = g.base_launcher_fg;
+        g.popover_fg = g.base_popover_fg;
+        g.toast_fg = g.base_toast_fg;
+    }
+
+    g.wallpaper_art = style.wallpaper_art orelse g.base_wallpaper_art;
+    g.wallpaper_art_opacity = style.wallpaper_art_opacity orelse g.base_wallpaper_art_opacity;
+    if (g.scene_wallpaper_surface) |surface| {
+        c.cairo_surface_destroy(surface);
+        g.scene_wallpaper_surface = null;
+    }
+    g.scene_wallpaper_active = false;
+    if (style.wallpaper_image_len > 0) {
+        g.scene_wallpaper_surface = loadWallpaperSurface(style.wallpaper_image[0..style.wallpaper_image_len]);
+        g.scene_wallpaper_active = g.scene_wallpaper_surface != null;
+    }
+    g.scene_wallpaper_fit = style.wallpaper_fit orelse .cover;
+    std.debug.print("tessa-panel: scene visual {s} wallpaper={s} loaded={}\n", .{
+        style.name[0..style.name_len],
+        if (style.wallpaper_image_len > 0) style.wallpaper_image[0..style.wallpaper_image_len] else "-",
+        g.scene_wallpaper_active,
+    });
+    markSceneVisualDirty();
+}
+
+pub fn clearSceneStyle() void {
+    if (g.scene_wallpaper_surface) |surface| {
+        c.cairo_surface_destroy(surface);
+        g.scene_wallpaper_surface = null;
+    }
+    g.scene_wallpaper_active = false;
+    g.scene_visual_active = false;
+    g.scene_visual_has_bg = false;
+    g.scene_style_name_len = 0;
+
+    g.accent = g.base_accent;
+    g.bg_rgb = g.base_bg_rgb;
+    g.bg_top = g.base_bg_top;
+    g.bg_top_set = g.base_bg_top_set;
+    g.bg_bottom = g.base_bg_bottom;
+    g.bg_bottom_set = g.base_bg_bottom_set;
+    g.panel_bg = g.base_panel_bg;
+    g.panel_fg = g.base_panel_fg;
+    g.bar_bg = g.base_bar_bg;
+    g.bar_fg = g.base_bar_fg;
+    g.launcher_bg = g.base_launcher_bg;
+    g.launcher_fg = g.base_launcher_fg;
+    g.popover_bg = g.base_popover_bg;
+    g.popover_fg = g.base_popover_fg;
+    g.toast_bg = g.base_toast_bg;
+    g.toast_fg = g.base_toast_fg;
+    g.wallpaper_art = g.base_wallpaper_art;
+    g.wallpaper_art_opacity = g.base_wallpaper_art_opacity;
+    std.debug.print("tessa-panel: scene visual cleared\n", .{});
+    markSceneVisualDirty();
 }
 
 fn panelCommandExists(cmd: []const u8) bool {
@@ -2692,6 +2871,16 @@ pub fn loadConfig() void {
     g.wallpaper_image_len = 0;
     g.wallpaper_shader_len = 0;
     g.wallpaper_fit = .cover;
+    if (g.scene_wallpaper_surface) |surface| {
+        c.cairo_surface_destroy(surface);
+        g.scene_wallpaper_surface = null;
+    }
+    g.scene_wallpaper_active = false;
+    g.scene_visual_active = false;
+    g.scene_visual_has_bg = false;
+    g.scene_style_name_len = 0;
+    g.scene_style = .{};
+    g.scene_style_seen = false;
     if (g.wallpaper_surface) |surface| {
         c.cairo_surface_destroy(surface);
         g.wallpaper_surface = null;
@@ -2709,6 +2898,7 @@ pub fn loadConfig() void {
     applyThemeRoles();
     applyOutputTheme();
     loadWallpaperImage();
+    snapshotBaseTheme();
     g.bg_base_dirty = true;
     g.mark_dirty = true;
     g.overlay_content_dirty = true;

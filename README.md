@@ -307,9 +307,9 @@ Highlights include:
     mode, and `Esc`/click/Alt-release commit; `window_switcher =
     snapshot|icons|off`
   - reusable workspace Scenes (`scene save/activate/apply`): layout, tuning,
-    window identities, and relaunch commands stored in
-    `~/.config/tessa/scenes/*.scene`, with a `Super+Shift+Tab` deck and live
-    per-scene window previews; applying is non-destructive
+    window identities, relaunch commands, per-scene theme colors, and wallpaper
+    stored in `~/.config/tessa/scenes/*.scene`, with a `Super+Shift+Tab` deck
+    and live per-scene window previews; applying is non-destructive
   - bar placement on any edge (`bar_position = top|bottom|left|right`), with
     vertical layouts for the bar and control center
   - MPRIS media chip and controls (`Super+M`), local album artwork, progress,
@@ -360,7 +360,7 @@ restarts were exercised by
 `tests/xwayland-kitty.sh`, `tests/workspace-pinning.sh`,
 `tests/output-rules.sh`, `tests/rule-expressions.sh`, `tests/event-rules.sh`,
 `tests/output-themes.sh`, `tests/theme-roles.sh`, `tests/theme-editor.sh`,
-`tests/scenes.sh`, `tests/reduced-motion.sh`,
+`tests/scenes.sh`, `tests/scene-visuals.sh`, `tests/reduced-motion.sh`,
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
 `tests/scratchpad.sh`, `tests/window-groups.sh`, `tests/workspace-names.sh`,
@@ -1316,7 +1316,9 @@ These are real and important:
   matched by app-id/title but cannot be relaunched automatically. Tiled order,
   tab groups, and scrolling-column structure are approximated; floating geometry
   is restored. Scene files are mode 0600 because command arguments may contain
-  sensitive values. Per-scene theme and wallpaper switching is not implemented.
+  sensitive values. Scene colors and wallpaper are applied per output/workspace;
+  scenes without visual sections inherit the base theme, and leaving a scene
+  restores the base output/theme wallpaper.
 - **Notifications keep history in memory.** The panel owns
   `org.freedesktop.Notifications` and supports actions, a `default` click
   action, static icons (`image-data`/`image-path`/`icon-name`), Pango markup,

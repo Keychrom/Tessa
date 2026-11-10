@@ -213,6 +213,27 @@ pub const ColumnWidth = struct {
 
 pub const CenterFocusedColumn = enum { never, always, on_overflow };
 
+pub const WallpaperFit = enum { cover, contain, stretch };
+
+pub const SceneTheme = struct {
+    accent: ?[3]f32 = null,
+    bg: ?[3]f32 = null,
+    border_active: ?[3]f32 = null,
+    border_inactive: ?[3]f32 = null,
+    panel_bg: ?[3]f32 = null,
+    panel_fg: ?[3]f32 = null,
+    bg_top: ?[3]f32 = null,
+    bg_bottom: ?[3]f32 = null,
+};
+
+pub const SceneWallpaper = struct {
+    image: [512]u8 = @splat(0),
+    image_len: usize = 0,
+    fit: ?WallpaperFit = null,
+    art: ?bool = null,
+    art_opacity: ?f32 = null,
+};
+
 pub const SceneTuning = struct {
     gaps: i32 = 10,
     outer_gaps: i32 = 16,
@@ -245,6 +266,8 @@ pub const Scene = struct {
     workspace: usize = 0,
     layout: LayoutMode = .master,
     tuning: SceneTuning = .{},
+    theme: SceneTheme = .{},
+    wallpaper: SceneWallpaper = .{},
     apps: [MAX_SCENE_APPS]SceneApp = @splat(.{}),
     app_count: usize = 0,
 };
@@ -257,6 +280,8 @@ pub const SceneSummary = struct {
     app_count: usize = 0,
     live_count: usize = 0,
     active: bool = false,
+    theme: SceneTheme = .{},
+    wallpaper: SceneWallpaper = .{},
     preview_ids: [MAX_SCENE_PREVIEWS]u64 = @splat(0),
     preview_count: usize = 0,
 };
@@ -920,6 +945,19 @@ pub const Config = struct {
     border_inactive: [16]u8,
     border_inactive_len: usize,
     border_inactive_rgb: [3]f32,
+    panel_bg: [16]u8,
+    panel_bg_len: usize,
+    panel_fg: [16]u8,
+    panel_fg_len: usize,
+    bg_top: [16]u8,
+    bg_top_len: usize,
+    bg_bottom: [16]u8,
+    bg_bottom_len: usize,
+    wallpaper_image: [512]u8,
+    wallpaper_image_len: usize,
+    wallpaper_fit: WallpaperFit,
+    wallpaper_art: bool,
+    wallpaper_art_opacity: f32,
     font: [64]u8,
     font_len: usize,
     output_config: [512]u8,
@@ -991,6 +1029,8 @@ pub const Output = struct {
     runtime_ratio_set: [WS_COUNT]bool,
     scene_tuning: [WS_COUNT]SceneTuning,
     scene_tuning_set: [WS_COUNT]bool,
+    scene_theme: [WS_COUNT]SceneTheme,
+    scene_theme_set: [WS_COUNT]bool,
     scene_name: [WS_COUNT][MAX_SCENE_NAME]u8,
     scene_name_len: [WS_COUNT]usize,
     last_focused: [WS_COUNT + 1]?*Client,

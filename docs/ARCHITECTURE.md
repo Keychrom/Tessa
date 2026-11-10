@@ -446,9 +446,14 @@ client PID (`wl_client_get_credentials` + `/proc/<pid>/cmdline`); XWayland
 satellite windows have no per-window PID and are matched by app-id/title only.
 The compositor caches scene summaries for `SCENE` state lines and uses a
 15-second restore queue to place newly mapped windows. Applying a scene mutates
-the runtime `Output.scene_tuning`/`scene_name` arrays; `rules.tuningFor` reads
-them before the user's runtime ratio. Scene layout choices are intentionally not
-written to `outputs.conf`; the scene file is the source of truth.
+the runtime `Output.scene_tuning`/`scene_theme`/`scene_name` arrays;
+`rules.tuningFor` reads tuning before the user's runtime ratio, and
+`layout.updateBorders`/`core.updateBackground` prefer the client workspace's
+scene colors. `scene.appendActiveStyle` emits a per-output `SCENE_STYLE` line;
+the panel applies those colors and loads the scene wallpaper into a separate
+surface, restoring a base-theme snapshot when the workspace has no scene. Scene
+layout and theme choices are intentionally not written to `outputs.conf`; the
+scene file is the source of truth.
 
 ## Fractional scaling
 

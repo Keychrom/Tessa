@@ -2049,7 +2049,35 @@ title = ~/src/tessa
 floating = false
 ```
 
-保存時は有効なレイアウト調整値を記録し、各ウィンドウのコマンドラインを
+Scene はテーマと壁紙も持てます:
+
+```ini
+[theme]
+accent = #7aa2f7
+bg = #070b14
+border_active = #7aa2f7
+border_inactive = #26324a
+panel_bg = #0e1626
+panel_fg = #e8eefc
+bg_top = #16233f
+bg_bottom = #060810
+
+[wallpaper]
+image = ~/Pictures/Wallpapers/indigo.png
+fit = cover
+art = false
+```
+
+Scene がワークスペースで有効な間は、その出力/ワークスペースでアクセント、
+ウィンドウ背景、枠色が使われます。その出力のパネルも Scene のバー/ランチャー/
+ポップオーバー/トースト色と壁紙画像へ切り替わります。Scene のない WS へ移動
+すると上書きを解除し、基本設定/出力テーマへ戻ります。別出力はそれぞれの
+アクティブ Scene を保ちます。`[theme]`/`[wallpaper]` のない Scene は基本の
+色と壁紙を変更しません。
+
+保存時は有効なレイアウト調整値、現在の視覚トークン、設定中の壁紙、各
+ウィンドウのコマンドラインを記録します。別 Scene の適用中に保存すると、
+その Scene の視覚トークンと壁紙を引き継ぎます。
 `/proc/<pid>/cmdline` から取得します。これによりネイティブ Wayland アプリは
 再起動できます。XWayland（`xwayland-satellite` 経由）のウィンドウは
 ウィンドウ単位の PID がないため、`app_id`/`title` のみ保存され、自動再起動は
@@ -2059,8 +2087,7 @@ floating = false
 適用は**非破壊**です。対象ワークスペースに既にあるウィンドウは残し、Scene の
 アプリのうち存在しないものだけを起動します。そのため別 Scene のウィンドウと
 同じ WS に混在できます。きれいに切り替えたい場合は別の WS を使ってください。
-新しく map されたアプリは Scene の WS へ割り当てられます。Scene 別の
-テーマ・壁紙切替はこのバージョンには含まれません。
+新しく map されたアプリは Scene の WS へ割り当てられます。
 
 ### 12.5 通知
 

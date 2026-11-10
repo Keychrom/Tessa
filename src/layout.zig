@@ -178,9 +178,31 @@ pub fn updateBorders(server: *Server) void {
         const is_active = (cl == server.focused) and
             clientVisible(cl, cl.output) and
             server.focused_layer == null;
-        const output_active = cl.output.theme_border_active orelse
+        const scene_theme = if (cl.output.scene_theme_set[cl.ws - 1])
+            &cl.output.scene_theme[cl.ws - 1]
+        else
+            null;
+        const scene_active: ?[4]f32 = if (scene_theme) |theme|
+            if (theme.border_active) |rgb|
+                [4]f32{ rgb[0], rgb[1], rgb[2], 1.0 }
+            else if (theme.accent) |rgb|
+                [4]f32{ rgb[0], rgb[1], rgb[2], 1.0 }
+            else
+                null
+        else
+            null;
+        const scene_inactive: ?[4]f32 = if (scene_theme) |theme|
+            if (theme.border_inactive) |rgb|
+                [4]f32{ rgb[0], rgb[1], rgb[2], 1.0 }
+            else
+                null
+        else
+            null;
+        const output_active = scene_active orelse
+            cl.output.theme_border_active orelse
             cl.output.theme_accent orelse active;
-        const output_inactive = cl.output.theme_border_inactive orelse inactive;
+        const output_inactive = scene_inactive orelse
+            cl.output.theme_border_inactive orelse inactive;
         var active_color = cl.border_active_override orelse output_active;
         var inactive_color = cl.border_inactive_override orelse output_inactive;
         const opacity = types.effectiveClientOpacity(cl);
@@ -1476,6 +1498,7 @@ pub fn switchWorkspaceOnOutput(server: *Server, requested_out: *Output, ws: usiz
     out.active_ws = ws;
     out.scratchpad_visible = false;
     out.special_workspace_len = 0;
+    core.updateBackground(out);
     server.focused_output = out;
     server.active_ws = ws;
     ext_workspace.syncOutput(out);

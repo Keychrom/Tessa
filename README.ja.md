@@ -320,9 +320,10 @@ Linux 実機でビルドし、通常セッションと plain／scenefx ビルド
     の切り替え、アイコンのみの表示、`Esc`／クリック／Alt 解放での確定に対応。
     `window_switcher = snapshot|icons|off`
   - 再利用可能なワークスペース Scene（`scene save/activate/apply`）。
-    レイアウト、調整値、ウィンドウ識別子、再起動コマンドを
-    `~/.config/tessa/scenes/*.scene` に保存し、`Super+Shift+Tab` の Scene
-    デッキとライブプレビューで切り替え。適用は非破壊
+    レイアウト、調整値、ウィンドウ識別子、再起動コマンド、Scene 別の
+    テーマ色・壁紙を `~/.config/tessa/scenes/*.scene` に保存し、
+    `Super+Shift+Tab` の Scene デッキとライブプレビューで切り替え。
+    適用は非破壊
   - バーを上下左右の任意の端に配置（`bar_position = top|bottom|left|right`）。
     縦バーではバーとコントロールセンターも縦レイアウト
   - MPRIS メディアチップと操作（`Super+M`）、ローカルアルバムアート、
@@ -373,7 +374,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/xwayland-kitty.sh`、`tests/workspace-pinning.sh`、
 `tests/output-rules.sh`、`tests/rule-expressions.sh`、`tests/event-rules.sh`、
 `tests/output-themes.sh`、`tests/theme-roles.sh`、`tests/theme-editor.sh`、
-`tests/scenes.sh`、`tests/reduced-motion.sh`、
+`tests/scenes.sh`、`tests/scene-visuals.sh`、`tests/reduced-motion.sh`、
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/scratchpad.sh`、`tests/window-groups.sh`、`tests/workspace-names.sh`、
@@ -1351,7 +1352,9 @@ IPC ソケットは `$XDG_RUNTIME_DIR` 以下にモード `0600` で作成され
   app-id/title で照合するだけで自動再起動できません。タイル順、タブグループ、
   Scrolling のカラム構造は近似で、フローティングのジオメトリは復元します。
   コマンド引数に機密情報が入る可能性があるため Scene ファイルは 0600 です。
-  Scene 別のテーマ・壁紙切替は未実装です。
+  Scene の色と壁紙は出力/ワークスペース単位で適用され、視覚セクションのない
+  Scene は基本テーマを継承します。Scene を離れると基本の出力テーマ/壁紙へ
+  戻ります。
 - **通知履歴はメモリ上に保持されます。** パネルが
   `org.freedesktop.Notifications` を所有し、アクション、`default` クリック、
   静的アイコン（`image-data` / `image-path` / `icon-name`）、Pango

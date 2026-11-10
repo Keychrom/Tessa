@@ -211,8 +211,15 @@ pub fn updateBackground(out: *Output) void {
     const s = out.server;
     outputBox(s, out, &out.full);
     c.wlr_scene_node_set_position(&out.bg_rect.node, out.full.x, out.full.y);
+    const ws = out.active_ws;
+    var color = out.theme_bg;
+    if (out.scene_theme_set[ws - 1]) {
+        if (out.scene_theme[ws - 1].bg) |rgb| {
+            color = .{ rgb[0], rgb[1], rgb[2], 1.0 };
+        }
+    }
     c.wlr_scene_rect_set_size(out.bg_rect, out.full.width, out.full.height);
-    c.wlr_scene_rect_set_color(out.bg_rect, &out.theme_bg);
+    c.wlr_scene_rect_set_color(out.bg_rect, &color);
 }
 
 pub fn activeVisible(server: *Server, client: *types.Client) bool {

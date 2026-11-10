@@ -162,6 +162,7 @@ FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
 WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
 SCENE	coding	master	2	2	1	0	1	2	0	0
+SCENE_STYLE	HEADLESS-1	coding	#7aa2f7	#070b14	#16233f	#060810	#0e1626	#e8eefc	#7aa2f7	#26324a	/home/user/Wallpapers/indigo.png	cover	0	-
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 ```
 
@@ -175,6 +176,12 @@ id、ワークスペース、フォーカス、フローティング、フルス
 `SCENE` はタブ区切りで、名前、レイアウト、保存アプリ数、ライブ一致ウィンドウ数、
 保存ワークスペース（未束縛は 0）、アクティブ（`0`/`1`）、最大4件のプレビュー
 ウィンドウ ID（未使用は 0）です。
+`SCENE_STYLE` はアクティブワークスペースに Scene がある各出力について、
+出力名、Scene 名（なしは `-`）、アクセント、ウィンドウ背景、壁紙上端、壁紙
+下端、パネル背景、パネル前景、アクティブ枠、非アクティブ枠、壁紙画像
+（なしは `-`）、fit（`cover`/`contain`/`stretch` または `-`）、art
+（`1`/`0` または `-`）、art 不透明度（または `-`）を出します。未設定は `-`
+で、パネルはその項目について基本テーマを継承します。
 `LAYER` は namespace、出力名、レイヤー番号（`0` background … `3`
 overlay）、実効不透明度、実効角丸、実効ブラー（`0`/`1`）です。`PANEL` は
 出力名、パネル PID、監視中（`0`/`1`）、通知所有者（`0`/`1`）です。

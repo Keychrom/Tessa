@@ -671,6 +671,15 @@ binding, persistence across a compositor restart, and deletion.
 sh tests/scenes.sh
 ```
 
+`tests/scene-visuals.sh` creates solid blue/red wallpapers and a scene with a
+`[theme]`/`[wallpaper]` section. It checks the base wallpaper, the scene
+wallpaper pixel and `SCENE_STYLE` state, restoration after switching to a clean
+workspace, and that `scene save` while a scene is active captures its tokens.
+
+```sh
+sh tests/scene-visuals.sh
+```
+
 ### Window switcher test
 
 `tests/window-switcher.sh` starts three `foot` windows and drives `Alt+Tab`

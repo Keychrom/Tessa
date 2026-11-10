@@ -491,8 +491,13 @@ Scene は `scene.zig` の独立した永続化層です。`<設定ディレク�
 satellite のウィンドウはウィンドウ単位の PID がないため app-id/title で照合
 します。コンポジタは `SCENE` state 行用にサマリーをキャッシュし、新規 map
 ウィンドウを配置する15秒の復元キューを持ちます。Scene を適用すると実行時の
-`Output.scene_tuning`/`scene_name` を更新し、`rules.tuningFor` がユーザーの
-runtime ratio より前に読みます。Scene のレイアウト選択は `outputs.conf` には
+`Output.scene_tuning`/`scene_theme`/`scene_name` を更新し、`rules.tuningFor`
+がユーザーの runtime ratio より前にチューニングを読みます。
+`layout.updateBorders`/`core.updateBackground` はクライアントの
+ワークスペースの Scene 色を優先します。`scene.appendActiveStyle` が出力ごとの
+`SCENE_STYLE` 行を出し、パネルがその色を適用して Scene 壁紙を別サーフェスへ
+読み込みます。Scene のないワークスペースへ移動すると、パネルは保存しておいた
+基本テーマへ戻します。Scene のレイアウトとテーマ選択は `outputs.conf` には
 書かず、Scene ファイルを正とします。
 
 ## フラクショナルスケーリング

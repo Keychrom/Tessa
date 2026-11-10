@@ -1290,6 +1290,7 @@ fn buildState(server: *Server, buf: []u8) usize {
     }
 
     scene.appendState(server, buf, &off);
+    scene.appendActiveStyle(server, buf, &off);
 
     append(buf, &off, "END\n", .{});
     return off;

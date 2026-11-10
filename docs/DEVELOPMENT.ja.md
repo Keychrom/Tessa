@@ -555,6 +555,15 @@ sh tests/theme-editor.sh
 sh tests/scenes.sh
 ```
 
+`tests/scene-visuals.sh` は青/赤の単色壁紙と `[theme]`/`[wallpaper]` を持つ
+Scene を作成します。基本壁紙、Scene 壁紙のピクセルと `SCENE_STYLE` state、
+Scene のない WS へ移動した後の復元、Scene 適用中の `scene save` が視覚
+トークンと壁紙を保存することを確認します。
+
+```sh
+sh tests/scene-visuals.sh
+```
+
 ### ウィンドウスイッチャーのテスト
 
 `tests/window-switcher.sh` は `foot` を 3 つ起動し、`wtype` で Alt を 2 秒

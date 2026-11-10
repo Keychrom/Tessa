@@ -5531,6 +5531,7 @@ fn handleStateLine(line: []const u8) void {
     if (std.mem.eql(u8, line, "STATE")) {
         g.window_count = 0;
         g.scene_count = 0;
+        g.scene_style_seen = false;
         g.occ = @splat(0);
         g.focused_id = 0;
         g.is_focused_output = false;
@@ -5559,6 +5560,15 @@ fn handleStateLine(line: []const u8) void {
                 buildScenePreviewEntries();
                 _ = startSwitcherPreviews();
                 g.scene_previews_started = true;
+            }
+        }
+        if (g.scene_style_seen) {
+            if (g.scene_style.name_len == 0) {
+                if (g.scene_style_name_len > 0) m.clearSceneStyle();
+            } else if (g.scene_style_name_len != g.scene_style.name_len or
+                !std.mem.eql(u8, g.scene_style_name[0..g.scene_style_name_len], g.scene_style.name[0..g.scene_style.name_len]))
+            {
+                m.applySceneStyle(&g.scene_style);
             }
         }
         g.bar.dirty = true;
@@ -5680,6 +5690,43 @@ fn handleStateLine(line: []const u8) void {
             scene.preview_count += 1;
         }
         g.scene_count += 1;
+        return;
+    }
+
+    if (std.mem.startsWith(u8, line, "SCENE_STYLE\t")) {
+        var fields: [15][]const u8 = undefined;
+        const count = splitTabs(line, &fields);
+        if (count < 3) return;
+        if (g.target_name_len == 0 or
+            !std.mem.eql(u8, fields[1], g.target_name[0..g.target_name_len])) return;
+        var style = std.mem.zeroes(m.SceneStyle);
+        if (!std.mem.eql(u8, fields[2], "-") and fields[2].len > 0) {
+            m.copyTrunc(&style.name, &style.name_len, fields[2]);
+            if (count >= 11) {
+                style.accent = m.parseSceneStyleColor(fields[3]);
+                style.bg = m.parseSceneStyleColor(fields[4]);
+                style.bg_top = m.parseSceneStyleColor(fields[5]);
+                style.bg_bottom = m.parseSceneStyleColor(fields[6]);
+                style.panel_bg = m.parseSceneStyleColor(fields[7]);
+                style.panel_fg = m.parseSceneStyleColor(fields[8]);
+                style.border_active = m.parseSceneStyleColor(fields[9]);
+                style.border_inactive = m.parseSceneStyleColor(fields[10]);
+            }
+            if (count >= 12 and !std.mem.eql(u8, fields[11], "-")) {
+                m.copyTrunc(&style.wallpaper_image, &style.wallpaper_image_len, fields[11]);
+            }
+            if (count >= 13) style.wallpaper_fit = m.parseSceneWallpaperFit(fields[12]);
+            if (count >= 14 and (std.mem.eql(u8, fields[13], "1") or std.mem.eql(u8, fields[13], "0"))) {
+                style.wallpaper_art = std.mem.eql(u8, fields[13], "1");
+            }
+            if (count >= 15 and !std.mem.eql(u8, fields[14], "-")) {
+                if (std.fmt.parseFloat(f32, fields[14])) |value| {
+                    style.wallpaper_art_opacity = value;
+                } else |_| {}
+            }
+        }
+        g.scene_style = style;
+        g.scene_style_seen = true;
         return;
     }
 
