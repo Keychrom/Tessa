@@ -91,6 +91,13 @@ control_features = all
 # previews for all outputs and workspaces, capped at 512 px on the long edge.
 # icons shows app monograms only, off disables the switcher.
 window_switcher = snapshot
+# Panel overlay motion: cards fade and settle (the control center scales/lifts,
+# popovers scale slightly, control-center views cross-fade and slide, toggle
+# pills ease between states). `animations = false` makes overlays appear
+# instantly; `reduce_motion = true` keeps fades but drops scale, slide, and
+# toggle-knob movement.
+# animations = true
+# reduce_motion = false
 
 # Wallpaper. Set wallpaper_art = false for a clean gradient without
 # ink/sun/water artwork. wallpaper_image replaces the gradient/art with a PNG

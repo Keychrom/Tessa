@@ -1183,6 +1183,14 @@ pub const Panel = struct {
     menu_target: f64 = 0,
     menu_anim_start: i64 = 0,
 
+    control_prev_view: ControlView = .home,
+    control_view_anim: f64 = 1,
+    control_view_start: i64 = 0,
+    control_view_dir: i8 = 0,
+    pill_wifi_anim: f64 = 0,
+    pill_bt_anim: f64 = 0,
+    pill_dnd_anim: f64 = 0,
+
     running: bool = false,
     next_clock_ms: i64 = 0,
     next_cpu_ms: i64 = 0,
@@ -1419,6 +1427,27 @@ pub fn startMenuSlide() struct { x: f64, y: f64 } {
         .left => .{ .x = 14, .y = 0 },
         .right => .{ .x = -14, .y = 0 },
     };
+}
+
+/// Unit direction an overlay starts from before settling: away from the bar
+/// edge, so a top bar drops the card a few pixels and lifts it into place.
+pub fn barSettleDirection() struct { x: f64, y: f64 } {
+    return switch (g.bar_position) {
+        .top => .{ .x = 0, .y = 1 },
+        .bottom => .{ .x = 0, .y = -1 },
+        .left => .{ .x = 1, .y = 0 },
+        .right => .{ .x = -1, .y = 0 },
+    };
+}
+
+/// Panel overlay motion is on unless animations were disabled outright.
+pub fn motionEnabled() bool {
+    return g.animations_enabled;
+}
+
+/// Scale and slide are suppressed under reduce_motion; fades still run.
+pub fn motionMovement() bool {
+    return g.animations_enabled and !g.reduce_motion;
 }
 
 pub fn barHorizontal() bool {
@@ -2819,6 +2848,13 @@ pub fn loadConfig() void {
     g.overlay_content_dirty = true;
     g.next_wallpaper_ms = 0;
     g.selected_anim = 0;
+    g.control_prev_view = .home;
+    g.control_view_anim = 1;
+    g.control_view_start = 0;
+    g.control_view_dir = 0;
+    g.pill_wifi_anim = 0;
+    g.pill_bt_anim = 0;
+    g.pill_dnd_anim = 0;
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.bar_font_len = 0;
     g.launcher_font_len = 0;

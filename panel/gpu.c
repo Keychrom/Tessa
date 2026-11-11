@@ -75,7 +75,7 @@ static const char *OVERLAY_VERTEX_SHADER =
     "uniform mat3 u_mat;\n"
     "varying vec2 v_uv;\n"
     "void main() {\n"
-    "    v_uv = a_pos * 0.5 + 0.5;\n"
+    "    v_uv = vec2(a_pos.x * 0.5 + 0.5, 0.5 - a_pos.y * 0.5);\n"
     "    gl_Position = vec4((u_mat * vec3(a_pos, 1.0)).xy, 0.0, 1.0);\n"
     "}\n";
 

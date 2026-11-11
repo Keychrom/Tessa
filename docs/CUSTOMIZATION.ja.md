@@ -693,6 +693,8 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
+| `animations` | `true` | パネルオーバーレイの開閉・view 遷移・トグル動作（ウィンドウ演出にも適用）。`false` で即時表示 |
+| `reduce_motion` | `false` | フェードは残し、scale・slide・トグルノブの移動を無効化 |
 | `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（ライブプレビュー）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | 選んだ端からの距離（0〜64） |
@@ -861,7 +863,8 @@ cubic-bezier またはスプリングカーブ（組み込み、`bezier = name, 
 `animations = false` は全体を無効化
 します。視差効果低減時は `reduce_motion_animations = fade` で縮小/移動なしの
 閉じるフェードだけを残し、`none` で close エフェクトも無効にします。
-ポップオーバーのアニメーションはパネル側で別に制御します。
+パネルのオーバーレイも同じ `animations` / `reduce_motion` を読みますが、
+再生時間はパネル独自です（上のパネル設定表を参照）。
 
 ウィンドウルールで個別のウィンドウだけ無効化したり、時間やカーブを
 上書きできます。

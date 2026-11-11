@@ -116,6 +116,9 @@ fn destroyOverlay() void {
     g.overlay_mode = .none;
     g.launcher_open = false;
     g.menu_anim = 0;
+    g.control_view_anim = 1;
+    g.control_view_start = 0;
+    g.control_view_dir = 0;
     g.next_wallpaper_ms = 0;
     if (g.pointer_surface == s) g.pointer_surface = null;
     destroyTextInput();
@@ -560,6 +563,10 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.menu_from = g.menu_anim;
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
+    g.control_prev_view = g.control_view;
+    g.control_view_anim = 1;
+    g.control_view_start = 0;
+    g.control_view_dir = 0;
     g.next_wallpaper_ms = 0;
     if (mode == .launcher) g.selected_anim = @floatFromInt(g.selected);
     if (mode == .launcher) {
@@ -1197,18 +1204,72 @@ fn closeOverlay() void {
     logDebug("overlay close", .{});
 }
 
+fn easeOutCubic(p: f64) f64 {
+    return 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
+}
+
+fn pillTarget(on: bool) f64 {
+    return if (on) 1.0 else 0.0;
+}
+
+fn controlPillsAnimating() bool {
+    return @abs(g.pill_wifi_anim - pillTarget(g.wifi_enabled)) > 0.002 or
+        @abs(g.pill_bt_anim - pillTarget(g.bt_powered)) > 0.002 or
+        @abs(g.pill_dnd_anim - pillTarget(g.dnd)) > 0.002;
+}
+
+fn animatePill(value: *f64, on: bool, movement: bool) bool {
+    const target = pillTarget(on);
+    if (!movement) {
+        if (value.* == target) return false;
+        value.* = target;
+        return true;
+    }
+    const diff = target - value.*;
+    if (@abs(diff) <= 0.002) {
+        if (value.* == target) return false;
+        value.* = target;
+        return true;
+    }
+    value.* += diff * 0.32;
+    return true;
+}
+
+fn snapControlPills() void {
+    g.pill_wifi_anim = pillTarget(g.wifi_enabled);
+    g.pill_bt_anim = pillTarget(g.bt_powered);
+    g.pill_dnd_anim = pillTarget(g.dnd);
+}
+
+fn startControlViewTransition(from: m.ControlView, to: m.ControlView) void {
+    if (from == to) return;
+    g.control_prev_view = from;
+    g.control_view_dir = if (from == .home and to != .home) 1 else if (to == .home) -1 else 1;
+    if (!m.motionEnabled()) {
+        g.control_view_anim = 1;
+        g.control_view_start = 0;
+        g.control_view_dir = 0;
+        return;
+    }
+    g.control_view_anim = 0;
+    g.control_view_start = m.nowMs();
+    g.overlay_content_dirty = true;
+}
+
 fn tickAnimation(now: i64) void {
     const s = g.overlay orelse return;
-    const dur: i64 = 220;
+    const motion = m.motionEnabled();
+    const movement = m.motionMovement();
+    const dur: i64 = if (motion) 220 else 1;
     var p = @as(f64, @floatFromInt(now - g.menu_anim_start)) / @as(f64, @floatFromInt(dur));
     p = std.math.clamp(p, 0, 1);
-    const eased = 1.0 - std.math.pow(f64, 1.0 - p, 3.0);
+    const eased = easeOutCubic(p);
     const before = g.menu_anim;
     g.menu_anim = g.menu_from + (g.menu_target - g.menu_from) * eased;
     var animating = p < 1.0;
     if (g.launcher_open) {
         const target = @as(f64, @floatFromInt(g.selected));
-        if (g.overlay_renderer == .gpu) {
+        if (g.overlay_renderer == .gpu or !movement) {
             g.selected_anim = target;
         } else {
             const diff = target - g.selected_anim;
@@ -1218,6 +1279,27 @@ fn tickAnimation(now: i64) void {
             } else {
                 g.selected_anim = target;
             }
+        }
+    }
+    if (g.overlay_mode == .control and g.control_view_anim < 1.0) {
+        const vdur: i64 = if (motion) 170 else 1;
+        var vp = @as(f64, @floatFromInt(now - g.control_view_start)) / @as(f64, @floatFromInt(vdur));
+        vp = std.math.clamp(vp, 0, 1);
+        g.control_view_anim = easeOutCubic(vp);
+        animating = animating or vp < 1.0;
+        g.overlay_content_dirty = true;
+        if (vp >= 1.0) {
+            g.control_view_anim = 1.0;
+            g.control_view_dir = 0;
+        }
+    }
+    if (g.overlay_mode == .control) {
+        var pills_moved = animatePill(&g.pill_wifi_anim, g.wifi_enabled, movement);
+        pills_moved = animatePill(&g.pill_bt_anim, g.bt_powered, movement) or pills_moved;
+        pills_moved = animatePill(&g.pill_dnd_anim, g.dnd, movement) or pills_moved;
+        if (pills_moved) {
+            animating = true;
+            g.overlay_content_dirty = true;
         }
     }
     if (animating or g.menu_anim != before) s.dirty = true;
@@ -1354,6 +1436,10 @@ fn controlInputBackspace() void {
 }
 
 fn controlSetView(view: m.ControlView) void {
+    if (view != g.control_view) {
+        controlCancelModal();
+        startControlViewTransition(g.control_view, view);
+    }
     const leaving_bt = g.control_view == .bluetooth;
     g.control_view = view;
     g.control_scroll = 0;
@@ -1379,6 +1465,7 @@ fn controlBack() void {
         closeOverlay();
     } else {
         if (g.control_view == .bluetooth) tessa_system_bt_discovery(0);
+        startControlViewTransition(g.control_view, .home);
         g.control_view = .home;
         g.control_scroll = 0;
         controlCancelModal();
@@ -4583,21 +4670,23 @@ fn resetControlState() void {
     g.bt_modal = .none;
     g.bt_detail_path_len = 0;
     g.bt_detail_path[0] = 0;
+    snapControlPills();
 }
 
 fn openControlCenter(view: m.ControlView) void {
     if (!m.moduleEnabled(m.MODULE_POPOVERS) or g.panel_style != .unified) return;
-    if (g.overlay != null and g.overlay_mode == .control and
-        g.control_view == view and g.menu_target == 1)
-    {
-        if (view == .home) {
-            closeOverlay();
-        } else {
-            g.control_view = .home;
-            g.control_scroll = 0;
-            logDebug("control: view=home", .{});
-            refreshOverlay();
+    if (g.overlay != null and g.overlay_mode == .control and g.menu_target == 1) {
+        if (g.control_view == view) {
+            if (view == .home) {
+                closeOverlay();
+            } else {
+                controlSetView(.home);
+            }
+            return;
         }
+        resetControlState();
+        controlSetView(view);
+        logMsg("control: open view={s}", .{@tagName(view)});
         return;
     }
     if (g.overlay != null) destroyOverlay();
@@ -5974,6 +6063,8 @@ fn pollTimeout(now: i64) c_int {
         if (s.dirty) return 0;
         if (g.menu_anim != g.menu_target) return 16;
         if (g.launcher_open and @abs(@as(f64, @floatFromInt(g.selected)) - g.selected_anim) > 0.004) return 16;
+        if (g.overlay_mode == .control and g.control_view_anim < 1.0) return 16;
+        if (g.overlay_mode == .control and controlPillsAnimating()) return 16;
     }
     var next = g.next_clock_ms;
     if (g.next_cpu_ms < next) next = g.next_cpu_ms;

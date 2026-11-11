@@ -691,6 +691,8 @@ in `panel.conf`; they still work in `config` for compatibility.
 | `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
+| `animations` | `true` | Panel overlay open/close, view transitions, and toggle motion (also window motion); `false` makes overlays instant |
+| `reduce_motion` | `false` | Keep overlay fades but drop scale, slide, and toggle-knob movement |
 | `window_switcher` | `snapshot` | Alt+Tab switcher: live `snapshot` previews, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | distance from the chosen edge (0–64) |
@@ -860,8 +862,9 @@ settings intact; `animations = false` disables everything.
 `animation_ms = 0` sets the fallback duration to zero, but explicit per-kind or
 per-window durations still apply.
 With reduced motion, `reduce_motion_animations = fade` keeps only a close fade
-without scale or slide, and `none` disables close effects. Popover animation is
-controlled separately by the panel.
+without scale or slide, and `none` disables close effects. Panel overlays read
+the same `animations` and `reduce_motion` keys but use their own timings (see
+the panel table above).
 
 Window rules can opt individual windows in or out and override the duration or
 curve:

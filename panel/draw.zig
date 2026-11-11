@@ -4195,15 +4195,24 @@ fn controlSection(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, w: f64) void
     }, 0, 1.4);
 }
 
-fn controlPill(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, on: bool) void {
+fn mix(a: f64, b: f64, t: f64) f64 {
+    return a + (b - a) * t;
+}
+
+fn controlPill(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, amount: f64) void {
     const accent = g.accent;
-    fillRound(cr, x, y, w, h, h * 0.5, if (on) .{
-        accent[0], accent[1], accent[2], 0.85,
-    } else .{ 1, 1, 1, 0.075 });
-    fillCircle(cr, if (on) x + w - h * 0.5 else x + h * 0.5, y + h * 0.5, h * 0.32, if (on) .{
-        0.055, 0.075, 0.105, 0.95,
-    } else .{
-        0.78, 0.83, 0.90, 0.75,
+    const t = std.math.clamp(amount, 0.0, 1.0);
+    fillRound(cr, x, y, w, h, h * 0.5, .{
+        mix(1.0, accent[0], t),
+        mix(1.0, accent[1], t),
+        mix(1.0, accent[2], t),
+        mix(0.075, 0.85, t),
+    });
+    fillCircle(cr, x + h * 0.5 + (w - h) * t, y + h * 0.5, h * 0.32, .{
+        mix(0.78, 0.055, t),
+        mix(0.83, 0.075, t),
+        mix(0.90, 0.105, t),
+        mix(0.75, 0.95, t),
     });
 }
 
@@ -4359,7 +4368,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             _ = drawText(cr, if (g.dnd) "Notifications silenced" else "Notifications allowed", left_x + 48, left_y + 29, fam, "Regular", 7.2, .{
                 0.64, 0.70, 0.80, 0.52,
             }, col_w - 120, 0);
-            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.dnd);
+            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.pill_dnd_anim);
             addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
         }
         if (show_ppd) {
@@ -5234,6 +5243,20 @@ fn upperAscii(dest: *[64]u8, src: []const u8) []const u8 {
     return dest[0..n];
 }
 
+fn drawControlView(cr: *c.cairo_t, l: m.ControlLayout, view: m.ControlView) void {
+    switch (view) {
+        .home => controlHome(cr, l),
+        .audio => drawControlAudio(cr, l),
+        .theme => drawControlTheme(cr, l),
+        .wifi => drawControlWifi(cr, l, true, 1.0),
+        .bluetooth => drawControlBluetooth(cr, l, true, 1.0),
+        .notifications => drawControlNotifications(cr, l),
+        .calendar => drawControlCalendar(cr, l),
+        .tray => drawControlTray(cr, l),
+        .power => drawControlPower(cr, l),
+    }
+}
+
 fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     const l = m.controlCenterLayout(W, H);
     g.overlay_hit_count = 0;
@@ -5248,16 +5271,46 @@ fn drawControlCenter(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
     c.cairo_save(cr);
     roundRect(cr, l.x, l.y, l.w, l.h, 18);
     c.cairo_clip(cr);
-    switch (g.control_view) {
-        .home => controlHome(cr, l),
-        .audio => drawControlAudio(cr, l),
-        .theme => drawControlTheme(cr, l),
-        .wifi => drawControlWifi(cr, l, true, t),
-        .bluetooth => drawControlBluetooth(cr, l, true, t),
-        .notifications => drawControlNotifications(cr, l),
-        .calendar => drawControlCalendar(cr, l),
-        .tray => drawControlTray(cr, l),
-        .power => drawControlPower(cr, l),
+    const anim = std.math.clamp(g.control_view_anim, 0.0, 1.0);
+    const prev = g.control_prev_view;
+    if (anim < 1.0 and prev != g.control_view) {
+        const slide: f64 = if (m.motionMovement()) 10.0 else 0.0;
+        const dir: f64 = @floatFromInt(g.control_view_dir);
+        const out_a = std.math.clamp(1.0 - anim * 2.4, 0.0, 1.0);
+        const in_a = std.math.clamp((anim - 0.22) / 0.78, 0.0, 1.0);
+        const old_dx = -dir * slide * anim;
+        const new_dx = dir * slide * (1.0 - in_a);
+
+        const hit_count = g.overlay_hit_count;
+        const volume_rect = g.control_volume_slider;
+        const brightness_rect = g.control_brightness_slider;
+        const seek_rect = g.control_seek_slider;
+        c.cairo_push_group(cr);
+        c.cairo_translate(cr, old_dx, 0);
+        drawControlView(cr, l, prev);
+        const old_pattern = c.cairo_pop_group(cr);
+        g.overlay_hit_count = hit_count;
+        g.control_volume_slider = volume_rect;
+        g.control_brightness_slider = brightness_rect;
+        g.control_seek_slider = seek_rect;
+
+        c.cairo_push_group(cr);
+        c.cairo_translate(cr, new_dx, 0);
+        drawControlView(cr, l, g.control_view);
+        const new_pattern = c.cairo_pop_group(cr);
+
+        if (old_pattern) |pattern| {
+            c.cairo_set_source(cr, pattern);
+            c.cairo_paint_with_alpha(cr, out_a);
+            c.cairo_pattern_destroy(pattern);
+        }
+        if (new_pattern) |pattern| {
+            c.cairo_set_source(cr, pattern);
+            c.cairo_paint_with_alpha(cr, in_a);
+            c.cairo_pattern_destroy(pattern);
+        }
+    } else {
+        drawControlView(cr, l, g.control_view);
     }
     c.cairo_restore(cr);
     c.cairo_pop_group_to_source(cr);
@@ -5790,7 +5843,7 @@ fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) v
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "WI-FI", in_panel);
     // Toggle and scan controls.
-    controlPill(cr, x + w - 58, top + 3, 42, 20, g.wifi_enabled);
+    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_wifi_anim);
     addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_toggle) });
     drawControlButton(cr, "SCAN", x + w - 112, top + 3, 46, 20, false);
     addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_scan) });
@@ -5868,7 +5921,7 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
     const top = l.y + 14;
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "BLUETOOTH", in_panel);
-    controlPill(cr, x + w - 58, top + 3, 42, 20, g.bt_powered);
+    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_bt_anim);
     addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_toggle) });
     drawControlButton(cr, if (g.bt_discovering) "STOP" else "SCAN", x + w - 112, top + 3, 46, 20, false);
     addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_scan) });
@@ -6379,6 +6432,50 @@ fn renderOverlayBase(s: *m.Surface) ?*c.cairo_surface_t {
     return img;
 }
 
+const OverlayMotion = struct {
+    pivot_x: f64,
+    pivot_y: f64,
+    scale: f64,
+    dx: f64,
+    dy: f64,
+};
+
+fn overlayScales(mode: m.OverlayMode) bool {
+    return switch (mode) {
+        .control, .calendar, .power, .clipboard, .media, .tray, .audio, .extensions, .module, .wifi, .bluetooth => true,
+        else => false,
+    };
+}
+
+/// Scale-and-settle used while a card opens or closes. The pivot comes from
+/// the panel rect the last core draw published, so it stays centred even when
+/// popover heights depend on their content.
+fn overlayMotion(W: f64, H: f64, t: f64) ?OverlayMotion {
+    if (!m.motionMovement() or t >= 0.999) return null;
+    if (!overlayScales(g.overlay_mode)) return null;
+    const rect = g.overlay_panel;
+    const has_rect = rect.w > 1.0 and rect.h > 1.0;
+    const control = g.overlay_mode == .control;
+    const settled = std.math.clamp(t, 0.0, 1.0);
+    const scale = if (control) 0.96 + 0.04 * settled else 0.975 + 0.025 * settled;
+    const settle = m.barSettleDirection();
+    const dist = (1.0 - settled) * (if (control) @as(f64, 8.0) else 6.0);
+    return .{
+        .pivot_x = if (has_rect) rect.x + rect.w / 2.0 else W / 2.0,
+        .pivot_y = if (has_rect) rect.y + rect.h / 2.0 else H / 2.0,
+        .scale = scale,
+        .dx = settle.x * dist,
+        .dy = settle.y * dist,
+    };
+}
+
+fn applyOverlayMotion(cr: *c.cairo_t, motion: OverlayMotion) void {
+    c.cairo_translate(cr, motion.dx, motion.dy);
+    c.cairo_translate(cr, motion.pivot_x, motion.pivot_y);
+    c.cairo_scale(cr, motion.scale, motion.scale);
+    c.cairo_translate(cr, -motion.pivot_x, -motion.pivot_y);
+}
+
 fn overlayMatrix(s: *m.Surface, t: f64) [9]f32 {
     const W: f64 = @floatFromInt(s.width);
     const H: f64 = @floatFromInt(s.height);
@@ -6405,6 +6502,12 @@ fn overlayMatrix(s: *m.Surface, t: f64) [9]f32 {
             pivot_x = l.x + 380.0;
             pivot_y = l.y + 310.0;
         }
+    } else if (overlayMotion(W, H, t)) |motion| {
+        scale = motion.scale;
+        offset_x = motion.dx;
+        offset_y = motion.dy;
+        pivot_x = motion.pivot_x;
+        pivot_y = motion.pivot_y;
     }
     const px = (pivot_x / W) * 2.0 - 1.0;
     const py = 1.0 - (pivot_y / H) * 2.0;
@@ -6488,6 +6591,22 @@ pub fn drawOverlay(s: *m.Surface) void {
         c.cairo_pattern_destroy(vp);
     }
 
-    drawOverlayCore(cr, W, H, t);
+    if (m.motionMovement() and t < 0.999 and overlayScales(g.overlay_mode)) {
+        // Render the card at full strength, then scale the whole layer so the
+        // dim backdrop stays fixed while the panel settles into place.
+        c.cairo_push_group(cr);
+        drawOverlayCore(cr, W, H, 1.0);
+        c.cairo_pop_group_to_source(cr);
+        if (overlayMotion(W, H, t)) |motion| {
+            c.cairo_save(cr);
+            applyOverlayMotion(cr, motion);
+            c.cairo_paint_with_alpha(cr, t);
+            c.cairo_restore(cr);
+        } else {
+            c.cairo_paint_with_alpha(cr, t);
+        }
+    } else {
+        drawOverlayCore(cr, W, H, t);
+    }
     end(s, d);
 }

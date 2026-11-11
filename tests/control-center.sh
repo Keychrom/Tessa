@@ -167,4 +167,55 @@ if grep -qE "panic|Assertion" "$runtime/tessa.log"; then
     cat "$runtime/tessa.log" >&2
     exit 1
 fi
+
+# The panel must still open and close when motion is disabled or reduced.
+run_motion_variant() {
+    label=$1
+    extra=$2
+    rm -rf "$runtime"
+    runtime=$(mktemp -d "${TMPDIR:-/tmp}/tessa-control.XXXXXX")
+    chmod 700 "$runtime"
+    cat > "$runtime/config" <<EOF
+panel = true
+xwayland = false
+panel_style = unified
+control_features = all
+$extra
+EOF
+    export TESSA_CONFIG="$runtime/config"
+    export TESSA_IPC="$runtime/tessa.sock"
+    export TESSA_OUTPUT_CONFIG="$runtime/outputs.conf"
+    export XDG_RUNTIME_DIR="$runtime"
+    export WAYLAND_DISPLAY=wayland-0
+    "$bin/tessa" >"$runtime/tessa.log" 2>&1 &
+    tpid=$!
+    i=0
+    while [ ! -S "$runtime/tessa.sock" ]; do
+        i=$((i + 1))
+        if [ "$i" -ge 100 ]; then
+            echo "$label: compositor did not create its socket" >&2
+            cat "$runtime/tessa.log" >&2
+            exit 1
+        fi
+        sleep 0.1
+    done
+    wait_log "tessa-panel: state: output=HEADLESS-1"
+    tessa-ctl panel control >/dev/null
+    wait_log "tessa-panel: control: open view=home"
+    wait_log "layer map: tessa-overlay layer=3 keyboard=1"
+    wtype -k Escape
+    wait_log "tessa-panel: overlay close"
+    tessa-ctl quit
+    wait "$tpid" 2>/dev/null || true
+    tpid=
+    if grep -qE "panic|Assertion" "$runtime/tessa.log"; then
+        echo "$label: crashed" >&2
+        cat "$runtime/tessa.log" >&2
+        exit 1
+    fi
+    echo "$label: ok"
+}
+
+run_motion_variant "animations off" "animations = false"
+run_motion_variant "reduced motion" "reduce_motion = true"
 echo "control center test passed"
