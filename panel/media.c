@@ -276,21 +276,23 @@ static void poll_media(void) {
         g_variant_unref(status_v);
     }
 
-    const gchar *title = "";
-    const gchar *artist = "";
+    char title_buf[MAX_TITLE + 1] = "";
+    char artist_buf[MAX_ARTIST + 1] = "";
+    const gchar *title = title_buf;
+    const gchar *artist = artist_buf;
     GVariant *first_artist = NULL;
     GVariant *metadata = g_variant_lookup_value(dict, "Metadata", G_VARIANT_TYPE_VARDICT);
     if (metadata) {
         GVariant *title_v = g_variant_lookup_value(metadata, "xesam:title", G_VARIANT_TYPE_STRING);
         if (title_v) {
-            title = g_variant_get_string(title_v, NULL);
+            copy_trunc(title_buf, sizeof(title_buf), g_variant_get_string(title_v, NULL));
             g_variant_unref(title_v);
         }
         GVariant *artist_v = g_variant_lookup_value(metadata, "xesam:artist", G_VARIANT_TYPE_STRING_ARRAY);
         if (artist_v) {
             if (g_variant_n_children(artist_v) > 0) {
                 first_artist = g_variant_get_child_value(artist_v, 0);
-                artist = g_variant_get_string(first_artist, NULL);
+                copy_trunc(artist_buf, sizeof(artist_buf), g_variant_get_string(first_artist, NULL));
             }
             g_variant_unref(artist_v);
         }
