@@ -91,6 +91,9 @@ window-rule = app-id=org.example.*; workspace=3
 | `shadow=true/false` | ウィンドウ別の影 |
 | `border-width=0..16` | ウィンドウ別ボーダー幅。`0` で非表示 |
 | `tint=#RRGGBBAA` / `tint=none` | 合成 tint オーバーレイ（表示中は direct scanout を止める） |
+| `shader=mono\|crt\|vignette\|pixelate\|wave\|none` | オフスクリーンのウィンドウエフェクト |
+| `shader-strength=0.0..1.0` | エフェクト強度（既定 `1.0`） |
+| `shader-param=N` | pixelate のブロックサイズ（px、既定 `8`） |
 | `tearing=true/false` | ウィンドウ別の tearing 設定 |
 | `scratchpad=true/false` | スクラッチパッドへ配置 |
 | `special=NAME` / `workspace=special:NAME` | スペシャルワークスペースへ配置 |
@@ -103,7 +106,8 @@ window-rule = app-id=org.example.*; workspace=3
 付きの設定エラーになります。ボーダー色、不透明度、角丸、ボーダー幅、影の
 状態は閉じるスナップショットにも使われます。`corner-radius` と `blur` は
 scenefx ビルド（既定。`-Dscenefx=false` で無効）が必要で、それ以外の
-エフェクトは全ビルドで動作します。
+エフェクトは全ビルドで動作します。オフスクリーンシェーダーは
+`TESSA_SHADER_DISABLE=1` または `-Dshaders=false` ビルドで無効になります。
 
 ルールはファイル順に評価され、後のルールが前のルールを上書きできます。
 構造アクション（`float`、`workspace`、`size`、`position`、`fullscreen`）は
@@ -298,7 +302,7 @@ bind = SUPER+ALT+SHIFT+g group-remove
 
 `toggle-group` はアクティブワークスペースのタイルウィンドウをグループ化し、
 メンバーにフォーカスがあるときはグループ全体を解除します。グループ中は
-表示中のメンバーだけが見え、`Super+Tab` / `Super+Shift+Tab` は別タイルでは
+表示中のメンバーだけが見え、`Super+Tab` / `Super+Page_Up` は別タイルでは
 なくタブを巡回します。`group-add` はフォーカス中ウィンドウを同じ
 ワークスペースのグループへ追加し、`group-remove` はグループから外します。
 グループは実行時状態で永続化されず、メンバーを別ワークスペースや
@@ -323,6 +327,10 @@ tessa-ctl scene delete coding
 tessa-ctl scene clear
 tessa-ctl scene reload
 ```
+
+`Super+Shift+Tab` で Scene デッキを開きます。`Tab` / `Shift+Tab` と矢印キーで
+選択し、`Enter`、`Space`、クリックで適用、`Esc` で閉じます。
+`scene-switcher` アクションと `tessa-ctl panel scenes` でも開けます。
 
 Scene ファイルは行指向です。ヘッダーにレイアウトと有効な調整値、各 `[app]`
 ブロックにウィンドウ識別子、コマンドライン、フローティングジオメトリを
@@ -691,13 +699,27 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bar_side_margin` | バーに沿った余白。上下バーでは左右、左右バーでは上下（0〜128） |
 | `logo_text` | 上下バーのブランド文字列（既定 `TESSA`）。空ならマークのみ |
 | `logo_icon` | 五弁マークの代わりに描く PNG（絶対または `~/...`）。読み込めない場合はマークへフォールバック |
-| `panel_bg` | バーの背景色 |
-| `panel_fg` | バーの主要テキスト色 |
+| `panel_bg` | パネル基底の背景色。バーは `bar-bg` または `panel.background` ロールを使用 |
+| `panel_fg` | パネル基底の前景色。バーは `bar-fg` または `panel.foreground` ロールを使用 |
 | `bg_top` | 壁紙グラデーションの上端色。未指定なら `bg` から導出 |
 | `bg_bottom` | 壁紙グラデーションの下端色。未指定なら `bg` から導出 |
 | `wallpaper_art` | 装飾用の壁紙アートを描画（既定 `true`） |
 | `wallpaper_image` | PNG 壁紙パス（絶対または `~/...`）。グラデーション／装飾を置換 |
 | `wallpaper_fit` | `cover`（既定）、`contain`、`stretch` |
+| `wallpaper_art_opacity` | 壁紙アートの不透明度（0.0〜1.0、既定 `0.55`） |
+| `wallpaper_shader` | PPM（P6、maxval 255）を出力する壁紙コマンド。画像より優先 |
+| `panel_renderer` | 背景レンダラー: `cairo` または `gpu`（EGL/GLES2。失敗時は Cairo） |
+| `overlay_renderer` | ランチャー/ポップオーバー: `cairo` または `gpu` |
+| `wallpaper_engine` | `panel_renderer = gpu` 時の `cairo` または `procedural` |
+| `wallpaper_animation` | GPU 壁紙モーション: `off`、`on`、`auto` |
+| `wallpaper_fps` | GPU 壁紙の FPS 上限（既定 `30`） |
+| `wallpaper_idle_pause` | `auto` が停止するまでの無入力秒数（既定 `120`） |
+| `bar_layout` | 右側クラスタの表示モジュールと順序 |
+| `bar_priority`、`bar_overflow` | オーバーフロー優先度と `+N` プランナー |
+| `launcher_entry`、`launcher_style` | ランチャー項目の追加と centered/start レイアウト |
+| `bar-font`、`launcher-font`、`popover-font`、`toast-font` | サーフェス別フォント |
+| `bar-fg`/`bar-bg`、`launcher-fg`/`launcher-bg`、`popover-fg`/`popover-bg`、`toast-fg`/`toast-bg` | サーフェス別の色 |
+| `panel_modules`（`config` 内） | コンポジタが起動するパネル要素（`background,bar,launcher,popovers,notifications,toasts,tray,media,audio`） |
 | `animations` | ウィンドウを開く/閉じる/ワークスペース切り替えをアニメーション（既定 `true`） |
 | `animation_ms` | 既定の再生時間（ミリ秒、0〜1000、既定 160） |
 | `animation_open_ms`、`animation_workspace_ms`、`animation_close_ms` | 種類別の再生時間。`-1` で継承（既定 `-1`） |
@@ -723,8 +745,8 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 ジオメトリ、電源コマンドを読み直します。高さやマージンが変わった場合は
 バーの layer surface を再作成するため、予約領域も即座に更新されます。
 `bg_top`、`bg_bottom`、`wallpaper_art`、`wallpaper_image` は再起動なしで
-背景を描き直します。`logo_text` と `logo_icon` もリロードで反映され、アイコンは
-28 px のマーク枠へ縦横比を保って収まります。ラベルを空にするとアイコン／
+背景を描き直します。`logo_text` と `logo_icon` もリロードで反映され、アイコンは 28 px ボタン内の
+22 px アイコン枠へ縦横比を保って収まります。ラベルを空にするとアイコン／
 マークのみ、PNG が無い・読めない場合は五弁マークへ戻ります。左右バーは
 ラベル領域がないためアイコン／マークのみを表示します。テーマパッケージは
 `theme` から読み込みます（後述）。
@@ -978,9 +1000,14 @@ DBusMenu のコンテキストメニューとセカンダリアクティベー�
 
 `wpctl`、`pactl`、`amixer` のいずれかが利用できる場合、パネルは既定の出力
 音量をバーに表示します。クリックまたは `Super+Shift+A` で、デスクトップを
-暗くせずに音量インジケーターの直下へコンパクトな音量バーを開きます。
-`Up`/`Down` で音量、`m` でミュート、`Esc` で閉じます。
-`tessa-ctl panel audio` でも開け、`audio` はキーバインドアクションです:
+暗くせずにオーディオカードを開きます。`OUTPUT` と `INPUT` のタブがあり、
+それぞれ現在の音量、ミュート、sink/source 一覧を表示します。デバイスを
+クリックすると既定の出力/入力になります。入力の音量とミュートは
+`@DEFAULT_AUDIO_SOURCE@`（amixer では `Capture`）を使います。`Tab` でタブ、
+`Up`/`Down` で音量、`m` でミュート、`d` で既定デバイスを巡回、`Esc` で
+閉じます。`tessa-ctl panel audio` でも開け、統合コントロールセンターの
+SOUND カードは同じ操作をページとして表示します。`audio` はキーバインド
+アクションです:
 
 ```ini
 bind = SUPER+SHIFT+a audio
@@ -994,7 +1021,9 @@ bind = SUPER+SHIFT+a audio
   `pactl set-sink-mute`
 - ALSA: `amixer get Master`、`amixer sset Master ...`
 
-パネル設定で個別に上書きできます。カスタム状態コマンドはパーセントを出力し、
+デバイス選択には `wpctl` または `pactl` が必要です。カスタム `volume_*` は
+出力側だけを上書きします。パネル設定で個別に上書きできます。カスタム状態
+コマンドはパーセントを出力し、
 `MUTED`/`[off]` を含められます。カスタムコマンドは `/bin/sh -c` で実行します:
 
 ```ini

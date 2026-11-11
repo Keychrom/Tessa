@@ -157,15 +157,15 @@ Default: `read,status`.
 
 | Scope | Commands / delivery |
 | --- | --- |
-| `read` | `state`, `state-json`, `config`, `config-json`, `config-compare`, `perf`, `perf-json`, `rendering`, `rendering-json`, `subscribe state` |
+| `read` | `state`, `state-json`, `config`, `config-json`, `config-compare`, `perf`, `perf-json`, `rendering`, `rendering-json`, `shell`, `subscribe state` |
 | `events` | `subscribe events`, event delivery |
 | `status` | `status`, tab-separated `CMD<TAB>status` |
-| `window` | `focus`, `close`, `urgent`, `float`, `swap`, `reorder`, `resize`, group commands |
+| `window` | `focus`, `close`, `urgent`, `activate`, `float`, `swap`, `reorder`, `resize`, group commands |
 | `workspace` | `workspace`, `move-workspace`, special/scratchpad commands |
 | `layout` | `layout`, column and window-move commands |
 | `spawn` | `spawn` |
 | `panel` | `launcher`, `panel`, `notification-action` |
-| `control` | `reload`, `quit`, `mode`, `perf-reset` |
+| `control` | `reload`, `quit`, `mode`, `perf-reset`, `scene` |
 | `extensions` | `extensions`, `extensions-json`, `extension-enable` |
 
 `subscribe all` requires both `read` and `events`. A scoped client without the

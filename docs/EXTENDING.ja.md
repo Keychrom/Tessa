@@ -42,9 +42,16 @@ tessa-ctl panel clipboard              # クリップボード履歴
 tessa-ctl panel screenshot             # 範囲/全画面スクリーンショット UI
 tessa-ctl panel media                  # MPRIS メディア操作
 tessa-ctl panel tray                   # StatusNotifier トレイ
-tessa-ctl panel audio                  # 音量操作
+tessa-ctl panel audio                  # 出力/入力オーディオカード
+tessa-ctl panel control                # 統合コントロールセンター
+tessa-ctl panel theme                  # テーマエディタ
+tessa-ctl panel scenes                 # Scene デッキを開く
 tessa-ctl panel centered               # Wofi 風ランチャー
 tessa-ctl panel start                  # Windows 風スタートメニュー
+tessa-ctl scene save coding             # Scene の保存/適用/有効化/一覧
+tessa-ctl scene activate coding
+tessa-ctl rendering                    # レンダラー、scanout、tearing、エフェクト
+tessa-ctl extensions                   # 監視付き拡張の状態
 tessa-ctl shell                        # パネルと外部シェルのロール所有状態
 tessa-ctl notify-action 12 reply       # 通知アクションを実行
 tessa-ctl panel power HEADLESS-2        # 出力を指定
@@ -160,7 +167,7 @@ MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0	3	foot
 SCENE	coding	master	2	2	1	0	1	2	0	0
 SCENE_STYLE	HEADLESS-1	coding	#7aa2f7	#070b14	#16233f	#060810	#0e1626	#e8eefc	#7aa2f7	#26324a	/home/user/Wallpapers/indigo.png	cover	0	-
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
@@ -171,13 +178,14 @@ LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 id、ワークスペース、フォーカス、フローティング、フルスクリーン、エスケープ
 された app_id、タイトル、出力名、x、y、幅、高さ、スクラッチパッド、可視状態、
 グループ ID、グループアクティブ、オンスクリーン、Scrolling カラム ID、
-0 始まりのタイル位置です。座標とサイズは
+0 始まりのタイル位置、`focus_seq`、foreign-toplevel 識別子です。
+19 フィールドの旧コンシューマは末尾を無視できます。座標とサイズは
 コンポジタの論理座標で、ウィンドウを追跡するツール向けに含まれます。
 `SCENE` はタブ区切りで、名前、レイアウト、保存アプリ数、ライブ一致ウィンドウ数、
 保存ワークスペース（未束縛は 0）、アクティブ（`0`/`1`）、最大4件のプレビュー
 ウィンドウ ID（未使用は 0）です。
-`SCENE_STYLE` はアクティブワークスペースに Scene がある各出力について、
-出力名、Scene 名（なしは `-`）、アクセント、ウィンドウ背景、壁紙上端、壁紙
+`SCENE_STYLE` は各出力について出力され、Scene 名はアクティブワークスペースに
+Scene がなければ `-` です。出力名、Scene 名、アクセント、ウィンドウ背景、壁紙上端、壁紙
 下端、パネル背景、パネル前景、アクティブ枠、非アクティブ枠、壁紙画像
 （なしは `-`）、fit（`cover`/`contain`/`stretch` または `-`）、art
 （`1`/`0` または `-`）、art 不透明度（または `-`）を出します。未設定は `-`

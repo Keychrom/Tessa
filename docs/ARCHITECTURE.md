@@ -441,7 +441,9 @@ protocol is separate and handled in `idle.zig`.
 
 Scenes are a separate persistence layer in `scene.zig`. Each
 `<config-dir>/scenes/<name>.scene` file stores the effective scene tuning,
-layout, and one `[app]` block per mapped window. Native commands come from the
+layout, up to 16 `[app]` blocks, and optional `[theme]` (accent/bg/bg_top/
+bg_bottom/panel/border colors) and `[wallpaper]` (image/fit/art/art-opacity)
+sections. Set `TESSA_SCENE_DIR` to use another directory. Native commands come from the
 client PID (`wl_client_get_credentials` + `/proc/<pid>/cmdline`); XWayland
 satellite windows have no per-window PID and are matched by app-id/title only.
 The compositor caches scene summaries for `SCENE` state lines and uses a
@@ -728,16 +730,18 @@ OCC 2 0
 ...
 FOCUSED 7
 STATUS\tweather\tTokyo 18C\t
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0
-WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0\t3\t
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0\t4\t
 END
 ```
 
 `OUT` lines give each output's name, active workspace, focused flag, and current
 layout name. `WIN` fields are tab-separated: `WIN`, id, workspace, focused,
 floating, fullscreen, app_id, title, output name, x, y, width, height,
-scratchpad, visible, group id, group active, on-screen, scroll column id, and
-tile index. Geometry is in logical compositor coordinates. A scrolling workspace
+scratchpad, visible, group id, group active, on-screen, scroll column id, tile
+index, `focus_seq`, and the foreign-toplevel identifier. Older 19-field
+consumers can ignore the trailing fields. Geometry is in logical compositor
+coordinates. A scrolling workspace
 also emits `VIEW` (offset, content width, viewport width, column count, focus
 index) and one `COL` per column (index, x, width, focused, maximized, tabbed,
 window count). `STATUS` has id, text, and an optional click command.
@@ -756,7 +760,9 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions|module <widget-id>> [output]
+CMD panel <control|theme|wifi|bluetooth|notifications|scenes|scenes-prev|switcher|calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel module <widget-id>
+CMD scene <save|apply|activate|delete|clear|reload|list> ...
 CMD layout [name] [output]
 CMD resize <dx> <dy>
 CMD config
@@ -776,10 +782,14 @@ snapshots for tools.
 `CMD workspace <n> <output>` changes the workspace on a specific monitor; the
 compositor's keyboard bindings use the focused output when the output is
 omitted. `CMD launcher [query]` emits a structured launcher event with the
-focused output; only the matching panel opens. `CMD panel
-calendar|power|clipboard|screenshot|media|tray|audio|extensions|module` likewise
-emits a `panel` event with the requested popover and target output. The
-`module <widget-id>` form opens a status entry's file-backed popover.
+focused output; only the matching panel opens. `CMD panel` likewise emits a
+`panel` event with the requested popover/view and target output; current values
+include `control`, `theme`, `wifi`, `bluetooth`, `notifications`, `scenes`,
+`scenes-prev`, `switcher`, `calendar`, `power`, `clipboard`, `screenshot`,
+`media`, `tray`, `audio`, and `extensions`. The `module <widget-id>` form opens
+a status entry's file-backed popover. `CMD scene` drives
+`save/apply/activate/delete/clear/reload/list`; `SCENE_LIST` returns the
+summaries used by the deck.
 State broadcasts are coalesced
 through a Wayland event-loop idle source and only go to state subscribers.
 Events are sent only to event subscribers.
@@ -791,7 +801,7 @@ VM. `event_names.zig` defines the public topics. `events.zig` builds the wire
 record (`EVENT\t<topic>\tkey=value...`), broadcasts it to subscribed clients,
 and runs matching config hooks with `TESSA_*` environment variables. Topics
 include window/workspace/special changes, layout/mode changes, output add/remove,
-launcher/panel requests, and the
+launcher/panel requests, scene changes (`scene-change`), and the
 animation lifecycle (`animation-start`/`animation-done` for open and workspace
 slides, `close-animation-start`/`close-animation-done` for close snapshots).
 Supervised extensions add `extension-start`/`-ready`/`-failed`/`-stop`.
@@ -817,6 +827,12 @@ lines are filtered to the target output, so each bar shows only its monitor's
 active workspace and windows. A panel without a target falls back to the first
 output.
 
+Panel-only settings load from `panel.conf` next to `config` (or
+`TESSA_PANEL_CONFIG`; empty disables the overlay) after the compositor config.
+The compositor reads the same file for Scene colors and wallpaper. The bar brand
+button draws `logo_text` and an optional `logo_icon` PNG (scaled into a 22 px
+box) and falls back to the built-in five-petal mark.
+
 ### Surfaces
 
 - **background**: layer background, anchors all edges, exclusive zone -1, empty
@@ -841,8 +857,8 @@ output.
   Its mode selects the centered launcher, one of the anchored popovers
   (calendar, power menu, centered clipboard history, media/tray/audio controls,
   or the extensions list), the classic Wi-Fi/Bluetooth popovers, or the unified
-  control center with its `home`, `wifi`, `bluetooth`, `notifications`,
-  `calendar`, `tray`, and `power` views. The dim backdrop and panel are drawn
+  control center with its `home`, `audio`, `theme`, `wifi`, `bluetooth`,
+  `notifications`, `calendar`, `tray`, and `power` views. The dim backdrop and panel are drawn
   into the same surface, so clicks outside the active panel close it. Popover
   hit rectangles are in popover-local coordinates plus the panel origin, and
   keyboard input switches to `Up`/`Down`/`Enter` navigation for list-based
@@ -1005,10 +1021,11 @@ popover. DBusMenu is not implemented, so context menus are not exposed.
 
 `panel/audio.c` runs a worker thread that detects `wpctl` (PipeWire), `pactl`
 (PulseAudio), or `amixer` (ALSA), or uses commands from the panel config. It
-polls the mixer once per second, parses the percentage and mute state, and sends
-a compact state record to the panel. Up/down/mute commands are marshalled to the
-GIO thread and executed asynchronously, then re-polled. The panel draws the bar
-indicator and the `Super+Shift+A` popover.
+polls output and input volume/mute every second and enumerates sinks/sources
+every three seconds. Frames carry output and input state plus device lists.
+Commands are marshalled to the GIO thread, executed asynchronously, and
+re-polled. The panel draws the bar indicator and the `SUPER+SHIFT+A` audio card;
+device selection sets the default sink/source through `wpctl` or `pactl`.
 
 ### System control plane
 
@@ -1100,9 +1117,12 @@ trigger a redraw only while the control center or a relevant popover is open.
 (`src/c_import.h`, `panel/c_import.h`, `src/ctl_c_import.h`) and the external
 `translate-c` package generates the `c_translated` module at build time. The
 compositor's header includes wlroots 0.20 with `WLR_USE_UNSTABLE`, plus scenefx
-0.5 unless the build uses `-Dscenefx=false`. The panel compiles generated client protocol C for
-layer-shell (which transitively needs xdg-shell's `xdg_popup_interface`).
-`tessa-ctl` only needs libc and socket headers.
+0.5 unless the build uses `-Dscenefx=false`. The panel compiles generated client
+protocol C for layer-shell, xdg-shell, text-input, data-control, screencopy,
+`ext-foreign-toplevel-list`, `ext-image-capture-source`, and
+`ext-image-copy-capture`; layer-shell transitively needs xdg-shell's
+`xdg_popup_interface`. `tessa-panel` is optional at build time
+(`-Dpanel=false`). `tessa-ctl` only needs libc and socket headers.
 
 `build.zig.zon` pins the translate-c package; it is fetched on the first build.
 System packages are discovered through pkg-config by the translate-c module and
@@ -1115,8 +1135,9 @@ by the final link. The generated headers/C under `protocol/` are committed:
 - `text-input-client-protocol.h/.c` — panel text-input-v3 client
 - `wlr-data-control-unstable-v1-client-protocol.h/.c` — panel clipboard history
 - `wlr-screencopy-unstable-v1-client-protocol.h/.c` — panel screenshots
-- `ext-image-copy-capture-v1-protocol.h` — wlroots capture headers
-- `ext-image-capture-source-v1-protocol.h` — wlroots capture headers
+- `ext-foreign-toplevel-list-v1-protocol.h/.c` — switcher/scene toplevel list
+- `ext-image-copy-capture-v1-protocol.h/.c` — live window previews
+- `ext-image-capture-source-v1-protocol.h/.c` — preview capture source
 - `cursor-shape-v1-protocol.h` — required by `wlr_cursor_shape_v1.h`
 - `pointer-constraints-unstable-v1-protocol.h` — required by
   `wlr_pointer_constraints_v1.h`

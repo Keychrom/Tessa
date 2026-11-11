@@ -485,8 +485,10 @@ headless 既定へフォールバックします。その後、一致する出�
 処理します。
 
 Scene は `scene.zig` の独立した永続化層です。`<設定ディレクトリ>/scenes/
-<name>.scene` に有効なチューニング、レイアウト、map 済みウィンドウごとの
-`[app]` ブロックを保存します。ネイティブアプリのコマンドはクライアント PID
+<name>.scene` に有効なチューニング、レイアウト、最大16個の `[app]` ブロック、
+任意の `[theme]`（accent/bg/bg_top/bg_bottom/panel/border 色）と
+`[wallpaper]`（image/fit/art/art-opacity）を保存します。`TESSA_SCENE_DIR` で
+保存先を変更できます。ネイティブアプリのコマンドはクライアント PID
 （`wl_client_get_credentials` と `/proc/<pid>/cmdline`）から取得し、XWayland
 satellite のウィンドウはウィンドウ単位の PID がないため app-id/title で照合
 します。コンポジタは `SCENE` state 行用にサマリーをキャッシュし、新規 map
@@ -779,8 +781,8 @@ OCC 2 0
 ...
 FOCUSED 7
 STATUS\tweather\tTokyo 18C\t
-WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0
-WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0
+WIN\t7\t1\t1\t0\t0\tkitty\tnotes\teDP-1\t40\t30\t1100\t700\t0\t1\t0\t0\t1\t0\t0\t3\t
+WIN\t8\t1\t0\t0\t0\tfoot\tshell\teDP-1\t1200\t560\t640\t480\t0\t1\t0\t0\t1\t0\t0\t4\t
 END
 ```
 
@@ -788,7 +790,9 @@ END
 レイアウト名を示します。`WIN` のフィールドはタブ区切りです: `WIN`、id、
 workspace、focused、floating、fullscreen、app_id、title、出力名、x、y、
 幅、高さ、scratchpad、visible、グループ ID、グループアクティブ、
-on-screen、スクロールカラム ID、タイル位置。座標とサイズはコンポジタの
+on-screen、スクロールカラム ID、タイル位置、`focus_seq`、
+foreign-toplevel 識別子。19 フィールドの旧コンシューマは末尾を無視できます。
+座標とサイズはコンポジタの
 論理座標です。Scrolling のワークスペースはさらに `VIEW`（offset、
 content 幅、viewport 幅、カラム数、フォーカス位置）と、カラムごとの `COL`
 （index、x、幅、focused、maximized、tabbed、窓数）を出力します。
@@ -830,11 +834,14 @@ output を省略したキーボード操作ではフォーカス中の出力が�
 `CMD layout` は巡回、`CMD layout <name>` はフォーカス中の出力へ設定、末尾に
 output を付けると別モニタを対象にします。
 `CMD launcher [query]` はフォーカス中の出力を含む構造化ランチャーイベントを
-発行し、一致するパネルだけがランチャーを開きます。`CMD panel
-calendar|power|clipboard|screenshot|media|tray|audio|extensions|module` も同様に、
-要求したポップオーバーと対象出力を持つ `panel` イベントを発行します。
+発行し、一致するパネルだけがランチャーを開きます。`CMD panel` も同様に、
+要求したポップオーバー/ビューと対象出力を持つ `panel` イベントを発行します。
+現在の値は `control`、`theme`、`wifi`、`bluetooth`、`notifications`、
+`scenes`、`scenes-prev`、`switcher`、`calendar`、`power`、`clipboard`、
+`screenshot`、`media`、`tray`、`audio`、`extensions` です。
 `module <widget-id>` はステータスエントリのファイルベースポップオーバーを
-開きます。状態のブロードキャストは Wayland イベントループの idle source で
+開きます。`CMD scene` は `save/apply/activate/delete/clear/reload/list` を
+実行し、`SCENE_LIST` がデッキ用サマリーを返します。状態のブロードキャストは Wayland イベントループの idle source で
 まとめられ、状態購読者にだけ届きます。イベントもイベント購読者にだけ送られます。
 
 ## 拡張プレーン
@@ -844,7 +851,8 @@ calendar|power|clipboard|screenshot|media|tray|audio|extensions|module` も同�
 `EVENT\t<topic>\tkey=value...` 形式のレコードを組み立て、購読クライアントへ
 配信し、一致する設定フックを `TESSA_*` 環境変数付きで起動します。トピックに
 はウィンドウ/ワークスペース/スペシャル WS/レイアウト/入力モード変更、
-出力追加/削除、ランチャー/パネル要求、アニメーションのライフサイクル
+出力追加/削除、ランチャー/パネル要求、Scene 変更（`scene-change`）、
+アニメーションのライフサイクル
 （開く/ワークスペーススライドの
 `animation-start`/`animation-done`、終了スナップショットの
 `close-animation-start`/`close-animation-done`）があります。監視付き拡張は
@@ -873,6 +881,12 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
 各バーにはそのモニタのアクティブワークスペースとウィンドウだけが表示
 されます。対象出力がない場合は最初の出力にフォールバックします。
 
+パネル専用設定は `config` の隣の `panel.conf`（または `TESSA_PANEL_CONFIG`。
+空でオーバーレイ無効）から、コンポジタ設定の後に読みます。コンポジタも
+Scene の色と壁紙のために同じファイルを読みます。バーのブランドボタンは
+`logo_text` と任意の `logo_icon` PNG（22 px 枠へ縮小）を描き、未設定なら
+組み込みの五弁マークへフォールバックします。
+
 ### サーフェス
 
 - **background**: layer background、全端アンカー、排他ゾーン -1、空の入力
@@ -896,8 +910,9 @@ layer-shell にその出力を渡します。状態行は対象出力でフィ�
   ランチャー、時計の下のカレンダー、`TESSA` マークの下の電源メニュー、
   中央のクリップボード履歴、スクリーンショットの選択サーフェス、
   メディア/トレイ/音量ポップオーバー、拡張一覧、classic の Wi-Fi/Bluetooth
-  ポップオーバー、または unified コントロールセンター（`home`、`wifi`、
-  `bluetooth`、`notifications`、`calendar`、`tray`、`power`）を描画します。
+  ポップオーバー、または unified コントロールセンター（`home`、`audio`、
+  `theme`、`wifi`、`bluetooth`、`notifications`、`calendar`、`tray`、`power`）
+  を描画します。
   暗い背景とパネルを同じサーフェスに描くため、パネルの外側をクリックすると
   閉じられます。ポップオーバーのヒット矩形はパネル原点を加えたローカル座標で、
   リスト型のビューではキーボードが `Up`/`Down`/`Enter` 操作に切り替わります。
@@ -1034,10 +1049,11 @@ PNG アイコンテーマのパスから読み込みます。アクティベー�
 
 `panel/audio.c` はワーカースレッドで `wpctl`（PipeWire）、`pactl`
 （PulseAudio）、`amixer`（ALSA）を検出するか、パネル設定のコマンドを使います。
-1 秒ごとにミキサーを取得してパーセントとミュート状態を解析し、コンパクトな
-状態レコードをパネルへ送ります。音量上げ/下げ/ミュートは GIO スレッドへ
-渡して非同期に実行し、その後再取得します。パネルはバー表示と
-`Super+Shift+A` のポップオーバーを描画します。
+出力と入力の音量/ミュートを 1 秒ごとに、sink/source 一覧を 3 秒ごとに取得し、
+状態レコードをパネルへ送ります。音量変更、ミュート、既定デバイス選択は GIO
+スレッドへ渡して非同期に実行し、その後再取得します。パネルはバー表示と
+`Super+Shift+A` のオーディオカードを描画します。デバイス選択は `wpctl` または
+`pactl` で既定 sink/source を切り替えます。
 
 ### システム制御プレーン
 
@@ -1132,10 +1148,12 @@ Cairo が角丸矩形、グラデーション、墨だまり、太陽、粒子�
 （`src/c_import.h`、`panel/c_import.h`、`src/ctl_c_import.h`）で宣言し、外部の
 `translate-c` パッケージがビルド時に `c_translated` モジュールを生成します。
 コンポジタのヘッダーは `WLR_USE_UNSTABLE` 付きの wlroots 0.20 を含み、
-`-Dscenefx=false` 以外では scenefx 0.5 も含みます。パネルは
-layer-shell 用の生成済みクライアントプロトコル C をコンパイルします（これは
-推移的に xdg-shell の `xdg_popup_interface` を必要とします）。`tessa-ctl` は
-libc とソケットヘッダーだけを必要とします。
+`-Dscenefx=false` 以外では scenefx 0.5 も含みます。パネルは layer-shell、
+xdg-shell、text-input、data-control、screencopy、`ext-foreign-toplevel-list`、
+`ext-image-capture-source`、`ext-image-copy-capture` の生成済みクライアント
+プロトコル C をコンパイルします（layer-shell は推移的に xdg-shell の
+`xdg_popup_interface` を必要とします）。`tessa-panel` はビルド時に省略できます
+（`-Dpanel=false`）。`tessa-ctl` は libc とソケットヘッダーだけを必要とします。
 
 `build.zig.zon` が translate-c パッケージを固定し、初回ビルド時に取得します。
 システムパッケージは translate-c モジュールと最終リンクの両方で pkg-config
@@ -1150,8 +1168,10 @@ libc とソケットヘッダーだけを必要とします。
   クリップボード履歴用
 - `wlr-screencopy-unstable-v1-client-protocol.h/.c` — パネルの
   スクリーンショット用
-- `ext-image-copy-capture-v1-protocol.h` — wlroots キャプチャヘッダー用
-- `ext-image-capture-source-v1-protocol.h` — wlroots キャプチャヘッダー用
+- `ext-foreign-toplevel-list-v1-protocol.h/.c` — スイッチャー/Scene の
+  トップレベル一覧用
+- `ext-image-copy-capture-v1-protocol.h/.c` — ライブウィンドウプレビュー用
+- `ext-image-capture-source-v1-protocol.h/.c` — プレビューキャプチャソース用
 - `cursor-shape-v1-protocol.h` — `wlr_cursor_shape_v1.h` が必要とする
 - `pointer-constraints-unstable-v1-protocol.h` —
   `wlr_pointer_constraints_v1.h` が必要とする

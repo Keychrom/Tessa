@@ -345,6 +345,7 @@ restarts were exercised by
 `tests/config-watch.sh`, `tests/json-ipc.sh`, `tests/modes.sh`,
 `tests/panel-theme.sh`, `tests/panel-fonts.sh`, `tests/bar-position.sh`,
 `tests/panel-popovers.sh`, `tests/control-center.sh`,
+`tests/logo-customization.sh`, `tests/panel-config.sh`,
 `tests/window-switcher.sh`, `tests/panel-compat.sh`, `tests/wifi.sh`,
 `tests/bluetooth.sh`, `tests/brightness.sh`, `tests/clipboard.sh`,
 `tests/screenshot.sh`,
@@ -354,8 +355,8 @@ restarts were exercised by
 `tests/foreign-toplevels.sh`, `tests/animations.sh`, `tests/motion.sh`,
 `tests/motion-overrides.sh`, `tests/effects.sh`, `tests/rule-visuals.sh`,
 `tests/window-shader.sh`, `tests/input.sh`, `tests/ime-keyboard.sh`,
-`tests/ext-workspace.sh`, `tests/external-shell.sh`,
-`tests/pointer-constraints.sh`, `tests/xim.sh`,
+`tests/ext-workspace.sh`, `tests/external-shell.sh`, `tests/shell-coexistence.sh`,
+`tests/launcher-styles.sh`, `tests/pointer-constraints.sh`, `tests/xim.sh`,
 `tests/fractional-scale.sh`, `tests/cursor-theme.sh`,
 `tests/linux-dmabuf.sh`, `tests/spawn-signals.sh`,
 `tests/xwayland-ready.sh`, `tests/kitty-startup.sh`,
@@ -366,7 +367,8 @@ restarts were exercised by
 `tests/profiles.sh`, `tests/json-rpc.sh`, `tests/interaction.sh`,
 `tests/popups.sh`, `tests/portal.sh`, `tests/special-workspaces.sh`,
 `tests/scratchpad.sh`, `tests/window-groups.sh`, `tests/workspace-names.sh`,
-`tests/wallpaper-image.sh`, `tests/terminal-fallback.sh`,
+`tests/wallpaper-image.sh`, `tests/gpu-background.sh`, `tests/gpu-fallback.sh`,
+`tests/gpu-procedural.sh`, `tests/terminal-fallback.sh`,
 `tests/shell-v2.sh`, `tests/effect-helper.sh`, `tests/performance.sh`,
 `tests/rendering.sh`, `tests/tearing.sh`,
 `tests/config-editor.sh`, `tests/panel-recovery.sh`, `tests/ipc-version.sh`,
@@ -960,7 +962,8 @@ event schema, hook environment, and status API.
 | `Super+Shift+grave` | move focused window to/from scratchpad |
 | `Super+Shift+G` | group/ungroup tiled windows on the workspace |
 | `Super+Escape` | lock the session (runs `swaylock`; install it first) |
-| `Super+Tab` / `Super+Shift+Tab` | cycle windows; cycle tabs while a group is focused |
+| `Super+Tab` / `Super+Page_Up` | cycle windows; cycle tabs while a group is focused |
+| `Super+Shift+Tab` | open the Scene deck |
 | `Alt+Tab` / `Alt+Shift+Tab` | MRU window switcher; hold Alt and release to commit |
 | `Super+Ctrl+H/L` | shrink/grow master ratio |
 | `Super+Alt+H/L` | shrink/grow a floating window horizontally |
@@ -1093,12 +1096,17 @@ diagnostics. Selected keys:
 | `launcher_entry` | extra launcher item (`Name \| command`) |
 | `output_config` | path for persisted output mode/position/scale/transform and layout overrides |
 | `bar_height` | panel bar height (32–96 logical pixels) |
-| `bar_top_margin` | panel distance from the top edge (0–64) |
-| `bar_side_margin` | panel left/right margin (0–128) |
+| `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
+| `bar_top_margin` | panel distance from the chosen edge (0–64) |
+| `bar_side_margin` | panel inset along the bar (0–128) |
+| `bar_layout` | bar module selection/order; context modules are opt-in |
+| `panel_style` | `classic` popovers or `unified` control center |
+| `control_features` | control-center feature set (`all`, `none`, or CSV) |
+| `window_switcher` | `snapshot` live previews, `icons`, or `off` |
 | `logo_text` | bar brand label (default `TESSA`); empty hides the text |
 | `logo_icon` | PNG drawn in place of the five-petal mark (absolute or `~/...`) |
-| `panel_bg` | panel bar background color |
-| `panel_fg` | panel bar primary text color |
+| `panel_bg` | base panel background; the bar uses `bar-bg` or `panel.background` |
+| `panel_fg` | base panel foreground; the bar uses `bar-fg` or `panel.foreground` |
 | `power_lock` | command for the power menu's Lock action |
 | `power_suspend` | command for Suspend (default `systemctl suspend`) |
 | `power_reboot` | command for Reboot (default `systemctl reboot`) |

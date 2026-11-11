@@ -56,9 +56,9 @@ Tessa を本格的なデスクトップ設定アプリにはせず、第一級�
 追加します。従来の popover が既定のままです。
 
 - [x] `panel_style = classic|unified`。unified は Controls ボタンと、ホーム、
-      Wi-Fi、Bluetooth、通知、カレンダー、トレイ、電源の各ビューを持つ統合
-      パネルを追加。classic は従来の popover を維持し、Wi-Fi/Bluetooth の
-      個別 popover を追加。
+      オーディオ、テーマ、Wi-Fi、Bluetooth、通知、カレンダー、トレイ、電源の
+      各ビューを持つ統合パネルを追加。classic は従来の popover を維持し、
+      Wi-Fi/Bluetooth の個別 popover を追加。
 - [x] `control_features` ビットマスクと `--list-modules` メタデータで機能を
       個別に無効化可能。最大 4 件の `control_action` クイックアクション。
 - [x] NetworkManager Wi-Fi: スキャン、電波強度、WPA2/WPA3-PSK とオープン、
@@ -70,6 +70,10 @@ Tessa を本格的なデスクトップ設定アプリにはせず、第一級�
       Controls バッジ。
 - [x] MPRIS の進行/シーク、gdk-pixbuf によるローカル `file://` アートワーク、
       絶対値の音量スライダー。
+- [x] OUTPUT/INPUT タブ、sink/source 選択、入力音量/ミュートを備えた
+      オーディオカード。
+- [x] THEME ページが `theme-colors.conf` を書き、パレット、アクセント、
+      ベーストーンを枠・サーフェス・壁紙へまとめて反映。
 - [x] バーを上/下/左/右に配置し、バーとコントロールセンターを縦向きにも対応。
 - [ ] 802.1X/EAP エンタープライズ Wi-Fi、VPN、キャプティブポータル検出。
 - [ ] polkit 認証エージェントと、セカンダリ出力からのペアリング。
@@ -345,6 +349,11 @@ Hyprland/Niri の主要なカスタマイズ面を、単一の検証済み Tessa
       serial 別モニタールール、VRR/Adaptive Sync、カーソルテーマ/サイズ。
       設定/JSON テストで検証済み。実機のタッチパッドと VRR の挙動は
       ハードウェア検証で確認する。
+- [x] ワークスペース Scene: レイアウト、アプリ一式、テーマ、壁紙を保存/
+      適用/有効化。`Super+Shift+Tab` のライブプレビュー付きデッキ、
+      非破壊適用、`TESSA_SCENE_DIR` 上書き。
+- [x] 設定分離: コンポジタ/共有設定を `config`、パネル専用を `panel.conf` に。
+      `TESSA_PANEL_CONFIG` と旧設定フォールバック付き。
 - [x] 壁紙画像ソース: PNG 背景、cover/contain/stretch、ライブリロード、
       生成グラデーション/アートへのフォールバック。
 - [x] シェル v2 の残り: 組み合わせ可能なバーモジュール/レイアウト、

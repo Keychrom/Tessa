@@ -42,9 +42,16 @@ tessa-ctl panel clipboard              # clipboard history
 tessa-ctl panel screenshot             # region/full screenshot UI
 tessa-ctl panel media                  # MPRIS controls
 tessa-ctl panel tray                   # StatusNotifier tray
-tessa-ctl panel audio                  # volume controls
+tessa-ctl panel audio                  # output/input audio card
+tessa-ctl panel control                # unified control center
+tessa-ctl panel theme                  # theme editor
+tessa-ctl panel scenes                 # open the Scene deck
 tessa-ctl panel centered               # Wofi-style launcher
 tessa-ctl panel start                  # Windows-style start menu
+tessa-ctl scene save coding             # save/apply/activate/list scenes
+tessa-ctl scene activate coding
+tessa-ctl rendering                    # renderer, scanout, tearing, effects
+tessa-ctl extensions                   # supervised extension state
 tessa-ctl shell                        # panel and external shell role ownership
 tessa-ctl notify-action 12 reply       # invoke a notification action
 tessa-ctl panel power HEADLESS-2        # target a specific output
@@ -161,7 +168,7 @@ MODE default
 OUT HEADLESS-1 3 1 grid
 FOCUSED 7
 STATUS	weather	Tokyo 18C		☀	80
-WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0
+WIN	7	3	1	0	0	foot	notes	HEADLESS-1	40	30	1100	700	0	1	0	0	1	0	0	3	foot
 SCENE	coding	master	2	2	1	0	1	2	0	0
 SCENE_STYLE	HEADLESS-1	coding	#7aa2f7	#070b14	#16233f	#060810	#0e1626	#e8eefc	#7aa2f7	#26324a	/home/user/Wallpapers/indigo.png	cover	0	-
 LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
@@ -171,12 +178,14 @@ LAYER	tessa-bar	HEADLESS-1	2	0.940	12	1
 `WIN` fields are tab-separated in this order: id,
 workspace, focused, floating, fullscreen, escaped app_id, escaped title, output,
 x, y, width, height, scratchpad, visible, group id, group-active, on-screen,
-scrolling column id, and 0-based tile index. Geometry is in logical compositor
-coordinates and is included for tooling that tracks windows. `SCENE` is
+scrolling column id, 0-based tile index, `focus_seq`, and the
+foreign-toplevel identifier. Geometry is in logical compositor coordinates and
+is included for tooling that tracks windows. `SCENE` is
 tab-separated: name, layout, saved app count, live matching window count,
 saved workspace (0 when unbound), active (`0`/`1`), and up to four preview
-window ids (0 when unused). `SCENE_STYLE` is emitted for every output when its
-active workspace has a scene: output, scene name (or `-`), accent, window
+window ids (0 when unused). `SCENE_STYLE` is emitted for every output; the
+scene name is `-` when the active workspace has no scene. Fields: output, scene
+name (or `-`), accent, window
 background, wallpaper top, wallpaper bottom, panel background, panel
 foreground, active border, inactive border, wallpaper image (or `-`), fit
 (`cover`/`contain`/`stretch` or `-`), art (`1`/`0` or `-`), and art opacity

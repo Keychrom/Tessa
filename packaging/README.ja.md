@@ -4,6 +4,15 @@
 
 Tessa は Zig 0.17 を必要とし、wlroots 0.20 ABI にリンクします。既定ビルドは scenefx 0.5 も使用します。ディストリビューション向けパッケージではこれらを固定する必要があります。ソースビルドは `build.zig` で `wlroots-0.20` を明示的に参照します。
 
+## Tessa Linux ISO
+
+Arch ベースのライブ/インストーラーイメージ（Calamares、日本語入力、同梱
+rootfs）は別リポジトリの
+[TessaISO](https://github.com/Keychrom/TessaISO) でビルドします。Tessa は
+`tessa-iso` パッケージとして入り、`tessa` を提供・競合します。詳細は
+[Tessa Linux ISO ページ](https://keychrom.github.io/ja/docs/install-iso/) を
+参照してください。
+
 ## NixOS
 
 リポジトリはパッケージと NixOS モジュールを含む flake です。`nix build` は nixpkgs の Zig 0.17、wlroots 0.20、scenefx 0.5 を使います。VM のソフトウェア描画（pixman）向けに、scenefx なしの `tessa-plain` も用意しています。
@@ -64,9 +73,15 @@ output_name=HDMI-A-1
 
 ```sh
 sudo apt install debhelper dpkg-dev fakeroot
+sudo apt build-dep .    # deb-src が必要。debian/control の開発パッケージを導入
 ZIG="$HOME/.local/zig-0.17.0/zig" ./scripts/build-deb.sh
 sudo apt install ./dist/tessa_<version>_<arch>.deb
 ```
+
+`apt build-dep` が使えない場合は `debian/control` の `Build-Depends` を手動で
+導入してください（Wayland/wlroots、xkbcommon、pixman、libdrm、libinput、
+libseat、EGL/GLES、Cairo、Pango、GLib/GdkPixbuf、fontconfig）。
+`build-deb.sh` は `-d` を渡すため、不足は `zig build` まで検出されません。
 
 > **0.2.4 が最後の `.deb` リリースになる予定です。** これは Zig 0.16 と wlroots 0.19 を対象にした最後のパッケージです。現在のソースツリー（`0.2.5`）は Zig 0.17、wlroots 0.20、scenefx 0.5 を対象としており、Debian の定義は下流のパッケージング用に残していますが、新しいバイナリリリースは予定していません。
 

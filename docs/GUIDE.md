@@ -555,6 +555,8 @@ otherwise falls back to an arbitrary output.
 | Variable | Meaning |
 | --- | --- |
 | `TESSA_CONFIG` | Config path; defaults to `$XDG_CONFIG_HOME/tessa/config` or `~/.config/tessa/config` |
+| `TESSA_PANEL_CONFIG` | Panel file loaded after `config`; defaults to `panel.conf` next to `config`. Empty disables the overlay |
+| `TESSA_SCENE_DIR` | Scene directory; defaults to `<config-dir>/scenes` |
 | `TESSA_IPC` | IPC socket path; defaults to `$XDG_RUNTIME_DIR/tessa.sock` |
 | `TESSA_OUTPUT_CONFIG` | Output/layout state file; defaults to `$XDG_CONFIG_HOME/tessa/outputs.conf` |
 | `TESSA_DEBUG` | Verbose Tessa/wlroots logging |
@@ -565,6 +567,8 @@ otherwise falls back to an arbitrary output.
 | `TESSA_PANEL_OUTPUT` | Output name for a manually started panel |
 | `TESSA_NO_XWAYLAND` | Disable XWayland start |
 | `TESSA_ALLOW_LINUX_DMABUF` | Re-enable linux-dmabuf on a vmwgfx session where it is auto-disabled |
+| `TESSA_GPU_DISABLE` | `1` forces the Cairo panel/wallpaper path |
+| `TESSA_SHADER_DISABLE` | `1` disables per-window shader effects |
 | `TESSA_XWAYLAND_BIN` | Path to `xwayland-satellite` |
 | `TESSA_SOCKET_NAME` | Explicit Wayland socket name |
 | `TESSA_STARTUP` | Extra startup command (prefer the `startup` config key) |
@@ -752,7 +756,7 @@ still work in `config` for compatibility.
 | `logo_icon` | empty | PNG drawn in place of the five-petal mark (absolute or `~/...`); invalid files fall back to the mark |
 | `panel_bg` | `#0e131d` | Base panel background used by `panel.background` and per-surface defaults |
 | `panel_fg` | `#edf2fa` | Base panel foreground used by `panel.foreground` and per-surface defaults |
-| `bar_layout` | all modules | Comma/space-separated module list; selects and orders the right cluster |
+| `bar_layout` | logo, workspaces, chips, clock, battery, network, volume, stats, media, tray, status | Comma/space-separated module list; selects and orders the right cluster. `layout`, `groups`, `mode`, and `effects` are opt-in context modules |
 | `bar-font`, `launcher-font`, `popover-font`, `toast-font` | `font` | Per-surface fonts |
 | `bar-fg`, `launcher-fg`, `popover-fg`, `toast-fg` | `panel_fg` | Per-surface foreground colors |
 | `bar-bg`, `launcher-bg`, `popover-bg`, `toast-bg` | `panel_bg` | Per-surface background colors |
@@ -1185,7 +1189,7 @@ apply on the next content commit. `TESSA_SHADER_DISABLE=1` and a
 `-Dshaders=false` build disable them without changing the config. Close
 animations use the unfiltered snapshot, and effects need an importable DMA-BUF
 or shared-memory buffer; unsupported formats fall back to normal content for
-that window. See [Rendering](rendering.md) for the pipeline and limits.
+that window. See [Rendering](RENDERING.md) for the pipeline and limits.
 
 ### 8.5 `layer-rule`
 
@@ -1331,7 +1335,7 @@ toward workspace occupancy.
 #### Window groups
 
 `Super+Shift+G` groups the tiled windows on the active workspace into one
-tabbed tile and shows the focused member. `Super+Tab` and `Super+Shift+Tab`
+tabbed tile and shows the focused member. `Super+Tab` and `Super+Page_Up`
 cycle the group's tabs while a group member is focused; the bar lists only the
 visible member. Pressing `Super+Shift+G` again on a grouped window ungroups the
 whole group.
@@ -1593,8 +1597,10 @@ bar_bg = #0e1320
 right to left (the first listed module is closest to the right edge). Recognized
 names are `logo` (`mark`), `workspaces` (`workspace`), `chips`
 (`title`/`windows`), `clock` (`date`), `battery`, `network`, `volume` (`audio`),
-`stats` (`cpu`/`memory`), `media`, `tray`, and `status`; unknown names are
-ignored. Logo, workspace pills, and window chips stay anchored.
+`stats` (`cpu`/`memory`), `media`, `tray`, `status`, `layout`, `groups`, `mode`,
+and `effects`; unknown names are ignored. The last four expose compositor
+context and are not in the default layout. Logo, workspace pills, and window
+chips stay anchored.
 `bar-font`, `launcher-font`, `popover-font`, and `toast-font` fall back to
 `font`. The `*-fg` and `*-bg` keys override foreground/background per surface.
 `panel_bg`/`panel_fg` themselves are the base for the `panel.background` and
@@ -2040,9 +2046,9 @@ tessa-ctl scene clear              # drop scene tuning on the active workspace
 tessa-ctl scene reload             # rescan files edited outside Tessa
 ```
 
-`Super+Shift+Tab` opens the Scene deck. `Tab` / `Shift+Tab`, the arrows, and
-the wheel move the selection; `Enter`, a click, or `Space` applies the scene;
-`Esc` closes it. Cards show the scene name, workspace, layout, app/live window
+`Super+Shift+Tab` opens the Scene deck. `Tab` / `Shift+Tab` and the arrow keys
+move the selection; `Enter`, a click, or `Space` applies the scene; `Esc` closes
+it. Cards show the scene name, workspace, layout, app/live window
 counts, and up to four live window previews.
 
 Scene files live in `~/.config/tessa/scenes/<name>.scene` (next to the main
@@ -2143,8 +2149,8 @@ output pinning.
 
 The panel is supervised by the compositor. Tessa watches the panel process with
 a Linux pidfd and restarts it with bounded exponential backoff after a crash
-(1 s, doubling to 8 s; after a stable ≥10 s run the failure counter resets and
-the first retry can use 500 ms). The notification-owner panel keeps that role across
+(500 ms, 1 s, 2 s, 4 s, then 8 s; after a stable ≥10 s run the failure counter
+resets, so the next crash starts at 500 ms again). The notification-owner panel keeps that role across
 restarts. Deliberate shutdown and output removal do not restart it. This is
 covered by `tests/panel-recovery.sh`.
 
@@ -2232,7 +2238,9 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel <control|theme|wifi|bluetooth|notifications|scenes|scenes-prev|switcher|calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel module <widget-id>
+CMD scene <save|apply|activate|delete|clear|reload|list> ...
 CMD layout [name] [output]
 CMD column-focus <left|right|first|last>
 CMD column-move <left|right|first|last>
@@ -2705,8 +2713,8 @@ sudo apt install adwaita-icon-theme
 The `tessa` package depends on `xcursor-themes`. Some legacy themes only provide
 `left_ptr`; Tessa 0.2.3 checks `default`, `left_ptr`, and `arrow` and logs which
 name it selected. If a configured `cursor_theme` cannot be loaded, Tessa logs a
-warning and falls back to the system cursor; check
-`~/.local/state/tessa/tessa.log` or the compositor output.
+warning and falls back to the system cursor; check the compositor output or
+your display-manager journal (Tessa does not create a log file by default).
 
 On a virtual machine, a broken DRM cursor plane can hide a correctly loaded
 cursor. Tessa 0.2.3 detects vmwgfx, vboxvideo, bochs, qxl, cirrus, and
@@ -2858,7 +2866,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
 - **Physical DRM/libinput is exercised on Arch Linux, with device-specific
   gaps.** A real Arch Linux session (including display-manager startup), DRM
   output, keyboard, mouse, IME, and XWayland clients have been validated on
-  0.2.4. The 0.2.5 headless suite (78 test scripts) passes on Arch Linux with Zig 0.17,
+  0.2.4. The 0.2.5 headless suite (97 test scripts) passes on Arch Linux with Zig 0.17,
   wlroots 0.20, and scenefx 0.5 in both plain and scenefx builds, including
   portal ScreenCast, tray, notifications, and pointer interaction. A real
   DRM/libinput session on the new toolchain is still pending. Per-device

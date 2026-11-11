@@ -14,7 +14,9 @@ nested compositor, so the figures include Tessa's integrated panel, effects,
 and the live desktop configuration.
 
 No single score is produced. Compare individual axes and treat differences
-smaller than the reported run-to-run range as noise.
+smaller than the reported run-to-run range as noise. These figures predate the
+Scenes, control-center theme editor, audio input/device selection, and split
+`panel.conf` work; re-run the benchmark before quoting current performance.
 
 ## Environment
 

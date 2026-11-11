@@ -360,6 +360,7 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/config-watch.sh`、`tests/json-ipc.sh`、`tests/modes.sh`、
 `tests/panel-theme.sh`、`tests/panel-fonts.sh`、`tests/bar-position.sh`、
 `tests/panel-popovers.sh`、`tests/control-center.sh`、
+`tests/logo-customization.sh`、`tests/panel-config.sh`、
 `tests/window-switcher.sh`、`tests/panel-compat.sh`、`tests/wifi.sh`、
 `tests/bluetooth.sh`、`tests/brightness.sh`、`tests/clipboard.sh`、
 `tests/screenshot.sh`、
@@ -369,7 +370,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/motion.sh`、`tests/motion-overrides.sh`、`tests/effects.sh`、
 `tests/rule-visuals.sh`、`tests/window-shader.sh`、
 `tests/input.sh`、`tests/ime-keyboard.sh`、`tests/ext-workspace.sh`、
-`tests/external-shell.sh`、`tests/pointer-constraints.sh`、
+`tests/external-shell.sh`、`tests/shell-coexistence.sh`、`tests/launcher-styles.sh`、
+`tests/pointer-constraints.sh`、
 `tests/xim.sh`、`tests/fractional-scale.sh`、`tests/cursor-theme.sh`、
 `tests/linux-dmabuf.sh`、`tests/spawn-signals.sh`、`tests/xwayland-ready.sh`、
 `tests/kitty-startup.sh`、
@@ -380,7 +382,8 @@ headless 環境で、出力ごとのワークスペース/パネル、両出力�
 `tests/profiles.sh`、`tests/json-rpc.sh`、`tests/interaction.sh`、
 `tests/popups.sh`、`tests/portal.sh`、`tests/special-workspaces.sh`、
 `tests/scratchpad.sh`、`tests/window-groups.sh`、`tests/workspace-names.sh`、
-`tests/wallpaper-image.sh`、`tests/terminal-fallback.sh`、
+`tests/wallpaper-image.sh`、`tests/gpu-background.sh`、`tests/gpu-fallback.sh`、
+`tests/gpu-procedural.sh`、`tests/terminal-fallback.sh`、
 `tests/shell-v2.sh`、`tests/effect-helper.sh`、`tests/performance.sh`、
 `tests/rendering.sh`、`tests/tearing.sh`、
 `tests/config-editor.sh`、`tests/panel-recovery.sh`、`tests/ipc-version.sh`、
@@ -985,7 +988,8 @@ include = /home/you/.config/tessa/launcher-entries.conf
 | `Super+Shift+grave` | フォーカス中ウィンドウをスクラッチパッドへ移動／復帰 |
 | `Super+Shift+G` | ワークスペースのタイルウィンドウをグループ化／解除 |
 | `Super+Escape` | セッションをロック（`swaylock` を実行。要インストール） |
-| `Super+Tab` / `Super+Shift+Tab` | ウィンドウを巡回。グループのフォーカス中はタブを巡回 |
+| `Super+Tab` / `Super+Page_Up` | ウィンドウを巡回。グループのフォーカス中はタブを巡回 |
+| `Super+Shift+Tab` | Scene デッキを開く |
 | `Alt+Tab` / `Alt+Shift+Tab` | MRU 順のウィンドウスイッチャー。Alt を押したまま選択し、解放で確定 |
 | `Super+Ctrl+H/L` | マスター領域の比率を縮小/拡大 |
 | `Super+Alt+H/L` | フローティングウィンドウの幅を縮小/拡大 |
@@ -1122,12 +1126,17 @@ cp config/panel.example ~/.config/tessa/panel.conf
 | `launcher_entry` | ランチャー項目を追加（`名前 \| コマンド`） |
 | `output_config` | 出力モード/位置/スケール/変換とレイアウト上書きの保存先 |
 | `bar_height` | バーの高さ（32〜96 論理ピクセル） |
-| `bar_top_margin` | バーの上端からの距離（0〜64） |
-| `bar_side_margin` | バーの左右マージン（0〜128） |
+| `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
+| `bar_top_margin` | 選んだ端からの距離（0〜64） |
+| `bar_side_margin` | バーに沿った余白（0〜128） |
+| `bar_layout` | バーモジュールの選択と順序。コンテキスト系は明示指定 |
+| `panel_style` | `classic` の個別ポップオーバー、または `unified` コントロールセンター |
+| `control_features` | コントロールセンターの機能（`all`、`none`、CSV） |
+| `window_switcher` | `snapshot` ライブプレビュー、`icons`、`off` |
 | `logo_text` | バーのブランド文字列（既定 `TESSA`）。空なら文字を非表示 |
 | `logo_icon` | 五弁マークの代わりに描く PNG（絶対または `~/...`） |
-| `panel_bg` | バーの背景色 |
-| `panel_fg` | バーの主要テキスト色 |
+| `panel_bg` | パネル基底の背景色。バーは `bar-bg` または `panel.background` |
+| `panel_fg` | パネル基底の前景色。バーは `bar-fg` または `panel.foreground` |
 | `power_lock` | 電源メニューのロックで実行するコマンド |
 | `power_suspend` | サスペンドのコマンド（既定 `systemctl suspend`） |
 | `power_reboot` | 再起動のコマンド（既定 `systemctl reboot`） |

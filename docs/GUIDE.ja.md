@@ -229,7 +229,7 @@ plain wlroots シーンでビルドする場合はソースビルドに
 `-Dscenefx=false` を渡します。0.2.4 の Arch パッケージは
 0.16/0.19 の AUR ツールチェーンで実機確認しています。0.2.5 の PKGBUILD は
 公式の `zig` と `wlroots0.20` で Arch Linux 実機にビルド・インストールし、
-headless スイート全 78 テストスクリプトが plain／scenefx の両構成で成功しています。
+headless スイート全 97 テストスクリプトが plain／scenefx の両構成で成功しています。
 `makepkg` が ABI や依存関係のエラーを出した場合は、`zig version` が 0.17.x、
 `pkg-config --modversion wlroots-0.20` が 0.20.x を返すことを確認して
 ください。
@@ -569,6 +569,8 @@ Chromium 系ブラウザ、OBS では共有できる画面が 1 つも表示さ�
 | 変数 | 意味 |
 | --- | --- |
 | `TESSA_CONFIG` | 設定ファイルのパス。既定は `$XDG_CONFIG_HOME/tessa/config` または `~/.config/tessa/config` |
+| `TESSA_PANEL_CONFIG` | `config` の後に読むパネル設定。既定は隣の `panel.conf`。空にするとオーバーレイ無効 |
+| `TESSA_SCENE_DIR` | Scene の保存先。既定は `<設定ディレクトリ>/scenes` |
 | `TESSA_IPC` | IPC ソケットのパス。既定は `$XDG_RUNTIME_DIR/tessa.sock` |
 | `TESSA_OUTPUT_CONFIG` | 出力設定／レイアウト上書きの保存先。既定は `$XDG_CONFIG_HOME/tessa/outputs.conf` |
 | `TESSA_DEBUG` | Tessa と wlroots のデバッグログを有効化 |
@@ -579,6 +581,8 @@ Chromium 系ブラウザ、OBS では共有できる画面が 1 つも表示さ�
 | `TESSA_PANEL_OUTPUT` | 手動起動したパネルが担当する出力名 |
 | `TESSA_NO_XWAYLAND` | XWayland 起動を無効化 |
 | `TESSA_ALLOW_LINUX_DMABUF` | vmwgfx で自動無効になる linux-dmabuf を強制的に有効化 |
+| `TESSA_GPU_DISABLE` | `1` でパネル/壁紙を Cairo 経路に固定 |
+| `TESSA_SHADER_DISABLE` | `1` でウィンドウ単位のシェーダーエフェクトを無効化 |
 | `TESSA_XWAYLAND_BIN` | `xwayland-satellite` のパス |
 | `TESSA_SOCKET_NAME` | Wayland ソケット名を明示（通常は自動） |
 | `TESSA_STARTUP` | 起動時に実行するコマンド（設定の `startup` 推奨） |
@@ -764,7 +768,7 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `panel_bg` | `#0e131d` | `panel.background` と各サーフェス既定値の基底背景色 |
 | `panel_fg` | `#edf2fa` | `panel.foreground` と各サーフェス既定値の基底前景色 |
 | `panel_modules` | 全部 | 有効にするパネル要素: `background`、`bar`、`launcher`、`popovers`、`notifications`、`toasts`、`tray`、`media`、`audio`。`all`/`none` も可 |
-| `bar_layout` | 全モジュール | カンマ／空白区切りのモジュール一覧。右側クラスタの表示と順序を決定 |
+| `bar_layout` | logo, workspaces, chips, clock, battery, network, volume, stats, media, tray, status | カンマ／空白区切りのモジュール一覧。右側クラスタの表示と順序を決定。`layout`、`groups`、`mode`、`effects` は明示指定するコンテキストモジュール |
 | `bar-font`、`launcher-font`、`popover-font`、`toast-font` | `font` | サーフェス別フォント |
 | `bar-fg`、`launcher-fg`、`popover-fg`、`toast-fg` | `panel_fg` | サーフェス別前景色 |
 | `bar-bg`、`launcher-bg`、`popover-bg`、`toast-bg` | `panel_bg` | サーフェス別背景色 |
@@ -1200,7 +1204,7 @@ app-id が変わった時点でも即座に再評価されます。モーショ�
 無効化できます。閉じるアニメーションはフィルタなしのスナップショットを
 使い、DMA-BUF または共有メモリをインポートできる必要があります。
 未対応フォーマットではそのウィンドウだけ通常表示にフォールバックします。
-詳細と制限は [描画・ゲーム機能](rendering.md) を参照してください。
+詳細と制限は [描画・ゲーム機能](RENDERING.ja.md) を参照してください。
 
 ### 8.5 `layer-rule`
 
@@ -1349,7 +1353,7 @@ bind = SUPER+ALT+SHIFT+n move-to-special notes
 
 `Super+Shift+G` はアクティブワークスペースのタイルウィンドウを 1 つの
 タブ付きタイルにまとめ、フォーカス中のメンバーを表示します。グループの
-フォーカス中は `Super+Tab` / `Super+Shift+Tab` がタブの巡回になります。
+フォーカス中は `Super+Tab` / `Super+Page_Up` がタブの巡回になります。
 バーには表示中のメンバーだけが出ます。グループ化されたウィンドウで再度
 `Super+Shift+G` を押すとグループ全体を解除します。
 
@@ -1609,8 +1613,10 @@ bar_bg = #0e1320
 `bar_layout` は表示するモジュールと右側クラスタの右→左順（先頭が右端）を指定します。
 `logo`（`mark`）、`workspaces`（`workspace`）、`chips`（`title`/`windows`）、
 `clock`（`date`）、`battery`、`network`、`volume`（`audio`）、
-`stats`（`cpu`/`memory`）、`media`、`tray`、`status` を認識し、未知の名前は
-無視します。ロゴ、ワークスペースピル、ウィンドウチップの位置は固定です。
+`stats`（`cpu`/`memory`）、`media`、`tray`、`status`、`layout`、`groups`、
+`mode`、`effects` を認識し、未知の名前は無視します。最後の4つはコンポジタの
+コンテキストを表示し、既定のレイアウトには含まれません。ロゴ、ワークスペース
+ピル、ウィンドウチップの位置は固定です。
 `bar-font`、`launcher-font`、`popover-font`、`toast-font` は `font` へ
 フォールバックします。`*-fg`／`*-bg` はサーフェス別の色を上書きします。
 `panel_bg`／`panel_fg` は `panel.background`／`panel.foreground` ロールと
@@ -2056,8 +2062,8 @@ tessa-ctl scene clear              # 現在の WS の Scene 調整を解除
 tessa-ctl scene reload             # 外部編集したファイルを再走査
 ```
 
-`Super+Shift+Tab` で Scene デッキを開きます。`Tab` / `Shift+Tab`、矢印、
-ホイールで選択し、`Enter`、クリック、`Space` で適用、`Esc` で閉じます。
+`Super+Shift+Tab` で Scene デッキを開きます。`Tab` / `Shift+Tab` と矢印キーで
+選択し、`Enter`、クリック、`Space` で適用、`Esc` で閉じます。
 カードには Scene 名、WS、レイアウト、アプリ数/ライブ数、最大4枚の
 ライブプレビューが表示されます。
 
@@ -2153,8 +2159,8 @@ Pango の範囲を超える HTML、通知音、通知ごとの出力固定は未
 - 最大 8 件のカスタムステータス
 
 パネルはコンポジタに監視されます。Tessa は Linux の pidfd でパネルプロセスを
-追跡し、クラッシュ時は上限付き指数バックオフ（1 秒から倍増、最大 8 秒。
-10 秒以上安定すると失敗回数がリセットされ、初回は 500 ms の場合もあります）で
+追跡し、クラッシュ時は上限付き指数バックオフ（500 ms、1 秒、2 秒、4 秒、
+8 秒。10 秒以上安定すると失敗回数がリセットされ、次回は 500 ms から）で
 再起動します。通知所有者のパネルは再起動後もその役割を維持します。意図的な
 終了や出力の取り外しでは再起動しません。`tests/panel-recovery.sh` で検証して
 います。
@@ -2314,7 +2320,9 @@ CMD focus <id>
 CMD close <id>
 CMD spawn <shell command>
 CMD launcher [query]
-CMD panel <calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel <control|theme|wifi|bluetooth|notifications|scenes|scenes-prev|switcher|calendar|power|clipboard|screenshot|media|tray|audio|extensions> [output]
+CMD panel module <widget-id>
+CMD scene <save|apply|activate|delete|clear|reload|list> ...
 CMD layout [name] [output]
 CMD column-focus <left|right|first|last>
 CMD column-move <left|right|first|last>
@@ -2727,8 +2735,8 @@ sudo apt install adwaita-icon-theme
 は `default` が無く `left_ptr` だけのものがありますが、Tessa 0.2.3 は
 `default`、`left_ptr`、`arrow` の順で利用可能な名前を選び、ログに出します。
 設定した `cursor_theme` を読み込めない場合は警告をログに出し、システムカーソル
-へフォールバックします。`~/.local/state/tessa/tessa.log` またはコンポジタの
-出力を確認してください。
+へフォールバックします。コンポジタの出力またはディスプレイマネージャーの
+ジャーナルを確認してください（Tessa は既定でログファイルを作りません）。
 
 仮想マシンでは DRM のハードウェアカーソルプレーンが透明になることがあります。
 Tessa 0.2.3 は vmwgfx、vboxvideo、bochs、qxl、cirrus、virtio_gpu を検出すると、
@@ -2883,7 +2891,7 @@ TESSA_CTL_DEBUG=1 tessa-ctl state
   未検証領域があります。** ディスプレイマネージャー経由を含む通常セッション、
   DRM 出力、キーボード、マウス、IME、XWayland クライアントを 0.2.4 で実際に
   確認しています。0.2.5 は Arch Linux 実機で Zig 0.17 / wlroots 0.20 /
-  scenefx 0.5 の headless スイート全 78 テストスクリプトが plain／scenefx の両構成で
+  scenefx 0.5 の headless スイート全 97 テストスクリプトが plain／scenefx の両構成で
   成功しており、ポータルの ScreenCast、トレイ、通知、ポインタ操作も含みます。
   新しいツールチェーンでの実 DRM/libinput セッション検証は未実施です。
   タッチパッドのデバイス別チューニング、VRR/Adaptive Sync のコミット、

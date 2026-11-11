@@ -36,7 +36,7 @@ Install the build dependencies:
 ```sh
 sudo pacman -Syu --needed base-devel git zig wlroots0.20 scenefx \
   wayland wayland-protocols libxkbcommon libinput pixman libdrm \
-  libegl mesa cairo pango glib2
+  libegl mesa cairo pango glib2 gdk-pixbuf2 noto-fonts-cjk
 ```
 
 Build and install the `tessa-git` package:
@@ -57,7 +57,8 @@ session utilities:
 
 ```sh
 sudo pacman -S --needed foot kitty wlr-randr grim swaylock swayidle wlopm \
-  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire
+  dbus xdg-desktop-portal xdg-desktop-portal-wlr pipewire \
+  fcitx5 fcitx5-mozc
 ```
 
 For X11 applications, install `xwayland-satellite-git` from the AUR:
@@ -72,7 +73,8 @@ With an AUR helper, the same set is:
 
 ```sh
 paru -S foot kitty wlr-randr grim swaylock swayidle wlopm dbus \
-  xdg-desktop-portal xdg-desktop-portal-wlr pipewire xwayland-satellite-git
+  xdg-desktop-portal xdg-desktop-portal-wlr pipewire fcitx5 fcitx5-mozc \
+  xwayland-satellite-git
 ```
 
 ### Ubuntu / Debian (recommended)
@@ -116,6 +118,11 @@ See the
 for a complete VM example, the `tessa-plain` package for pixman-only VMs, and
 module options.
 
+### Tessa Linux ISO
+
+For an Arch-based live/installer image with Calamares and Japanese input
+preconfigured, build the [Tessa Linux ISO](https://keychrom.github.io/docs/install-iso/).
+
 ### Other distributions
 
 See [Build from source](GUIDE.md#24-build-from-source-development). The default
@@ -150,6 +157,8 @@ Tessa starts one panel process per output automatically. Do not start
 | `Super+H/J/K/L` | Focus left/down/up/right |
 | `Super+Space` | Toggle floating |
 | `Super+F` | Toggle fullscreen |
+| `Alt+Tab` | MRU window switcher (all outputs/workspaces) |
+| `Super+Shift+Tab` | Open the Scene deck |
 | `Super+R` | Reload the config |
 | `Super+Shift+E` | Quit Tessa |
 
@@ -163,19 +172,25 @@ Tessa works without a config file. To start from the example:
 
 ```sh
 mkdir -p ~/.config/tessa
+# Arch package or .deb
 cp /usr/share/tessa/config.example ~/.config/tessa/config
 cp /usr/share/tessa/panel.example ~/.config/tessa/panel.conf
+# Ubuntu/Debian ./install.sh (default PREFIX=/opt/tessa)
+# cp /opt/tessa/share/tessa/config.example ~/.config/tessa/config
+# cp /opt/tessa/share/tessa/panel.example ~/.config/tessa/panel.conf
 ```
 
 For a source checkout, use `config/config.example` and `config/panel.example`.
 `config` holds compositor behavior and shared theme tokens; `panel.conf` holds
-bar, launcher, popover, wallpaper, and control-center settings. Panel keys left
+the bar, launcher, popovers, wallpaper, panel fonts/colors, the brand logo
+(`logo_text`/`logo_icon`), control center, and panel commands. Panel keys left
 in `config` still work for compatibility.
 
 Edit either file, then press `Super+R`. Check the result with:
 
 ```sh
 tessa-ctl config-check
+tessa-panel --check
 tessa --check-config ~/.config/tessa/config
 ```
 
@@ -188,8 +203,9 @@ layouts, effects, the panel, and the full key reference.
 - **X11 applications:** install `xwayland-satellite` in `PATH` (AUR
   `xwayland-satellite-git`), or set `TESSA_XWAYLAND_BIN` to its absolute path.
 - **Japanese input:** install `fcitx5` and `fcitx5-mozc`, then add
-  `startup = fcitx5 -d` to your config. For X11 clients, also set
-  `xim = true` and `xim_start = fcitx5 -d`.
+  `startup = fcitx5 -d` to your config. For X11 clients, set `xim = true` and
+  `xim_server = fcitx`; add `xim_start = fcitx5 -d` only when Fcitx is not
+  already started from `startup`.
 - **Screen sharing:** install `xdg-desktop-portal`, `xdg-desktop-portal-wlr`,
   and PipeWire. The packaged session installs the portal selector for you.
 
@@ -208,6 +224,13 @@ layouts, effects, the panel, and the full key reference.
   heaviest effect; see [Rendering and games](RENDERING.md).
 - **The config does not load:** run `tessa --check-config` and check the file
   name and path.
+- **Panel settings are ignored:** keep `panel.conf` next to `config` or set
+  `TESSA_PANEL_CONFIG`; run `tessa-panel --check` and `tessa-ctl config-check`.
+  A malformed `panel.conf` also fails compositor config validation.
+- **The Scene deck is empty:** run `tessa-ctl scene reload`; scenes live in
+  `~/.config/tessa/scenes` or `TESSA_SCENE_DIR`.
+- **No audio input devices:** device selection needs `wpctl` or `pactl`.
+  Custom `volume_*` commands override output control only.
 - **Still stuck:** see [Troubleshooting](GUIDE.md#15-troubleshooting) or open an
   issue on [GitHub](https://github.com/Keychrom/Tessa/issues).
 

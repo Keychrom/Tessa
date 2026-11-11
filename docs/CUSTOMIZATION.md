@@ -91,6 +91,9 @@ Action clauses:
 | `shadow=true/false` | per-window layered shadow |
 | `border-width=0..16` | per-window border thickness; `0` hides it |
 | `tint=#RRGGBBAA` / `tint=none` | composited tint overlay (blocks direct scanout while visible) |
+| `shader=mono\|crt\|vignette\|pixelate\|wave\|none` | offscreen window effect |
+| `shader-strength=0.0..1.0` | effect strength (default `1.0`) |
+| `shader-param=N` | pixelate block size in pixels (default `8`) |
 | `tearing=true/false` | per-window tearing preference |
 | `scratchpad=true/false` | place the window on the scratchpad |
 | `special=NAME` / `workspace=special:NAME` | place the window on a special workspace |
@@ -103,7 +106,8 @@ Invalid expressions or regular expressions are config errors with file/line
 diagnostics. Border overrides, opacity, rounding, border width, and shadow state
 are also used by close snapshots. `corner-radius` and `blur` require a scenefx
 build (the default; disabled with `-Dscenefx=false`); the other effects work
-everywhere.
+everywhere. Offscreen shaders are disabled by `TESSA_SHADER_DISABLE=1` or a
+`-Dshaders=false` build.
 
 Rules are evaluated in file order; a later matching rule can override an earlier
 one. Structural actions (`float`, `workspace`, `size`, `position`,
@@ -295,7 +299,7 @@ bind = SUPER+ALT+SHIFT+g group-remove
 
 `toggle-group` groups all tiled windows on the active workspace, or ungroups the
 whole group when a member is focused. While grouped, only the active member is
-visible and `Super+Tab` / `Super+Shift+Tab` cycle tabs instead of moving to
+visible and `Super+Tab` / `Super+Page_Up` cycle tabs instead of moving to
 another tile. `group-add` joins the focused window to a group on the same
 workspace; `group-remove` detaches it. Groups are runtime state, are not
 persisted, and are dropped when a member moves to another workspace or the
@@ -321,6 +325,11 @@ tessa-ctl scene delete coding
 tessa-ctl scene clear
 tessa-ctl scene reload
 ```
+
+`Super+Shift+Tab` opens the Scene deck. `Tab` / `Shift+Tab` and the arrow keys
+move the selection; `Enter`, `Space`, or a click applies the Scene; `Esc`
+closes it. The `scene-switcher` binding action and `tessa-ctl panel scenes`
+open the deck from scripts.
 
 Scene files are line-oriented. The header contains the layout and effective
 tuning; each `[app]` block stores the window identity, command line, and floating
@@ -688,13 +697,27 @@ in `panel.conf`; they still work in `config` for compatibility.
 | `bar_side_margin` | inset along the bar; left/right for top/bottom, top/bottom for left/right (0–128) |
 | `logo_text` | brand label on horizontal bars (default `TESSA`); empty shows the mark alone |
 | `logo_icon` | PNG drawn in place of the five-petal mark (absolute or `~/...`); invalid files fall back |
-| `panel_bg` | bar background color |
-| `panel_fg` | bar primary text color |
+| `panel_bg` | base panel background; the bar uses `bar-bg` or the `panel.background` role |
+| `panel_fg` | base panel foreground; the bar uses `bar-fg` or the `panel.foreground` role |
 | `bg_top` | top color of the wallpaper gradient; unset derives it from `bg` |
 | `bg_bottom` | bottom color of the wallpaper gradient; unset derives it from `bg` |
 | `wallpaper_art` | draw the decorative wallpaper art (default `true`) |
 | `wallpaper_image` | PNG wallpaper path (absolute or `~/...`); replaces gradient/art |
 | `wallpaper_fit` | `cover` (default), `contain`, or `stretch` |
+| `wallpaper_art_opacity` | wallpaper art opacity, 0.0–1.0 (default `0.55`) |
+| `wallpaper_shader` | command that prints a PPM (P6, maxval 255) wallpaper frame; wins over the image |
+| `panel_renderer` | background renderer: `cairo` or `gpu` (EGL/GLES2; falls back to Cairo) |
+| `overlay_renderer` | launcher/popover presentation: `cairo` or `gpu` |
+| `wallpaper_engine` | with `panel_renderer = gpu`: `cairo` or `procedural` |
+| `wallpaper_animation` | GPU wallpaper motion: `off`, `on`, or `auto` |
+| `wallpaper_fps` | GPU wallpaper frame cap (default `30`) |
+| `wallpaper_idle_pause` | seconds before `auto` animation pauses (default `120`) |
+| `bar_layout` | visible/right-cluster module order (see the Guide for recognized names) |
+| `bar_priority`, `bar_overflow` | overflow priority map and `+N` planner toggle |
+| `launcher_entry`, `launcher_style` | extra launcher items and centered/start layout |
+| `bar-font`, `launcher-font`, `popover-font`, `toast-font` | per-surface font overrides |
+| `bar-fg`/`bar-bg`, `launcher-fg`/`launcher-bg`, `popover-fg`/`popover-bg`, `toast-fg`/`toast-bg` | per-surface colors |
+| `panel_modules` (in `config`) | panel parts started by the compositor (`background,bar,launcher,popovers,notifications,toasts,tray,media,audio`) |
 | `animations` | animate window open, close, and workspace transitions (default `true`) |
 | `animation_ms` | default motion duration in milliseconds, 0–1000 (default 160) |
 | `animation_open_ms`, `animation_workspace_ms`, `animation_close_ms` | per-kind duration; `-1` inherits (default `-1`) |
@@ -721,7 +744,8 @@ commands when the compositor emits `config-reload`. A geometry change recreates
 the bar layer surface, so the reserved area follows immediately. `bg_top`,
 `bg_bottom`, `wallpaper_art`, and `wallpaper_image` repaint the panel background
 without a restart. `logo_text` and `logo_icon` also apply on reload: the icon is
-scaled into the 28 px mark box with its aspect ratio preserved, an empty label
+scaled into a 22 px icon box inside the 28 px button with its aspect ratio
+preserved, an empty label
 leaves only the icon/mark, and a missing or invalid PNG falls back to the
 five-petal mark. Vertical bars show the icon or mark only. Theme packages are
 loaded through `theme`; see below.
@@ -977,11 +1001,14 @@ and the rest of the panel keeps running.
 ## Volume
 
 When `wpctl`, `pactl`, or `amixer` is available, the panel shows the default
-output volume in the bar. Click it or press `Super+Shift+A` to open a compact
-volume bar just below the volume indicator without dimming the desktop.
-`Up`/`Down` changes the volume, `m` toggles mute, and `Esc` closes.
-`tessa-ctl panel audio` opens the same bar, and `audio` is a key-binding
-action:
+output volume in the bar. Click it or press `Super+Shift+A` to open the audio
+card without dimming the desktop. It has `OUTPUT` and `INPUT` tabs; each shows
+the active volume, mute, and the sink/source list. Click a device to make it the
+default output or input. Input volume and mute use `@DEFAULT_AUDIO_SOURCE@`
+(`Capture` with `amixer`). `Tab` switches tabs, `Up`/`Down` changes the active
+volume, `m` toggles mute, `d` cycles the default device, and `Esc` closes.
+`tessa-ctl panel audio` opens the same audio card; the unified control center's
+SOUND card opens the same controls as a page. `audio` is a key-binding action:
 
 ```ini
 bind = SUPER+SHIFT+a audio
@@ -995,9 +1022,10 @@ The default commands are:
   for PulseAudio
 - `amixer get Master` and `amixer sset Master ...` for ALSA
 
-Override any part with panel settings. A custom status command should print a
-percentage and may contain `MUTED`/`[off]`; custom commands run through
-`/bin/sh -c`:
+Device selection needs `wpctl` or `pactl`; the custom `volume_*` commands
+override output control only. Override any part with panel settings. A custom
+status command should print a percentage and may contain `MUTED`/`[off]`;
+custom commands run through `/bin/sh -c`:
 
 ```ini
 volume_status = ~/.local/bin/my-volume-status

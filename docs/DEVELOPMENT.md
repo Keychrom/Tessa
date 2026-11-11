@@ -19,6 +19,7 @@ screenshot loop is the fastest way to iterate on the shell.
 | Source on host | `~/tessa` |
 | Zig | system `zig` 0.17.x (official Arch package) |
 | wlroots | official `wlroots0.20` package (`pkg-config --modversion wlroots-0.20`) |
+| scenefx | official `scenefx` package (`pkg-config --modversion scenefx-0.5`) |
 | Display | headless `HEADLESS-1` at 1920×1080 when using the headless script |
 
 Do not commit private keys or saved passwords.
@@ -85,7 +86,9 @@ cd ~/tessa
 ```
 
 This sets `XDG_RUNTIME_DIR=/tmp/tessa-headless`, uses the pixman renderer, and
-starts the panel from `zig-out/bin`.
+starts the panel from `zig-out/bin`. `run-headless.sh` and the pixman headless
+tests require a `-Dscenefx=false` build; the default scenefx build needs GLES2,
+so use `WLR_RENDERER=gles2` or rebuild plain for headless work.
 
 Terminal 2:
 

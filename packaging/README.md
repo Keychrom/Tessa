@@ -4,6 +4,14 @@ Tessa requires Zig 0.17 and links the wlroots 0.20 ABI. The default build also
 uses scenefx 0.5. Distribution packages must pin these; the source build refers
 to `wlroots-0.20` explicitly in `build.zig`.
 
+## Tessa Linux ISO
+
+The Arch-based live/installer image (Calamares, Japanese input, offline rootfs)
+is built from the separate
+[TessaISO](https://github.com/Keychrom/TessaISO) repository. It packages Tessa
+as `tessa-iso`, which provides and conflicts with `tessa`; see the
+[Tessa Linux ISO page](https://keychrom.github.io/docs/install-iso/).
+
 ## NixOS
 
 The repository is a flake with a package and a NixOS module. `nix build` uses
@@ -80,9 +88,16 @@ a machine with the development packages in `debian/control`:
 
 ```sh
 sudo apt install debhelper dpkg-dev fakeroot
+sudo apt build-dep .    # requires deb-src; installs the dev packages in debian/control
 ZIG="$HOME/.local/zig-0.17.0/zig" ./scripts/build-deb.sh
 sudo apt install ./dist/tessa_<version>_<arch>.deb
 ```
+
+If `apt build-dep` is unavailable, install the `Build-Depends` listed in
+`debian/control` manually (Wayland/wlroots, xkbcommon, pixman, libdrm,
+libinput, libseat, EGL/GLES, Cairo, Pango, GLib/GdkPixbuf, and fontconfig).
+`build-deb.sh` passes `-d`, so a missing build dependency is not caught until
+`zig build` runs.
 
 > **0.2.4 may be the final `.deb` release.** It is the last package planned
 > against Zig 0.16 and wlroots 0.19. The current source tree (`0.2.5`) targets

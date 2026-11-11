@@ -148,15 +148,15 @@ v1 に JSON 用のトークンパラメータはありません。
 
 | スコープ | コマンド / 配信 |
 | --- | --- |
-| `read` | `state`、`state-json`、`config`、`config-json`、`config-compare`、`perf`、`perf-json`、`rendering`、`rendering-json`、`subscribe state` |
+| `read` | `state`、`state-json`、`config`、`config-json`、`config-compare`、`perf`、`perf-json`、`rendering`、`rendering-json`、`shell`、`subscribe state` |
 | `events` | `subscribe events`、イベント配信 |
 | `status` | `status`、タブ区切り `CMD<TAB>status` |
-| `window` | `focus`、`close`、`urgent`、`float`、`swap`、`reorder`、`resize`、グループ系 |
+| `window` | `focus`、`close`、`urgent`、`activate`、`float`、`swap`、`reorder`、`resize`、グループ系 |
 | `workspace` | `workspace`、`move-workspace`、special/scratchpad 系 |
 | `layout` | `layout`、カラム系、`window-move` |
 | `spawn` | `spawn` |
 | `panel` | `launcher`、`panel`、`notification-action` |
-| `control` | `reload`、`quit`、`mode`、`perf-reset` |
+| `control` | `reload`、`quit`、`mode`、`perf-reset`、`scene` |
 | `extensions` | `extensions`、`extensions-json`、`extension-enable` |
 
 `subscribe all` は `read` と `events` の両方が必要です。必要なスコープがない

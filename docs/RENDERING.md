@@ -282,6 +282,18 @@ On the reference i5-6300U / Intel HD 520 at 1920x1080, 30 fps animation used
 about 2.5% of one core in the background-only test and 3.7% with the full panel.
 Static GPU rendering and the Cairo path stayed near 0% after startup.
 
+## Window switcher preview capture
+
+The Alt+Tab switcher and Scene deck use live per-window previews rather than
+static screenshots. Tessa advertises
+`ext_foreign_toplevel_image_capture_source_manager_v1` and
+`ext_image_copy_capture_v1`; the panel asks for each foreign toplevel's capture
+source, and the compositor renders it into a private offscreen scene. Frames are
+damage-driven and capped at 512 px on the long edge, then copied into the panel
+surface. This works for windows on inactive workspaces and outputs without
+bringing them on screen. If the capture protocols or buffer format are
+unavailable, the switcher falls back to app monograms.
+
 ## Per-window GPU shaders (opt-in)
 
 Window rules can apply an offscreen GPU effect to a matching toplevel:

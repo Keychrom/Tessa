@@ -55,9 +55,9 @@ Add a first-party control center without turning Tessa into a full desktop
 settings application. The classic popovers remain the default.
 
 - [x] `panel_style = classic|unified`; unified adds a Controls button and one
-      panel with home, Wi-Fi, Bluetooth, notifications, calendar, tray, and
-      power views. Classic keeps the existing popovers and adds separate
-      Wi-Fi/Bluetooth ones.
+      panel with home, audio, theme, Wi-Fi, Bluetooth, notifications, calendar,
+      tray, and power views. Classic keeps the existing popovers and adds
+      separate Wi-Fi/Bluetooth ones.
 - [x] `control_features` bitmask and `--list-modules` metadata so each feature
       can be disabled independently; up to four `control_action` quick actions.
 - [x] NetworkManager Wi-Fi: scan, signal, WPA2/WPA3-PSK and open networks,
@@ -69,6 +69,10 @@ settings application. The classic popovers remain the default.
       actions, and a Controls badge.
 - [x] MPRIS progress/seek, local `file://` artwork via gdk-pixbuf, and an
       absolute volume slider.
+- [x] Audio card with OUTPUT/INPUT tabs, sink/source selection, and input
+      volume/mute.
+- [x] THEME page writing `theme-colors.conf` for palettes, accents, and base
+      tones; the panel reloads borders, surfaces, and wallpaper together.
 - [x] Bar on top, bottom, left, or right with vertical-aware bar and control
       center layouts.
 - [ ] 802.1X/EAP enterprise Wi-Fi, VPNs, and captive-portal detection.
@@ -336,6 +340,11 @@ config editor/diff preview) are complete; 0.7 builds on them.
       make/model/serial, VRR/adaptive-sync policy, and cursor theme/size.
       Verified through config/JSON tests; physical touchpad and VRR behavior
       remains part of the hardware validation pass.
+- [x] Workspace Scenes: save/apply/activate a reusable layout, app set, theme,
+      and wallpaper; `Super+Shift+Tab` deck with live previews; non-destructive
+      apply and `TESSA_SCENE_DIR` override.
+- [x] Split configuration: compositor/shared settings in `config`, panel-only
+      settings in `panel.conf`, with `TESSA_PANEL_CONFIG` and legacy fallback.
 - [x] Wallpaper image sources: PNG backgrounds with cover/contain/stretch fit,
       live reload, and fallback to the generated gradient/art.
 - [x] Shell v2 remainder: composable bar modules/layout, per-surface font and

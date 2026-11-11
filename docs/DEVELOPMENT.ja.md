@@ -75,7 +75,9 @@ fc-list | grep -i -E 'Inter|JetBrains|Noto Sans CJK'
 
 `/tmp/tessa-headless` を作成し、pixman レンダラーを強制して
 `zig-out/bin` からパネルを起動します。出力は 1920×1080 の headless
-ディスプレイ `HEADLESS-1` です。
+ディスプレイ `HEADLESS-1` です。`run-headless.sh` と pixman の headless
+テストは `-Dscenefx=false` ビルドが必要です。既定の scenefx ビルドは GLES2 を
+使うため、`WLR_RENDERER=gles2` にするか plain で再ビルドしてください。
 
 ターミナル 2:
 
