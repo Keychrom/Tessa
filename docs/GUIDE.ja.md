@@ -759,8 +759,8 @@ Tessa は設定ディレクトリも監視します。メイン設定と同デ�
 | `bar_position` | `top` | バーの位置: `top`、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
-| `animations` | `true` | オーバーレイの開閉・コントロールパネルの view 遷移・トグル動作。`false` で即時表示 |
-| `reduce_motion` | `false` | フェードは残し、scale・slide・トグルノブの移動を無効化 |
+| `animations` | `true` | オーバーレイの開閉・コントロールパネルの view 遷移・カードの stagger・トグル動作・hover/press フィードバック。`false` で即時表示 |
+| `reduce_motion` | `false` | フェードは残し、scale・slide・stagger・トグルノブの移動を無効化 |
 | `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（ライブプレビュー）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | `12` | 選んだ端からの距離（0〜64） |
@@ -1984,9 +1984,11 @@ Controls ボタンが追加され、バーの各ポップオーバー入口が1�
   クリップボード、設定、最大4件の `control_action`
 
 オーバーレイはフェードで開き、コントロールパネルは少し拡大しながら所定位置に
-収まります。サブビューは短い横スライドを伴うクロスフェードで切り替わり、
-Wi-Fi/Bluetooth/Focus のトグルは新しい状態へなめらかに動きます。
-`animations = false` で即時表示、`reduce_motion = true` ではフェードだけを残します。
+収まります。ホームのカードは順に現れ、サブビューは短い横スライドを伴う
+クロスフェードで切り替わり、Wi-Fi/Bluetooth/Focus のトグルは新しい状態へ
+なめらかに動きます。ボタン、pill、スライダー、パレットカード、ナビゲーション行は
+hover で明るくなり、押下時に中身がわずかに沈みます。`animations = false` で
+即時表示、`reduce_motion = true` ではフェードだけを残します。
 
 `control_features` で機能単位に表示を切り替えられます（例:
 `control_features = wifi, bluetooth, volume, notifications`）。classic では

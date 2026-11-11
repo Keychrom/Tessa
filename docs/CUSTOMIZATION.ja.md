@@ -693,8 +693,8 @@ Fcitx や IBus を `startup` から起動している場合は `xim_start` を�
 | `bar_position` | バーの位置: `top`（既定）、`bottom`、`left`、`right` |
 | `panel_style` | `classic` | `classic` は個別ポップオーバー、`unified` は統合コントロールパネル |
 | `control_features` | `all` | コントロールパネルの機能（CSV、`all`、`none`） |
-| `animations` | `true` | パネルオーバーレイの開閉・view 遷移・トグル動作（ウィンドウ演出にも適用）。`false` で即時表示 |
-| `reduce_motion` | `false` | フェードは残し、scale・slide・トグルノブの移動を無効化 |
+| `animations` | `true` | パネルオーバーレイの開閉・view 遷移・カードの stagger・トグル動作・hover/press フィードバック（ウィンドウ演出にも適用）。`false` で即時表示 |
+| `reduce_motion` | `false` | フェードは残し、scale・slide・stagger・トグルノブの移動を無効化 |
 | `window_switcher` | `snapshot` | Alt+Tab スイッチャー: `snapshot`（ライブプレビュー）、`icons`、`off` |
 | `control_action` | - | カスタムクイックアクション `ラベル \| コマンド`（複数可） |
 | `bar_top_margin` | 選んだ端からの距離（0〜64） |

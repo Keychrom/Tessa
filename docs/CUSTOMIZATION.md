@@ -691,8 +691,8 @@ in `panel.conf`; they still work in `config` for compatibility.
 | `bar_position` | bar edge: `top` (default), `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
-| `animations` | `true` | Panel overlay open/close, view transitions, and toggle motion (also window motion); `false` makes overlays instant |
-| `reduce_motion` | `false` | Keep overlay fades but drop scale, slide, and toggle-knob movement |
+| `animations` | `true` | Panel overlay open/close, view transitions, card stagger, toggle motion, and hover/press feedback (also window motion); `false` makes overlays instant |
+| `reduce_motion` | `false` | Keep overlay fades but drop scale, slide, stagger, and toggle-knob movement |
 | `window_switcher` | `snapshot` | Alt+Tab switcher: live `snapshot` previews, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | distance from the chosen edge (0–64) |

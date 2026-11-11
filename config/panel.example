@@ -92,9 +92,10 @@ control_features = all
 # icons shows app monograms only, off disables the switcher.
 window_switcher = snapshot
 # Panel overlay motion: cards fade and settle (the control center scales/lifts,
-# popovers scale slightly, control-center views cross-fade and slide, toggle
-# pills ease between states). `animations = false` makes overlays appear
-# instantly; `reduce_motion = true` keeps fades but drops scale, slide, and
+# popovers scale slightly, control-center views cross-fade and slide, home cards
+# stagger in, toggle pills ease between states, and buttons/pills/sliders react
+# to hover and press). `animations = false` makes overlays appear instantly;
+# `reduce_motion = true` keeps fades but drops scale, slide, stagger, and
 # toggle-knob movement.
 # animations = true
 # reduce_motion = false

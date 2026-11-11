@@ -4188,6 +4188,45 @@ fn controlCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
     c.cairo_pattern_destroy(pat);
 }
 
+fn pointerInRect(x: f64, y: f64, w: f64, h: f64) bool {
+    return g.overlay != null and g.pointer_surface == g.overlay and
+        g.pointer_x >= x and g.pointer_x <= x + w and
+        g.pointer_y >= y and g.pointer_y <= y + h;
+}
+
+fn pointerPressedIn(x: f64, y: f64, w: f64, h: f64) bool {
+    return g.pointer_pressed and pointerInRect(x, y, w, h);
+}
+
+const ControlReveal = struct {
+    active: bool = false,
+    alpha: f64 = 1.0,
+};
+
+/// Cascade the home cards in after the panel starts fading. Only runs while
+/// opening; closing stays a single panel fade so cards do not disappear early.
+/// The clip keeps each group surface card-sized instead of full-output sized.
+fn beginControlReveal(cr: *c.cairo_t, index: usize, x: f64, y: f64, w: f64, h: f64) ControlReveal {
+    if (!m.motionMovement() or g.menu_target != 1) return .{};
+    const p = std.math.clamp(g.menu_anim, 0.0, 1.0);
+    const delay = @min(0.45, @as(f64, @floatFromInt(index)) * 0.055);
+    const t = std.math.clamp((p - delay) / (1.0 - delay), 0.0, 1.0);
+    if (t >= 0.999) return .{};
+    c.cairo_save(cr);
+    c.cairo_rectangle(cr, x - 4, y - 4, w + 8, h + 8);
+    c.cairo_clip(cr);
+    c.cairo_push_group(cr);
+    c.cairo_translate(cr, 0, (1.0 - t) * 8.0);
+    return .{ .active = true, .alpha = t };
+}
+
+fn endControlReveal(cr: *c.cairo_t, reveal: ControlReveal) void {
+    if (!reveal.active) return;
+    c.cairo_pop_group_to_source(cr);
+    c.cairo_paint_with_alpha(cr, reveal.alpha);
+    c.cairo_restore(cr);
+}
+
 fn controlSection(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, w: f64) void {
     _ = w;
     _ = drawText(cr, text, x, y, MONO, "Medium", 6.6, .{
@@ -4199,16 +4238,25 @@ fn mix(a: f64, b: f64, t: f64) f64 {
     return a + (b - a) * t;
 }
 
-fn controlPill(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, amount: f64) void {
+fn controlPill(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, amount: f64, hover_hint: bool) void {
     const accent = g.accent;
     const t = std.math.clamp(amount, 0.0, 1.0);
+    const hovered = hover_hint or pointerInRect(x - 3, y - 3, w + 6, h + 6);
+    const pressed = g.pointer_pressed and hovered;
+    const hover_lift: f64 = if (hovered) 0.035 else 0.0;
+    const knob_bump: f64 = if (pressed) 0.1 else if (hovered) 0.6 else 0.0;
+    if (hovered) {
+        strokeRound(cr, x - 2.5, y - 2.5, w + 5, h + 5, (h + 5) * 0.5, .{
+            accent[0], accent[1], accent[2], if (pressed) 0.42 else 0.24,
+        }, 1.2);
+    }
     fillRound(cr, x, y, w, h, h * 0.5, .{
         mix(1.0, accent[0], t),
         mix(1.0, accent[1], t),
         mix(1.0, accent[2], t),
-        mix(0.075, 0.85, t),
+        mix(0.075, 0.85, t) + hover_lift,
     });
-    fillCircle(cr, x + h * 0.5 + (w - h) * t, y + h * 0.5, h * 0.32, .{
+    fillCircle(cr, x + h * 0.5 + (w - h) * t, y + h * 0.5, h * 0.32 + knob_bump, .{
         mix(0.78, 0.055, t),
         mix(0.83, 0.075, t),
         mix(0.90, 0.105, t),
@@ -4219,12 +4267,20 @@ fn controlPill(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, amount: f64) void
 fn controlSlider(cr: *c.cairo_t, x: f64, y: f64, w: f64, pct: f64, kind: m.DragTarget) void {
     const accent = g.accent;
     const track_h = 8.0;
-    fillRound(cr, x, y, w, track_h, 4, .{ 1, 1, 1, 0.075 });
+    const hovered = pointerInRect(x - 4, y - 7, w + 8, track_h + 14);
+    const active = g.control_drag == kind;
+    fillRound(cr, x, y, w, track_h, 4, .{ 1, 1, 1, if (hovered) 0.10 else 0.075 });
     const clamped = std.math.clamp(pct, 0.0, 1.0);
     if (clamped > 0.005) {
-        fillRound(cr, x, y, w * clamped, track_h, 4, .{ accent[0], accent[1], accent[2], 0.88 });
+        fillRound(cr, x, y, w * clamped, track_h, 4, .{ accent[0], accent[1], accent[2], if (hovered) 0.94 else 0.88 });
     }
-    fillCircle(cr, x + w * clamped, y + track_h / 2.0, 5.0, .{ 1, 1, 1, 0.94 });
+    const knob_x = x + w * clamped;
+    const knob_y = y + track_h / 2.0;
+    const knob_r: f64 = if (active) 6.0 else if (hovered) 5.6 else 5.0;
+    if (hovered or active) {
+        fillCircle(cr, knob_x, knob_y, knob_r + 3.0, .{ accent[0], accent[1], accent[2], 0.16 });
+    }
+    fillCircle(cr, knob_x, knob_y, knob_r, .{ 1, 1, 1, 0.94 });
     const hit = m.HitRect{ .x = x - 4, .y = y - 7, .w = w + 8, .h = track_h + 14 };
     addOverlayHit(hit.x, hit.y, hit.w, hit.h, .{ .kind = .control_slider, .value = @backingInt(kind) });
     switch (kind) {
@@ -4239,6 +4295,9 @@ fn drawControlHeader(cr: *c.cairo_t, x: f64, y: f64, w: f64, title: []const u8, 
     const accent = g.accent;
     const fg = g.popover_fg;
     if (back) {
+        if (pointerInRect(x - 10, y - 2, 28, 28)) {
+            fillRound(cr, x - 10, y - 2, 28, 28, 8, .{ 1, 1, 1, if (pointerPressedIn(x - 10, y - 2, 28, 28)) 0.09 else 0.055 });
+        }
         drawChevron(cr, x + 2, y + 12, 10.0, .{ fg[0], fg[1], fg[2], 0.62 });
         addOverlayHit(x - 10, y - 2, 28, 28, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.back) });
         _ = drawText(cr, title, x + 24, y + 5, m.popoverFont(), "Semi-Bold", 13.0, .{
@@ -4309,45 +4368,55 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     // Connectivity card.
     const show_conn = m.controlFeatureEnabled(.wifi) or m.controlFeatureEnabled(.bluetooth);
     const conn_h = 116.0;
-    if (show_conn) {
-        controlCard(cr, left_x, left_y, col_w, conn_h);
-        controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
-    }
-    var row_y = left_y + 30.0;
-    if (m.controlFeatureEnabled(.wifi)) {
-        const active = g.wifi_ssid_len > 0 and g.wifi_enabled;
-        drawWifiGlyph(cr, left_x + 27, row_y + 13, 18.0, if (active) .{
-            accent[0], accent[1], accent[2], 0.9,
-        } else .{
-            fg[0], fg[1], fg[2], 0.42,
-        });
-        _ = drawText(cr, "Wi-Fi", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
-            fg[0], fg[1], fg[2], 0.94,
-        }, col_w - 90, 0);
-        const wifi_status = if (!g.wifi_present) "Unavailable" else if (!g.wifi_enabled) "Off" else if (g.wifi_ssid_len > 0) g.wifi_ssid[0..g.wifi_ssid_len] else "Not connected";
-        _ = drawText(cr, wifi_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
-            0.64, 0.70, 0.80, 0.55,
-        }, col_w - 96, 0);
-        drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
-        registerControlNav(left_x + 8, row_y, col_w - 16, 32, .wifi);
-        row_y += 42.0;
-    }
-    if (m.controlFeatureEnabled(.bluetooth)) {
-        drawBluetoothGlyph(cr, left_x + 27, row_y + 13, 17.0, if (g.bt_powered) .{
-            accent[0], accent[1], accent[2], 0.9,
-        } else .{
-            fg[0], fg[1], fg[2], 0.42,
-        });
-        _ = drawText(cr, "Bluetooth", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
-            fg[0], fg[1], fg[2], 0.94,
-        }, col_w - 90, 0);
-        const bt_status = if (!g.bt_present) "Unavailable" else if (!g.bt_powered) "Off" else if (g.bt_count > 0 and (g.bt_devices[0].flags & m.BT_DEVICE_CONNECTED) != 0) g.bt_devices[0].name[0..g.bt_devices[0].name_len] else "On";
-        _ = drawText(cr, bt_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
-            0.64, 0.70, 0.80, 0.55,
-        }, col_w - 96, 0);
-        drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
-        registerControlNav(left_x + 8, row_y, col_w - 16, 32, .bluetooth);
-        row_y += 42.0;
+    {
+        const reveal = beginControlReveal(cr, 0, left_x, left_y, col_w, conn_h);
+        defer endControlReveal(cr, reveal);
+        if (show_conn) {
+            controlCard(cr, left_x, left_y, col_w, conn_h);
+            controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
+        }
+        var row_y = left_y + 30.0;
+        if (m.controlFeatureEnabled(.wifi)) {
+            if (pointerInRect(left_x + 8, row_y, col_w - 16, 32)) {
+                fillRound(cr, left_x + 8, row_y, col_w - 16, 32, 9, .{ 1, 1, 1, if (pointerPressedIn(left_x + 8, row_y, col_w - 16, 32)) 0.075 else 0.05 });
+            }
+            const active = g.wifi_ssid_len > 0 and g.wifi_enabled;
+            drawWifiGlyph(cr, left_x + 27, row_y + 13, 18.0, if (active) .{
+                accent[0], accent[1], accent[2], 0.9,
+            } else .{
+                fg[0], fg[1], fg[2], 0.42,
+            });
+            _ = drawText(cr, "Wi-Fi", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
+                fg[0], fg[1], fg[2], 0.94,
+            }, col_w - 90, 0);
+            const wifi_status = if (!g.wifi_present) "Unavailable" else if (!g.wifi_enabled) "Off" else if (g.wifi_ssid_len > 0) g.wifi_ssid[0..g.wifi_ssid_len] else "Not connected";
+            _ = drawText(cr, wifi_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
+                0.64, 0.70, 0.80, 0.55,
+            }, col_w - 96, 0);
+            drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
+            registerControlNav(left_x + 8, row_y, col_w - 16, 32, .wifi);
+            row_y += 42.0;
+        }
+        if (m.controlFeatureEnabled(.bluetooth)) {
+            if (pointerInRect(left_x + 8, row_y, col_w - 16, 32)) {
+                fillRound(cr, left_x + 8, row_y, col_w - 16, 32, 9, .{ 1, 1, 1, if (pointerPressedIn(left_x + 8, row_y, col_w - 16, 32)) 0.075 else 0.05 });
+            }
+            drawBluetoothGlyph(cr, left_x + 27, row_y + 13, 17.0, if (g.bt_powered) .{
+                accent[0], accent[1], accent[2], 0.9,
+            } else .{
+                fg[0], fg[1], fg[2], 0.42,
+            });
+            _ = drawText(cr, "Bluetooth", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
+                fg[0], fg[1], fg[2], 0.94,
+            }, col_w - 90, 0);
+            const bt_status = if (!g.bt_present) "Unavailable" else if (!g.bt_powered) "Off" else if (g.bt_count > 0 and (g.bt_devices[0].flags & m.BT_DEVICE_CONNECTED) != 0) g.bt_devices[0].name[0..g.bt_devices[0].name_len] else "On";
+            _ = drawText(cr, bt_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
+                0.64, 0.70, 0.80, 0.55,
+            }, col_w - 96, 0);
+            drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
+            registerControlNav(left_x + 8, row_y, col_w - 16, 32, .bluetooth);
+            row_y += 42.0;
+        }
     }
     if (show_conn) left_y += conn_h + 12.0;
 
@@ -4357,8 +4426,13 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
         var focus_h: f64 = 0.0;
         if (show_focus) focus_h += 50.0;
         if (show_ppd) focus_h += 44.0;
+        const reveal = beginControlReveal(cr, 1, left_x, left_y, col_w, focus_h);
+        defer endControlReveal(cr, reveal);
         controlCard(cr, left_x, left_y, col_w, focus_h);
         if (show_focus) {
+            if (pointerInRect(left_x + 8, left_y + 6, col_w - 16, 38)) {
+                fillRound(cr, left_x + 8, left_y + 6, col_w - 16, 38, 9, .{ 1, 1, 1, if (pointerPressedIn(left_x + 8, left_y + 6, col_w - 16, 38)) 0.065 else 0.04 });
+            }
             drawMoonGlyph(cr, left_x + 28, left_y + 25, 16.0, .{
                 accent[0], accent[1], accent[2], 0.85,
             });
@@ -4368,7 +4442,7 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             _ = drawText(cr, if (g.dnd) "Notifications silenced" else "Notifications allowed", left_x + 48, left_y + 29, fam, "Regular", 7.2, .{
                 0.64, 0.70, 0.80, 0.52,
             }, col_w - 120, 0);
-            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.pill_dnd_anim);
+            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, g.pill_dnd_anim, pointerInRect(left_x + 8, left_y + 6, col_w - 16, 38));
             addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
         }
         if (show_ppd) {
@@ -4394,6 +4468,8 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
 
     if (m.controlFeatureEnabled(.battery) or m.controlFeatureEnabled(.power)) {
         const sys_h = 104.0;
+        const reveal = beginControlReveal(cr, 2, left_x, left_y, col_w, sys_h);
+        defer endControlReveal(cr, reveal);
         controlCard(cr, left_x, left_y, col_w, sys_h);
         controlSection(cr, "SYSTEM", left_x + 16, left_y + 13, col_w - 32);
         const bx = left_x + 16;
@@ -4415,13 +4491,20 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     }
 
     if (m.controlFeatureEnabled(.quick_actions)) {
+        const reveal = beginControlReveal(cr, 3, left_x, left_y, col_w, 62.0);
+        defer endControlReveal(cr, reveal);
         drawQuickActions(cr, left_x, left_y, col_w);
         left_y += 62.0;
     }
 
     const theme_h = 66.0;
     if (left_y + theme_h < l.y + l.h - 8.0) {
+        const reveal = beginControlReveal(cr, 4, left_x, left_y, col_w, theme_h);
+        defer endControlReveal(cr, reveal);
         controlCard(cr, left_x, left_y, col_w, theme_h);
+        if (pointerInRect(left_x + 8, left_y + 4, col_w - 16, theme_h - 8)) {
+            fillRound(cr, left_x + 8, left_y + 4, col_w - 16, theme_h - 8, 12, .{ 1, 1, 1, if (pointerPressedIn(left_x + 8, left_y + 4, col_w - 16, theme_h - 8)) 0.06 else 0.035 });
+        }
         controlSection(cr, "THEME", left_x + 16, left_y + 12, col_w - 32);
         var theme_name_buf: [64]u8 = undefined;
         const theme_name = upperAscii(&theme_name_buf, currentThemeName());
@@ -4454,9 +4537,14 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     if (!two) right_y = left_y;
     if (m.controlFeatureEnabled(.volume) or m.controlFeatureEnabled(.brightness)) {
         const sh = 136.0;
+        const reveal = beginControlReveal(cr, 5, right_x, right_y, col_w, sh);
+        defer endControlReveal(cr, reveal);
         controlCard(cr, right_x, right_y, col_w, sh);
         var sy = right_y + 16.0;
         if (m.controlFeatureEnabled(.volume)) {
+            if (pointerInRect(right_x + 8, sy - 4, col_w - 16, 24)) {
+                fillRound(cr, right_x + 8, sy - 4, col_w - 16, 24, 7, .{ 1, 1, 1, 0.04 });
+            }
             controlSection(cr, "SOUND", right_x + 16, sy, col_w - 32);
             var vbuf: [16]u8 = undefined;
             const vtext = if (g.volume_muted) "MUTE" else std.fmt.bufPrint(&vbuf, "{d}%", .{@max(0, g.volume_percent)}) catch "0%";
@@ -4494,6 +4582,8 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
 
     if (m.controlFeatureEnabled(.media)) {
         const mh = 154.0;
+        const reveal = beginControlReveal(cr, 6, right_x, right_y, col_w, mh);
+        defer endControlReveal(cr, reveal);
         controlCard(cr, right_x, right_y, col_w, mh);
         controlSection(cr, "MEDIA", right_x + 16, right_y + 13, col_w - 32);
         const art_x = right_x + 16;
@@ -4530,6 +4620,8 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     if (m.controlFeatureEnabled(.notifications)) {
         const nh = @min(200.0, l.y + l.h - right_y - pad);
         if (nh > 70.0) {
+            const reveal = beginControlReveal(cr, 7, right_x, right_y, col_w, nh);
+            defer endControlReveal(cr, reveal);
             controlCard(cr, right_x, right_y, col_w, nh);
             controlSection(cr, "NOTIFICATIONS", right_x + 16, right_y + 13, col_w - 140);
             var count_buf: [24]u8 = undefined;
@@ -4590,14 +4682,21 @@ fn registerControlNav(x: f64, y: f64, w: f64, h: f64, view: m.ControlView) void 
 
 fn drawControlButton(cr: *c.cairo_t, label: []const u8, x: f64, y: f64, w: f64, h: f64, active: bool) void {
     const accent = g.accent;
+    const hovered = pointerInRect(x, y, w, h);
+    const pressed = g.pointer_pressed and hovered;
+    const fill_a: f64 = if (active)
+        (if (pressed) 0.30 else if (hovered) 0.26 else 0.20)
+    else
+        (if (pressed) 0.105 else if (hovered) 0.085 else 0.055);
     fillRound(cr, x, y, w, h, 7, if (active) .{
-        accent[0], accent[1], accent[2], 0.20,
-    } else .{ 1, 1, 1, 0.055 });
+        accent[0], accent[1], accent[2], fill_a,
+    } else .{ 1, 1, 1, fill_a });
     strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 6.5, .{
-        accent[0], accent[1], accent[2], if (active) 0.38 else 0.10,
+        accent[0], accent[1], accent[2], if (active) (if (hovered) 0.52 else 0.38) else (if (hovered) 0.20 else 0.10),
     }, 1);
-    _ = drawTextCenteredX(cr, label, x + w / 2.0, y + h / 2.0, MONO, "Medium", 6.2, .{
-        0.78, 0.84, 0.92, if (active) 0.95 else 0.62,
+    const text_dy: f64 = if (pressed) 0.8 else 0.0;
+    _ = drawTextCenteredX(cr, label, x + w / 2.0, y + h / 2.0 + text_dy, MONO, "Medium", 6.2, .{
+        0.78, 0.84, 0.92, if (active) 0.95 else if (hovered) 0.78 else 0.62,
     }, w - 4, 0.5);
 }
 
@@ -4632,19 +4731,22 @@ fn drawMediaButtons(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) void {
     var i: usize = 0;
     while (i < 3) : (i += 1) {
         const primary = i == 1;
+        const hovered = pointerInRect(x, cy - button / 2.0, button, button);
+        const pressed = g.pointer_pressed and hovered;
+        const icon_dy: f64 = if (pressed) 0.8 else 0.0;
         fillRound(cr, x, cy - button / 2.0, button, button, 8, if (primary) .{
-            accent[0], accent[1], accent[2], 0.82,
-        } else .{ 1, 1, 1, 0.055 });
-        const col: [4]f64 = if (primary) .{ 0.055, 0.075, 0.105, 1.0 } else .{ fg[0], fg[1], fg[2], 0.75 };
+            accent[0], accent[1], accent[2], if (pressed) 0.95 else if (hovered) 0.90 else 0.82,
+        } else .{ 1, 1, 1, if (pressed) 0.13 else if (hovered) 0.10 else 0.055 });
+        const col: [4]f64 = if (primary) .{ 0.055, 0.075, 0.105, 1.0 } else .{ fg[0], fg[1], fg[2], if (hovered) 0.9 else 0.75 };
         if (i == 1) {
             if (g.media_status == 1) {
-                fillRound(cr, x + 9, cy - 5, 2.2, 10, 1, col);
-                fillRound(cr, x + 15, cy - 5, 2.2, 10, 1, col);
+                fillRound(cr, x + 9, cy - 5 + icon_dy, 2.2, 10, 1, col);
+                fillRound(cr, x + 15, cy - 5 + icon_dy, 2.2, 10, 1, col);
             } else {
                 c.cairo_new_path(cr);
-                c.cairo_move_to(cr, x + 10, cy - 6);
-                c.cairo_line_to(cr, x + 18, cy);
-                c.cairo_line_to(cr, x + 10, cy + 6);
+                c.cairo_move_to(cr, x + 10, cy - 6 + icon_dy);
+                c.cairo_line_to(cr, x + 18, cy + icon_dy);
+                c.cairo_line_to(cr, x + 10, cy + 6 + icon_dy);
                 c.cairo_close_path(cr);
                 setColor(cr, col);
                 c.cairo_fill(cr);
@@ -4652,9 +4754,9 @@ fn drawMediaButtons(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) void {
         } else {
             const dir: f64 = if (i == 0) 1.0 else -1.0;
             c.cairo_new_path(cr);
-            c.cairo_move_to(cr, x + 13 - dir * 3, cy - 6);
-            c.cairo_line_to(cr, x + 13 + dir * 3, cy);
-            c.cairo_line_to(cr, x + 13 - dir * 3, cy + 6);
+            c.cairo_move_to(cr, x + 13 - dir * 3, cy - 6 + icon_dy);
+            c.cairo_line_to(cr, x + 13 + dir * 3, cy + icon_dy);
+            c.cairo_line_to(cr, x + 13 - dir * 3, cy + 6 + icon_dy);
             c.cairo_close_path(cr);
             setColor(cr, col);
             c.cairo_fill(cr);
@@ -5737,6 +5839,9 @@ fn drawControlTheme(cr: *c.cairo_t, l: m.ControlLayout) void {
             item.panel_bg[2] * 1.18 + 0.006,
             0.96,
         });
+        if (pointerInRect(cx, cy, card_w, card_h)) {
+            fillRound(cr, cx, cy, card_w, card_h, 12, .{ 1, 1, 1, if (pointerPressedIn(cx, cy, card_w, card_h)) 0.07 else 0.04 });
+        }
         drawPaletteChip(
             cr,
             cx + 8.0,
@@ -5773,6 +5878,13 @@ fn drawControlTheme(cr: *c.cairo_t, l: m.ControlLayout) void {
         fillCircle(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.40, .{
             option.rgb[0], option.rgb[1], option.rgb[2], 0.96,
         });
+        if (pointerInRect(cx, cy, swatch, swatch)) {
+            c.cairo_new_path(cr);
+            c.cairo_arc(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.46, 0, PI * 2.0);
+            setColor(cr, .{ 1, 1, 1, if (pointerPressedIn(cx, cy, swatch, swatch)) 0.48 else 0.30 });
+            c.cairo_set_line_width(cr, 1.4);
+            c.cairo_stroke(cr);
+        }
         if (active) {
             c.cairo_new_path(cr);
             c.cairo_arc(cr, cx + swatch / 2.0, cy + swatch / 2.0, swatch * 0.48, 0, PI * 2.0);
@@ -5806,6 +5918,9 @@ fn drawControlTheme(cr: *c.cairo_t, l: m.ControlLayout) void {
         fillRound(cr, bx, by, base_w, base_h, 10, .{
             base.panel_bg[0], base.panel_bg[1], base.panel_bg[2], 0.96,
         });
+        if (pointerInRect(bx, by, base_w, base_h)) {
+            fillRound(cr, bx, by, base_w, base_h, 10, .{ 1, 1, 1, if (pointerPressedIn(bx, by, base_w, base_h)) 0.07 else 0.04 });
+        }
         fillRound(cr, bx + 9.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg[0], base.bg[1], base.bg[2], 1 });
         fillRound(cr, bx + 25.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg_top[0], base.bg_top[1], base.bg_top[2], 1 });
         fillRound(cr, bx + 41.0, by + 8.0, 13.0, 13.0, 4.0, .{ base.bg_bottom[0], base.bg_bottom[1], base.bg_bottom[2], 1 });
@@ -5843,7 +5958,7 @@ fn drawControlWifi(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f64) v
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "WI-FI", in_panel);
     // Toggle and scan controls.
-    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_wifi_anim);
+    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_wifi_anim, false);
     addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_toggle) });
     drawControlButton(cr, "SCAN", x + w - 112, top + 3, 46, 20, false);
     addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.wifi_scan) });
@@ -5921,7 +6036,7 @@ fn drawControlBluetooth(cr: *c.cairo_t, l: m.ControlLayout, in_panel: bool, t: f
     const top = l.y + 14;
     const w = l.w - pad * 2.0;
     drawControlHeader(cr, x, top, w, "BLUETOOTH", in_panel);
-    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_bt_anim);
+    controlPill(cr, x + w - 58, top + 3, 42, 20, g.pill_bt_anim, false);
     addOverlayHit(x + w - 60, top, 46, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_toggle) });
     drawControlButton(cr, if (g.bt_discovering) "STOP" else "SCAN", x + w - 112, top + 3, 46, 20, false);
     addOverlayHit(x + w - 114, top, 50, 26, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.bt_scan) });

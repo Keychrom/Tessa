@@ -895,14 +895,17 @@ box) and falls back to the built-in five-petal mark.
 
 The overlay fades over 220 ms. The launcher also scales and drops into place;
 the control center and popovers scale slightly and settle from the bar edge,
-and control-center view changes cross-fade with a 10 px slide over 170 ms.
-Wi-Fi/Bluetooth/Focus pills ease their track, knob color, and knob position.
-`animations = false` makes overlays instant; `reduce_motion = true` keeps the
-fades but drops scale, slide, and knob movement. The overlay is destroyed only
-after the fade-out; destroying the layer surface lets the compositor restore
-toplevel focus. The launcher enables text-input-v3 for its search field; the
-control center enables it only while a Wi-Fi password, hidden SSID, Bluetooth
-PIN, or passkey modal is open, and disables it for the other views.
+home cards stagger in behind the panel fade, and control-center view changes
+cross-fade with a 10 px slide over 170 ms. Wi-Fi/Bluetooth/Focus pills ease
+their track, knob color, and knob position. Buttons, pills, sliders, palette
+cards, and navigation rows brighten on hover and nudge their content when
+pressed. `animations = false` makes overlays instant; `reduce_motion = true`
+keeps the fades but drops scale, slide, stagger, and knob movement. The overlay
+is destroyed only after the fade-out; destroying the layer surface lets the
+compositor restore toplevel focus. The launcher enables text-input-v3 for its
+search field; the control center enables it only while a Wi-Fi password, hidden
+SSID, Bluetooth PIN, or passkey modal is open, and disables it for the other
+views.
 
 ### Text input in the panel
 

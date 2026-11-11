@@ -254,8 +254,9 @@ The launcher, bar, popovers, and toasts stay on the Cairo path by default.
 `overlay_renderer = gpu` is an opt-in first stage for the launcher, control
 center, and popovers: Cairo renders the final overlay content once per state
 change, uploads it as a texture, and the GPU applies the open/close scale, fade,
-and settle. During a control-center view transition or a toggle-pill animation
-the cached base is re-rendered for those frames, then cached again. Row stagger
+and settle. During the card stagger, a control-center view transition, or a
+toggle-pill animation the cached base is re-rendered for those frames, then
+cached again. Row stagger
 and the sliding launcher selection marker remain Cairo-only in this phase; a
 later layered renderer can restore them on the GPU.
 

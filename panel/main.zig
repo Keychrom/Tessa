@@ -116,6 +116,7 @@ fn destroyOverlay() void {
     g.overlay_mode = .none;
     g.launcher_open = false;
     g.menu_anim = 0;
+    g.pointer_pressed = false;
     g.control_view_anim = 1;
     g.control_view_start = 0;
     g.control_view_dir = 0;
@@ -563,6 +564,7 @@ fn beginOverlay(mode: m.OverlayMode) void {
     g.menu_from = g.menu_anim;
     g.menu_target = 1;
     g.menu_anim_start = m.nowMs();
+    g.pointer_pressed = false;
     g.control_prev_view = g.control_view;
     g.control_view_anim = 1;
     g.control_view_start = 0;
@@ -1292,6 +1294,11 @@ fn tickAnimation(now: i64) void {
             g.control_view_anim = 1.0;
             g.control_view_dir = 0;
         }
+    }
+    if (g.overlay_mode == .control and g.menu_target == 1 and p < 1.0) {
+        // Card stagger is derived from menu_anim, so the GPU base must be
+        // re-rendered while the control center opens.
+        g.overlay_content_dirty = true;
     }
     if (g.overlay_mode == .control) {
         var pills_moved = animatePill(&g.pill_wifi_anim, g.wifi_enabled, movement);
@@ -5238,6 +5245,13 @@ fn handleInputButton(button: u32, state: u32) void {
         button,      state,       if (g.pointer_surface) |ps| @tagName(ps.kind) else "none",
         g.pointer_x, g.pointer_y,
     });
+    if (button == 0x110) {
+        const pressed = state == 1;
+        if (pressed != g.pointer_pressed) {
+            g.pointer_pressed = pressed;
+            if (g.overlay) |ov| ov.dirty = true;
+        }
+    }
     const pointer_surface = g.pointer_surface orelse return;
     if (g.overlay_mode == .screenshot and g.overlay == pointer_surface) {
         if (button == 0x110) {

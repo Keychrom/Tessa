@@ -748,8 +748,8 @@ still work in `config` for compatibility.
 | `bar_position` | `top` | Bar edge: `top`, `bottom`, `left`, or `right` |
 | `panel_style` | `classic` | `classic` keeps separate popovers; `unified` adds the control center |
 | `control_features` | `all` | Control-center features (CSV, `all`, `none`) |
-| `animations` | `true` | Overlay open/close, control-center view transitions, and toggle motion; `false` makes overlays instant |
-| `reduce_motion` | `false` | Keep overlay fades but drop scale, slide, and toggle-knob movement |
+| `animations` | `true` | Overlay open/close, control-center view transitions, card stagger, toggle motion, and hover/press feedback; `false` makes overlays instant |
+| `reduce_motion` | `false` | Keep overlay fades but drop scale, slide, stagger, and toggle-knob movement |
 | `window_switcher` | `snapshot` | Alt+Tab switcher: live `snapshot` previews, `icons`, or `off` |
 | `control_action` | - | Custom quick action `Label \| command` (repeatable) |
 | `bar_top_margin` | `12` | Distance from the chosen edge (0–64) |
@@ -1964,9 +1964,11 @@ center:
 - Battery, lock/suspend/reboot/power off, screenshot, clipboard, settings, and
   up to four `control_action` buttons
 
-Overlays fade in; the control center also scales and settles, sub-views
-cross-fade with a short horizontal slide, and the Wi-Fi/Bluetooth/Focus pills
-ease to their new state. `animations = false` makes overlays instant, while
+Overlays fade in; the control center also scales and settles, home cards stagger
+in, sub-views cross-fade with a short horizontal slide, and the Wi-Fi/
+Bluetooth/Focus pills ease to their new state. Buttons, pills, sliders, palette
+cards, and navigation rows brighten on hover and nudge their content when
+pressed. `animations = false` makes overlays instant, while
 `reduce_motion = true` keeps only the fades.
 
 `control_features` hides individual features (for example

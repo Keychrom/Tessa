@@ -1103,6 +1103,7 @@ pub const Panel = struct {
     overlay_hit_scale: f64 = 1,
     overlay_hit_x: f64 = 0,
     overlay_hit_y: f64 = 0,
+    pointer_pressed: bool = false,
 
     calendar_year: i32 = 1970,
     calendar_month: i32 = 1,
