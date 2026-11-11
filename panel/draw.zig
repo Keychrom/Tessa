@@ -4525,7 +4525,9 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             controlSection(cr, "NOTIFICATIONS", right_x + 16, right_y + 13, col_w - 140);
             var count_buf: [24]u8 = undefined;
             const count_text = std.fmt.bufPrint(&count_buf, "{d}", .{g.notification_count}) catch "0";
-            _ = drawText(cr, count_text, right_x + col_w - 16 - textWidth(cr, count_text, MONO, "Medium", 7.2, 0), right_y + 12, MONO, "Medium", 7.2, .{
+            // Keep the count left of the SILENT/CLEAR buttons (their hit
+            // areas start at -118), not underneath the CLEAR label.
+            _ = drawText(cr, count_text, right_x + col_w - 124 - textWidth(cr, count_text, MONO, "Medium", 7.2, 0), right_y + 12, MONO, "Medium", 7.2, .{
                 0.64, 0.70, 0.80, 0.48,
             }, 0, 0);
             drawControlButton(cr, "SILENT", right_x + col_w - 116, right_y + 8, 46, 18, g.dnd);
