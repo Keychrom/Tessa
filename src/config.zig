@@ -3321,6 +3321,10 @@ fn loadPath(
             std.mem.eql(u8, key, "bar-layout") or
             std.mem.eql(u8, key, "bar_position") or
             std.mem.eql(u8, key, "bar-position") or
+            std.mem.eql(u8, key, "bar_priority") or
+            std.mem.eql(u8, key, "bar-priority") or
+            std.mem.eql(u8, key, "bar_overflow") or
+            std.mem.eql(u8, key, "bar-overflow") or
             std.mem.eql(u8, key, "bar_modules") or
             std.mem.eql(u8, key, "bar-modules") or
             std.mem.eql(u8, key, "bar_font") or

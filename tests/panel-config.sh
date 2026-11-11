@@ -41,10 +41,23 @@ cat > "$runtime/panel.conf" <<EOF
 font = PanelFont
 logo_text = PanelText
 bar_height = 50
+bar_priority = clock=100, status=80
+bar_overflow = true
 panel_bg = #123456
 wallpaper_image = /tmp/panel.png
 wallpaper_fit = contain
 EOF
+
+if ! "$bin/tessa" --check-config "$runtime/config" >"$runtime/check.log" 2>&1; then
+    echo "compositor rejected panel.conf" >&2
+    cat "$runtime/check.log" >&2
+    exit 1
+fi
+if ! grep -q '^config: ok$' "$runtime/check.log"; then
+    echo "compositor config validation did not pass" >&2
+    cat "$runtime/check.log" >&2
+    exit 1
+fi
 
 summary=$(TESSA_CONFIG="$runtime/config" TESSA_PANEL_CONFIG= "$bin/tessa-panel" --check 2>&1)
 case "$summary" in
