@@ -880,16 +880,25 @@ fn drawControlsGlyph(cr: *c.cairo_t, x: f64, cy: f64, col: [4]f64) void {
 }
 
 fn drawBluetoothGlyph(cr: *c.cairo_t, cx: f64, cy: f64, size: f64, col: [4]f64) void {
-    const h = size * 0.5;
+    // Classic Bluetooth rune: one vertical spine plus the two crossing
+    // diagonals. Coordinates use a 24-unit glyph box centred on (cx, cy).
+    const s = size / 24.0;
+    const px = struct {
+        fn at(center: f64, unit: f64, scale: f64) f64 {
+            return center + (unit - 12.0) * scale;
+        }
+    }.at;
     c.cairo_new_path(cr);
-    c.cairo_move_to(cr, cx, cy - h);
-    c.cairo_line_to(cr, cx + h * 0.72, cy - h * 0.35);
-    c.cairo_line_to(cr, cx - h * 0.55, cy + h * 0.35);
-    c.cairo_line_to(cr, cx + h * 0.55, cy + h * 0.35);
-    c.cairo_line_to(cr, cx, cy + h);
-    c.cairo_line_to(cr, cx, cy - h);
+    c.cairo_move_to(cr, px(cx, 6.5, s), px(cy, 6.5, s));
+    c.cairo_line_to(cr, px(cx, 17.5, s), px(cy, 17.5, s));
+    c.cairo_line_to(cr, px(cx, 12.0, s), px(cy, 23.0, s));
+    c.cairo_line_to(cr, px(cx, 12.0, s), px(cy, 1.0, s));
+    c.cairo_line_to(cr, px(cx, 17.5, s), px(cy, 6.5, s));
+    c.cairo_line_to(cr, px(cx, 6.5, s), px(cy, 17.5, s));
     setColor(cr, col);
-    c.cairo_set_line_width(cr, 1.4);
+    c.cairo_set_line_width(cr, @max(1.2, size * 0.08));
+    c.cairo_set_line_cap(cr, c.CAIRO_LINE_CAP_ROUND);
+    c.cairo_set_line_join(cr, c.CAIRO_LINE_JOIN_ROUND);
     c.cairo_stroke(cr);
 }
 
@@ -4493,19 +4502,19 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
             std.math.clamp(@as(f64, @floatFromInt(g.media_position_us)) / @as(f64, @floatFromInt(g.media_length_us)), 0.0, 1.0)
         else
             0.0;
-        fillRound(cr, right_x + 16, right_y + 102, col_w - 32, 5, 2.5, .{ 1, 1, 1, 0.07 });
-        if (pct > 0.005) fillRound(cr, right_x + 16, right_y + 102, (col_w - 32) * pct, 5, 2.5, .{
+        fillRound(cr, right_x + 16, right_y + 94, col_w - 32, 5, 2.5, .{ 1, 1, 1, 0.07 });
+        if (pct > 0.005) fillRound(cr, right_x + 16, right_y + 94, (col_w - 32) * pct, 5, 2.5, .{
             accent[0], accent[1], accent[2], 0.82,
         });
-        addOverlayHit(right_x + 16, right_y + 96, col_w - 32, 17, .{ .kind = .control_slider, .value = @backingInt(m.DragTarget.seek) });
-        g.control_seek_slider = .{ .x = right_x + 16, .y = right_y + 96, .w = col_w - 32, .h = 17 };
+        addOverlayHit(right_x + 16, right_y + 88, col_w - 32, 17, .{ .kind = .control_slider, .value = @backingInt(m.DragTarget.seek) });
+        g.control_seek_slider = .{ .x = right_x + 16, .y = right_y + 88, .w = col_w - 32, .h = 17 };
         const buttons = [_]struct { label: []const u8, action: m.ControlAction }{
             .{ .label = "prev", .action = .back },
             .{ .label = if (g.media_status == 1) "pause" else "play", .action = .power_lock },
             .{ .label = "next", .action = .power_quit },
         };
         _ = buttons;
-        drawMediaButtons(cr, right_x + col_w - 16, right_y + 118, fg);
+        drawMediaButtons(cr, right_x + col_w - 16, right_y + 121, fg);
         right_y += mh + 12.0;
     }
 
