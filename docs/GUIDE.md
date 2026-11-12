@@ -1964,12 +1964,13 @@ center:
 - Battery, lock/suspend/reboot/power off, screenshot, clipboard, settings, and
   up to four `control_action` buttons
 
-Overlays fade in; the control center also scales and settles, home cards stagger
-in, sub-views cross-fade with a short horizontal slide, and the Wi-Fi/
-Bluetooth/Focus pills ease to their new state. Buttons, pills, sliders, palette
-cards, and navigation rows brighten on hover and nudge their content when
-pressed. `animations = false` makes overlays instant, while
-`reduce_motion = true` keeps only the fades.
+Overlays ease in over 300 ms and out over 240 ms; the control center settles
+with a damped spring, home cards stagger in over 360 ms, sub-views cross-fade
+with a 14 px slide over 240 ms, and the Wi-Fi/Bluetooth/Focus pills ease to
+their new state over 220 ms. Buttons, pills, sliders, palette cards, and
+navigation rows fade their hover state in and nudge their content when pressed.
+`animations = false` makes overlays instant, while `reduce_motion = true`
+keeps only the fades.
 
 `control_features` hides individual features (for example
 `control_features = wifi, bluetooth, volume, notifications`). In classic mode

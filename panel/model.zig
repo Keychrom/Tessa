@@ -56,6 +56,7 @@ pub const AudioDevice = struct {
     is_default: bool = false,
 };
 pub const ControlView = enum { home, audio, theme, wifi, bluetooth, notifications, calendar, tray, power };
+pub const ControlPill = enum { wifi, bluetooth, dnd };
 
 pub const ThemePalette = struct {
     name: []const u8,
@@ -1188,9 +1189,20 @@ pub const Panel = struct {
     control_view_anim: f64 = 1,
     control_view_start: i64 = 0,
     control_view_dir: i8 = 0,
-    pill_wifi_anim: f64 = 0,
-    pill_bt_anim: f64 = 0,
-    pill_dnd_anim: f64 = 0,
+    control_stagger_anim: f64 = 1,
+    control_stagger_start: i64 = 0,
+    hover_anim: f64 = 0,
+    hover_from: f64 = 0,
+    hover_target: f64 = 0,
+    hover_start: i64 = 0,
+    press_anim: f64 = 0,
+    press_from: f64 = 0,
+    press_target: f64 = 0,
+    press_start: i64 = 0,
+    pill_anim: [3]f64 = .{ 0, 0, 0 },
+    pill_from: [3]f64 = .{ 0, 0, 0 },
+    pill_target: [3]f64 = .{ 0, 0, 0 },
+    pill_start: [3]i64 = .{ 0, 0, 0 },
 
     running: bool = false,
     next_clock_ms: i64 = 0,
@@ -1449,6 +1461,10 @@ pub fn motionEnabled() bool {
 /// Scale and slide are suppressed under reduce_motion; fades still run.
 pub fn motionMovement() bool {
     return g.animations_enabled and !g.reduce_motion;
+}
+
+pub fn pillAnim(kind: ControlPill) f64 {
+    return g.pill_anim[@intFromEnum(kind)];
 }
 
 pub fn barHorizontal() bool {
@@ -2853,9 +2869,20 @@ pub fn loadConfig() void {
     g.control_view_anim = 1;
     g.control_view_start = 0;
     g.control_view_dir = 0;
-    g.pill_wifi_anim = 0;
-    g.pill_bt_anim = 0;
-    g.pill_dnd_anim = 0;
+    g.control_stagger_anim = 1;
+    g.control_stagger_start = 0;
+    g.hover_anim = 0;
+    g.hover_from = 0;
+    g.hover_target = 0;
+    g.hover_start = 0;
+    g.press_anim = 0;
+    g.press_from = 0;
+    g.press_target = 0;
+    g.press_start = 0;
+    g.pill_anim = .{ 0, 0, 0 };
+    g.pill_from = .{ 0, 0, 0 };
+    g.pill_target = .{ 0, 0, 0 };
+    g.pill_start = .{ 0, 0, 0 };
     copyTrunc(&g.font, &g.font_len, "Inter");
     g.bar_font_len = 0;
     g.launcher_font_len = 0;
