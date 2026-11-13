@@ -147,7 +147,7 @@ does not require a special optimize mode.
 
 ## Status
 
-The current development tree is `0.2.5`; `0.2.4` remains the latest binary
+The current release is `0.2.5` (source); `0.2.4` remains the latest `.deb`
 release. Tessa is usable and the core pieces are implemented. The 0.7
 customization-parity roadmap items are complete; see
 [docs/ROADMAP.md](docs/ROADMAP.md).
