@@ -724,6 +724,13 @@ fn onKeyboardKey(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     }
 
     if (ime.forwardKeyToGrab(server, kb, event)) return;
+    if (kb.virtual_keyboard != null) {
+        // Injected text from the input method is not a compositor shortcut.
+        // Bypass bindings so composed characters cannot be swallowed.
+        c.wlr_seat_set_keyboard(server.seat, kb.wlr);
+        c.wlr_seat_keyboard_notify_key(server.seat, event.time_msec, event.keycode, event.state);
+        return;
+    }
     if (event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED and server.focused_layer != null) {
         const focused = server.seat.keyboard_state.focused_surface;
         const layer_surface: *c.wlr_surface = @ptrCast(@alignCast(server.focused_layer.?.wlr.surface));

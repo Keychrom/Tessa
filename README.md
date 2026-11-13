@@ -729,10 +729,16 @@ sudo apt install fcitx5 fcitx5-mozc
 Start Fcitx5 inside the Tessa session (for example through `TESSA_STARTUP` or
 your compositor's spawn command). You do not need to set `GTK_IM_MODULE` or
 `QT_IM_MODULE` for Wayland-native clients: they use the Wayland text-input
-protocol. For X11 clients, Tessa exports `XMODIFIERS=@im=fcitx` (adjust
+protocol. For GTK/Firefox on Wayland, leave `GTK_IM_MODULE` unset or set it to
+`wayland`; forcing `GTK_IM_MODULE=fcitx` selects the optional `fcitx5-gtk`
+frontend and is a common reason Japanese input works in one session but not
+another. Keep `QT_IM_MODULE=fcitx` only when `fcitx5-qt` is installed.
+For X11 clients, Tessa exports `XMODIFIERS=@im=fcitx` (adjust
 `xim_server`) and can start the XIM server itself with
 `xim_start = fcitx5 -d`. The server is started only after the XWayland display
-exists. Registration is verified with Fcitx5; toolkit-specific XIM behavior
+exists, and Tessa publishes `DISPLAY`/`XMODIFIERS` to the systemd user and
+D-Bus activation environments so portal- or systemd-launched X11 apps can find
+XIM too. Registration is verified with Fcitx5; toolkit-specific XIM behavior
 still depends on the application.
 
 Fcitx5 keeps a keyboard grab while it runs. Tessa forwards key events to that
@@ -740,6 +746,15 @@ grab and passes the input method's virtual-keyboard output back to the focused
 client, so applications that do not use `text-input-v3` (for example Firefox)
 still receive keys. Creating or destroying that virtual keyboard does not
 re-enter keyboard focus, which avoids a text-input enable/activate loop.
+Injected virtual-keyboard keys also bypass Tessa's key bindings, so composed
+characters cannot be mistaken for compositor shortcuts.
+
+If Firefox still loses Japanese input intermittently, check these first:
+`GTK_IM_MODULE` must be unset or `wayland`; use a fresh Firefox profile to rule
+out profile corruption; and make sure `MOZ_ENABLE_WAYLAND=1` is set when you
+want the native Wayland path. For an XWayland Firefox, verify that
+`XMODIFIERS=@im=fcitx` is present in the process environment and that Fcitx5's
+XIM server is running.
 
 Open the launcher with `Super+D` and type; the preedit is drawn in the search
 field and the Fcitx candidate popup appears below it. `Enter` commits the

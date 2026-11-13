@@ -125,6 +125,11 @@ while [ ! -f "$runtime/xim-env" ]; do
 done
 grep -q "@im=fcitx" "$runtime/xim-env"
 grep -q "xim: XMODIFIERS=@im=fcitx" "$runtime/tessa.log"
+grep -q "requested DISPLAY/XMODIFIERS import" "$runtime/tessa.log" || {
+    echo "X11 environment was not published to systemd/D-Bus" >&2
+    cat "$runtime/tessa.log" >&2
+    exit 1
+}
 echo "XIM environment: ok"
 
 grep -q "xim: starting 'fcitx5 -d'" "$runtime/tessa.log" || {

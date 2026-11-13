@@ -83,7 +83,7 @@ export WLR_HEADLESS_OUTPUTS=1
 export PATH="$bin:$PATH"
 export TESSA_DEBUG=1
 export XDG_CURRENT_DESKTOP=Tessa
-export GTK_IM_MODULE=fcitx
+export GTK_IM_MODULE=wayland
 export QT_IM_MODULE=fcitx
 export XMODIFIERS=@im=fcitx
 

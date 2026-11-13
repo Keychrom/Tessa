@@ -37,28 +37,36 @@ fn clientMatches(text_input: *c.wlr_text_input_v3, surface: *c.wlr_surface) bool
 fn focusedTextInput(server: *Server) ?*TextInput {
     // A client can own several text-input objects. Only the one attached to
     // the current keyboard focus may receive commits; otherwise text goes to a
-    // stale widget after focus moved to another client.
+    // stale widget after focus moved to another client. Prefer the object the
+    // client actually enabled, because clients such as Firefox keep several
+    // text-input objects alive for different widgets/windows.
     const surface = server.ime_focus_surface orelse return null;
+    var fallback: ?*TextInput = null;
     var i: usize = 0;
     while (i < server.text_input_count) : (i += 1) {
         const ti = server.text_inputs[i] orelse continue;
-        if (ti.input.focused_surface == surface) return ti;
+        if (ti.input.focused_surface != surface) continue;
+        if (ti.input.current_enabled) return ti;
+        if (fallback == null) fallback = ti;
     }
-    return null;
+    return fallback;
 }
 
 fn sendImState(server: *Server, ti: *TextInput) void {
     const im = server.input_method orelse return;
     const input = ti.input;
 
-    if (input.current.surrounding.text != null) {
-        c.wlr_input_method_v2_send_surrounding_text(
-            im,
-            input.current.surrounding.text,
-            input.current.surrounding.cursor,
-            input.current.surrounding.anchor,
-        );
-    }
+    // Always send the current surrounding text, including an empty string.
+    // Otherwise the input method can keep text from a previous field and send
+    // delete_surrounding_text against the wrong buffer after a focus change.
+    const empty: [1:0]u8 = .{0};
+    const surrounding: [*c]const u8 = input.current.surrounding.text orelse &empty;
+    c.wlr_input_method_v2_send_surrounding_text(
+        im,
+        surrounding,
+        input.current.surrounding.cursor,
+        input.current.surrounding.anchor,
+    );
     c.wlr_input_method_v2_send_text_change_cause(im, input.current.text_change_cause);
     c.wlr_input_method_v2_send_content_type(
         im,
@@ -73,8 +81,17 @@ fn onTextInputEnable(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) 
     _ = data;
     const ti: *TextInput = @fieldParentPtr("enable", listener.?);
     const server = ti.server;
+    const focus = server.ime_focus_surface orelse return;
+    // Firefox and GTK can enable a text field before the compositor has sent
+    // enter (for example while a window is mapping). Attach it now instead of
+    // dropping the enable and waiting for an unrelated focus change.
+    if (ti.input.focused_surface) |surface| {
+        if (surface != focus) return;
+    } else {
+        if (!clientMatches(ti.input, focus)) return;
+        c.wlr_text_input_v3_send_enter(ti.input, focus);
+    }
     core.logDebug("text input enable focused={}", .{ti.input.focused_surface != null});
-    if (ti.input.focused_surface == null) return;
     const im = server.input_method orelse return;
     c.wlr_input_method_v2_send_activate(im);
     core.logDebug("ime sent activate (enable)", .{});
@@ -225,14 +242,14 @@ fn onImCommit(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
     const input = ti.input;
     core.logDebug("input method commit", .{});
 
-    if (im.current.preedit.text != null) {
-        c.wlr_text_input_v3_send_preedit_string(
-            input,
-            im.current.preedit.text,
-            im.current.preedit.cursor_begin,
-            im.current.preedit.cursor_end,
-        );
-    }
+    const empty: [1:0]u8 = .{0};
+    const preedit: [*c]const u8 = im.current.preedit.text orelse &empty;
+    c.wlr_text_input_v3_send_preedit_string(
+        input,
+        preedit,
+        im.current.preedit.cursor_begin,
+        im.current.preedit.cursor_end,
+    );
     if (im.current.commit_text != null) {
         c.wlr_text_input_v3_send_commit_string(input, im.current.commit_text);
     }

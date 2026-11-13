@@ -93,6 +93,18 @@ fn finishStartup(server: *Server) void {
     core.markDirty(server);
 }
 
+fn importX11Environment() void {
+    if (c.getenv("DISPLAY") == null) return;
+    // Programs launched through systemd or D-Bus activation do not inherit
+    // the compositor's process environment. Publish the X display and IME
+    // variables so portal/systemd-launched X11 apps can find XIM too.
+    core.spawn(
+        "systemctl --user import-environment DISPLAY XMODIFIERS WAYLAND_DISPLAY XDG_RUNTIME_DIR 2>/dev/null; " ++
+            "dbus-update-activation-environment --systemd DISPLAY XMODIFIERS 2>/dev/null",
+    );
+    core.logInfo("xwayland: requested DISPLAY/XMODIFIERS import into the user environment", .{});
+}
+
 fn onXwaylandReady(data: ?*anyopaque) callconv(.c) c_int {
     const server: *Server = @ptrCast(@alignCast(data.?));
     const display = server.xwayland_display[0..server.xwayland_display_len];
@@ -104,6 +116,7 @@ fn onXwaylandReady(data: ?*anyopaque) callconv(.c) c_int {
         _ = c.setenv("DISPLAY", &display_z, 1);
         core.logInfo("xwayland: connected on {s}", .{display});
         xim.init(server, display);
+        importX11Environment();
         finishStartup(server);
         return 0;
     }

@@ -746,17 +746,33 @@ sudo apt install fcitx5 fcitx5-mozc
 Tessa セッション内で Fcitx5 を起動してください（`TESSA_STARTUP` や
 コンポジタの spawn コマンドなど）。Wayland ネイティブのクライアントでは
 `GTK_IM_MODULE` / `QT_IM_MODULE` を設定する必要はありません。これらは
-Wayland の text-input プロトコルを使うためです。X11 クライアント向けには
-Tessa が `XMODIFIERS=@im=fcitx`（`xim_server` で変更可能）をエクスポートし、
-`xim_start = fcitx5 -d` を設定すると X ディスプレイの準備後に XIM サーバを
-自動起動します。Fcitx5 での登録は確認済みですが、実際の確定処理は各 X11
-ツールキットの XIM クライアントに依存します。
+Wayland の text-input プロトコルを使うためです。GTK/Firefox を Wayland で
+使う場合は `GTK_IM_MODULE` を未設定または `wayland` にしてください。
+`GTK_IM_MODULE=fcitx` はオプションの `fcitx5-gtk` フロントエンドを強制し、
+環境によって日本語入力が動いたり動かなかったりする主な原因になります。
+`QT_IM_MODULE=fcitx` は `fcitx5-qt` が入っている場合だけ設定してください。
+X11 クライアント向けには Tessa が `XMODIFIERS=@im=fcitx`
+（`xim_server` で変更可能）をエクスポートし、`xim_start = fcitx5 -d` を設定すると
+X ディスプレイの準備後に XIM サーバを自動起動します。さらに Tessa は
+`DISPLAY`/`XMODIFIERS` を systemd user と D-Bus activation 環境へ公開するため、
+portal や systemd 経由で起動した X11 アプリも XIM を見つけられます。
+Fcitx5 での登録は確認済みですが、実際の確定処理は各 X11 ツールキットの
+XIM クライアントに依存します。
 
 Fcitx5 は実行中キーボードグラブを保持します。Tessa はキーイベントをグラブへ
 転送し、入力メソッドの仮想キーボード出力をフォーカス中のクライアントへ戻します。
 そのため `text-input-v3` を使わないアプリ（Firefox など）でもキー入力を受け取れ
 ます。仮想キーボードの作成・破棄時にキーボードフォーカスを再入力しないため、
-text-input の enable/activate ループも発生しません。
+text-input の enable/activate ループも発生しません。仮想キーボードが注入した
+キーは Tessa のキーバインドを通さないため、確定文字がショートカットとして
+消費されることもありません。
+
+Firefox で日本語入力が途切れる場合は、まず `GTK_IM_MODULE` が未設定または
+`wayland` であることを確認してください。プロファイル破損も原因になるため、
+新しい Firefox プロファイルで試すのも有効です。ネイティブ Wayland を使う場合は
+`MOZ_ENABLE_WAYLAND=1` を設定し、XWayland の Firefox では
+`XMODIFIERS=@im=fcitx` がプロセス環境にあり、Fcitx5 の XIM サーバが動いている
+ことを確認してください。
 
 `Super+D` でランチャーを開いて入力すると、プリエディットが検索欄に描画され、
 その下に Fcitx の候補ポップアップが表示されます。`Enter` で選択を確定し、
