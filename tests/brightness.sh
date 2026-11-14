@@ -139,7 +139,7 @@ wait_log "layer map: tessa-overlay layer=3 keyboard=1"
 
 run() { env XDG_RUNTIME_DIR="$runtime" WAYLAND_DISPLAY=wayland-0 "$runtime/build/automation" "$@"; }
 # Brightness slider at 70%.
-run abs 1230 154
+run abs 1771 190
 sleep 0.3
 run click 0x110
 sleep 0.5
@@ -147,7 +147,7 @@ wait_fake "SetBrightness backlight"
 echo "brightness slider: ok"
 
 # Power profile: performance (third button).
-run abs 880 144
+run abs 1820 228
 sleep 0.3
 run click 0x110
 sleep 0.5

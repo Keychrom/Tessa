@@ -37,6 +37,7 @@ xwayland = false
 panel_style = unified
 control_features = all
 animations = false
+accent = #e2684f
 EOF
 
 wayland-scanner client-header "$root/tests/protocol/wlr-virtual-pointer-unstable-v1.xml" \
@@ -111,8 +112,8 @@ wait_accent "#e2684f"
 wait_log "tessa-panel: control: open view=theme"
 sleep 0.5
 
-# Indigo is the second palette card in the 1920x1080 headless layout.
-run abs 900 250
+# Indigo follows Sumi and Vermilion in the third palette card in the 1920x1080 headless layout.
+run abs 1610 275
 sleep 0.3
 run click 0x110
 wait_log "tessa-panel: theme: applied indigo"
@@ -125,7 +126,7 @@ echo "theme preset + compositor reload: ok"
 
 sleep 0.4
 # Reset sits at the bottom-right of the theme page.
-run abs 1316 536
+run abs 1846 548
 sleep 0.3
 run click 0x110
 wait_log "tessa-panel: theme: reset"

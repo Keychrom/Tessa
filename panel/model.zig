@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("c.zig").c;
 const apps = @import("apps.zig");
+const sumi = @import("sumi.zig");
 
 pub const MAX_WINDOWS = 64;
 pub const MAX_OUTPUTS = 8;
@@ -87,6 +88,17 @@ pub const ThemeBase = struct {
 /// Full palettes shown in the control-center theme editor. Accent-only and
 /// base-only changes reuse the other half of the current palette.
 pub const THEME_PALETTES = [_]ThemePalette{
+    .{
+        .name = "sumi",
+        .accent = sumi.accent,
+        .bg = sumi.background,
+        .bg_top = sumi.background,
+        .bg_bottom = sumi.background,
+        .panel_bg = sumi.surface,
+        .panel_fg = sumi.foreground,
+        .border_inactive = sumi.border,
+    },
+
     .{
         .name = "vermilion",
         .accent = .{ 0.886, 0.408, 0.31 },
@@ -1078,6 +1090,7 @@ pub const Panel = struct {
 
     control_view: ControlView = .home,
     control_scroll: f64 = 0,
+    control_scroll_max: f64 = 0,
     control_content_height: f64 = 0,
     control_visible_height: f64 = 0,
     control_panel_rect: HitRect = .{},
@@ -1214,7 +1227,7 @@ pub const Panel = struct {
     gpu_frame_ms: i64 = 0,
     gpu_frame_callback: ?*c.wl_callback = null,
 
-    accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
+    accent: [3]f64 = sumi.accent,
     bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
     bg_top: [3]f64 = .{ 0, 0, 0 },
     bg_top_set: bool = false,
@@ -1238,18 +1251,18 @@ pub const Panel = struct {
     bg_base_dirty: bool = true,
     mark_dirty: bool = true,
     overlay_content_dirty: bool = true,
-    panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    border_active: [3]f64 = .{ 0.886, 0.408, 0.31 },
+    panel_bg: [3]f64 = sumi.surface,
+    panel_fg: [3]f64 = sumi.foreground,
+    border_active: [3]f64 = sumi.accent,
     border_inactive: [3]f64 = .{ 0.161, 0.200, 0.278 },
-    bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    launcher_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
-    popover_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
-    toast_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    bar_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    launcher_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    popover_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    toast_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    bar_bg: [3]f64 = sumi.surface,
+    launcher_bg: [3]f64 = sumi.surface,
+    popover_bg: [3]f64 = sumi.surface,
+    toast_bg: [3]f64 = sumi.surface,
+    bar_fg: [3]f64 = sumi.foreground,
+    launcher_fg: [3]f64 = sumi.foreground,
+    popover_fg: [3]f64 = sumi.foreground,
+    toast_fg: [3]f64 = sumi.foreground,
     bar_bg_set: bool = false,
     launcher_bg_set: bool = false,
     popover_bg_set: bool = false,
@@ -1258,22 +1271,22 @@ pub const Panel = struct {
     launcher_fg_set: bool = false,
     popover_fg_set: bool = false,
     toast_fg_set: bool = false,
-    base_accent: [3]f64 = .{ 0.886, 0.408, 0.31 },
+    base_accent: [3]f64 = sumi.accent,
     base_bg_rgb: [3]f64 = .{ 0.039, 0.059, 0.102 },
     base_bg_top: [3]f64 = .{ 0, 0, 0 },
     base_bg_top_set: bool = false,
     base_bg_bottom: [3]f64 = .{ 0, 0, 0 },
     base_bg_bottom_set: bool = false,
-    base_panel_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    base_panel_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    base_bar_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    base_bar_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    base_launcher_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
-    base_launcher_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    base_popover_bg: [3]f64 = .{ 0.055, 0.072, 0.105 },
-    base_popover_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
-    base_toast_bg: [3]f64 = .{ 0.055, 0.075, 0.115 },
-    base_toast_fg: [3]f64 = .{ 0.93, 0.95, 0.98 },
+    base_panel_bg: [3]f64 = sumi.surface,
+    base_panel_fg: [3]f64 = sumi.foreground,
+    base_bar_bg: [3]f64 = sumi.surface,
+    base_bar_fg: [3]f64 = sumi.foreground,
+    base_launcher_bg: [3]f64 = sumi.surface,
+    base_launcher_fg: [3]f64 = sumi.foreground,
+    base_popover_bg: [3]f64 = sumi.surface,
+    base_popover_fg: [3]f64 = sumi.foreground,
+    base_toast_bg: [3]f64 = sumi.surface,
+    base_toast_fg: [3]f64 = sumi.foreground,
     base_wallpaper_art: bool = true,
     base_wallpaper_art_opacity: f64 = 0.55,
     scene_style: SceneStyle = .{},
@@ -1285,10 +1298,10 @@ pub const Panel = struct {
     scene_wallpaper_surface: ?*c.cairo_surface_t = null,
     scene_wallpaper_active: bool = false,
     scene_wallpaper_fit: WallpaperFit = .cover,
-    bar_height: i32 = 44,
+    bar_height: i32 = 48,
     bar_position: BarPosition = .top,
-    bar_top_margin: i32 = 12,
-    bar_side_margin: i32 = 16,
+    bar_top_margin: i32 = 16,
+    bar_side_margin: i32 = 20,
     logo_text: [64]u8 = undefined,
     logo_text_len: usize = 0,
     logo_icon: [512]u8 = undefined,
@@ -1298,7 +1311,7 @@ pub const Panel = struct {
     bar_layout_len: usize = 0,
     bar_layout_set: bool = false,
     modules: u16 = MODULE_ALL,
-    panel_style: PanelStyle = .classic,
+    panel_style: PanelStyle = .unified,
     window_switcher: WindowSwitcher = .snapshot,
     switcher_entries: [MAX_SWITCHER]SwitcherEntry = undefined,
     switcher_thumbs: [MAX_SWITCHER]SwitcherThumb = @splat(.{}),
@@ -1378,16 +1391,16 @@ pub const LauncherLayout = struct {
     scale: f64,
 };
 
-/// Scale the 760x620 launcher design uniformly into the available logical
+/// Scale the 620x620 launcher design uniformly into the available logical
 /// surface. Keeping one transform for drawing, hit tests, and IME placement
 /// avoids separate small-screen layout rules.
 pub fn launcherLayout(w: f64, h: f64) LauncherLayout {
-    const fit_x = @max(0.25, (w - 80.0) / 760.0);
-    const fit_y = @max(0.25, (h - 80.0) / 620.0);
+    const fit_x = @max(0.25, (w - 80.0) / sumi.launcher_width);
+    const fit_y = @max(0.25, (h - 80.0) / sumi.launcher_height);
     const scale = @min(1.0, @min(fit_x, fit_y));
     return .{
-        .x = (w - 760.0 * scale) / 2.0,
-        .y = (h - 620.0 * scale) / 2.0 - 8.0 * scale,
+        .x = (w - sumi.launcher_width * scale) / 2.0,
+        .y = (h - sumi.launcher_height * scale) / 2.0 - 8.0 * scale,
         .scale = scale,
     };
 }
@@ -1464,7 +1477,7 @@ pub fn motionMovement() bool {
 }
 
 pub fn pillAnim(kind: ControlPill) f64 {
-    return g.pill_anim[@intFromEnum(kind)];
+    return g.pill_anim[@backingInt(kind)];
 }
 
 pub fn barHorizontal() bool {
@@ -1493,47 +1506,17 @@ pub const ControlLayout = struct {
     columns: usize,
 };
 
-/// The unified control center is a single card anchored to the bar edge. It
-/// uses two columns on wide horizontal bars and one column on vertical bars or
-/// narrow outputs.
+/// Sumi home is a narrow right-anchored card; detail views keep room for lists.
 pub fn controlCenterLayout(w: f64, h: f64) ControlLayout {
-    const edge: f64 = @floatFromInt(g.bar_top_margin);
-    const thickness: f64 = @floatFromInt(g.bar_height);
-    const gap = 8.0;
-    var width: f64 = 0;
-    var height: f64 = 0;
-    var x: f64 = 0;
-    var y: f64 = 0;
-
-    if (barHorizontal()) {
-        width = @min(820.0, @max(320.0, w - 24.0));
-        height = @min(660.0, @max(300.0, h - (edge + thickness + gap) - 20.0));
-        x = (w - width) / 2.0;
-        y = if (g.bar_position == .top)
-            edge + thickness + gap
-        else
-            h - edge - thickness - gap - height;
-        if (y < 8.0) y = 8.0;
-        if (y + height > h - 8.0) height = @max(240.0, h - 16.0 - y);
-    } else {
-        width = @min(520.0, @max(320.0, w - (edge + thickness + gap) - 20.0));
-        height = @min(900.0, @max(300.0, h - 24.0));
-        x = if (g.bar_position == .left)
-            edge + thickness + gap
-        else
-            w - edge - thickness - gap - width;
-        if (x < 8.0) x = 8.0;
-        y = (h - height) / 2.0;
-    }
-    if (x + width > w - 8.0) width = @max(240.0, w - 8.0 - x);
-    if (y + height > h - 8.0) height = @max(200.0, h - 8.0 - y);
-    return .{
-        .x = x,
-        .y = y,
-        .w = width,
-        .h = height,
-        .columns = if (width >= 680.0 and barHorizontal()) 2 else 1,
-    };
+    const width: f64 = if (g.control_view == .home) 390 else if (g.control_view == .theme) 760 else 520;
+    const height: f64 = if (g.control_view == .home) 760 else if (g.control_view == .calendar) 400 else 660;
+    const r = sumi.controlRect(w, h, switch (g.bar_position) {
+        .top => .top,
+        .bottom => .bottom,
+        .left => .left,
+        .right => .right,
+    }, @floatFromInt(g.bar_top_margin), @floatFromInt(g.bar_height), @floatFromInt(g.bar_side_margin), width, height);
+    return .{ .x = r.x, .y = r.y, .w = r.w, .h = r.h, .columns = 1 };
 }
 
 pub fn barFont() []const u8 {
@@ -2891,7 +2874,7 @@ pub fn loadConfig() void {
     g.bar_layout_len = 0;
     g.bar_layout_set = false;
     g.modules = MODULE_ALL;
-    g.panel_style = .classic;
+    g.panel_style = .unified;
     g.window_switcher = .snapshot;
     g.control_features = CONTROL_FEATURE_ALL;
     g.control_action_count = 0;
@@ -2934,7 +2917,7 @@ pub fn loadConfig() void {
     g.blur_enabled = true;
     g.shadows_enabled = true;
     g.animations_enabled = true;
-    g.accent = .{ 0.886, 0.408, 0.31 };
+    g.accent = sumi.accent;
     g.border_active = g.accent;
     g.border_inactive = .{ 0.161, 0.200, 0.278 };
     g.bg_rgb = .{ 0.039, 0.059, 0.102 };
@@ -2944,11 +2927,11 @@ pub fn loadConfig() void {
     g.bg_bottom_set = false;
     g.wallpaper_art = true;
     g.wallpaper_art_opacity = 0.55;
-    g.panel_bg = .{ 0.055, 0.075, 0.115 };
-    g.panel_fg = .{ 0.93, 0.95, 0.98 };
+    g.panel_bg = sumi.surface;
+    g.panel_fg = sumi.foreground;
     g.bar_bg = g.panel_bg;
-    g.launcher_bg = .{ 0.055, 0.072, 0.105 };
-    g.popover_bg = .{ 0.055, 0.072, 0.105 };
+    g.launcher_bg = sumi.surface;
+    g.popover_bg = sumi.surface;
     g.toast_bg = g.panel_bg;
     g.bar_fg = g.panel_fg;
     g.launcher_fg = g.panel_fg;
@@ -2962,10 +2945,10 @@ pub fn loadConfig() void {
     g.launcher_fg_set = false;
     g.popover_fg_set = false;
     g.toast_fg_set = false;
-    g.bar_height = 44;
+    g.bar_height = 48;
     g.bar_position = .top;
-    g.bar_top_margin = 12;
-    g.bar_side_margin = 16;
+    g.bar_top_margin = 16;
+    g.bar_side_margin = 20;
     copyTrunc(&g.logo_text, &g.logo_text_len, "TESSA");
     g.logo_icon_len = 0;
     if (g.logo_icon_surface) |surface| {

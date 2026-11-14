@@ -1252,7 +1252,7 @@ fn controlPillsAnimating() bool {
 }
 
 fn stepPill(kind: m.ControlPill, want: f64, now: i64, movement: bool) bool {
-    const i = @intFromEnum(kind);
+    const i = @backingInt(kind);
     if (!movement) {
         const changed = g.pill_anim[i] != want or g.pill_start[i] != 0;
         g.pill_anim[i] = want;
@@ -1531,6 +1531,7 @@ fn controlSetView(view: m.ControlView) void {
     }
     const leaving_bt = g.control_view == .bluetooth;
     g.control_view = view;
+    if (view == .calendar) m.resetCalendarToday();
     g.control_scroll = 0;
     g.wifi_selected = 0;
     g.bt_selected = 0;
@@ -4781,6 +4782,7 @@ fn openControlCenter(view: m.ControlView) void {
     if (g.overlay != null) destroyOverlay();
     resetControlState();
     g.control_view = view;
+    if (view == .calendar) m.resetCalendarToday();
     if (view == .audio) {
         g.audio_tab = .output;
         g.audio_scroll = 0;
@@ -5657,7 +5659,7 @@ fn onPointerAxis(data: ?*anyopaque, pointer: ?*c.wl_pointer, time: u32, axis: u3
             }
             g.bt_scroll = g.bt_selected -| 3;
         } else {
-            g.control_scroll = @max(0.0, g.control_scroll - v * 24.0);
+            g.control_scroll = std.math.clamp(g.control_scroll + v * 3.0, 0.0, g.control_scroll_max);
         }
         refreshOverlay();
     } else if (g.overlay != null and g.launcher_open) {

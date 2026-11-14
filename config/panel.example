@@ -22,14 +22,15 @@ font = Inter
 
 # Panel geometry and bar palette. Changes apply on config reload; a geometry
 # change recreates the bar layer surface.
-bar_height = 44
+bar_height = 48
 # Bar edge: top (default), bottom, left, or right. bar_top_margin is the
 # distance from that edge; bar_side_margin is the inset along the bar.
 bar_position = top
-bar_top_margin = 12
-bar_side_margin = 16
-panel_bg = #0e1320
-panel_fg = #eef2f8
+bar_top_margin = 16
+bar_side_margin = 20
+panel_bg = #1a2329
+accent = #f08d72
+panel_fg = #f0eee7
 
 # Composable bar modules. The list selects visible modules and orders the
 # right-hand cluster (first listed is closest to the right edge). logo/workspaces/chips stay anchored.
@@ -74,11 +75,11 @@ panel_fg = #eef2f8
 # launcher_entry = Notes | foot -e nvim ~/notes.md
 # launcher_entry = Lock screen | swaylock
 
-# Panel style: classic (default) keeps the separate calendar/audio/media/tray
-# popovers. unified adds a Controls button and one control center for Wi-Fi,
+# Panel style: classic keeps the separate calendar/audio/media/tray
+# popovers. unified (the Sumi default) adds a Controls button and one control center for Wi-Fi,
 # Bluetooth, focus, volume, brightness, media, notifications, power profiles,
 # battery, tray, calendar, power actions, and quick actions.
-panel_style = classic
+panel_style = unified
 # Features shown in the unified control center. In classic mode this gates the
 # Wi-Fi/Bluetooth popovers and the Bluetooth indicator. Comma, space, or `|`
 # separated; `all` and `none` are accepted.
@@ -145,3 +146,4 @@ screenshot_dir = ~/Pictures/Screenshots
 # volume_up = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+
 # volume_down = wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
 # volume_mute = wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+

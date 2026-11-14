@@ -1,0 +1,109 @@
+{
+  "source": "local working tree",
+  "backup": "local validation backup",
+  "verifiedAt": "2026-11-14T10:12:49.867Z",
+  "files": [
+    {
+      "file": "panel/draw.zig",
+      "before": "83c8cac6565fdda3652e206e8f96ab0c7da1ba097671b9bb320722bdc1dfd5f2",
+      "after": "9341f888e4a35c4646c4291a8a183bebba50f3a56325aa7c745abd4060ff41c5",
+      "matches": true
+    },
+    {
+      "file": "panel/model.zig",
+      "before": "cde98235f9e8e01c91df32ba0ef5d56c17d8fd4eabcf9930a6b2826ad614f8b6",
+      "after": "9534de53f7cfddb3558557b24f525d4515dc082fadabccf78a3b941612965bb8",
+      "matches": true
+    },
+    {
+      "file": "panel/main.zig",
+      "before": "eefb6aa29c1fb2877582a8a423aa23e9bb303e27a82991523c5582f265c8dd04",
+      "after": "5a51425158115e1ede62b5597af2edc704988441f465f2e4742eb72ced39d277",
+      "matches": true
+    },
+    {
+      "file": "panel/sumi.zig",
+      "before": null,
+      "after": "956e17b70e2c592bfbace43a121208e7a26c71bc63b0541e6ad93cec47d81bc7",
+      "matches": true
+    },
+    {
+      "file": "config/panel.example",
+      "before": "abb7b0b71e65d5adb454b2b2b02b2329185749d1f15c0c33da6ca79d7bc1ea95",
+      "after": "b4620bc33f012816a23d3837f4acad675300eab91bfe179ca2993834522934ec",
+      "matches": true
+    },
+    {
+      "file": "config/panel-sumi.conf",
+      "before": null,
+      "after": "eb9855095ac02f1329a6f6584e3a00e267d9d166ee9cbbb617f6ac49757b6a44",
+      "matches": true
+    },
+    {
+      "file": "tests/brightness.sh",
+      "before": "88dc4923415f7a8b40b571cb79c93859730d3dae68f1901e3cd51e6acbc35a11",
+      "after": "4648f0efc56dd2a072d87ed691a2b87cfff1bd50b295e76f50108efe4133a38d",
+      "matches": true
+    },
+    {
+      "file": "tests/theme-editor.sh",
+      "before": "c2420b8dae3b1c42d1300f0eae2fb84416bb4e71322039b3f1297b7ef25a53ef",
+      "after": "46a09680653909c857231d82d58e6868559a65e84de0893a6d0ef8bd6755810e",
+      "matches": true
+    },
+    {
+      "file": "tests/audio.sh",
+      "before": "3e041acfc0eabd2407560640c0233689cc8293ca382582abb2e41446103befa3",
+      "after": "03f0c1005e3af520599b7ca978e7b169bb7d61083c63f1d238a3c67db9b7f954",
+      "matches": true
+    },
+    {
+      "file": "tests/sumi-panel.sh",
+      "before": null,
+      "after": "9dd12d456f91f8e91eb8f040c32c806122d67e239edb6dd80064c4d278dac6d4",
+      "matches": true
+    }
+  ],
+  "images": [
+    {
+      "file": "images/control-1366-scrolled.png",
+      "sha256": "e3e5d17ae3a1e3a574269b48528254cc914ce88ef6a2e70afa1657cb3ea0b660"
+    },
+    {
+      "file": "images/control-1366.png",
+      "sha256": "a1d4cf18ada00ea0b4076363db907c6d22a4e02370e1f2d82a6f603a26f5f67e"
+    },
+    {
+      "file": "images/control-1920.png",
+      "sha256": "952a8037a1842e7c139f8cb1ab70ace89ad25414ee277ada3f00a3d9fea07254"
+    },
+    {
+      "file": "images/desktop-1920.png",
+      "sha256": "1e634f64f7b5aa84641bebf31a3ead14a2867264d814cde14094a02c6a41f0d2"
+    },
+    {
+      "file": "images/launcher-1366.png",
+      "sha256": "0b64cde2be64daa030d909b4aaf750a64e89ced221514fdabbcf9518ccbb80b9"
+    },
+    {
+      "file": "images/launcher-1920.png",
+      "sha256": "22079740781d5775caed2ee24883a559fab836b30677fcfa248a1b2b02f78ddd"
+    },
+    {
+      "file": "images/review.jpg",
+      "sha256": "e12663c527d372213b2a75554764e3b4f59b50523f6cd5a37c524522fdf3720c"
+    },
+    {
+      "file": "images/small-review.jpg",
+      "sha256": "370c44864e64547724c71dc52d9761fb3c7e2c3aa1439353f06035ea1295c8b7"
+    },
+    {
+      "file": "images/theme-1366.png",
+      "sha256": "e9e5397f17c31c9aec1e72780f32600eab0f027248678ab169b368050454f979"
+    },
+    {
+      "file": "images/theme-1920.png",
+      "sha256": "7939b451499520b6b83283d576c3290c1f2b63f15c7ccf12e73951e6075b4999"
+    }
+  ]
+}

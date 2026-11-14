@@ -2,6 +2,8 @@ const std = @import("std");
 const c = @import("c.zig").c;
 const m = @import("model.zig");
 const motion = @import("motion.zig");
+const sumi = @import("sumi.zig");
+var overlay_hit_clip: ?sumi.Rect = null;
 const gpu = @import("gpu.zig");
 const apps = @import("apps.zig");
 
@@ -1343,36 +1345,9 @@ fn drawBarVertical(s: *m.Surface) void {
     const accent = g.accent;
     const bg = g.bar_bg;
     const fg = g.bar_fg;
-    const bar_top = [4]f64{
-        std.math.clamp(bg[0] + 0.030, 0, 1),
-        std.math.clamp(bg[1] + 0.040, 0, 1),
-        std.math.clamp(bg[2] + 0.055, 0, 1),
-        0.97,
-    };
-    const bar_bottom = [4]f64{ bg[0] * 0.62, bg[1] * 0.65, bg[2] * 0.70, 0.97 };
-
     g.bar_hit_count = 0;
-
-    fillRound(cr, 0, 0, W, H, 18, .{ bg[0], bg[1], bg[2], 0.96 });
-    roundRect(cr, 0, 0, W, H, 18);
-    linearGradient(cr, 0, 0, W, 0, bar_top, bar_bottom);
-    c.cairo_fill(cr);
-
-    c.cairo_save(cr);
-    roundRect(cr, 0, 0, W, H, 18);
-    c.cairo_clip(cr);
-    c.cairo_translate(cr, W / 2.0, 46.0);
-    c.cairo_scale(cr, 1.0, 3.2);
-    radialFill(cr, 0, 0, 0, 62, .{ accent[0], accent[1], accent[2], 0.10 }, .{ accent[0], accent[1], accent[2], 0.0 });
-    c.cairo_restore(cr);
-
-    strokeRound(cr, 0.5, 0.5, W - 1, H - 1, 18, .{ 1, 1, 1, 0.075 }, 1.0);
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, 0.7, 26);
-    c.cairo_line_to(cr, 0.7, H - 26);
-    setColor(cr, .{ 1, 1, 1, 0.10 });
-    c.cairo_set_line_width(cr, 1.0);
-    c.cairo_stroke(cr);
+    fillRound(cr, 0, 0, W, H, 14, .{ bg[0], bg[1], bg[2], 1.0 });
+    strokeRound(cr, 0.5, 0.5, W - 1, H - 1, 13.5, .{ fg[0], fg[1], fg[2], 0.14 }, 1);
 
     var y: f64 = 8.0;
     if (g.show_logo) {
@@ -1549,36 +1524,9 @@ pub fn drawBar(s: *m.Surface) void {
     const accent = g.accent;
     const bg = g.bar_bg;
     const fg = g.bar_fg;
-    const bar_top = [4]f64{
-        std.math.clamp(bg[0] + 0.030, 0, 1),
-        std.math.clamp(bg[1] + 0.040, 0, 1),
-        std.math.clamp(bg[2] + 0.055, 0, 1),
-        0.97,
-    };
-    const bar_bottom = [4]f64{ bg[0] * 0.62, bg[1] * 0.65, bg[2] * 0.70, 0.97 };
-
     g.bar_hit_count = 0;
-
-    fillRound(cr, 0, 0, W, H, 18, .{ bg[0], bg[1], bg[2], 0.96 });
-    roundRect(cr, 0, 0, W, H, 18);
-    linearGradient(cr, 0, 0, 0, H, bar_top, bar_bottom);
-    c.cairo_fill(cr);
-
-    c.cairo_save(cr);
-    roundRect(cr, 0, 0, W, H, 18);
-    c.cairo_clip(cr);
-    c.cairo_translate(cr, 46, cy);
-    c.cairo_scale(cr, 3.2, 1.0);
-    radialFill(cr, 0, 0, 0, 62, .{ accent[0], accent[1], accent[2], 0.10 }, .{ accent[0], accent[1], accent[2], 0.0 });
-    c.cairo_restore(cr);
-
-    strokeRound(cr, 0.5, 0.5, W - 1, H - 1, 18, .{ 1, 1, 1, 0.075 }, 1.0);
-    c.cairo_new_path(cr);
-    c.cairo_move_to(cr, 26, 0.7);
-    c.cairo_line_to(cr, W - 26, 0.7);
-    setColor(cr, .{ 1, 1, 1, 0.10 });
-    c.cairo_set_line_width(cr, 1.0);
-    c.cairo_stroke(cr);
+    fillRound(cr, 0, 0, W, H, 14, .{ bg[0], bg[1], bg[2], 1.0 });
+    strokeRound(cr, 0.5, 0.5, W - 1, H - 1, 13.5, .{ fg[0], fg[1], fg[2], 0.14 }, 1);
 
     var menu_end: f64 = 12.0;
     var div_x: f64 = 12.0;
@@ -1587,12 +1535,7 @@ pub fn drawBar(s: *m.Surface) void {
         const mark_x = 14.0;
         const mark_y = cy - 14.0;
         const hover_menu = g.hover.kind == .menu;
-        fillRound(cr, mark_x, mark_y, 28, 28, 9, .{
-            1, 1, 1, if (hover_menu) 0.11 else 0.055,
-        });
-        strokeRound(cr, mark_x + 0.5, mark_y + 0.5, 27, 27, 9, .{
-            accent[0], accent[1], accent[2], if (hover_menu) 0.55 else 0.30,
-        }, 1.0);
+        if (hover_menu) fillRound(cr, mark_x - 4, mark_y - 2, 36, 32, 8, .{ 1, 1, 1, 0.06 });
         drawBrandMark(cr, mark_x, mark_y, 28.0, accent);
 
         var label_buf: [66]u8 = undefined;
@@ -1622,8 +1565,8 @@ pub fn drawBar(s: *m.Surface) void {
     }
 
     // workspace pills
-    const pill_h = 20.0;
-    const pill_gap = 4.0;
+    const pill_h = @min(28.0, H - 8.0);
+    const pill_gap = 3.0;
     var label_storage: [m.WS_COUNT][32]u8 = undefined;
     var labels: [m.WS_COUNT][]const u8 = undefined;
     var pill_widths: [m.WS_COUNT]f64 = undefined;
@@ -1640,7 +1583,7 @@ pub fn drawBar(s: *m.Surface) void {
             if (named) 8.2 else 9.0,
             0,
         );
-        pill_widths[wi] = std.math.clamp(tw + 12.0, 22.0, 56.0);
+        pill_widths[wi] = std.math.clamp(tw + 12.0, 27.0, 56.0);
         ws_total += pill_widths[wi];
         if (wi + 1 < m.WS_COUNT) ws_total += pill_gap;
     }
@@ -1659,17 +1602,15 @@ pub fn drawBar(s: *m.Surface) void {
             const named = g.ws_name_lens[wi] > 0;
 
             if (active) {
-                fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{ accent[0], accent[1], accent[2], 1.0 });
+                fillRound(cr, pill_x, ws_y, pill_w, pill_h, 7, .{ accent[0], accent[1], accent[2], 1.0 });
             } else {
-                fillRound(cr, pill_x, ws_y, pill_w, pill_h, 10, .{
-                    1, 1, 1, if (hovered) 0.115 else if (occupied) 0.070 else 0.030,
-                });
-                strokeRound(cr, pill_x + 0.5, ws_y + 0.5, pill_w - 1, pill_h - 1, 9.5, .{ 1, 1, 1, 0.045 }, 1.0);
+                if (hovered) fillRound(cr, pill_x, ws_y, pill_w, pill_h, 7, .{ 1, 1, 1, 0.07 });
+                if (occupied) fillCircle(cr, pill_x + pill_w / 2, ws_y + pill_h - 3, 1.5, .{ fg[0], fg[1], fg[2], 0.70 });
             }
             const text_col: [4]f64 = if (active)
-                .{ 0.055, 0.08, 0.11, 1.0 }
+                .{ 0.157, 0.102, 0.082, 1 }
             else
-                .{ 0.70, 0.76, 0.86, if (occupied) 0.95 else 0.55 };
+                .{ fg[0], fg[1], fg[2], if (occupied) 0.85 else 0.65 };
             const family = if (named) m.barFont() else MONO;
             const tw = textWidth(cr, labels[wi], family, "Medium", if (named) 8.2 else 9.0, 0);
             _ = drawTextCentered(
@@ -1713,25 +1654,14 @@ pub fn drawBar(s: *m.Surface) void {
                 skipped += 1;
                 continue;
             }
-            const chip_h = 26.0;
+            const chip_h = 30.0;
             const chip_y = cy - chip_h / 2.0;
             const focused = w.id == g.focused_id;
             const hovered = g.hover.kind == .window and g.hover.value == w.id;
 
-            if (focused) {
-                fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ accent[0], accent[1], accent[2], if (hovered) 0.22 else 0.15 });
-                strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ accent[0], accent[1], accent[2], 0.42 }, 1.0);
-            } else {
-                fillRound(cr, cx, chip_y, chip_w, chip_h, 8, .{ 1, 1, 1, if (hovered) 0.075 else 0.040 });
-                strokeRound(cr, cx + 0.5, chip_y + 0.5, chip_w - 1, chip_h - 1, 7.5, .{ 1, 1, 1, 0.040 }, 1.0);
-            }
-
-            const app_id = if (w.app_len > 0) w.app_id[0..w.app_len] else label;
-            var hsh: u32 = 2166136261;
-            for (app_id) |ch| hsh = (hsh ^ ch) *% 16777619;
-            const col = palette[hsh % palette.len];
-
-            fillRound(cr, cx + 6, cy - 8, 16, 16, 5, .{ col[0], col[1], col[2], 0.92 });
+            if (focused or hovered) fillRound(cr, cx, chip_y, chip_w, chip_h, 6, .{ 1, 1, 1, if (focused) 0.07 else 0.045 });
+            if (focused) fillRound(cr, cx + 5, chip_y + chip_h - 2, chip_w - 10, 2, 1, .{ accent[0], accent[1], accent[2], 1 });
+            fillRound(cr, cx + 6, cy - 8, 16, 16, 4, .{ fg[0], fg[1], fg[2], 0.08 });
             var gbuf: [8]u8 = undefined;
             const glyph = upperFirst(&gbuf, firstGlyph(label));
             _ = drawTextCenteredX(cr, glyph, cx + 14.0, cy + 0.3, m.barFont(), "Semi-Bold", 8.2, .{ 1, 1, 1, 0.95 }, 0, 0);
@@ -1774,7 +1704,7 @@ pub fn drawBar(s: *m.Surface) void {
         right_first = false;
     }
     const previous_hidden = g.bar_hidden_count;
-    const bar_plan = m.planBar(W, right - (cx + 12.0));
+    const bar_plan = m.planBar(W, right - @max(cx + 12.0, if (g.show_workspaces) ws_x0 + ws_total + 16.0 else cx + 12.0));
     g.bar_hidden = bar_plan.hidden;
     g.bar_hidden_count = bar_plan.hidden_count;
     if (bar_plan.hidden_count != previous_hidden) {
@@ -2108,11 +2038,13 @@ pub fn drawBar(s: *m.Surface) void {
 
 fn addOverlayHit(x: f64, y: f64, w: f64, h: f64, hit: m.Hit) void {
     if (g.overlay_hit_count >= g.overlay_hits.len) return;
+    var rect = sumi.Rect{ .x = x, .y = y, .w = w, .h = h };
+    if (overlay_hit_clip) |clip| rect = rect.intersect(clip) orelse return;
     g.overlay_hits[g.overlay_hit_count] = .{
-        .x = g.overlay_hit_x + x * g.overlay_hit_scale,
-        .y = g.overlay_hit_y + y * g.overlay_hit_scale,
-        .w = w * g.overlay_hit_scale,
-        .h = h * g.overlay_hit_scale,
+        .x = g.overlay_hit_x + rect.x * g.overlay_hit_scale,
+        .y = g.overlay_hit_y + rect.y * g.overlay_hit_scale,
+        .w = rect.w * g.overlay_hit_scale,
+        .h = rect.h * g.overlay_hit_scale,
         .hit = hit,
     };
     g.overlay_hit_count += 1;
@@ -2151,7 +2083,6 @@ fn drawLauncherRows(
     {
         const hy = row_y0 + sel_row * stride;
         fillRound(cr, row_x, hy, row_w, row_h, 10, .{ accent[0], accent[1], accent[2], 0.16 * t });
-        strokeRound(cr, row_x + 0.5, hy + 0.5, row_w - 1, row_h - 1, 9.5, .{ accent[0], accent[1], accent[2], 0.22 * t }, 1.0);
         fillRound(cr, row_x + 1.5, hy + 12, 3, row_h - 24, 1.5, .{ accent[0], accent[1], accent[2], 0.95 * t });
     }
 
@@ -2179,18 +2110,17 @@ fn drawLauncherRows(
         const text_gap: f64 = if (compact) 10.0 else 14.0;
         const icon_x = row_x + icon_inset;
         const icon_y = y + (row_h - icon_size) / 2.0;
-        const col = appColor(app);
-        fillRound(cr, icon_x, icon_y, icon_size, icon_size, if (compact) 8.0 else 9.0, .{ col[0], col[1], col[2], 0.9 });
+        fillRound(cr, icon_x, icon_y, icon_size, icon_size, if (compact) 8.0 else 9.0, if (selected) .{ accent[0], accent[1], accent[2], 1 } else .{ fg[0], fg[1], fg[2], 0.08 });
         var gbuf: [8]u8 = undefined;
         const glyph = upperFirst(&gbuf, firstGlyph(app.name[0..app.name_len]));
-        _ = drawTextCenteredX(cr, glyph, icon_x + icon_size / 2.0, y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, .{ 1, 1, 1, 0.96 }, 0, 0);
+        _ = drawTextCenteredX(cr, glyph, icon_x + icon_size / 2.0, y + row_h / 2.0, fam, "Semi-Bold", if (compact) 10.5 else 11.5, if (selected) .{ 0.157, 0.102, 0.082, 1 } else .{ fg[0], fg[1], fg[2], 0.88 }, 0, 0);
 
         const text_x = icon_x + icon_size + text_gap;
         if (compact) {
             _ = drawText(cr, app.name[0..app.name_len], text_x, y + 9, fam, "Semi-Bold", 10.8, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - (text_x - row_x) - 34, 0);
         } else {
             _ = drawText(cr, app.name[0..app.name_len], text_x, y + 10, fam, "Semi-Bold", 11.2, if (selected) .{ fg[0], fg[1], fg[2], 1 } else .{ fg[0], fg[1], fg[2], 0.9 }, row_w - (text_x - row_x) - 64, 0);
-            _ = drawText(cr, app.comment[0..app.comment_len], text_x, y + 28, fam, "Regular", 8.7, .{ 0.62, 0.68, 0.77, 0.62 }, row_w - (text_x - row_x) - 64, 0);
+            _ = drawText(cr, app.comment[0..app.comment_len], text_x, y + 28, fam, "Regular", 8.7, .{ fg[0], fg[1], fg[2], 0.70 }, row_w - (text_x - row_x) - 64, 0);
         }
 
         if (app.terminal) {
@@ -2218,45 +2148,26 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
 
     c.cairo_push_group(cr);
 
-    // shadow
-    var i: usize = 0;
-    while (i < 7) : (i += 1) {
-        const expand = 8.0 + @as(f64, @floatFromInt(i)) * 5.0;
-        fillRound(cr, px - expand, py - expand + 8, pw + expand * 2, ph + expand * 2, 28 + expand, .{ 0, 0, 0, 0.035 });
+    // Opaque, flat surface: readable without blur or gradient support.
+    for (0..4) |i| {
+        const e = 5.0 + @as(f64, @floatFromInt(i)) * 5;
+        fillRound(cr, px - e, py - e + 6, pw + e * 2, ph + e * 2, 14 + e, .{ 0, 0, 0, 0.035 });
     }
-
-    fillRound(cr, px, py, pw, ph, 24, .{ bg[0], bg[1], bg[2], 0.985 });
-    roundRect(cr, px, py, pw, ph, 24);
-    linearGradient(cr, px, py, px, py + ph, .{
-        std.math.clamp(bg[0] * 1.55 + 0.01, 0, 1),
-        std.math.clamp(bg[1] * 1.55 + 0.01, 0, 1),
-        std.math.clamp(bg[2] * 1.55 + 0.01, 0, 1),
-        0.99,
-    }, .{ bg[0] * 0.58, bg[1] * 0.58, bg[2] * 0.64, 0.99 });
-    c.cairo_fill(cr);
-    strokeRound(cr, px + 0.5, py + 0.5, pw - 1, ph - 1, 23.5, .{ 1, 1, 1, 0.11 }, 1.0);
-
-    const top_pat = c.cairo_pattern_create_linear(px + 40, 0, px + pw - 40, 0);
-    c.cairo_pattern_add_color_stop_rgba(top_pat, 0, accent[0], accent[1], accent[2], 0);
-    c.cairo_pattern_add_color_stop_rgba(top_pat, 0.5, accent[0], accent[1], accent[2], 0.75);
-    c.cairo_pattern_add_color_stop_rgba(top_pat, 1, accent[0], accent[1], accent[2], 0);
-    c.cairo_set_source(cr, top_pat);
-    c.cairo_rectangle(cr, px + 28, py + 1, pw - 56, 1.4);
-    c.cairo_fill(cr);
-    c.cairo_pattern_destroy(top_pat);
+    fillRound(cr, px, py, pw, ph, 14, .{ bg[0], bg[1], bg[2], 1 });
+    strokeRound(cr, px + 0.5, py + 0.5, pw - 1, ph - 1, 13.5, .{ fg[0], fg[1], fg[2], 0.14 }, 1);
 
     // header
     drawPetal(cr, px + 44, py + 44, 10.0, .{ accent[0], accent[1], accent[2], 1.0 });
-    _ = drawText(cr, "Tessa", px + 64, py + 26, fam, "Semi-Bold", 24, .{ fg[0], fg[1], fg[2], 0.98 }, 0, 0);
-    _ = drawText(cr, "SUMI SHELL  /  LAUNCHER", px + 66, py + 60, fam, "Medium", 7.8, .{ 0.64, 0.70, 0.80, 0.42 }, 0, 1.8);
+    _ = drawText(cr, "Open an application", px + 64, py + 28, fam, "Semi-Bold", 17, .{ fg[0], fg[1], fg[2], 0.98 }, 0, 0);
+    _ = drawText(cr, "Tessa Launcher", px + 66, py + 58, fam, "Medium", 9.0, .{ fg[0], fg[1], fg[2], 0.70 }, 0, 1.8);
 
     // search box
     const sx = px + 32;
     const sy = py + 90;
     const sw = pw - 64;
     const sh = 50.0;
-    fillRound(cr, sx, sy, sw, sh, 14, .{ 1, 1, 1, 0.045 });
-    strokeRound(cr, sx + 0.5, sy + 0.5, sw - 1, sh - 1, 13.5, .{ 1, 1, 1, 0.075 }, 1.0);
+    fillRound(cr, sx, sy, sw, sh, 9, .{ 1, 1, 1, 0.045 });
+    strokeRound(cr, sx + 0.5, sy + 0.5, sw - 1, sh - 1, 8.5, .{ 1, 1, 1, 0.075 }, 1.0);
 
     c.cairo_new_sub_path(cr);
     c.cairo_arc(cr, sx + 25, sy + 24, 5.5, 0, PI * 2.0);
@@ -2272,7 +2183,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     const preedit = g.preedit[0..g.preedit_len];
     const text_x = sx + 46.0;
     if (query.len == 0 and preedit.len == 0) {
-        _ = drawTextCentered(cr, "Search applications...", text_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ 0.56, 0.61, 0.70, 0.78 }, sw - 110, 0);
+        _ = drawTextCentered(cr, "Search applications...", text_x, sy + sh / 2.0, fam, "Regular", 12.2, .{ fg[0], fg[1], fg[2], 0.65 }, sw - 110, 0);
     } else {
         var cursor_x = text_x;
         if (query.len > 0) {
@@ -2311,14 +2222,14 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     c.cairo_stroke(cr);
 
     const label = if (query.len == 0) "APPLICATIONS" else "RESULTS";
-    _ = drawText(cr, label, px + 34, py + 170, fam, "Semi-Bold", 7.8, .{ 0.64, 0.70, 0.80, 0.40 }, 0, 1.6);
+    _ = drawText(cr, label, px + 34, py + 170, fam, "Semi-Bold", 7.8, .{ fg[0], fg[1], fg[2], 0.65 }, 0, 1.6);
     var count_buf: [32]u8 = undefined;
     const count = std.fmt.bufPrint(&count_buf, "{d} {s}", .{
         g.result_count,
         if (query.len == 0) "APPS" else "MATCHES",
     }) catch "";
     const count_w = textWidth(cr, count, MONO, "Medium", 7.4, 0.8);
-    _ = drawText(cr, count, px + pw - 34 - count_w, py + 170, MONO, "Medium", 7.4, .{ 0.60, 0.66, 0.76, 0.40 }, 0, 0.8);
+    _ = drawText(cr, count, px + pw - 34 - count_w, py + 170, MONO, "Medium", 7.4, .{ fg[0], fg[1], fg[2], 0.65 }, 0, 0.8);
 
     g.overlay_hit_count = 0;
     g.overlay_panel = .{ .x = px, .y = py, .w = pw, .h = ph };
@@ -2333,7 +2244,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     if (g.result_count == 0) {
         drawPetal(cr, px + pw / 2.0, py + 320, 18, .{ 1, 1, 1, 0.10 });
         _ = drawTextCenteredX(cr, "Nothing matches", px + pw / 2.0, py + 370, fam, "Semi-Bold", 13.0, .{ 0.86, 0.89, 0.94, 0.75 }, 140, 0);
-        _ = drawTextCenteredX(cr, "Try another word, or open a terminal.", px + pw / 2.0, py + 392, fam, "Regular", 9.2, .{ 0.60, 0.66, 0.75, 0.55 }, 220, 0);
+        _ = drawTextCenteredX(cr, "Try another word, or open a terminal.", px + pw / 2.0, py + 392, fam, "Regular", 9.2, .{ fg[0], fg[1], fg[2], 0.70 }, 220, 0);
     } else {
         drawLauncherRows(cr, row_x, row_w, row_y0, row_h, row_gap, visible, false, t);
     }
@@ -2346,7 +2257,7 @@ fn drawLauncherPanel(cr: *c.cairo_t, px: f64, py: f64, pw: f64, ph: f64, t: f64)
     c.cairo_set_line_width(cr, 1);
     c.cairo_stroke(cr);
 
-    _ = drawText(cr, "\xe2\x86\x91\xe2\x86\x93  navigate      \xe2\x86\xb5  open      esc  close", px + 34, py + ph - 38, fam, "Medium", 8.2, .{ 0.60, 0.66, 0.75, 0.55 }, 0, 0.6);
+    _ = drawText(cr, "\xe2\x86\x91\xe2\x86\x93  navigate      \xe2\x86\xb5  open      esc  close", px + 34, py + ph - 38, fam, "Medium", 8.2, .{ fg[0], fg[1], fg[2], 0.70 }, 0, 0.6);
     drawPetal(cr, px + pw - 96, py + ph - 33, 5, .{ 1, 1, 1, 0.18 });
     _ = drawText(cr, "TESSA", px + pw - 86, py + ph - 38, fam, "Semi-Bold", 7.2, .{ 1, 1, 1, 0.22 }, 0, 1.4);
 
@@ -4172,21 +4083,9 @@ fn drawSignalBars(cr: *c.cairo_t, x: f64, cy: f64, signal: u8, col: [4]f64) void
 
 fn controlCard(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64) void {
     const bg = g.popover_bg;
-    const accent = g.accent;
-    fillRound(cr, x, y, w, h, 16, .{ bg[0] * 1.25 + 0.008, bg[1] * 1.25 + 0.008, bg[2] * 1.3 + 0.012, 0.94 });
-    roundRect(cr, x, y, w, h, 16);
-    linearGradient(cr, x, y, x, y + h, .{
-        1, 1, 1, 0.055,
-    }, .{ 0, 0, 0, 0.10 });
-    c.cairo_fill(cr);
-    strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 15.5, .{ 1, 1, 1, 0.075 }, 1.0);
-    const pat = c.cairo_pattern_create_linear(x + 16, 0, x + w - 16, 0);
-    c.cairo_pattern_add_color_stop_rgba(pat, 0, accent[0], accent[1], accent[2], 0.55);
-    c.cairo_pattern_add_color_stop_rgba(pat, 1, accent[0], accent[1], accent[2], 0.0);
-    c.cairo_set_source(cr, pat);
-    c.cairo_rectangle(cr, x + 16, y + 0.8, w - 32, 1.1);
-    c.cairo_fill(cr);
-    c.cairo_pattern_destroy(pat);
+    const fg = g.popover_fg;
+    fillRound(cr, x, y, w, h, 14, .{ bg[0], bg[1], bg[2], 1 });
+    strokeRound(cr, x + 0.5, y + 0.5, w - 1, h - 1, 13.5, .{ fg[0], fg[1], fg[2], 0.14 }, 1);
 }
 
 fn pointerInRect(x: f64, y: f64, w: f64, h: f64) bool {
@@ -4236,9 +4135,9 @@ fn endControlReveal(cr: *c.cairo_t, reveal: ControlReveal) void {
 
 fn controlSection(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, w: f64) void {
     _ = w;
-    _ = drawText(cr, text, x, y, MONO, "Medium", 6.6, .{
-        0.64, 0.70, 0.80, 0.42,
-    }, 0, 1.4);
+    _ = drawText(cr, text, x, y, m.popoverFont(), "Medium", 8.5, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], 0.70,
+    }, 0, 0.4);
 }
 
 fn mix(a: f64, b: f64, t: f64) f64 {
@@ -4292,10 +4191,11 @@ fn controlSlider(cr: *c.cairo_t, x: f64, y: f64, w: f64, pct: f64, kind: m.DragT
     fillCircle(cr, knob_x, knob_y, knob_r, .{ 1, 1, 1, 0.94 });
     const hit = m.HitRect{ .x = x - 4, .y = y - 7, .w = w + 8, .h = track_h + 14 };
     addOverlayHit(hit.x, hit.y, hit.w, hit.h, .{ .kind = .control_slider, .value = @backingInt(kind) });
+    const track = m.HitRect{ .x = x, .y = y, .w = w, .h = track_h };
     switch (kind) {
-        .volume => g.control_volume_slider = hit,
-        .brightness => g.control_brightness_slider = hit,
-        .seek => g.control_seek_slider = hit,
+        .volume => g.control_volume_slider = track,
+        .brightness => g.control_brightness_slider = track,
+        .seek => g.control_seek_slider = track,
         else => {},
     }
 }
@@ -4359,340 +4259,218 @@ fn drawPaletteChip(cr: *c.cairo_t, x: f64, y: f64, w: f64, h: f64, top: [3]f64, 
     c.cairo_restore(cr);
 }
 
+fn sumiText(cr: *c.cairo_t, text: []const u8, x: f64, y: f64, width: f64, secondary: bool) void {
+    const fg = g.popover_fg;
+    _ = drawText(cr, text, x, y, m.popoverFont(), if (secondary) "Regular" else "Medium", if (secondary) 8.2 else 10.2, .{ fg[0], fg[1], fg[2], if (secondary) 0.70 else 0.98 }, width, 0);
+}
+
+fn sumiConnectivity(cr: *c.cairo_t, r: sumi.Rect, bluetooth: bool) void {
+    const accent = g.accent;
+    const fg = g.popover_fg;
+    const available = if (bluetooth) g.bt_present else g.wifi_present;
+    const on = available and (if (bluetooth) g.bt_powered else g.wifi_enabled);
+    fillRound(cr, r.x, r.y, r.w, 88, 10, if (on) .{ accent[0], accent[1], accent[2], 0.13 } else .{ 1, 1, 1, 0.045 });
+    if (on) strokeRound(cr, r.x + 0.5, r.y + 0.5, r.w - 1, 87, 9.5, .{ accent[0], accent[1], accent[2], 0.50 }, 1);
+    const col: [4]f64 = if (on) .{ accent[0], accent[1], accent[2], 1 } else .{ fg[0], fg[1], fg[2], 0.65 };
+    if (bluetooth) drawBluetoothGlyph(cr, r.x + 23, r.y + 24, 17, col) else drawWifiGlyph(cr, r.x + 23, r.y + 24, 18, col);
+    // Register the toggle before the enclosing navigation tile: first hit wins.
+    if (available) {
+        controlPill(cr, r.x + r.w - 44, r.y + 16, 30, 17, m.pillAnim(if (bluetooth) .bluetooth else .wifi), 0);
+        addOverlayHit(r.x + r.w - 50, r.y + 7, 44, 34, .{ .kind = .control_action, .value = @backingInt(if (bluetooth) m.ControlAction.bt_toggle else m.ControlAction.wifi_toggle) });
+    }
+    sumiText(cr, if (bluetooth) "Bluetooth" else "Wi-Fi", r.x + 14, r.y + 43, r.w - 28, false);
+    const status = if (!available) "Unavailable" else if (!on) "Off" else if (bluetooth) "On - devices" else if (g.wifi_ssid_len > 0) g.wifi_ssid[0..g.wifi_ssid_len] else "Not connected";
+    sumiText(cr, status, r.x + 14, r.y + 64, r.w - 28, true);
+    registerControlNav(r.x, r.y, r.w, 88, if (bluetooth) .bluetooth else .wifi);
+}
+
+fn drawSpeakerGlyph(cr: *c.cairo_t, center_x: f64, center_y: f64, size: f64, col: [4]f64, muted: bool) void {
+    const s = size / 24.0;
+    c.cairo_new_path(cr);
+    c.cairo_move_to(cr, center_x - 8 * s, center_y - 3 * s);
+    c.cairo_line_to(cr, center_x - 4 * s, center_y - 3 * s);
+    c.cairo_line_to(cr, center_x + 1 * s, center_y - 8 * s);
+    c.cairo_line_to(cr, center_x + 1 * s, center_y + 8 * s);
+    c.cairo_line_to(cr, center_x - 4 * s, center_y + 3 * s);
+    c.cairo_line_to(cr, center_x - 8 * s, center_y + 3 * s);
+    c.cairo_close_path(cr);
+    setColor(cr, col);
+    c.cairo_fill(cr);
+    if (!muted) {
+        c.cairo_new_path(cr);
+        c.cairo_arc(cr, center_x + 1 * s, center_y, 5.5 * s, -0.85, 0.85);
+        setColor(cr, .{ col[0], col[1], col[2], 0.75 });
+        c.cairo_set_line_width(cr, @max(1.0, 1.4 * s));
+        c.cairo_stroke(cr);
+    }
+}
+
+fn sumiAudio(cr: *c.cairo_t, r: sumi.Rect) void {
+    const accent = g.accent;
+    const fg = g.popover_fg;
+    const available = g.volume_percent >= 0;
+    const on = available and !g.volume_muted;
+    fillRound(cr, r.x, r.y, r.w, 88, 10, if (on) .{ accent[0], accent[1], accent[2], 0.13 } else .{ 1, 1, 1, 0.045 });
+    if (on) strokeRound(cr, r.x + 0.5, r.y + 0.5, r.w - 1, 87, 9.5, .{ accent[0], accent[1], accent[2], 0.50 }, 1);
+    const col: [4]f64 = if (on) .{ accent[0], accent[1], accent[2], 1 } else .{ fg[0], fg[1], fg[2], 0.65 };
+    drawSpeakerGlyph(cr, r.x + 23, r.y + 24, 17, col, g.volume_muted or !available);
+    sumiText(cr, "Audio", r.x + 14, r.y + 43, r.w - 28, false);
+    var buf: [16]u8 = undefined;
+    const status = if (!available) "Unavailable" else if (g.volume_muted) "Muted" else std.fmt.bufPrint(&buf, "{d}%", .{g.volume_percent}) catch "Audio";
+    sumiText(cr, status, r.x + 14, r.y + 64, r.w - 28, true);
+    registerControlNav(r.x, r.y, r.w, 88, .audio);
+}
+
 fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     const accent = g.accent;
     const fg = g.popover_fg;
-    const fam = m.popoverFont();
-    const pad = 18.0;
-    const top = l.y + 48.0;
-    const content_w = l.w - pad * 2.0;
-    const col_gap = 14.0;
-    const two = l.columns == 2;
-    const col_w = if (two) (content_w - col_gap) / 2.0 else content_w;
-    const left_x = l.x + pad;
-    const right_x = if (two) left_x + col_w + col_gap else left_x;
-    var left_y = top;
-    var right_y = top;
+    const enabled = [sumi.section_count]bool{
+        m.controlFeatureEnabled(.wifi) or m.controlFeatureEnabled(.bluetooth),
+        m.controlFeatureEnabled(.volume),
+        m.controlFeatureEnabled(.brightness),
+        m.controlFeatureEnabled(.focus),
+        m.controlFeatureEnabled(.power_profile) and g.ppd_available,
+        m.controlFeatureEnabled(.media),
+        m.controlFeatureEnabled(.notifications),
+        m.controlFeatureEnabled(.quick_actions),
+    };
+    const plan = sumi.homePlan(.{ .x = l.x, .y = l.y, .w = l.w, .h = l.h }, enabled, g.control_scroll);
+    g.control_scroll = plan.scroll;
+    g.control_scroll_max = plan.max_scroll;
+    g.control_volume_slider = .{};
+    g.control_brightness_slider = .{};
+    g.control_seek_slider = .{};
+    const x = plan.viewport.x;
+    const w = plan.viewport.w;
 
-    drawControlHeader(cr, left_x, l.y + 14, content_w, "CONTROL", false);
-
-    // Connectivity card.
-    const show_conn = m.controlFeatureEnabled(.wifi) or m.controlFeatureEnabled(.bluetooth);
-    const conn_h = 116.0;
-    {
-        const reveal = beginControlReveal(cr, 0, left_x, left_y, col_w, conn_h);
-        defer endControlReveal(cr, reveal);
-        if (show_conn) {
-            controlCard(cr, left_x, left_y, col_w, conn_h);
-            controlSection(cr, "CONNECTIVITY", left_x + 16, left_y + 13, col_w - 32);
-        }
-        var row_y = left_y + 30.0;
-        if (m.controlFeatureEnabled(.wifi)) {
-            const row_hover = hoverAmount(left_x + 8, row_y, col_w - 16, 32);
-            const row_press = pressAmount(left_x + 8, row_y, col_w - 16, 32);
-            if (row_hover + row_press > 0.01) {
-                fillRound(cr, left_x + 8, row_y, col_w - 16, 32, 9, .{ 1, 1, 1, 0.05 * row_hover + 0.025 * row_press });
-            }
-            const active = g.wifi_ssid_len > 0 and g.wifi_enabled;
-            drawWifiGlyph(cr, left_x + 27, row_y + 13, 18.0, if (active) .{
-                accent[0], accent[1], accent[2], 0.9,
-            } else .{
-                fg[0], fg[1], fg[2], 0.42,
-            });
-            _ = drawText(cr, "Wi-Fi", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
-                fg[0], fg[1], fg[2], 0.94,
-            }, col_w - 90, 0);
-            const wifi_status = if (!g.wifi_present) "Unavailable" else if (!g.wifi_enabled) "Off" else if (g.wifi_ssid_len > 0) g.wifi_ssid[0..g.wifi_ssid_len] else "Not connected";
-            _ = drawText(cr, wifi_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
-                0.64, 0.70, 0.80, 0.55,
-            }, col_w - 96, 0);
-            drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
-            registerControlNav(left_x + 8, row_y, col_w - 16, 32, .wifi);
-            row_y += 42.0;
-        }
-        if (m.controlFeatureEnabled(.bluetooth)) {
-            const row_hover = hoverAmount(left_x + 8, row_y, col_w - 16, 32);
-            const row_press = pressAmount(left_x + 8, row_y, col_w - 16, 32);
-            if (row_hover + row_press > 0.01) {
-                fillRound(cr, left_x + 8, row_y, col_w - 16, 32, 9, .{ 1, 1, 1, 0.05 * row_hover + 0.025 * row_press });
-            }
-            drawBluetoothGlyph(cr, left_x + 27, row_y + 13, 17.0, if (g.bt_powered) .{
-                accent[0], accent[1], accent[2], 0.9,
-            } else .{
-                fg[0], fg[1], fg[2], 0.42,
-            });
-            _ = drawText(cr, "Bluetooth", left_x + 48, row_y + 5, fam, "Semi-Bold", 10.0, .{
-                fg[0], fg[1], fg[2], 0.94,
-            }, col_w - 90, 0);
-            const bt_status = if (!g.bt_present) "Unavailable" else if (!g.bt_powered) "Off" else if (g.bt_count > 0 and (g.bt_devices[0].flags & m.BT_DEVICE_CONNECTED) != 0) g.bt_devices[0].name[0..g.bt_devices[0].name_len] else "On";
-            _ = drawText(cr, bt_status, left_x + 48, row_y + 19, fam, "Regular", 7.6, .{
-                0.64, 0.70, 0.80, 0.55,
-            }, col_w - 96, 0);
-            drawChevron(cr, left_x + col_w - 20, row_y + 14, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
-            registerControlNav(left_x + 8, row_y, col_w - 16, 32, .bluetooth);
-            row_y += 42.0;
-        }
-    }
-    if (show_conn) left_y += conn_h + 12.0;
-
-    const show_focus = m.controlFeatureEnabled(.focus);
-    const show_ppd = m.controlFeatureEnabled(.power_profile) and g.ppd_available;
-    if (show_focus or show_ppd) {
-        var focus_h: f64 = 0.0;
-        if (show_focus) focus_h += 50.0;
-        if (show_ppd) focus_h += 44.0;
-        const reveal = beginControlReveal(cr, 1, left_x, left_y, col_w, focus_h);
-        defer endControlReveal(cr, reveal);
-        controlCard(cr, left_x, left_y, col_w, focus_h);
-        if (show_focus) {
-            const focus_hover = hoverAmount(left_x + 8, left_y + 6, col_w - 16, 38);
-            const focus_press = pressAmount(left_x + 8, left_y + 6, col_w - 16, 38);
-            if (focus_hover + focus_press > 0.01) {
-                fillRound(cr, left_x + 8, left_y + 6, col_w - 16, 38, 9, .{ 1, 1, 1, 0.04 * focus_hover + 0.025 * focus_press });
-            }
-            drawMoonGlyph(cr, left_x + 28, left_y + 25, 16.0, .{
-                accent[0], accent[1], accent[2], 0.85,
-            });
-            _ = drawText(cr, "Focus", left_x + 48, left_y + 14, fam, "Semi-Bold", 10.0, .{
-                fg[0], fg[1], fg[2], 0.94,
-            }, col_w - 120, 0);
-            _ = drawText(cr, if (g.dnd) "Notifications silenced" else "Notifications allowed", left_x + 48, left_y + 29, fam, "Regular", 7.2, .{
-                0.64, 0.70, 0.80, 0.52,
-            }, col_w - 120, 0);
-            controlPill(cr, left_x + col_w - 62, left_y + 16, 42, 20, m.pillAnim(.dnd), hoverAmount(left_x + 8, left_y + 6, col_w - 16, 38));
-            addOverlayHit(left_x + 8, left_y + 6, col_w - 16, 38, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
-        }
-        if (show_ppd) {
-            var py: f64 = left_y + 10.0;
-            if (show_focus) py = left_y + 50.0;
-            _ = drawText(cr, "POWER PROFILE", left_x + 16, py, MONO, "Medium", 6.2, .{
-                0.64, 0.70, 0.80, 0.42,
-            }, 100, 0.8);
-            const gap = 5.0;
-            const bw = (col_w - 32.0 - gap * 2.0) / 3.0;
-            var pi: usize = 0;
-            while (pi < g.ppd_profile_count and pi < 3) : (pi += 1) {
-                const name = g.ppd_profiles[pi][0..g.ppd_profile_lens[pi]];
-                const active = name.len == g.ppd_profile_len and
-                    std.mem.eql(u8, name, g.ppd_profile[0..g.ppd_profile_len]);
-                const bx = left_x + 16.0 + @as(f64, @floatFromInt(pi)) * (bw + gap);
-                drawControlButton(cr, name, bx, py + 12, bw, 20, active);
-                addOverlayHit(bx, py + 12, bw, 20, .{ .kind = .control_profile, .value = pi });
-            }
-        }
-        left_y += focus_h + 12.0;
+    _ = drawText(cr, "Control", x, l.y + 20, m.popoverFont(), "Semi-Bold", 15.0, .{ fg[0], fg[1], fg[2], 1 }, w - 90, 0);
+    const time = std.mem.sliceTo(&g.clock_buf, 0);
+    const tw = textWidth(cr, time, MONO, "Medium", 10.0, 0);
+    _ = drawText(cr, time, x + w - tw, l.y + 25, MONO, "Medium", 10.0, .{ fg[0], fg[1], fg[2], 0.8 }, 0, 0);
+    sumiText(cr, std.mem.sliceTo(&g.date_buf, 0), x, l.y + 48, w - 90, true);
+    if (m.controlFeatureEnabled(.calendar)) registerControlNav(x, l.y + 44, w - 90, 25, .calendar);
+    if (m.controlFeatureEnabled(.tray)) {
+        var buf: [24]u8 = undefined;
+        const label = std.fmt.bufPrint(&buf, "Tray {d}", .{g.tray_count}) catch "Tray";
+        drawControlButton(cr, label, x + w - 76, l.y + 45, 76, 24, false);
+        registerControlNav(x + w - 76, l.y + 45, 76, 24, .tray);
     }
 
-    if (m.controlFeatureEnabled(.battery) or m.controlFeatureEnabled(.power)) {
-        const sys_h = 104.0;
-        const reveal = beginControlReveal(cr, 2, left_x, left_y, col_w, sys_h);
-        defer endControlReveal(cr, reveal);
-        controlCard(cr, left_x, left_y, col_w, sys_h);
-        controlSection(cr, "SYSTEM", left_x + 16, left_y + 13, col_w - 32);
-        const bx = left_x + 16;
-        const by = left_y + 30;
-        if (m.controlFeatureEnabled(.battery) and g.battery_percent >= 0) {
-            var bbuf: [32]u8 = undefined;
-            const btext = std.fmt.bufPrint(&bbuf, "{d}%", .{g.battery_percent}) catch "?";
-            _ = drawText(cr, btext, bx, by + 2, MONO, "Medium", 12.0, .{
-                fg[0], fg[1], fg[2], 0.9,
-            }, 80, 0);
-            _ = drawText(cr, if (g.battery_charging) "CHARGING" else "BATTERY", bx, by + 20, MONO, "Medium", 6.4, .{
-                0.64, 0.70, 0.80, 0.45,
-            }, 90, 0.6);
-        }
-        if (m.controlFeatureEnabled(.power)) {
-            drawPowerButtons(cr, left_x + 16, left_y + 64, col_w - 32);
-        }
-        left_y += sys_h + 12.0;
-    }
-
-    if (m.controlFeatureEnabled(.quick_actions)) {
-        const reveal = beginControlReveal(cr, 3, left_x, left_y, col_w, 62.0);
-        defer endControlReveal(cr, reveal);
-        drawQuickActions(cr, left_x, left_y, col_w);
-        left_y += 62.0;
-    }
-
-    const theme_h = 66.0;
-    if (left_y + theme_h < l.y + l.h - 8.0) {
-        const reveal = beginControlReveal(cr, 4, left_x, left_y, col_w, theme_h);
-        defer endControlReveal(cr, reveal);
-        controlCard(cr, left_x, left_y, col_w, theme_h);
-        const theme_hover = hoverAmount(left_x + 8, left_y + 4, col_w - 16, theme_h - 8);
-        const theme_press = pressAmount(left_x + 8, left_y + 4, col_w - 16, theme_h - 8);
-        if (theme_hover + theme_press > 0.01) {
-            fillRound(cr, left_x + 8, left_y + 4, col_w - 16, theme_h - 8, 12, .{ 1, 1, 1, 0.035 * theme_hover + 0.025 * theme_press });
-        }
-        controlSection(cr, "THEME", left_x + 16, left_y + 12, col_w - 32);
-        var theme_name_buf: [64]u8 = undefined;
-        const theme_name = upperAscii(&theme_name_buf, currentThemeName());
-        _ = drawText(cr, theme_name, left_x + 16, left_y + 27, fam, "Semi-Bold", 11.0, .{
-            fg[0], fg[1], fg[2], 0.94,
-        }, col_w - 112, 0);
-        _ = drawText(cr, "Accent, borders and wallpaper", left_x + 16, left_y + 45, fam, "Regular", 7.2, .{
-            0.64, 0.70, 0.80, 0.50,
-        }, col_w - 112, 0);
-        const swatch_cols = [4][3]f64{
-            g.accent,
-            g.panel_bg,
-            if (g.bg_top_set) g.bg_top else g.bg_rgb,
-            if (g.bg_bottom_set) g.bg_bottom else g.bg_rgb,
-        };
-        var si: usize = 0;
-        while (si < swatch_cols.len) : (si += 1) {
-            const sx = left_x + col_w - 74.0 + @as(f64, @floatFromInt(si)) * 12.0;
-            fillCircle(cr, sx, left_y + 35.0, 4.2, .{
-                swatch_cols[si][0], swatch_cols[si][1], swatch_cols[si][2], 0.95,
-            });
-        }
-        drawChevron(cr, left_x + col_w - 22.0, left_y + 36.0, 9.0, .{ fg[0], fg[1], fg[2], 0.35 });
-        registerControlNav(left_x + 8, left_y + 4, col_w - 16, theme_h - 8, .theme);
-        left_y += theme_h + 12.0;
-    }
-
-    // Right column: sliders, media, notifications. On narrow/vertical bars
-    // the right column becomes a continuation of the single column.
-    if (!two) right_y = left_y;
-    if (m.controlFeatureEnabled(.volume) or m.controlFeatureEnabled(.brightness)) {
-        const sh = 136.0;
-        const reveal = beginControlReveal(cr, 5, right_x, right_y, col_w, sh);
-        defer endControlReveal(cr, reveal);
-        controlCard(cr, right_x, right_y, col_w, sh);
-        var sy = right_y + 16.0;
-        if (m.controlFeatureEnabled(.volume)) {
-            const sound_hover = hoverAmount(right_x + 8, sy - 4, col_w - 16, 24);
-            if (sound_hover > 0.01) {
-                fillRound(cr, right_x + 8, sy - 4, col_w - 16, 24, 7, .{ 1, 1, 1, 0.04 * sound_hover });
+    // Both painting and input use the same scroll viewport. Hidden controls
+    // cannot intercept the fixed header/footer or produce invisible clicks.
+    c.cairo_save(cr);
+    c.cairo_rectangle(cr, plan.viewport.x, plan.viewport.y, plan.viewport.w, plan.viewport.h);
+    c.cairo_clip(cr);
+    overlay_hit_clip = plan.viewport;
+    if (plan.row(.connectivity)) |r| {
+        const show_wifi = m.controlFeatureEnabled(.wifi);
+        const show_bt = m.controlFeatureEnabled(.bluetooth);
+        const show_audio = m.controlFeatureEnabled(.volume);
+        var count: usize = 0;
+        if (show_wifi) count += 1;
+        if (show_bt) count += 1;
+        if (show_audio) count += 1;
+        if (count > 0) {
+            const gap: f64 = 10.0;
+            const tile_w = (r.w - gap * @as(f64, @floatFromInt(count - 1))) / @as(f64, @floatFromInt(count));
+            var tx = r.x;
+            if (show_wifi) {
+                sumiConnectivity(cr, .{ .x = tx, .y = r.y, .w = tile_w }, false);
+                tx += tile_w + gap;
             }
-            controlSection(cr, "SOUND", right_x + 16, sy, col_w - 32);
-            var vbuf: [16]u8 = undefined;
-            const vtext = if (g.volume_muted) "MUTE" else std.fmt.bufPrint(&vbuf, "{d}%", .{@max(0, g.volume_percent)}) catch "0%";
-            const vw = textWidth(cr, vtext, MONO, "Medium", 8.0, 0);
-            _ = drawText(cr, vtext, right_x + col_w - 16 - vw, sy, MONO, "Medium", 8.0, .{
-                fg[0], fg[1], fg[2], 0.62,
-            }, 0, 0);
-            const sound_w = textWidth(cr, "SOUND", MONO, "Medium", 6.2, 0.8);
-            drawChevron(cr, right_x + 16.0 + sound_w + 9.0, sy + 6.0, 7.0, .{
-                fg[0], fg[1], fg[2], 0.30,
-            });
-            registerControlNav(right_x + 8, sy - 4, col_w - 16, 24, .audio);
-            const pct = if (g.volume_percent >= 0) @as(f64, @floatFromInt(g.volume_percent)) / 100.0 else 0.0;
-            controlSlider(cr, right_x + 16, sy + 22, col_w - 32, pct, .volume);
-            sy += 52.0;
+            if (show_bt) {
+                sumiConnectivity(cr, .{ .x = tx, .y = r.y, .w = tile_w }, true);
+                tx += tile_w + gap;
+            }
+            if (show_audio) sumiAudio(cr, .{ .x = tx, .y = r.y, .w = tile_w });
         }
-        if (m.controlFeatureEnabled(.brightness)) {
-            controlSection(cr, "DISPLAY", right_x + 16, sy, col_w - 32);
-            if (g.brightness_percent >= 0) {
-                var sbuf: [16]u8 = undefined;
-                const stext = std.fmt.bufPrint(&sbuf, "{d}%", .{g.brightness_percent}) catch "0%";
-                const sw = textWidth(cr, stext, MONO, "Medium", 8.0, 0);
-                _ = drawText(cr, stext, right_x + col_w - 16 - sw, sy, MONO, "Medium", 8.0, .{
-                    fg[0], fg[1], fg[2], 0.62,
-                }, 0, 0);
-                controlSlider(cr, right_x + 16, sy + 22, col_w - 32, @as(f64, @floatFromInt(g.brightness_percent)) / 100.0, .brightness);
-            } else {
-                _ = drawText(cr, "No backlight", right_x + 16, sy + 24, fam, "Regular", 8.0, .{
-                    0.64, 0.70, 0.80, 0.42,
-                }, col_w - 32, 0);
+    }
+    for ([_]sumi.Section{ .volume, .brightness }) |section| {
+        if (plan.row(section)) |r| {
+            const volume = section == .volume;
+            const value = if (volume) g.volume_percent else g.brightness_percent;
+            sumiText(cr, if (volume) "Volume" else "Brightness", r.x, r.y + 2, r.w - 100, false);
+            if (volume) registerControlNav(r.x, r.y, r.w - 88, 25, .audio);
+            var buf: [24]u8 = undefined;
+            const label = if (value < 0) "Unavailable" else if (volume and g.volume_muted) "Muted" else std.fmt.bufPrint(&buf, "{d}%", .{value}) catch "";
+            const lw = textWidth(cr, label, MONO, "Medium", 8.5, 0);
+            _ = drawText(cr, label, r.x + r.w - lw, r.y + 4, MONO, "Medium", 8.5, .{ fg[0], fg[1], fg[2], 0.75 }, 0, 0);
+            if (value >= 0) controlSlider(cr, r.x + 5, r.y + 34, r.w - 10, @as(f64, @floatFromInt(value)) / 100, if (volume) .volume else .brightness) else fillRound(cr, r.x, r.y + 34, r.w, 8, 4, .{ 1, 1, 1, 0.05 });
+        }
+    }
+    if (plan.row(.focus)) |r| {
+        fillRound(cr, r.x, r.y, r.w, 1, 0, .{ 1, 1, 1, 0.10 });
+        sumiText(cr, "Focus", r.x, r.y + 12, r.w - 60, false);
+        sumiText(cr, if (g.dnd) "Notifications paused" else "Receive notifications", r.x, r.y + 32, r.w - 60, true);
+        controlPill(cr, r.x + r.w - 38, r.y + 19, 38, 22, m.pillAnim(.dnd), 0);
+        addOverlayHit(r.x, r.y + 5, r.w, 47, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
+    }
+    if (plan.row(.profile)) |r| {
+        const count = @min(g.ppd_profile_count, 3);
+        if (count > 0) {
+            const bw = (r.w - @as(f64, @floatFromInt(count - 1)) * 4) / @as(f64, @floatFromInt(count));
+            for (0..count) |i| {
+                const name = g.ppd_profiles[i][0..g.ppd_profile_lens[i]];
+                const active = std.mem.eql(u8, name, g.ppd_profile[0..g.ppd_profile_len]);
+                const bx = r.x + @as(f64, @floatFromInt(i)) * (bw + 4);
+                drawControlButton(cr, name, bx, r.y + 2, bw, 28, active);
+                addOverlayHit(bx, r.y + 2, bw, 28, .{ .kind = .control_profile, .value = i });
             }
         }
-        right_y += sh + 12.0;
     }
-
-    if (m.controlFeatureEnabled(.media)) {
-        const mh = 154.0;
-        const reveal = beginControlReveal(cr, 6, right_x, right_y, col_w, mh);
-        defer endControlReveal(cr, reveal);
-        controlCard(cr, right_x, right_y, col_w, mh);
-        controlSection(cr, "MEDIA", right_x + 16, right_y + 13, col_w - 32);
-        const art_x = right_x + 16;
-        const art_y = right_y + 28;
-        drawMediaArt(cr, art_x, art_y, 54.0);
-        const title = if (g.media_title_len > 0) g.media_title[0..g.media_title_len] else "No media";
-        const artist = if (g.media_artist_len > 0) g.media_artist[0..g.media_artist_len] else if (g.media_status > 0) g.media_player[0..g.media_player_len] else "Open a player";
-        _ = drawText(cr, title, art_x + 66, art_y + 4, fam, "Semi-Bold", 10.0, .{
-            fg[0], fg[1], fg[2], 0.96,
-        }, col_w - 92, 0);
-        _ = drawText(cr, artist, art_x + 66, art_y + 22, fam, "Regular", 7.6, .{
-            0.64, 0.70, 0.80, 0.55,
-        }, col_w - 92, 0);
-        const pct = if (g.media_length_us > 0)
-            std.math.clamp(@as(f64, @floatFromInt(g.media_position_us)) / @as(f64, @floatFromInt(g.media_length_us)), 0.0, 1.0)
-        else
-            0.0;
-        fillRound(cr, right_x + 16, right_y + 94, col_w - 32, 5, 2.5, .{ 1, 1, 1, 0.07 });
-        if (pct > 0.005) fillRound(cr, right_x + 16, right_y + 94, (col_w - 32) * pct, 5, 2.5, .{
-            accent[0], accent[1], accent[2], 0.82,
-        });
-        addOverlayHit(right_x + 16, right_y + 88, col_w - 32, 17, .{ .kind = .control_slider, .value = @backingInt(m.DragTarget.seek) });
-        g.control_seek_slider = .{ .x = right_x + 16, .y = right_y + 88, .w = col_w - 32, .h = 17 };
-        const buttons = [_]struct { label: []const u8, action: m.ControlAction }{
-            .{ .label = "prev", .action = .back },
-            .{ .label = if (g.media_status == 1) "pause" else "play", .action = .power_lock },
-            .{ .label = "next", .action = .power_quit },
-        };
-        _ = buttons;
-        drawMediaButtons(cr, right_x + col_w - 16, right_y + 121, fg);
-        right_y += mh + 12.0;
-    }
-
-    if (m.controlFeatureEnabled(.notifications)) {
-        const nh = @min(200.0, l.y + l.h - right_y - pad);
-        if (nh > 70.0) {
-            const reveal = beginControlReveal(cr, 7, right_x, right_y, col_w, nh);
-            defer endControlReveal(cr, reveal);
-            controlCard(cr, right_x, right_y, col_w, nh);
-            controlSection(cr, "NOTIFICATIONS", right_x + 16, right_y + 13, col_w - 140);
-            var count_buf: [24]u8 = undefined;
-            const count_text = std.fmt.bufPrint(&count_buf, "{d}", .{g.notification_count}) catch "0";
-            // Keep the count left of the SILENT/CLEAR buttons (their hit
-            // areas start at -118), not underneath the CLEAR label.
-            _ = drawText(cr, count_text, right_x + col_w - 124 - textWidth(cr, count_text, MONO, "Medium", 7.2, 0), right_y + 12, MONO, "Medium", 7.2, .{
-                0.64, 0.70, 0.80, 0.48,
-            }, 0, 0);
-            drawControlButton(cr, "SILENT", right_x + col_w - 116, right_y + 8, 46, 18, g.dnd);
-            addOverlayHit(right_x + col_w - 118, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.dnd) });
-            drawControlButton(cr, "CLEAR", right_x + col_w - 64, right_y + 8, 46, 18, false);
-            addOverlayHit(right_x + col_w - 66, right_y + 6, 50, 22, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.clear_notifications) });
-            var ny = right_y + 34.0;
-            const row_h = 38.0;
-            var shown: usize = 0;
-            var ni: usize = 0;
-            while (ni < g.notification_count and shown < 3 and ny + row_h < right_y + nh - 6) : (ni += 1) {
-                const n = &g.notifications[ni];
-                paintNotificationIcon(cr, n, right_x + 16, ny + 8, 18);
-                const summary = if (n.summary_len > 0) n.summary[0..n.summary_len] else "Notification";
-                _ = drawText(cr, summary, right_x + 42, ny + 2, fam, "Medium", 8.6, .{
-                    fg[0], fg[1], fg[2], 0.88,
-                }, col_w - 62, 0);
-                const app = if (n.app_len > 0) n.app[0..n.app_len] else "App";
-                _ = drawText(cr, app, right_x + 42, ny + 17, fam, "Regular", 7.0, .{
-                    0.64, 0.70, 0.80, 0.45,
-                }, col_w - 62, 0);
-                addOverlayHit(right_x + 8, ny, col_w - 16, row_h - 4, .{ .kind = .control_notification, .value = ni });
-                if (shown + 1 < 3 and ni + 1 < g.notification_count) {
-                    c.cairo_new_path(cr);
-                    c.cairo_move_to(cr, right_x + 42, ny + row_h - 3);
-                    c.cairo_line_to(cr, right_x + col_w - 16, ny + row_h - 3);
-                    setColor(cr, .{ 1, 1, 1, 0.045 });
-                    c.cairo_set_line_width(cr, 1);
-                    c.cairo_stroke(cr);
-                }
-                ny += row_h;
-                shown += 1;
-            }
-            if (g.notification_count == 0) {
-                _ = drawText(cr, "No notifications", right_x + 16, right_y + 48, fam, "Regular", 8.2, .{
-                    0.64, 0.70, 0.80, 0.42,
-                }, col_w - 32, 0);
-            } else if (g.notification_count > shown) {
-                _ = drawText(cr, "View all", right_x + col_w - 62, right_y + nh - 22, fam, "Medium", 7.2, .{
-                    accent[0], accent[1], accent[2], 0.7,
-                }, 60, 0);
-                addOverlayHit(right_x + col_w - 70, right_y + nh - 30, 66, 24, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.view_notifications) });
-            }
+    if (plan.row(.media)) |r| {
+        fillRound(cr, r.x, r.y, r.w, 98, 10, .{ 1, 1, 1, 0.045 });
+        drawMediaArt(cr, r.x + 12, r.y + 12, 42);
+        sumiText(cr, if (g.media_title_len > 0) g.media_title[0..g.media_title_len] else "No media", r.x + 66, r.y + 12, r.w - 80, false);
+        sumiText(cr, if (g.media_artist_len > 0) g.media_artist[0..g.media_artist_len] else "Open a player", r.x + 66, r.y + 34, r.w - 80, true);
+        if (g.media_status > 0) drawMediaButtons(cr, r.x + r.w - 12, r.y + 77, fg);
+        if (g.media_length_us > 0) {
+            const pct = std.math.clamp(@as(f64, @floatFromInt(g.media_position_us)) / @as(f64, @floatFromInt(g.media_length_us)), 0, 1);
+            controlSlider(cr, r.x + 17, r.y + 73, @max(20, r.w - 140), pct, .seek);
         }
+    }
+    if (plan.row(.notifications)) |r| {
+        fillRound(cr, r.x, r.y, r.w, 1, 0, .{ 1, 1, 1, 0.10 });
+        var buf: [32]u8 = undefined;
+        const label = std.fmt.bufPrint(&buf, "Notifications / {d}", .{g.notification_count}) catch "Notifications";
+        sumiText(cr, label, r.x, r.y + 12, r.w - 60, false);
+        registerControlNav(r.x, r.y + 5, r.w - 60, 30, .notifications);
+        drawControlButton(cr, "Clear", r.x + r.w - 52, r.y + 9, 52, 24, false);
+        addOverlayHit(r.x + r.w - 52, r.y + 9, 52, 24, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.clear_notifications) });
+        if (g.notification_count > 0) {
+            const n = &g.notifications[0];
+            paintNotificationIcon(cr, n, r.x, r.y + 48, 22);
+            sumiText(cr, if (n.summary_len > 0) n.summary[0..n.summary_len] else "Notification", r.x + 32, r.y + 43, r.w - 32, false);
+            sumiText(cr, if (n.app_len > 0) n.app[0..n.app_len] else "App", r.x + 32, r.y + 65, r.w - 32, true);
+            addOverlayHit(r.x, r.y + 39, r.w, 49, .{ .kind = .control_notification, .value = 0 });
+        } else sumiText(cr, "No notifications", r.x, r.y + 48, r.w, true);
+    }
+    if (plan.row(.quick_actions)) |r| drawQuickActions(cr, r.x, r.y, r.w);
+    overlay_hit_clip = null;
+    c.cairo_restore(cr);
+
+    const f = plan.footer;
+    fillRound(cr, f.x, f.y - 8, f.w, 1, 0, .{ 1, 1, 1, 0.10 });
+    if (m.controlFeatureEnabled(.battery)) {
+        var buf: [24]u8 = undefined;
+        const label = if (g.battery_percent >= 0) std.fmt.bufPrint(&buf, "{d}%", .{g.battery_percent}) catch "" else "AC power";
+        sumiText(cr, label, f.x, f.y + 4, @max(1, f.w - 166), false);
+        sumiText(cr, if (g.battery_charging) "Charging" else if (g.battery_percent >= 0) "Battery" else "", f.x, f.y + 23, @max(1, f.w - 166), true);
+    }
+    const theme_x = f.x + f.w - 156;
+    drawControlButton(cr, "Theme", theme_x, f.y + 3, 48, 32, false);
+    registerControlNav(theme_x, f.y + 3, 48, 32, .theme);
+    if (m.controlFeatureEnabled(.power)) {
+        drawControlButton(cr, "Lock", theme_x + 54, f.y + 3, 48, 32, false);
+        addOverlayHit(theme_x + 54, f.y + 3, 48, 32, .{ .kind = .control_action, .value = @backingInt(m.ControlAction.power_lock) });
+        drawControlButton(cr, "Power", theme_x + 108, f.y + 3, 48, 32, false);
+        registerControlNav(theme_x + 108, f.y + 3, 48, 32, .power);
+    }
+    if (plan.max_scroll > 0 and plan.viewport.h > 0) {
+        const thumb_h = @max(24, plan.viewport.h * plan.viewport.h / (plan.viewport.h + plan.max_scroll));
+        const thumb_y = plan.viewport.y + plan.scroll / plan.max_scroll * (plan.viewport.h - thumb_h);
+        fillRound(cr, l.x + l.w - 10, plan.viewport.y, 3, plan.viewport.h, 1.5, .{ 1, 1, 1, 0.06 });
+        fillRound(cr, l.x + l.w - 10, thumb_y, 3, thumb_h, 1.5, .{ accent[0], accent[1], accent[2], 0.55 });
     }
 }
 
@@ -4715,9 +4493,9 @@ fn drawControlButton(cr: *c.cairo_t, label: []const u8, x: f64, y: f64, w: f64, 
         accent[0], accent[1], accent[2], if (active) 0.38 + 0.14 * hover else 0.10 + 0.10 * hover + 0.05 * press,
     }, 1);
     const text_dy: f64 = press * 0.8;
-    _ = drawTextCenteredX(cr, label, x + w / 2.0, y + h / 2.0 + text_dy, MONO, "Medium", 6.2, .{
-        0.78, 0.84, 0.92, if (active) 0.95 else 0.62 + 0.16 * hover + 0.04 * press,
-    }, w - 4, 0.5);
+    _ = drawTextCenteredX(cr, label, x + w / 2.0, y + h / 2.0 + text_dy, m.popoverFont(), "Medium", 7.8, .{
+        g.popover_fg[0], g.popover_fg[1], g.popover_fg[2], if (active) 0.95 else 0.78 + 0.10 * hover + 0.04 * press,
+    }, w - 8, 0);
 }
 
 fn drawMediaArt(cr: *c.cairo_t, x: f64, y: f64, size: f64) void {
@@ -5854,7 +5632,7 @@ fn drawControlTheme(cr: *c.cairo_t, l: m.ControlLayout) void {
     controlSection(cr, "PALETTES", x, y, w);
     y += 16.0;
     const gap = 8.0;
-    const cols: usize = if (w >= 500.0) 3 else 2;
+    const cols: usize = if (w >= 680.0) 4 else if (w >= 500.0) 3 else 2;
     const card_w = (w - gap * @as(f64, @floatFromInt(cols - 1))) / @as(f64, @floatFromInt(cols));
     const card_h = 62.0;
     for (m.THEME_PALETTES, 0..) |item, i| {
@@ -6511,15 +6289,15 @@ fn drawOverlayCore(cr: *c.cairo_t, W: f64, H: f64, t: f64) void {
             };
         } else {
             const anim = 0.97 + 0.03 * t;
-            c.cairo_translate(cr, 380.0, 310.0);
+            c.cairo_translate(cr, sumi.launcher_width / 2, sumi.launcher_height / 2);
             c.cairo_scale(cr, anim, anim);
-            c.cairo_translate(cr, -380.0, -310.0);
+            c.cairo_translate(cr, -sumi.launcher_width / 2, -sumi.launcher_height / 2);
             c.cairo_translate(cr, 0, (1.0 - t) * 8.0);
-            drawLauncherPanel(cr, 0, 0, 760, 620, t);
+            drawLauncherPanel(cr, 0, 0, sumi.launcher_width, sumi.launcher_height, t);
             g.overlay_panel = .{
                 .x = l.x,
                 .y = l.y,
-                .w = 760.0 * l.scale,
+                .w = sumi.launcher_width * l.scale,
                 .h = 620.0 * l.scale,
             };
         }
@@ -6655,8 +6433,8 @@ fn overlayMatrix(s: *m.Surface, t: f64) [9]f32 {
         } else {
             scale = 0.97 + 0.03 * t;
             offset_y = (1.0 - t) * 8.0;
-            pivot_x = l.x + 380.0;
-            pivot_y = l.y + 310.0;
+            pivot_x = l.x + sumi.launcher_width * l.scale / 2;
+            pivot_y = l.y + sumi.launcher_height * l.scale / 2;
         }
     } else if (overlayMotion(W, H, t)) |mv| {
         scale = mv.scale;
