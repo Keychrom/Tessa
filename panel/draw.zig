@@ -852,10 +852,10 @@ fn drawBatteryIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
     return x - 14;
 }
 
-fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
+fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64, compact: bool) f64 {
     const label = g.network_label[0..g.network_label_len];
-    const tw = textWidth(cr, label, m.popoverFont(), "Medium", 8.2, 0.4);
-    const group_w = 20.0 + tw;
+    const tw = if (compact) 0 else textWidth(cr, label, m.popoverFont(), "Medium", 8.2, 0.4);
+    const group_w = if (compact) 10.0 else 20.0 + tw;
     const x = right - group_w;
     const bars = [_]f64{ 4.0, 7.0, 10.0 };
     var i: usize = 0;
@@ -866,9 +866,11 @@ fn drawNetworkIndicator(cr: *c.cairo_t, right: f64, cy: f64, fg: [3]f64) f64 {
             g.accent[0], g.accent[1], g.accent[2], 0.78,
         });
     }
-    _ = drawTextCentered(cr, label, x + 20, cy + 0.3, m.popoverFont(), "Medium", 8.2, .{
-        fg[0], fg[1], fg[2], 0.58,
-    }, 0, 0.4);
+    if (!compact) {
+        _ = drawTextCentered(cr, label, x + 20, cy + 0.3, m.popoverFont(), "Medium", 8.2, .{
+            fg[0], fg[1], fg[2], 0.58,
+        }, 0, 0.4);
+    }
     return x - 14;
 }
 
@@ -1758,8 +1760,37 @@ pub fn drawBar(s: *m.Surface) void {
             },
             .network => {
                 if (!g.show_network or !g.network_present or W <= 1000) continue;
+                // Keep Wi-Fi and the audio indicator in one capsule when they
+                // are adjacent in the visible layout.
+                var next_module: ?m.BarModule = null;
+                var ni = mi + 1;
+                while (ni < g.bar_module_count) : (ni += 1) {
+                    const candidate = g.bar_modules[ni];
+                    if (!bar_plan.hidden[@backingInt(candidate)]) {
+                        next_module = candidate;
+                        break;
+                    }
+                }
+                const grouped = next_module == .volume and g.show_volume and g.volume_percent >= 0 and W > 1080;
+                if (grouped) {
+                    var net_w: f64 = 24.0;
+                    if (g.bt_present and m.controlFeatureEnabled(.bluetooth)) net_w += 24.0;
+                    var vol_buf: [16]u8 = undefined;
+                    const vol_text = if (g.volume_muted)
+                        "MUTE"
+                    else
+                        std.fmt.bufPrint(&vol_buf, "{d}%", .{g.volume_percent}) catch "VOL";
+                    const vol_w = 24.0 + textWidth(cr, vol_text, MONO, "Medium", 8.2, 0) + 14.0;
+                    const group_w = net_w + vol_w;
+                    if (right - group_w + 4 > 0) {
+                        fillRound(cr, right - group_w + 4, cy - 17, group_w, 34, 17, .{ 1, 1, 1, 0.055 });
+                        strokeRound(cr, right - group_w + 4.5, cy - 16.5, group_w - 1, 33, 16.5, .{
+                            fg[0], fg[1], fg[2], 0.10,
+                        }, 1);
+                    }
+                }
                 const net_right = right;
-                right = drawNetworkIndicator(cr, right, cy, fg);
+                right = drawNetworkIndicator(cr, right, cy, fg, grouped);
                 const net_left = right + 14.0;
                 addBarHit(net_left, cy - 12, net_right - net_left, 24, .{ .kind = .wifi });
                 if (g.bt_present and m.controlFeatureEnabled(.bluetooth)) {
