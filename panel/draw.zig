@@ -4305,22 +4305,6 @@ fn drawSpeakerGlyph(cr: *c.cairo_t, center_x: f64, center_y: f64, size: f64, col
     }
 }
 
-fn sumiAudio(cr: *c.cairo_t, r: sumi.Rect) void {
-    const accent = g.accent;
-    const fg = g.popover_fg;
-    const available = g.volume_percent >= 0;
-    const on = available and !g.volume_muted;
-    fillRound(cr, r.x, r.y, r.w, 88, 10, if (on) .{ accent[0], accent[1], accent[2], 0.13 } else .{ 1, 1, 1, 0.045 });
-    if (on) strokeRound(cr, r.x + 0.5, r.y + 0.5, r.w - 1, 87, 9.5, .{ accent[0], accent[1], accent[2], 0.50 }, 1);
-    const col: [4]f64 = if (on) .{ accent[0], accent[1], accent[2], 1 } else .{ fg[0], fg[1], fg[2], 0.65 };
-    drawSpeakerGlyph(cr, r.x + 23, r.y + 24, 17, col, g.volume_muted or !available);
-    sumiText(cr, "Audio", r.x + 14, r.y + 43, r.w - 28, false);
-    var buf: [16]u8 = undefined;
-    const status = if (!available) "Unavailable" else if (g.volume_muted) "Muted" else std.fmt.bufPrint(&buf, "{d}%", .{g.volume_percent}) catch "Audio";
-    sumiText(cr, status, r.x + 14, r.y + 64, r.w - 28, true);
-    registerControlNav(r.x, r.y, r.w, 88, .audio);
-}
-
 fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     const accent = g.accent;
     const fg = g.popover_fg;
@@ -4363,34 +4347,26 @@ fn controlHome(cr: *c.cairo_t, l: m.ControlLayout) void {
     c.cairo_clip(cr);
     overlay_hit_clip = plan.viewport;
     if (plan.row(.connectivity)) |r| {
-        const show_wifi = m.controlFeatureEnabled(.wifi);
-        const show_bt = m.controlFeatureEnabled(.bluetooth);
-        const show_audio = m.controlFeatureEnabled(.volume);
-        var count: usize = 0;
-        if (show_wifi) count += 1;
-        if (show_bt) count += 1;
-        if (show_audio) count += 1;
-        if (count > 0) {
-            const gap: f64 = 10.0;
-            const tile_w = (r.w - gap * @as(f64, @floatFromInt(count - 1))) / @as(f64, @floatFromInt(count));
-            var tx = r.x;
-            if (show_wifi) {
-                sumiConnectivity(cr, .{ .x = tx, .y = r.y, .w = tile_w }, false);
-                tx += tile_w + gap;
-            }
-            if (show_bt) {
-                sumiConnectivity(cr, .{ .x = tx, .y = r.y, .w = tile_w }, true);
-                tx += tile_w + gap;
-            }
-            if (show_audio) sumiAudio(cr, .{ .x = tx, .y = r.y, .w = tile_w });
-        }
+        const both = m.controlFeatureEnabled(.wifi) and m.controlFeatureEnabled(.bluetooth);
+        const tile_w = if (both) (r.w - 10) / 2 else r.w;
+        if (m.controlFeatureEnabled(.wifi)) sumiConnectivity(cr, .{ .x = r.x, .y = r.y, .w = tile_w }, false);
+        if (m.controlFeatureEnabled(.bluetooth)) sumiConnectivity(cr, .{ .x = if (both) r.x + tile_w + 10 else r.x, .y = r.y, .w = tile_w }, true);
     }
     for ([_]sumi.Section{ .volume, .brightness }) |section| {
         if (plan.row(section)) |r| {
             const volume = section == .volume;
             const value = if (volume) g.volume_percent else g.brightness_percent;
-            sumiText(cr, if (volume) "Volume" else "Brightness", r.x, r.y + 2, r.w - 100, false);
-            if (volume) registerControlNav(r.x, r.y, r.w - 88, 25, .audio);
+            const icon: [4]f64 = if (volume and (value < 0 or g.volume_muted))
+                .{ fg[0], fg[1], fg[2], 0.45 }
+            else
+                .{ accent[0], accent[1], accent[2], 0.9 };
+            if (volume) {
+                drawSpeakerGlyph(cr, r.x + 10, r.y + 10, 14, icon, g.volume_muted or value < 0);
+            } else {
+                drawSunGlyph(cr, r.x + 10, r.y + 10, 14, icon);
+            }
+            sumiText(cr, if (volume) "Volume" else "Brightness", r.x + 24, r.y + 2, r.w - 120, false);
+            if (volume) registerControlNav(r.x, r.y, r.w, 28, .audio);
             var buf: [24]u8 = undefined;
             const label = if (value < 0) "Unavailable" else if (volume and g.volume_muted) "Muted" else std.fmt.bufPrint(&buf, "{d}%", .{value}) catch "";
             const lw = textWidth(cr, label, MONO, "Medium", 8.5, 0);
