@@ -1782,12 +1782,19 @@ pub fn drawBar(s: *m.Surface) void {
                         std.fmt.bufPrint(&vol_buf, "{d}%", .{g.volume_percent}) catch "VOL";
                     const vol_w = 24.0 + textWidth(cr, vol_text, MONO, "Medium", 8.2, 0) + 14.0;
                     const group_w = net_w + vol_w;
-                    if (right - group_w + 4 > 0) {
-                        fillRound(cr, right - group_w + 4, cy - 17, group_w, 34, 17, .{ 1, 1, 1, 0.055 });
-                        strokeRound(cr, right - group_w + 4.5, cy - 16.5, group_w - 1, 33, 16.5, .{
-                            fg[0], fg[1], fg[2], 0.10,
+                    const group_x = right - group_w + 4;
+                    const group_y = cy - 17;
+                    const controls_open = g.overlay_mode == .control and g.menu_target == 1;
+                    const pressed = pressAmount(group_x, group_y, group_w, 34);
+                    if (group_x > 0 and (controls_open or pressed > 0.01)) {
+                        fillRound(cr, group_x, group_y, group_w, 34, 17, .{ 1, 1, 1, 0.045 + 0.03 * pressed });
+                        strokeRound(cr, group_x + 0.5, group_y + 0.5, group_w - 1, 33, 16.5, .{
+                            fg[0], fg[1], fg[2], 0.08 + 0.04 * pressed,
                         }, 1);
                     }
+                    // The whole capsule is a shortcut to the control center.
+                    // Register it before the per-icon hits so it wins.
+                    if (group_x > 0) addBarHit(group_x, group_y, group_w, 34, .{ .kind = .controls });
                 }
                 const net_right = right;
                 right = drawNetworkIndicator(cr, right, cy, fg, grouped);
